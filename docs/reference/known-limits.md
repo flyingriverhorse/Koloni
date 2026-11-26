@@ -221,7 +221,7 @@ messages.
 - Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
   said **Run** run in the project itself.
 - A job tried twice parked its lines in two copies: each line runs in its own, the going-on turn in the
-  newest.
+  newest of the two. A job that parked only questions goes on in the copy its turn kept.
 - KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
   again - **Try again** works it in its chat.
 - `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy

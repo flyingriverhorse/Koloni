@@ -4,7 +4,7 @@ no card but never an agent's own program nor a place kept out; then the same cha
 on in one turn, a job's turn (held to its ceiling, its work kept for Take in), on KOLONİ's message,
 never the user's."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -12,7 +12,7 @@ from app import away, backlog, injection, parked
 from app.agent.judge_mixin import JudgeMixin
 from app.command_runner import PLANTED_REFUSED
 from app.db.away_models import Parked
-from app.db.models import BacklogTask, Flag, Run
+from app.db.models import Agent, BacklogTask, Flag, Merge, Run
 from app.team import quoted
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import edit, write
@@ -137,6 +137,62 @@ def test_run_and_answer_then_the_same_agent_goes_on_in_the_same_chat_and_copy(
     # what ran went into the copy kept for the morning - kept again for Take in, not the project
     assert job["kept"] and job["kept"] != [kept] and "ran.txt" in job["files"]
     assert not (project_dir / "ran.txt").exists()
+
+
+@pytest.mark.parametrize(
+    ("recorded", "word"),
+    [(True, "run"), (False, "reject")],
+    ids=["its command's copy", "the turn that parked it"],
+)
+def test_it_goes_on_in_the_copy_its_rows_were_parked_in_not_the_chats_newest(
+    make_client, wait_run, project_dir, monkeypatch, recorded, word
+):
+    # (0.1.10: the chat's newest kept copy was gone on in - a later turn's, a message of yours in
+    # another topic - as Change and redo's was before 0.1.9)
+    steps = [run("echo hi > ran.txt"), text("one done"), text("went on")]
+    client, _pid, done, cid = morning(make_client, wait_run, project_dir, steps)
+    job = done["jobs"][0]
+    (kept,) = job["kept"]
+    (row,) = waiting(client, done["id"])
+    night_run = chat(client, cid)["runs"][0]["id"]
+    with client.app.state.session_factory() as session:
+        if not recorded:  # (a row with no copy of its own on record: its turn's)
+            parked_row = session.get_one(Parked, row["id"])
+            parked_row.data = {**parked_row.data, "copy": None}
+        later = Run(conversation_id=cid, topic_id="other", status="completed", by_user=True)
+        session.add(later)
+        session.flush()
+        lead = Agent(run_id=later.id, role_name="Lead", name="Lead", tools=[], status="completed")
+        session.add(lead)
+        session.flush()
+        one = {"path": "b.py", "kind": "changed", "state": "refused", "note": None, "diff": None}
+        session.add(
+            Merge(
+                run_id=later.id,
+                agent_id=lead.id,
+                status="interrupted",
+                files=[{**one, "additions": None, "deletions": None}],
+                kept_in="C:/kept/other",
+                created_at=datetime.now(UTC) + timedelta(minutes=1),
+            )
+        )
+        session.commit()
+    runner, resumed = client.app.state.runner, []
+    monkeypatch.setattr(runner, "resume_on", lambda *one: resumed.append(one))
+    assert decide(client, done["id"], row["id"], word).status_code == 200
+    going = until(
+        lambda: next(
+            (
+                r
+                for r in chat(client, cid)["runs"]
+                if r["task_id"] == job["task_id"]
+                and r["id"] != night_run
+                and r["status"] in backlog.ENDED
+            ),
+            None,
+        )
+    )
+    assert resumed == [(going["id"], kept)]
 
 
 def test_the_going_on_message_is_not_the_users(make_client, wait_run, project_dir):  # RF1

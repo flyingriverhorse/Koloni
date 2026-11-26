@@ -34,6 +34,7 @@ How to write an entry (every release looks the same):
 ### Fixed
 
 - **Workspace**: in ☾ Away, a file holding a secret KOLONİ knows that a job's agent committed on the branch itself is no longer said to be left out - its chat said "left out of the branch's commit … the rest of the work is on the branch" and its push row "· left out", though the file was on the branch. **Run** refuses that push, naming the file ("… on the branch holds a secret KOLONİ knows - take it off the branch first"), as before; "left out" is said only of a file KOLONİ's own commit left out ([docs](docs/automation/overnight.md#in-a-git-repository-each-job-on-its-own-branch)).
+- **To-do**: in ☾ Away's morning, the turn that goes on after your decisions under **Waiting for you** works in the copy its job parked them in - not in the chat's newest kept copy, which could be a later turn's (a message of yours in another topic) ([docs](docs/automation/overnight.md#waiting-for-you)).
 
 ### Security
 

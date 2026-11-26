@@ -320,8 +320,9 @@ of all), on the summary, on the To-do page and on the report.
 - Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
   user decided: ran "npm test" ("…"); rejected "git push"; answered "Which database?": "Postgres". Go on
   with the task." - what a line printed, and your answer, in quotes; a line that timed out or was
-  stopped says so. It is a job's turn: held to a job's hours, in the kept copy (a fresh one where you
-  took some of it in), its work kept for your Take in - at Full auto too - and the judge looks at its
+  stopped says so. It is a job's turn: held to a job's hours, in the kept copy its rows were parked in
+  - never a later turn's of the chat, a message of yours, say - (a fresh one where you took some of it
+  in), its work kept for your Take in - at Full auto too - and the judge looks at its
   commands. It does not start where the project is over its monthly budget: the job then waits with
   why. A message of yours in that chat meanwhile waits behind it.
 - **A job's push** (a git repository with an `origin`): "Push koloni/fix-login-3f2a to origin
