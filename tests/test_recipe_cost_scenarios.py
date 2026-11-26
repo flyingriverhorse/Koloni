@@ -604,42 +604,32 @@ def test_koloni_s_fix_round_sends_the_feature_back_to_build_it_and_its_ui_review
     assert "Sent back to fix: round 1 (until it passes, 1 failing → 0)" in texts(snap), texts(snap)
 
 
-@pytest.mark.no_po
-def test_a_loop_run_out_gets_no_round_again_from_koloni_s_fix_round(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    # T3a: Build it -> UI review, back once. The review's loop runs out; KOLONİ's failing tests send
-    # the recipe back - Build it and UI review once more, and what UI review finds then is the
-    # user's: no round of its loop again (before, the fix round gave it its round back - a third
-    # Coder and UI designer here).
+LABEL = "Looked.\n\n## Findings\n- the button has no label | kind: code | role: Coder\n"
+
+
+def look_lead(*more):
+    """Build it, UI review (it finds), Build it again, UI review (it finds again): its one round
+    spent; then `more`, then the Orchestrator's answer."""
+    return [
+        spawn("Coder", "build it", "c0"),
+        spawn("UI designer", "look at it", "u0"),
+        step(
+            call(
+                "spawn_agent",
+                {"role": "Coder", "task": "fix it", "findings_from": "UI designer"},
+                "c1",
+            )
+        ),
+        spawn("UI designer", "look again", "u1"),
+        *more,
+        text("done"),
+    ]
+
+
+def look_run(client, project_dir, mode="full_auto"):
+    """The Web app team by Build it -> UI review, back once - its Checks the tests and a review."""
     from tests.test_recipe_run_scenarios import made
 
-    found = "Looked.\n\n## Findings\n- the button has no label | kind: code | role: Coder\n"
-    guess(monkeypatch, PYTEST)
-    client, model = make_client(
-        {
-            "Lead": [
-                spawn("Coder", "build it", "c0"),
-                spawn("UI designer", "look at it", "u0"),
-                step(
-                    call(
-                        "spawn_agent",
-                        {"role": "Coder", "task": "fix it", "findings_from": "UI designer"},
-                        "c1",
-                    )
-                ),
-                spawn("UI designer", "look again", "u1"),
-                spawn("Coder", "fix the failing test", "c2"),
-                spawn("UI designer", "look once more", "u2"),
-                text("done"),
-            ],
-            "Coder": built("def calc(x):\n    return 1 / x\n"),
-            "Coder 2": [text("labelled")],
-            "Coder 3": fixed(),
-            **{f"UI designer{n}": [text(found)] for n in ("", " 2", " 3")},
-        },
-        executor=ScriptedExecutor([FAILED, PASSED, PASSED]),
-    )
     drawn = graph(
         [
             part("build", "Build it", {"role": "Coder"}),
@@ -649,6 +639,183 @@ def test_a_loop_run_out_gets_no_round_again_from_koloni_s_fix_round(
         loops=[{"from": "ui", "to": "build", "rounds": 1}],
     )
     recipe = made(client, "Build and look", {**drawn, "checks": {"tests": True, "review": True}})
+    return begin(
+        client,
+        project_dir,
+        mode=mode,
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": teams_of(client)["Web app"]["id"], "recipe_id": recipe["id"]}],
+    )
+
+
+@pytest.mark.no_po
+def test_a_loop_run_out_gets_no_round_again_from_koloni_s_fix_round(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # T3a: the review's loop runs out; KOLONİ's failing tests send the recipe back - Build it and
+    # UI review once more, and what UI review finds then is the user's: no round of its loop
+    # again (before, the fix round gave it its round back - a third Coder and UI designer here).
+    guess(monkeypatch, PYTEST)
+    client, model = make_client(
+        {
+            "Lead": look_lead(
+                spawn("Coder", "fix the failing test", "c2"),
+                spawn("UI designer", "look once more", "u2"),
+            ),
+            "Coder": built("def calc(x):\n    return 1 / x\n"),
+            "Coder 2": [text("labelled")],
+            "Coder 3": fixed(),
+            **{f"UI designer{n}": [text(LABEL)] for n in ("", " 2", " 3")},
+        },
+        executor=ScriptedExecutor([FAILED, PASSED, PASSED]),
+    )
+    cid, run_id = look_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert opened(snap) == ["Coder", "UI designer"] * 3, by_call(snap)
+    last = by_call(snap)[-1][1]
+    assert "is at its end" in last and "Findings are left: the user sees them." in last, last
+    assert len(model.calls_of["Lead"]) == 7
+    # (Full auto takes it in, as at a stop before a next step - its findings said on the row.)
+    assert (row(snap)["status"], row(snap)["why"]) == (
+        "in",
+        "findings are left after 1 round of UI review",
+    )
+
+
+@pytest.mark.no_po
+def test_a_last_reviews_findings_left_are_named_on_the_card_with_fix_the_findings(
+    make_client, wait_run, project_dir
+):
+    # (Review: the run reached its end with no why - the card said "ready" with no findings and
+    # offered no Fix the findings, where a stop before a next step (G1.2) did.)
+    client, _model = make_client(
+        {
+            "Lead": [*look_lead(), text("taken in")],
+            "Coder": built(),
+            "Coder 2": [text("labelled")],
+            **{f"UI designer{n}": [text(LABEL)] for n in ("", " 2")},
+        },
+        executor=ScriptedExecutor([PASSED] * 3),
+    )
+    own_test(client, project_dir)
+    cid, run_id = look_run(client, project_dir, mode="auto_edit")
+    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=20)
+    card = asked(snap)
+    assert "findings are left after 1 round of UI review" in card["question"], card
+    assert card["options"] == ["Take in", "Fix the findings", "Ask for changes"], card
+    answer(client, card, "Take in")
+    snap = wait_run(client, cid, run_id)
+    assert row(snap)["status"] == "in", row(snap)
+
+
+@pytest.mark.no_po
+def test_upkeep_whose_fix_loop_ran_out_gets_no_fix_round_that_only_tests_again(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # (Review of T3a: a fix round keeps the rounds spent, so it would go back to Run the tests and
+    # stop before Find and fix the cause - a Tester for nothing. Its fixer's loop back to the tests
+    # counts as the recipe's own test-to-fix loop: KOLONİ sends nothing back on top.)
+    guess(monkeypatch, PYTEST)
+    found = "Ran them.\n\n## Findings\n- test_calc fails | kind: code | role: Debugger\n"
+    debugged = [step(write("calc.py", "def calc(x):\n    return 1 / x\n")), text("fixed")]
+    client, _model = make_client(
+        {
+            "Lead": [
+                spawn("Dependency keeper", "update them", "k0"),
+                spawn("Tester", "run the tests", "t0"),
+                *[
+                    one
+                    for n in (1, 2)
+                    for one in (
+                        step(
+                            call(
+                                "spawn_agent",
+                                {"role": "Debugger", "task": "fix it", "findings_from": "Tester"},
+                                f"d{n}",
+                            )
+                        ),
+                        spawn("Tester", "run them again", f"t{n}"),
+                    )
+                ],
+                spawn("Tester", "run them once more", "t3"),
+                text("done"),
+                text("done again"),
+            ],
+            "Dependency keeper": [step(write("deps.txt", "x==2\n")), text("updated")],
+            **{f"Debugger{n}": list(debugged) for n in ("", " 2")},
+            **{f"Tester{n}": [text(found)] for n in ("", " 2", " 3", " 4")},
+        },
+        executor=ScriptedExecutor([FAILED] * 6),
+    )
+    upkeep = next(r for r in listed(client)["recipes"] if r["name"] == "Upkeep")
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode="full_auto",
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": teams_of(client)["Web app"]["id"], "recipe_id": upkeep["id"]}],
+    )
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == [
+        "Dependency keeper",
+        "Tester",
+        "Debugger",
+        "Tester",
+        "Debugger",
+        "Tester",
+    ], by_call(snap)
+    assert row(snap)["why"] == "findings are left after 2 rounds of Find and fix the cause", row(
+        snap
+    )
+    assert row(snap)["status"] != "in" and not (project_dir / "calc.py").exists(), row(snap)
+
+
+@pytest.mark.no_po
+def test_a_last_reviews_findings_are_no_failing_test_where_the_test_loop_ran_out(
+    make_client, wait_run, project_dir
+):
+    # (Review of T3: its findings are said at the end now - they hold back no work as failing
+    # tests do, though the test loop before it ran out and its tests then passed.)
+    from tests.test_recipe_run_scenarios import FOUND, checked, made
+
+    client, _model = make_client(
+        {
+            "Lead": [
+                spawn("Coder", "build it", "c0"),
+                spawn("Tester", "test it", "t0"),
+                step(
+                    call(
+                        "spawn_agent",
+                        {"role": "Coder", "task": "fix it", "findings_from": "Tester"},
+                        "c1",
+                    )
+                ),
+                spawn("Tester", "test it again", "t1"),
+                spawn("UI designer", "look at it", "u0"),
+                text("done"),
+            ],
+            "Coder": built(),
+            "Coder 2": [text("fixed")],
+            "Tester": [text(FOUND)],
+            "Tester 2": checked(),
+            "UI designer": [text(LABEL)],
+        },
+        executor=ScriptedExecutor([PASSED] * 5),
+    )
+    own_test(client, project_dir)
+    drawn = graph(
+        [
+            part("build", "Build it", {"role": "Coder"}),
+            part("test", "Test it", {"role": "Tester"}, done_when="no_findings"),
+            part("ui", "UI review", {"role": "UI designer"}, done_when="no_findings"),
+        ],
+        [("start", "build"), ("build", "test"), ("test", "ui"), ("ui", "end")],
+        loops=[{"from": "test", "to": "build", "rounds": 1}],
+    )
+    recipe = made(client, "Test then look", {**drawn, "checks": {"tests": True, "review": True}})
     cid, run_id = begin(
         client,
         project_dir,
@@ -658,8 +825,8 @@ def test_a_loop_run_out_gets_no_round_again_from_koloni_s_fix_round(
         teams=[{"team_id": teams_of(client)["Web app"]["id"], "recipe_id": recipe["id"]}],
     )
     snap = wait_run(client, cid, run_id)
-    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert opened(snap) == ["Coder", "UI designer"] * 3, by_call(snap)
-    last = by_call(snap)[-1][1]
-    assert "is at its end" in last and "Findings are left: the user sees them." in last, last
-    assert len(model.calls_of["Lead"]) == 7
+    assert opened(snap) == ["Coder", "Tester", "Coder", "Tester", "UI designer"], by_call(snap)
+    assert (row(snap)["status"], row(snap)["why"]) == (
+        "in",
+        "findings are left after UI review",
+    ), row(snap)

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, or_, select
 
-from app import copies, injection, proof, proof_before
+from app import copies, injection, proof, proof_before, recipe_run
 from app.agent.ctx import Ctx
 from app.api.usage import over_limit, over_month
 from app.db.models import Agent, Conversation, FileChange, Merge, Message, Provider, now
@@ -934,7 +934,13 @@ class StrongerMixin:
         if (held := self._proofs.get(ctx.run_id)) is not None and held.passed_by_stronger:
             return None
 
-        left = any((state.get("why") or "").startswith(FINDINGS_LEFT) for _team, state in rows)
+        # (Stopped before a next step, G1.2: a last review's findings, said at the end since T3, are
+        # no failing test's.)
+        left = any(
+            (state.get("why") or "").startswith(FINDINGS_LEFT)
+            and state.get("at") not in {end.id for end in recipe_run.graph_of(state).ends}
+            for _team, state in rows
+        )
         return RECIPE_FAILING if left and self._recipe_spent(ctx) else None
 
     def _not_taken_row(

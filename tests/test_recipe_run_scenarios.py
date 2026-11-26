@@ -211,7 +211,7 @@ def test_one_team_runs_its_recipe_step_by_step_and_its_work_waits_for_take_in(
     # The work is in the recipe's copy, not in the project, until Take in.
     assert not (project_dir / "greet.py").exists()
     state = row(snap)
-    assert state["status"] == "ready"
+    assert state["status"] == "ready" and state["why"].endswith("1 round of Reviews"), state
     assert strip(state) == [
         ("spec", "done", 0),
         ("build", "done", 1),
@@ -219,8 +219,8 @@ def test_one_team_runs_its_recipe_step_by_step_and_its_work_waits_for_take_in(
         ("end", "now", 0),
     ]
     assert len(state["agents"]) == 7
-    card = asked(snap)
-    assert card["options"] == ["Take in", "Ask for changes"]
+    card = asked(snap)  # (T3: the Reviewer's findings, its one round spent, said as G1.2 says them)
+    assert card["options"] == ["Take in", "Fix the findings", "Ask for changes"], card
     answer(client, card, "Take in")
 
     snap = wait_run(client, cid, run_id)

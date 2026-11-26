@@ -983,16 +983,17 @@ def advance(state: dict) -> str:
         else None
     )
     fixes = found and _if_found(graph, to) and spent is None
+    stop, by = (spent, to) if spent else (loop, at)
+    left_why = (
+        f"findings are left after {stop.rounds} round"
+        f"{'' if stop.rounds == 1 else 's'} of {name_of(graph, by)}"
+        if stop
+        else f"findings are left after {name_of(graph, at)}"
+    )
     if found and end is None and not fixes:
         # G1.2: no round left (or no loop) with findings left - the work does not go on.
-        stop, by = (spent, to) if spent else (loop, at)
         state["status"] = READY
-        state["why"] = (
-            f"findings are left after {stop.rounds} round"
-            f"{'' if stop.rounds == 1 else 's'} of {name_of(graph, by)}"
-            if stop
-            else f"findings are left after {name_of(graph, at)}"
-        )
+        state["why"] = left_why
         return (
             f"The recipe stops here: {state['why']}. The user is asked what to do with "
             "the work (Ready for you)."
@@ -1054,6 +1055,10 @@ def advance(state: dict) -> str:
         or any(roles and _if_found(graph, part) for part, roles in wrote.items())
     )
     state["status"] = READY if ready else DONE
+    if ready and found:
+        # (T3: a last review's findings with no round left are said as G1.2's are - its card names
+        # them and offers Fix the findings.)
+        state["why"] = left_why
     return (
         "The recipe is at its end: the user is asked to take the work in."
         if ready
