@@ -4,12 +4,15 @@ import { WAITS } from '../agents/agentStatus'
 import { errorText } from '../api/client'
 import type { Board, ConversationsDeleted, ListedConversation, Project } from '../api/types'
 import { count } from '../board/columns'
-import { standingOf, standingSaid, waitCount } from '../board/waiting'
+import { standingOf } from '../board/waiting'
+import { CELL, type Stands } from '../ready/cells'
+import { type ReadyItem, chatOf } from '../ready/ready'
+import { Cell } from './Cell'
+import { CHAT_WORD, type ChatSaid, type ChatStands, chatStands } from './chatStands'
+import { ChatsNow } from './ChatsNow'
 import { useConfirm } from './Confirm'
 import { GitHubIssue } from './GitHubIssue'
-import { ranOn } from './modelName'
 import { tabOf } from './openTabs'
-import { StatusLabel } from './StatusLabel'
 
 type BoardConversation = Board['conversations'][number]
 
@@ -30,6 +33,10 @@ interface Props {
   board?: Board | null
   /** Read the list again: by hand, as the page comes back into view, and every 30 s while it is shown. */
   onRefresh?: () => Promise<void>
+  /** What waits for your word anywhere - Ready for you's rows, the top bar's pill's number: each chat's own on its row. */
+  waiting?: ReadyItem[]
+  /** Now's way to Ready for you. */
+  onReady?: () => void
 }
 
 /** A chat made or changed elsewhere (another window, the To-do list) shows up without a click. */
@@ -135,37 +142,66 @@ const SHOW = [
 ] as const
 type Show = (typeof SHOW)[number][0]
 
-/** How it stands, in the words the rest of the app uses: it waits for you, works, or how its last turn ended. */
-function Standing({ on }: { on?: BoardConversation }) {
-  const said = standingSaid(on)
-  return said && <StatusLabel color={said[1]}>{said[0]}</StatusLabel>
+type TaskStatus = NonNullable<ListedConversation['backlog_task']>['status']
+
+/** A To-do list task’s state in a few words (K-backlog-sohbet), and as a cell says it. */
+const TASK_WORD: Record<TaskStatus, [word: string, stands: Stands]> = {
+  proposed: ['proposed', 'proposed'],
+  todo: ['to do', 'queued'],
+  doing: ['working', 'running'],
+  review: ['done?', 'yours'],
+  done: ['done', 'done'],
+  blocked: ['stuck', 'stuck'],
 }
 
-/** A To-do list task's state in a few words (K-backlog-sohbet). */
-const TASK_WORD: Record<NonNullable<ListedConversation['backlog_task']>['status'], string> = {
-  proposed: 'proposed',
-  todo: 'to do',
-  doing: 'working',
-  review: 'done?',
-  done: 'done',
-  blocked: 'stuck',
-}
-
-/** Where its task stands on the To-do list - unless the chat's own state already says the same words. */
-function TaskState({ task, on }: { task: ListedConversation['backlog_task']; on?: BoardConversation }) {
+/** Where its task stands on the To-do list - unless the chat's own line already says the same. */
+function TaskState({ task, stands }: { task: ListedConversation['backlog_task']; stands?: ChatStands }) {
   if (!task) return null
-  const word = task.waiting ? WAITS : TASK_WORD[task.status]
-  if (standingSaid(on)?.[0].startsWith(word)) return null
-  return <span className={`tag${task.waiting || task.status === 'blocked' ? ' tag-warn' : ''}`}>{word}</span>
+  const [word, its] = task.waiting ? ([WAITS, 'yours'] as const) : TASK_WORD[task.status]
+  if (its === stands) return null
+  // (In the cells' colours: your word honey, stuck red-orange.)
+  const tone = task.waiting ? ' tag-accent' : task.status === 'blocked' ? ' tag-warn' : ''
+  return <span className={`tag${tone}`}>{word}</span>
 }
 
-/** What a chat's last turn ran with - its agents, its model, its tokens where they are known; nothing where the Board has no turn of it. */
-const ranOf = (turn: BoardConversation['turn'] | undefined) =>
-  turn && [
-    count(turn.agents, 'agent'),
-    ranOn(turn.provider_name, turn.model_id),
-    turn.tokens != null && `${turn.tokens.toLocaleString('en-US')} tokens`,
-  ]
+/** A chat's cell, its label saying how it stands; a blank of its size where the Board has no row of it yet. */
+const ChatCell = ({ said }: { said: ChatSaid | null }) =>
+  said ? <Cell {...CELL[said[0]]} label={CHAT_WORD[said[0]]} /> : <span className="conv-cell-none" aria-hidden />
+
+/** How each chat stands (`chatStands`), by its id: what of Ready for you's rows is its own, and its row on the Board. */
+function saidOf(conversations: ListedConversation[], on: Map<string, BoardConversation>, waiting: ReadyItem[]) {
+  const mine = new Map<string, ReadyItem[]>()
+  for (const item of waiting) {
+    const id = chatOf(item)
+    if (id) mine.set(id, [...(mine.get(id) ?? []), item])
+  }
+  return new Map(conversations.map(c => [c.id, chatStands(on.get(c.id), mine.get(c.id) ?? [], c.backlog_task)]))
+}
+
+/** Now's chats, by name: those at work, and those stuck or done today (not archived ones). */
+function nowOf(
+  conversations: ListedConversation[],
+  said: Map<string, ChatSaid | null>,
+  on: Map<string, BoardConversation>,
+) {
+  const today = (c: ListedConversation) => !c.archived_at && dayOf(lastAt(c, on.get(c.id))) === 'Today'
+  const titles = (stands: ChatStands, only: (c: ListedConversation) => boolean) =>
+    conversations.filter(c => said.get(c.id)?.[0] === stands && only(c)).map(c => c.title)
+  return { working: titles('running', () => true), stuck: titles('stuck', today), done: titles('done', today) }
+}
+
+/** A row's line under its name: how it stands, then its To-do task's state, its kept changes, archived. */
+function Said({ c, said, archived }: { c: ListedConversation; said: ChatSaid | null; archived: boolean }) {
+  return (
+    <span className="conv-row-said">
+      {said && <span className={`conv-is-${said[0]}`}>{said[1]}</span>}
+      {said?.[2] && ` · ${said[2]}`} <TaskState task={c.backlog_task} stands={said?.[0]} />{' '}
+      {/* As its turn says in the turn list: over, and its changes still yours to take in or discard. */}
+      {c.kept && <span className="tag turn-row-waits">changes kept</span>}{' '}
+      {archived && <span className="tag">archived</span>}
+    </span>
+  )
+}
 
 export function ConversationList({
   conversations,
@@ -177,6 +213,8 @@ export function ConversationList({
   onDelete,
   board,
   onRefresh,
+  waiting = [],
+  onReady,
 }: Props) {
   const [by, setBy] = useState<'date' | 'name'>('date')
   // The folders whose group was opened or closed here by hand, by their project's id ('none': the chats with no folder).
@@ -188,7 +226,9 @@ export function ConversationList({
   const [refused, setRefused] = useState<string | null>(null)
   const [stale, setStale] = useState<string | null>(null)
   const on = new Map(board?.conversations.map(c => [c.conversation_id, c]))
-  const waits = (id: string) => waitCount(on.get(id) ?? { agents: [], merges_pending: 0, turn: null }) > 0
+  const said = saidOf(conversations, on, waiting)
+  // It waits for your word: Ready for you has a row of it, or the Board says so while its chat is not read yet.
+  const waits = (id: string) => said.get(id)?.[0] === 'yours'
   const words = query.trim().toLowerCase()
   const found = conversations.filter(c => c.title.toLowerCase().includes(words))
   const [, showLabel, standings] = SHOW.find(([key]) => key === show)!
@@ -271,23 +311,23 @@ export function ConversationList({
 
   const rows = (list: ListedConversation[], underArchived = false) => (
     <ul className="conv-list">
-      {list.map(c => {
-        // Its last turn as the Board has it (of the folders it reads): its agents, model and tokens.
-        const ran = ranOf(on.get(c.id)?.turn)
-        return (
-          <li key={c.id} className="conv-item">
-            <input
-              type="checkbox"
-              aria-label={`Select ${c.title}`}
-              checked={picked.includes(c.id)}
-              onChange={e => setPicked(was => (e.target.checked ? [...was, c.id] : was.filter(id => id !== c.id)))}
-            />
-            <button
-              type="button"
-              className="conv-row"
-              aria-current={c.id === currentId ? 'true' : undefined}
-              onClick={() => onOpen(c.id)}
-            >
+      {list.map(c => (
+        <li key={c.id} className="conv-item">
+          <input
+            type="checkbox"
+            aria-label={`Select ${c.title}`}
+            checked={picked.includes(c.id)}
+            onChange={e => setPicked(was => (e.target.checked ? [...was, c.id] : was.filter(id => id !== c.id)))}
+          />
+          {/* (Beside its button, not in it: the button is named by the chat's name.) */}
+          <ChatCell said={said.get(c.id) ?? null} />
+          <button
+            type="button"
+            className="conv-row"
+            aria-current={c.id === currentId ? 'true' : undefined}
+            onClick={() => onOpen(c.id)}
+          >
+            <span className="conv-row-main">
               <span className="conv-row-title" title={c.title}>
                 {c.backlog_task && (
                   <span
@@ -302,66 +342,26 @@ export function ConversationList({
                 {c.backlog_task && ' '}
                 {c.title}
               </span>
-              <span className="mono muted conv-row-when">
-                <Standing on={on.get(c.id)} /> <TaskState task={c.backlog_task} on={on.get(c.id)} />{' '}
-                {/* As its turn says in the turn list: over, and its changes still yours to take in or discard. */}
-                {c.kept && <span className="tag turn-row-waits">changes kept</span>}{' '}
-                {!underArchived && c.archived_at && <span className="tag">archived</span>}{' '}
-                {ran && `${ran.filter(Boolean).join(' · ')} · `}
-                {when(lastAt(c, on.get(c.id)))}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-small"
-              aria-label={`${c.archived_at ? 'Unarchive' : 'Archive'} ${c.title}`}
-              onClick={() => void archive(c, !c.archived_at)}
-            >
-              {c.archived_at ? 'Unarchive' : 'Archive'}
-            </button>
-          </li>
-        )
-      })}
+              <Said c={c} said={said.get(c.id) ?? null} archived={!underArchived && !!c.archived_at} />
+            </span>
+            <span className="mono muted conv-row-when">{when(lastAt(c, on.get(c.id)))}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-small"
+            aria-label={`${c.archived_at ? 'Unarchive' : 'Archive'} ${c.title}`}
+            onClick={() => void archive(c, !c.archived_at)}
+          >
+            {c.archived_at ? 'Unarchive' : 'Archive'}
+          </button>
+        </li>
+      ))}
     </ul>
   )
 
-  return (
-    <div className="conv-page">
-      <div className="conv-head">
-        <h2>Conversations</h2>
-        <RefreshButton onRefresh={onRefresh} onError={setStale} />
-        <div className="usage-filters">
-          <input
-            type="search"
-            className="input"
-            aria-label="Search conversations"
-            placeholder="Search by name"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-          <select className="input" aria-label="Show" value={show} onChange={e => setShow(e.target.value as Show)}>
-            {SHOW.map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input"
-            aria-label="Sort by"
-            value={by}
-            onChange={e => setBy(e.target.value as 'date' | 'name')}
-          >
-            <option value="date">Last activity</option>
-            <option value="name">Name</option>
-          </select>
-          <button type="button" className="btn btn-primary" title="A new chat in this chat’s folder" onClick={onNew}>
-            <Plus size={14} />
-            New chat
-          </button>
-          <GitHubIssue onStarted={onOpen} />
-        </div>
-      </div>
+  /** The list's own part: its bulk buttons, what was refused, and the chats by folder, then the archived. */
+  const listPart = () => (
+    <>
       {shown.length > 0 && (
         <div className="conv-bulk">
           <label className="conv-bulk-all">
@@ -423,7 +423,8 @@ export function ConversationList({
                     {open ? <CaretDown size={12} aria-hidden /> : <CaretRight size={12} aria-hidden />}
                     {key !== 'none' && <FolderSimple size={14} weight="fill" className="folder-icon" aria-hidden />}
                     {nameOf(key)}
-                  </button>
+                  </button>{' '}
+                  <span className="muted conv-folder-count">{count(list.length, 'chat')}</span>
                 </h3>
                 {open &&
                   (by === 'name'
@@ -454,6 +455,53 @@ export function ConversationList({
           )}
         </>
       )}
+    </>
+  )
+
+  return (
+    <div className="conv-page">
+      <div className="conv-head">
+        <h2>Chats</h2>
+        <RefreshButton onRefresh={onRefresh} onError={setStale} />
+        <div className="usage-filters">
+          <input
+            type="search"
+            className="input"
+            aria-label="Search conversations"
+            placeholder="Search by name"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          <select className="input" aria-label="Show" value={show} onChange={e => setShow(e.target.value as Show)}>
+            {SHOW.map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input"
+            aria-label="Sort by"
+            value={by}
+            onChange={e => setBy(e.target.value as 'date' | 'name')}
+          >
+            <option value="date">Last activity</option>
+            <option value="name">Name</option>
+          </select>
+          <button type="button" className="btn btn-primary" title="A new chat in this chat’s folder" onClick={onNew}>
+            <Plus size={14} />
+            New chat
+          </button>
+          <GitHubIssue onStarted={onOpen} />
+        </div>
+      </div>
+      <p className="muted conv-sub">
+        Each chat with how it stands: what is at work, what waits for your word, how it ended.
+      </p>
+      <div className="conv-body">
+        <div className="conv-main">{listPart()}</div>
+        <ChatsNow items={waiting} {...nowOf(conversations, said, on)} read={!!board} onReady={onReady} />
+      </div>
     </div>
   )
 }

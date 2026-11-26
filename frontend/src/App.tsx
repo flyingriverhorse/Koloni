@@ -965,6 +965,9 @@ export function App() {
       onDelete={useApp.getState().deleteConversations}
       currentId={conv?.conversation.id ?? null}
       onRefresh={useApp.getState().loadConversations}
+      // (What waits for your word: the pill's own rows - each chat's on its row, all of them counted in Now.)
+      waiting={waiting}
+      onReady={() => show('ready')}
       onOpen={id => {
         void useApp.getState().openConversation(id)
         setView('canvas')

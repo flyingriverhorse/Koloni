@@ -101,7 +101,7 @@ const TASK_WORD: Record<TaskWait, string> = { 'new task': 'Proposed task', 'done
 const PARKED_WORD: Record<string, string> = { push: 'Push', command: 'Parked command', question: 'Question' }
 
 /** What a row is, first on it: a push, a parked command, a question, a proposed task, a card's kind. */
-function kindWord(item: ReadyItem): string {
+export function kindWord(item: ReadyItem): string {
   if (item.what === 'card') return item.row.kind === 'ready' ? 'Ready to take in' : CARD_WORD[item.row.what]
   if (item.what === 'task') return TASK_WORD[item.kind]
   if (item.what === 'parked') return PARKED_WORD[item.row.kind] ?? item.row.kind

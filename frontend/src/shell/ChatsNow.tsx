@@ -1,0 +1,77 @@
+import { CELL } from '../ready/cells'
+import type { ReadyItem } from '../ready/ready'
+import { kindWord } from '../ready/ReadyViews'
+import { Cell } from './Cell'
+import { CHAT_WORD, type ChatStands, nowSaid } from './chatStands'
+
+/** The comb shows at most this many cells; the rest are said as a number. */
+const MOST = 30
+
+/** What a cell of the comb says: a chat's name and how it stands, or what waits and where. */
+const waitsLabel = (item: ReadyItem) =>
+  `${kindWord(item)}${item.what === 'card' ? ` in “${item.state.conversation.title}”` : ''}: ${CHAT_WORD.yours}`
+
+/**
+ * The Chats page's Now (0.1.10), over every folder: a cell for each chat at work, for each thing that waits for your
+ * word - Ready for you's rows, as the top bar's pill counts them - and for each chat stuck or done today; one sentence
+ * that counts them, and the way to Ready for you, where what waits is answered. Then what the cells mean.
+ */
+export function ChatsNow({
+  items,
+  working,
+  stuck,
+  done,
+  read,
+  onReady,
+}: {
+  items: ReadyItem[]
+  /** The names of the chats at work, stuck today and done today. */
+  working: string[]
+  stuck: string[]
+  done: string[]
+  /** Whether the Board was read: how each chat stands is known. */
+  read: boolean
+  onReady?: () => void
+}) {
+  const chats = (titles: string[], stands: ChatStands) =>
+    titles.map(title => [stands, `“${title}”: ${CHAT_WORD[stands]}${stands === 'running' ? '' : ' today'}`] as const)
+  const cells = [
+    ...chats(working, 'running'),
+    ...items.map(item => ['yours', waitsLabel(item)] as const),
+    ...chats(stuck, 'stuck'),
+    ...chats(done, 'done'),
+  ]
+  return (
+    <aside className="conv-now" aria-labelledby="conv-now-head">
+      <h3 id="conv-now-head">
+        Now <span className="muted">every folder</span>
+      </h3>
+      <div className="conv-now-box">
+        {cells.length > 0 && (
+          <span className="cell-comb">
+            {cells.slice(0, MOST).map(([stands, label], at) => (
+              <Cell key={at} {...CELL[stands]} label={label} big />
+            ))}
+            {cells.length > MOST && <span className="muted">+{cells.length - MOST}</span>}
+          </span>
+        )}
+        <p>
+          {nowSaid(working.length, items.length, stuck.length, done.length, read)}
+          {items.length > 0 && ' What waits is on Ready for you.'}
+        </p>
+        {onReady && (
+          <button type="button" className="btn btn-small btn-primary" onClick={onReady}>
+            Go to Ready
+          </button>
+        )}
+      </div>
+      <p className="cell-legend" aria-label="What the cells say">
+        {(Object.keys(CHAT_WORD) as ChatStands[]).map(stands => (
+          <span key={stands}>
+            <Cell {...CELL[stands]} label={CHAT_WORD[stands]} /> {CHAT_WORD[stands]}
+          </span>
+        ))}
+      </p>
+    </aside>
+  )
+}
