@@ -1,6 +1,6 @@
 """0.1.0-hijyen: what KOLONİ's runtime keeps does not grow for ever - a copy whose card is
-decided goes at the next start, waiting work stays; vectors of what is gone are dropped; the
-database is compacted when much of it is free; the log rotates."""
+decided goes at the next start, waiting work stays; the database is compacted when much of it is
+free; the log rotates."""
 
 import os
 import sqlite3

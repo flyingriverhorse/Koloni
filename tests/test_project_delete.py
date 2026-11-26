@@ -25,8 +25,8 @@ from tests.test_usage_scenarios import ORIGIN, turn
 
 
 def made(client, wait_run, root, factory) -> tuple[str, str, str]:
-    """A project in `root` with a chat that had a turn, memory, a task, knowledge
-    and a vector: its id, its chat's and its knowledge's."""
+    """A project in `root` with a chat that had a turn, memory, a task and knowledge:
+    its id, its chat's and its knowledge's."""
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = turn(client, wait_run, cid)["id"]

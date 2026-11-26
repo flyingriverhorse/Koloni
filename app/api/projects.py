@@ -140,7 +140,7 @@ async def delete_project(
     app's clock is.
     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
     not waited for; a row of the project it writes after the delete is refused by the foreign
-    key, and a vector stays until the next start's `tidy_db`. Wait for it here if that bites."""
+    key. Wait for it here if that bites."""
     from app.api.conversations import (  # (it imports this module)
         _cli_sessions,
         _delete_for_good,
