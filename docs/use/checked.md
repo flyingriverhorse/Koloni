@@ -574,7 +574,8 @@ PowerShell, its scripts are said as not checked.
 ### Pages
 
 Off unless you tick **Pages** in **Settings › This project › Checks and git › Check by kind of
-work** (since 0.1.10; a project where you had ticked it keeps it). Ticked, a changed web page
+work** (since 0.1.10; a project where you had ticked it keeps it). Unticked, a turn that wrote a
+page says "Not checked: pages switched off for this project". Ticked, a changed web page
 (`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
 agents' browser tools use, on this machine, never out on the internet - at 375, 768 and 1280 px
 (a phone, a tablet, a desktop). Console errors and a page wider than the screen (it scrolls

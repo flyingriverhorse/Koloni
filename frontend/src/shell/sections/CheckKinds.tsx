@@ -3,7 +3,7 @@ import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
 import { Row } from './part'
 
-/** S5a: the kinds of work KOLONİ checks after a turn wrote them, as Settings names them; S5b's Pages ("ui"); 0.1.7's Config, Scripts and Code style and types; and 0.1.10's box for A test for the change ("test"). */
+/** S5a: the kinds of work KOLONİ checks after a turn wrote them, as Settings names them; S5b's Pages ("ui"); 0.1.7's Config, Scripts and Code style and types. */
 export const CHECK_KINDS: [kind: string, label: string][] = [
   ['docs', 'Documents'],
   ['slides', 'Slides'],
@@ -13,8 +13,9 @@ export const CHECK_KINDS: [kind: string, label: string][] = [
   ['config', 'Config'],
   ['scripts', 'Scripts'],
   ['style', 'Code style and types'],
-  ['test', 'A test for the change'],
 ]
+/** ...and beside them 0.1.10's box for A test for the change: no kind of work ("test", as its rows in Checked). */
+const BOXES: [kind: string, label: string][] = [...CHECK_KINDS, ['test', 'A test for the change']]
 /** 0.1.10 (app/proof.py OFF_UNLESS_TICKED): off unless ticked - a project that never changed them has them off. */
 const OFF_UNLESS_TICKED = ['ui', 'test']
 /** What they check, in sight under the boxes. */
@@ -27,10 +28,7 @@ export function useCheckKinds(project: Project) {
   const saved: Record<string, boolean> = project.check_kinds ?? {}
   const [kinds, setKinds] = useState(saved)
   const on = (kind: string, from: Record<string, boolean>) => from[kind] ?? !OFF_UNLESS_TICKED.includes(kind)
-  const changed = CHECK_KINDS.filter(([kind]) => on(kind, kinds) !== on(kind, saved)).map(([kind]) => [
-    kind,
-    on(kind, kinds),
-  ])
+  const changed = BOXES.filter(([kind]) => on(kind, kinds) !== on(kind, saved)).map(([kind]) => [kind, on(kind, kinds)])
   const patch = changed.length ? { check_kinds: Object.fromEntries(changed) as Record<string, boolean> } : {}
   const view = (
     <Row
@@ -44,7 +42,7 @@ export function useCheckKinds(project: Project) {
     >
       {/* (As the branch's way below: the boxes side by side, each label whole, wrapping where they do not fit.) */}
       <fieldset className="choice" aria-label="Check by kind of work" aria-describedby="check-kinds-note">
-        {CHECK_KINDS.map(([kind, label]) => (
+        {BOXES.map(([kind, label]) => (
           <label key={kind}>
             <input
               type="checkbox"
