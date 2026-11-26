@@ -111,9 +111,11 @@ there as it goes. How Go away finds the project decides it, once for every job:
   an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
   on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
   token or password it holds alone - is left out of that commit and stays in the job's worktree only; the job's chat and its push row say which
-  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. Such a
-  secret never deletes the job's work: only a secret given on a card during the job, which an agent
-  committed on the branch itself, has the branch deleted, and the chat says so.
+  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. A file an
+  agent committed on the branch itself is on the branch, not left out: the chat and the row do not call
+  it left out, and **Run** refuses the push ("prov.txt on the branch holds a secret KOLONİ knows - take
+  it off the branch first"). Such a secret never deletes the job's work: only a secret given on a card during the
+  job, which an agent committed on the branch itself, has the branch deleted, and the chat says so.
 - **Its second try** after a failure, and the turn that goes on after your decisions in the morning,
   work in the same worktree, on the same branch.
 - KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:

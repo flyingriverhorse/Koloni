@@ -17,6 +17,7 @@ from tests.test_away_branch_scenarios import (
     origin_of,
     repo,  # noqa: F401  (a fixture)
 )
+from tests.test_away_park import run as command
 from tests.test_away_push import name_of, night_with_origin, on_origin, push, row_now
 from tests.test_away_scenarios import ended, evening, go_away
 from tests.test_away_waiting import waiting
@@ -132,6 +133,31 @@ def test_claude_codes_own_token_is_left_out_and_never_goes_up(
     assert ran(client, done, row)["decision"] == "run"
     pushed = at_origin(origin, job)
     assert "new.txt" in pushed and "token.txt" not in pushed and token not in pushed
+
+
+def test_a_file_its_agent_committed_is_not_said_left_out_only_refused(make_client, wait_run, repo):
+    # (Fable, 0.1.10: prov.txt, committed by the agent itself, was said "left out of the branch's
+    # commit" too - it was on the branch; the push's refusal alone names it)
+    steps = [
+        write("prov.txt", f"token = {TOKEN}\n", "w1"),
+        command("git add prov.txt", "c1"),
+        command("git commit -m prov", "c2"),
+        write("conf.txt", f"token = {TOKEN}\n", "w2"),
+        text("one done"),
+    ]
+    client, done, job, row, origin = night(
+        make_client, wait_run, repo, steps, {"GITHUB_TOKEN": TOKEN}
+    )
+    assert row is not None and "left out: conf.txt (" in row["what"], job
+    assert "prov.txt" not in row["what"], row
+    snap = client.get(f"/api/conversations/{job['conversation_id']}").json()
+    lines = [m["content"] or "" for m in snap["messages"]]
+    assert any("conf.txt left out" in line for line in lines), lines
+    assert not any("prov.txt left out" in line for line in lines), lines
+    after = ran(client, done, row)
+    assert after["decision"] is None, after
+    assert "prov.txt on the branch holds a secret KOLONİ knows" in after["result"], after
+    assert on_origin(origin, name_of(job)) == ""
 
 
 def test_a_secret_in_a_files_name_never_goes_up(make_client, wait_run, repo):
