@@ -1355,10 +1355,10 @@ LOOKUP_SCHEMA = _fn(
 SHOW_SCHEMA = _fn(
     "show",
     "Put a file of the project before the user, in the view beside the chat: a page (.html), "
-    "a drawing (.svg), a note (.md), a picture (.png, .jpg, .gif, .webp) or a document (.pdf, "
-    ".docx, .xlsx, .pptx) - say one a command made. A page, a drawing or a note you write with "
-    "write_file or edit_file is shown without this. The page's script runs there, cut off from "
-    "everything else.",
+    "a drawing (.svg), a note (.md), a picture (.png, .jpg, .gif, .webp) or a document (.pdf; a "
+    ".docx, .xlsx or .pptx is listed among your outputs, not drawn) - say one a command made. A "
+    "page, a drawing or a note you write with write_file or edit_file is shown without this. The "
+    "page's script runs there, cut off from everything else.",
     {
         "path": _PATH,
         "note": {
