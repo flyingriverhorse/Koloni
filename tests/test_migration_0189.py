@@ -47,7 +47,9 @@ def tools_of(conn) -> dict[str, list[str]]:
 
 
 def shape(conn) -> dict:
-    """Each trigger table as SQLite has it: its columns, indexes and foreign keys."""
+    """Each trigger table as SQLite has it: its columns, indexes and foreign keys. The keys in any
+    order, without their numbers: 0020's batch copy of `triggers` writes them in an order that
+    changes from run to run."""
     return {
         table: (
             conn.execute(f"PRAGMA table_info({table})").fetchall(),
@@ -55,7 +57,7 @@ def shape(conn) -> dict:
                 (name, conn.execute(f"PRAGMA index_info({name})").fetchall())
                 for _, name, *_ in conn.execute(f"PRAGMA index_list({table})")
             ),
-            conn.execute(f"PRAGMA foreign_key_list({table})").fetchall(),
+            sorted(row[2:] for row in conn.execute(f"PRAGMA foreign_key_list({table})")),
         )
         for table in GONE
     }
