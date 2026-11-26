@@ -249,8 +249,9 @@ Once the night has ended, the [Ready for you](../use/ready.md#the-page) page ope
 for each job. A job's bar runs from when its first turn of the
 night began to when its last one ended - green where it finished, hatched honey where it waits for you,
 a dashed edge where it was stopped or could not be done. Each
-decision made for you in the job's chat that night is a small hexagon on its lane, at its time, in the
-colour of who decided: filled while it waits for your **OK**, an outline once you have seen it. The
+decision made for you in the job's chat that night - every one, however many - is a small hexagon on
+its lane, at its time, in the colour of who decided: filled while it waits for your **OK**, an outline
+once you have seen it. The
 strip draws only what KOLONİ's records hold: a job that never started, or whose turn is still open, has
 no bar and is still listed; a decision made in no job's chat (the chat you went away from) is on no
 lane. Under the lanes: what the marks mean, **Not checked** and what the night spent ("Spent 1.40 USD
@@ -306,7 +307,9 @@ of all), on the summary, on the To-do page and on the report.
   exception. A program an agent wrote is still
   refused, and so is a line naming a place you kept out. A Take in or Discard under way is waited for;
   while the lines run, the copy can be neither taken in nor discarded. **Stop** in the job's chat, or
-  **Stop everything**, stops a line that runs, and the task.
+  **Stop everything**, stops a line that runs, and the task (**Try again** works it). A message of
+  yours waiting behind it then goes ahead: a turn of yours in the job's chat, which marks the job done
+  once it ends, as any turn there does.
 - Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
   user decided: ran "npm test" ("…"); rejected "git push"; answered "Which database?": "Postgres". Go on
   with the task." - what a line printed, and your answer, in quotes; a line that timed out or was
