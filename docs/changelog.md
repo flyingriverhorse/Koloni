@@ -23,6 +23,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Security
 
 - **Workspace**: a file named as a secret no longer goes into a branch's start from your folder, nor into a ☾ Away job's commit on its branch, whatever it holds: `token.txt`, `credentials.yaml`, `api_keys.json`, a `.env` copy but `.env.example` (`.env.sample`, `.env.template`, `.env.local.example`), and a data file in a folder named `credentials` or `secrets`; until now only `credentials.json` and `token.json` were left out beside the secret's names KOLONİ always knew. Code and Markdown named so still go in (`credentials.py`, `tokens.py`), and so does `tokens.json`. Nothing is deleted: your own file stays in your folder, a job's in its worktree, and the job's chat and push row say "left out" ("· left out: .env.sample (a secret KOLONİ knows, or named as one)"); one its agent committed on the branch itself goes up only on **Run anyway** ([docs](reference/known-limits.md#git)).
+- **To-do**: a task whose title holds a secret KOLONİ knows, or has a secret's shape (`ghp_…`, `sk-…`), no longer gives its git branch a name from the title - a title that began with one put its head into `koloni/<name>`, which goes to origin with a ☾ Away job's push; such a branch is `koloni/task-3f2a` ([docs](automation/overnight.md#in-a-git-repository-each-job-on-its-own-branch)).
 
 ### Removed
 

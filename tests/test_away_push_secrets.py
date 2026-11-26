@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from app import raw
+from app import git, raw
 from app.agent.away_branch_mixin import PUSH_NAMED
 from app.away_branch import titled
 from app.db.models import BacklogTask, McpServer
@@ -269,3 +269,13 @@ def test_a_secret_where_the_jobs_commit_subject_is_cut_is_masked_whole(
     (branch,) = run(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/koloni/").split()
     subject = run(repo, "log", "-1", "--format=%s", branch)
     assert TOKEN[:8] not in subject and "t" * 60 in subject, subject
+
+
+def test_a_branch_never_takes_its_name_from_a_title_that_holds_a_secret(monkeypatch):
+    # (0.1.10: a task's title that began with a secret put its head into the branch's name - and
+    # the name goes to origin with its push)
+    monkeypatch.setenv("NIGHT_TOKEN", TOKEN)
+    assert git.task_branch(f"{TOKEN} rotate it", "c0ffee00") == "task-c0ff"
+    assert git.task_branch(f"rotate {TOKEN}", "c0ffee00") == "task-c0ff"
+    assert git.task_branch("ghp_" + "A1" * 18 + " leaked", "c0ffee00") == "task-c0ff"
+    assert git.task_branch("Rotate the key", "c0ffee00") == "rotate-the-key-c0ff"

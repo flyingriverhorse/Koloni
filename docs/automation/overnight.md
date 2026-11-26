@@ -84,8 +84,10 @@ works in a copy of the project of its own.
 ### In a git repository: each job on its own branch
 
 Where the project is the top folder of a git repository, a job works on a git branch of its own,
-`koloni/<task>` (for example `koloni/fix-login-3f2a`), in a worktree of your repository, and commits
-there as it goes. How Go away finds the project decides it, once for every job:
+`koloni/<task>` (for example `koloni/fix-login-3f2a`; `koloni/task-3f2a` where the task's title holds
+a secret KOLONİ knows, or one's shape - a branch's name goes to origin with its push), in a worktree
+of your repository, and commits there as it goes. How Go away finds the project decides it, once for
+every job:
 
 | The project | The job | In the morning |
 |---|---|---|

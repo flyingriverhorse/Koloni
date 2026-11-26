@@ -1518,11 +1518,16 @@ def branch_name(said: str) -> str:
 
 def task_branch(title: str, task_id: str) -> str:
     """A backlog task's branch name: its title's and 4 of its id's - two tasks of one title get
-    two names (R165). Short enough that `branch_name` leaves it as it is."""
+    two names (R165). Short enough that `branch_name` leaves it as it is. A title that holds a
+    secret KOLONİ checks, or one's shape (`ghp_…`), gives none of it: a branch's name is pushed."""
+    from app import secret_set  # (here: it reads app.commands, which reads this module)
+
     try:
+        if secret_set.shaped(title) or any(one in title for one in secret_set.checked()):
+            raise ValueError(title)
         name = branch_name(title)[: BRANCH_CHARS - 5].strip("-")
     except ValueError:
-        name = "task"  # (a title of no letter or digit)
+        name = "task"  # (a title of no letter or digit, or holding a secret)
     return f"{name}-{task_id[:4]}"
 
 
