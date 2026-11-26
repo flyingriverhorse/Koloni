@@ -310,7 +310,7 @@ test('the lead’s model can follow the message: the choice says what it costs, 
   // what it costs, and that the request carries the message
   // and what it overrides, which "A role with its own model keeps" above it does not hold for - both in sight
   const note = screen.getByText(
-    /^One more request for each message you send: a fast model of your team guide is sent your message and asked how hard it is\. It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\.$/,
+    /^One more request for each message you send: a fast model of your team guide is sent your message and asked how hard it is\. It overrides the Orchestrator role’s own model and tier\.$/,
   )
   // (those stand under the box; the rest of the note is behind ⓘ beside it, closed - and opening it is not ticking the box)
   const rest = within(note).getByText(/^The Orchestrator then runs/)
@@ -322,7 +322,7 @@ test('the lead’s model can follow the message: the choice says what it costs, 
   // The box is named as it was - by all of its note, word for word what the page shows - and not by the
   // button that opens it. It says so in its own label: a browser leaves a closed hint out of a name.
   expect(auto).toHaveAccessibleName(
-    /^Orchestrator model: automatic One more request .* asked how hard it is\. It overrides .* does not use it\. The Orchestrator then runs .* else the model above\.$/,
+    /^Orchestrator model: automatic One more request .* asked how hard it is\. It overrides the Orchestrator role’s own model and tier\. The Orchestrator then runs .* else the model above\.$/,
   )
   // (less the hint's "Learn more →": a link to the guide, no part of the note)
   const shown = note.closest('label')!.textContent!.replace('Learn more →', '')

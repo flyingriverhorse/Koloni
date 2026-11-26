@@ -98,7 +98,6 @@ const snapshot: Snapshot = {
   merges: [],
   attachments: [],
   away: [],
-  trigger_proposals: [],
   notes_offers: [],
   warnings: [],
   last_event_id: 0,

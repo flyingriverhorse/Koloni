@@ -3,7 +3,6 @@ import {
   Brain,
   ChatsCircle,
   CheckSquare,
-  Clock,
   Cpu,
   GearSix,
   Graph,
@@ -29,7 +28,6 @@ export type View =
   | 'tools'
   | 'memory'
   | 'knowledge'
-  | 'triggers'
   | 'usage'
 
 interface Props {
@@ -162,17 +160,6 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
         <Books size={19} />
         <span className="rail-label" aria-hidden="true">
           Knowledge
-        </span>
-      </button>
-      <button
-        className="icon-btn"
-        aria-pressed={view === 'triggers'}
-        aria-label="Triggers"
-        onClick={() => onView('triggers')}
-      >
-        <Clock size={19} />
-        <span className="rail-label" aria-hidden="true">
-          Triggers
         </span>
       </button>
       <button className="icon-btn" aria-pressed={view === 'usage'} aria-label="Usage" onClick={() => onView('usage')}>

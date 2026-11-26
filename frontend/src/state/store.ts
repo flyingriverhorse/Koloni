@@ -3,7 +3,6 @@ import { api, errorText } from '../api/client'
 import { openEvents } from '../api/sse'
 import type {
   Agent,
-  AllowedCommand,
   Attachment,
   Availability,
   Away,
@@ -72,13 +71,7 @@ import type {
   Run,
   Snapshot,
   Topic,
-  Trigger,
-  TriggerChange,
-  TriggerCreated,
-  TriggerLogEntry,
   NotesOffer,
-  TriggerProposal,
-  NewTrigger,
   Category,
   Usage,
   Budget,
@@ -111,7 +104,6 @@ import { startsNewTurn } from '../canvas/turns'
 import { inUseBy } from '../shell/inUse'
 import type { Cannot } from '../shell/ModelBanner'
 import { chatOf, closing, kept, opened, remember, rememberChat, remembered, tabOf } from '../shell/openTabs'
-import type { Allow } from '../triggers/triggerText'
 import { keyOf } from '../views/views'
 import { waitCount } from '../board/waiting'
 import { activeRun, applyEvent, fromSnapshot, type ConvState } from './applyEvent'
@@ -279,45 +271,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   answerAsk(ask: AwayAsk, yes: boolean): Promise<void>
   /** Take in a job's kept copies, one after another (Take in, Take in all). Throws ApiError. */
   takeIn(mergeIds: string[]): Promise<void>
-  /**
-   * The open project's triggers, once they have been read; null until then. Triggers start
-   * turns with nobody watching, so only this page - the user - makes or changes one.
-   */
-  triggers: Trigger[] | null
-  triggersError: string | null
-  /** The newest things done to the project's triggers, those of deleted ones among them; null until read. */
-  triggerChanges: TriggerLogEntry[] | null
-  /** Every trigger of every project is held back, and none starts a turn. */
-  triggersPaused: boolean
-  loadTriggers(): Promise<void>
-  /** Each of these throws ApiError with the server's reason; the triggers are read again after. */
-  createTrigger(values: NewTrigger): Promise<TriggerCreated>
-  /** A webhook's key made anew: the old address stops; the answer carries the new key, this once. */
-  newTriggerKey(triggerId: string): Promise<TriggerCreated>
-  saveTrigger(triggerId: string, change: TriggerChange): Promise<void>
-  deleteTrigger(triggerId: string): Promise<void>
-  /** "Run now": the trigger's turn, with nobody asked. Answers with the turn's id. */
-  runTrigger(triggerId: string): Promise<string>
-  pauseTriggers(paused: boolean): Promise<void>
-  /** The allow list of one of the project's conversations: the commands a trigger there can be let run. */
-  allowedCommandsOf(conversationId: string): Promise<AllowedCommand[]>
-  /** The hosts one of the project's conversations makes GET requests to without asking: the ones a trigger there can be given. */
-  allowedHostsOf(conversationId: string): Promise<string[]>
-  /** Put a command on a conversation's allow list. It then also runs unasked in that conversation's own turns. */
-  addAllowedCommand(conversationId: string, prefix: string): Promise<AllowedCommand>
-  /**
-   * Something a turn was refused, to be allowed in its trigger: the Triggers page opens that
-   * trigger's form with it filled in. Nothing is saved until the user saves.
-   */
-  triggerDraft: { triggerId: string; allow: Allow } | { proposal: TriggerProposal } | null
-  allowInTrigger(triggerId: string, allow: Allow): void
-  clearTriggerDraft(): void
-  /** An agent's proposed trigger (slice 69): Approve makes it as shown, with the safest leave; Reject puts it away. Throws ApiError. */
-  decideProposal(proposalId: string, decision: 'approve' | 'reject'): Promise<void>
   /** Your word on a Project notes offer (K-bilgi 6): the lines its card showed and those ticked (none: Not now). Throws ApiError; the offers are read again either way. */
   answerNotesOffer(offerId: string, lines: string[], add: string[]): Promise<void>
-  /** Edit on a proposed trigger's card: the Triggers page opens a new trigger's form with it filled in. Nothing is saved until you save. */
-  editProposal(proposal: TriggerProposal): void
   /** Write a note on a turn's shared notebook. Throws ApiError. */
   writeNote(runId: string, content: string): Promise<void>
 
@@ -657,7 +612,6 @@ let memoryReads = 0
 let backlogReads = 0
 // When each question's answer was last said to be typed (`typing`): once in 30 s is enough to hold it.
 const typed = new Map<string, number>()
-let triggerReads = 0
 // The Board row each of `readyChats` was read for: read again when it changes.
 const readyRows = new Map<string, string>()
 let readyReads = 0
@@ -732,14 +686,6 @@ export const useApp = create<AppStore>()((set, get) => {
     set(s => (s.conv && s.conv.conversation.id === id ? { conv: { ...s.conv, away } } : s))
   }
 
-  /** The open chat's proposed triggers, read again: one was proposed, approved or put away. */
-  async function readProposals() {
-    const id = get().conv?.conversation.id
-    if (!id) return
-    const triggerProposals = await api.get<TriggerProposal[]>('/conversations/' + id + '/trigger-proposals')
-    set(s => (s.conv && s.conv.conversation.id === id ? { conv: { ...s.conv, triggerProposals } } : s))
-  }
-
   /** K-bilgi 6: the open chat's Project notes offers, read again: a turn added to one, or one was answered. */
   async function readNotesOffers() {
     const id = get().conv?.conversation.id
@@ -748,13 +694,12 @@ export const useApp = create<AppStore>()((set, get) => {
     set(s => (s.conv && s.conv.conversation.id === id ? { conv: { ...s.conv, notesOffers } } : s))
   }
 
-  /** The open chat's folder is now this one: another folder's board, budget, memory, backlog and triggers are not shown for it. */
+  /** The open chat's folder is now this one: another folder's board, budget, memory and backlog are not shown for it. */
   function follow(projectId: string | null) {
     if (projectId === get().projectId) return
     // (A reading of the folder left that answers late is not this one's.)
     memoryReads += 1
     backlogReads += 1
-    triggerReads += 1
     set({
       projectId,
       board: null,
@@ -768,9 +713,6 @@ export const useApp = create<AppStore>()((set, get) => {
       stories: null,
       goals: null,
       away: null,
-      triggers: null,
-      triggersError: null,
-      triggerChanges: null,
       knowledge: null,
       knowledgeError: null,
     })
@@ -780,8 +722,7 @@ export const useApp = create<AppStore>()((set, get) => {
         projects => set({ projects }),
         () => {},
       )
-    // The top bar says how many triggers are on, on every page; the `/` menu offers the folder's own commands.
-    void get().loadTriggers()
+    // The `/` menu offers the folder's own commands.
     void get()
       .loadOwnCommands()
       .catch(() => {})
@@ -827,12 +768,6 @@ export const useApp = create<AppStore>()((set, get) => {
         .catch(() => {})
       // The next task may have started by itself, in a conversation of its own.
       void refreshConversations().catch(() => {})
-    }
-    // A trigger was made, changed, paused, came due or saw its turn end.
-    if (type === 'triggers.changed') {
-      void get().loadTriggers()
-      // ...and so may a trigger an agent proposed here (slice 69): its card.
-      void readProposals().catch(() => {})
     }
     // K-bilgi 6: a turn of the folder added to its Project notes offer, or one was answered.
     if (type === 'notes.offered') void readNotesOffers().catch(() => {})
@@ -979,8 +914,8 @@ export const useApp = create<AppStore>()((set, get) => {
       const open = get().conv?.conversation.id
       // Each other chat the Board says waits; read again only when what of its row says it waits changed (no events
       // come from it) - not each step its other agents take meanwhile.
-      // shortcut: a chat whose only waiting cards are ones the Board does not count (a proposed trigger, a Project
-      // notes offer, a night to start) is not read; they show in their own chat. Count them on the Board if missed.
+      // shortcut: a chat whose only waiting cards are ones the Board does not count (a Project notes offer, a
+      // night to start) is not read; they show in their own chat. Count them on the Board if missed.
       const rows = new Map(
         (get().everywhere?.conversations ?? [])
           .filter(c => c.conversation_id !== open && waitCount(c) > 0)
@@ -1058,102 +993,6 @@ export const useApp = create<AppStore>()((set, get) => {
       set({ agentWindowId: null, agentWindowRaw: false })
     },
 
-    triggers: null,
-    triggersError: null,
-    triggerChanges: null,
-    triggersPaused: false,
-    triggerDraft: null,
-
-    async loadTriggers() {
-      const { projectId } = get()
-      if (!projectId) return
-      // Only the latest reading counts, as with the memory.
-      const mine = ++triggerReads
-      try {
-        const [triggers, { paused }, triggerChanges] = await Promise.all([
-          api.get<Trigger[]>(`/projects/${projectId}/triggers`),
-          api.get<{ paused: boolean }>('/triggers/paused'),
-          api.get<TriggerLogEntry[]>(`/projects/${projectId}/triggers/changes`),
-        ])
-        if (mine === triggerReads) set({ triggers, triggersPaused: paused, triggerChanges, triggersError: null })
-        // B-353: a chat made since the list was read (by the API, another window) is not "gone": the list is read again.
-        const known = get().conversations
-        if (triggers.some(t => t.conversation_id && !known.some(c => c.id === t.conversation_id)))
-          void refreshConversations().catch(() => {})
-      } catch (err) {
-        if (mine === triggerReads) set({ triggersError: errorText(err) })
-      }
-    },
-
-    async createTrigger(values) {
-      const { projectId } = get()
-      if (!projectId) throw new Error('no project is open')
-      const created = await api.post<TriggerCreated>(`/projects/${projectId}/triggers`, values)
-      await get().loadTriggers()
-      return created
-    },
-
-    async newTriggerKey(triggerId) {
-      const renewed = await api.post<TriggerCreated>(`/triggers/${triggerId}/key`)
-      await get().loadTriggers()
-      return renewed
-    },
-
-    async saveTrigger(triggerId, change) {
-      await api.patch(`/triggers/${triggerId}`, change)
-      await get().loadTriggers()
-    },
-
-    async deleteTrigger(triggerId) {
-      await api.delete(`/triggers/${triggerId}`)
-      await get().loadTriggers()
-    },
-
-    async runTrigger(triggerId) {
-      const { run_id } = await api.post<{ run_id: string }>(`/triggers/${triggerId}/run`)
-      void get().loadTriggers()
-      return run_id
-    },
-
-    async pauseTriggers(paused) {
-      const said = await api.put<{ paused: boolean }>('/triggers/paused', { paused })
-      set({ triggersPaused: said.paused })
-      await get().loadTriggers()
-    },
-
-    async allowedCommandsOf(conversationId) {
-      const open = get().conv
-      if (open?.conversation.id === conversationId) return open.allowedCommands
-      return (await api.get<Snapshot>(`/conversations/${conversationId}`)).allowed_commands
-    },
-
-    async allowedHostsOf(conversationId) {
-      const open = get().conv
-      const rules =
-        open?.conversation.id === conversationId
-          ? open.allowedWeb
-          : ((await api.get<Snapshot>(`/conversations/${conversationId}`)).allowed_web ?? [])
-      return rules.filter(rule => rule.kind === 'host').map(rule => rule.host)
-    },
-
-    async addAllowedCommand(conversationId, prefix) {
-      // (The open conversation hears of it as an event, like any change to its list.)
-      return api.post<AllowedCommand>(`/conversations/${conversationId}/allowed-commands`, { prefix })
-    },
-
-    allowInTrigger(triggerId, allow) {
-      set({ triggerDraft: { triggerId, allow } })
-    },
-
-    clearTriggerDraft() {
-      set({ triggerDraft: null })
-    },
-
-    async decideProposal(proposalId, decision) {
-      await api.post(`/trigger-proposals/${proposalId}/${decision}`)
-      await Promise.all([readProposals(), get().loadTriggers()])
-    },
-
     async answerNotesOffer(offerId, lines, add) {
       try {
         await api.post(`/notes-offers/${offerId}/answer`, { lines, add })
@@ -1161,10 +1000,6 @@ export const useApp = create<AppStore>()((set, get) => {
         // (Changed meanwhile - 409 - the card shows what it holds now.)
         await readNotesOffers().catch(() => {})
       }
-    },
-
-    editProposal(proposal) {
-      set({ triggerDraft: { proposal } })
     },
 
     memory: null,
@@ -1997,7 +1832,7 @@ export const useApp = create<AppStore>()((set, get) => {
       set({ tabs })
       remember(tabs)
       rememberChat(tab, id)
-      // (One made since the list was read - by a trigger, the backlog, another window - has its tab once the list has it.)
+      // (One made since the list was read - by the backlog, another window - has its tab once the list has it.)
       if (!get().conversations.some(c => c.id === id)) void refreshConversations().catch(() => {})
       closeEvents = openEvents(
         id,

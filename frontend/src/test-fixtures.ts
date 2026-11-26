@@ -360,7 +360,6 @@ export function convState(over: Partial<ConvState> = {}): ConvState {
     merges: [],
     attachments: [],
     away: [],
-    triggerProposals: [],
     notesOffers: [],
     warnings: [],
     lastEventId: 0,

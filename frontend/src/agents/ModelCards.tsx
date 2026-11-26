@@ -968,7 +968,7 @@ function InsideCard({ values, set }: Pick<CardsProps, 'values' | 'set'>) {
           <ul>
             <li>not its own agent on the canvas</li>
             <li>stops when the agent that opened it stops</li>
-            <li>never used while you're away or for a trigger</li>
+            <li>never used while you're away</li>
           </ul>
         </div>
       </div>

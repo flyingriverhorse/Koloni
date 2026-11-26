@@ -237,24 +237,10 @@ export type ProjectMemory = Schemas['ProjectMemoryOut']
 /** What an agent's `recall` would find: records of the memory, and what was said in earlier turns. */
 export type MemorySearch = Schemas['MemorySearchOut']
 export type SaidInTurn = Schemas['SaidOut']
-export type Trigger = Schemas['TriggerOut']
 /** Stop everything: whether it holds, what runs and would be held now, and what it stopped. */
 export type Hold = Schemas['HoldOut']
-export type TriggerRun = Schemas['TriggerRunOut']
-/** A trigger an agent proposed (slice 69), on its card until your word. */
-export type TriggerProposal = Schemas['TriggerProposalOut']
 /** K-bilgi 6: what turns found for the project's Project notes, on a card under a turn until your word. */
 export type NotesOffer = Schemas['NotesOfferOut']
-/** One thing that was done to a trigger - made, changed, switched, deleted - as its record keeps it. */
-export type TriggerLogEntry = Schemas['TriggerChangeOut']
-/** A trigger as it is answered once, when it is made: a webhook's key is in it, and nowhere after. */
-export type TriggerCreated = Schemas['TriggerCreatedOut']
-export type TriggerPermissions = Schemas['TriggerPermissions']
-export type TriggerBudget = Schemas['TriggerBudget']
-/** What is sent to make a trigger, with every field said. */
-export type NewTrigger = Required<Schemas['TriggerIn']> & { permissions: Required<TriggerPermissions> }
-/** What is sent to change one: only what is to change. */
-export type TriggerChange = Schemas['TriggerPatch']
 /** What the agents' models reported, added up three ways. A sum is null when nothing is known. */
 export type Usage = Schemas['UsageOut']
 /** Cards measured (0.1.7): the command cards of a period, answered how, by reason; the rules they suggest. */

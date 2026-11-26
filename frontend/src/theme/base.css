@@ -461,7 +461,7 @@ textarea {
 }
 
 /* So that the bar keeps to one line while a turn runs, down to 1000 px (B-174), the lesser things give way in steps:
-   under 1400 px Stop everything and Pause all show their icons alone (theme/triggers.css); under 1250 px the turn's
+   under 1400 px Stop everything shows its icon alone (theme/triggers.css); under 1250 px the turn's
    tokens go (they are in its summary in the chat and on the canvas's nodes); under 1100 px the lead's context, and the
    tag that commands run on this machine - never the one that says docker: where commands run is for safety.
    (B-195: 1400 and 1250, as measured with a turn that waits for you and a trigger on.)

@@ -8,9 +8,8 @@ const PLANS = [
   { name: 'Codex 42d', kind: 'codex_cli', used: 8 },
 ]
 
-/** No provider of this spec is left, and the triggers are not left paused: the specs after this one share the backend. */
+/** No provider of this spec is left: the specs after this one share the backend. */
 async function clean(request: APIRequestContext) {
-  await request.put('/api/triggers/paused', { headers: OWN, data: { paused: false } })
   for (const provider of await (await request.get('/api/providers')).json())
     if (PLANS.some(plan => plan.name === provider.name))
       await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
@@ -19,7 +18,7 @@ async function clean(request: APIRequestContext) {
 test.beforeEach(async ({ request }) => clean(request))
 test.afterEach(async ({ request }) => clean(request))
 
-test('at 700 px the top bar shows the plans used beside paused triggers and a turn, all on the screen, and opens Usage', async ({
+test('at 700 px the top bar shows the plans used beside a turn, all on the screen, and opens Usage', async ({
   page,
   request,
 }) => {
@@ -46,9 +45,6 @@ test('at 700 px the top bar shows the plans used beside paused triggers and a tu
         }),
     )
   }
-  // The widest the rest of the right side gets: "Triggers paused" with its Resume, and a turn's state.
-  await request.put('/api/triggers/paused', { headers: OWN, data: { paused: true } })
-
   await openFreshConversation(page)
   await page.getByLabel('Message').fill('say hello instead of hi')
   await page.getByRole('button', { name: 'Send' }).click()
@@ -60,12 +56,7 @@ test('at 700 px the top bar shows the plans used beside paused triggers and a tu
   const state = bar.locator('[data-run="waiting_approval"]')
   await expect(state).toBeVisible()
   // It fits: nothing on the right is pushed past the window's edge.
-  for (const each of [
-    use,
-    bar.getByRole('button', { name: 'Resume' }),
-    state,
-    bar.getByRole('button', { name: 'Help' }),
-  ]) {
+  for (const each of [use, state, bar.getByRole('button', { name: 'Help' })]) {
     const at = (await each.boundingBox())!
     expect(at.x + at.width).toBeLessThanOrEqual(700)
   }

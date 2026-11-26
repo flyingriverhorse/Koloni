@@ -1251,56 +1251,6 @@ test('a turn a trigger started begins with a badge that names the trigger and sa
   expect(screen.getByText('Look the project over.')).toBeInTheDocument()
 })
 
-test('at the end of such a turn, what it would have asked you is listed once, each request with a way to allow it where a trigger can', async () => {
-  const onAllow = vi.fn()
-  render(<MessageList state={unattended()} {...handlers} onAllowInTrigger={onAllow} />)
-  const block = screen.getByRole('group', { name: 'It would have asked you' })
-  const asked = within(block).getAllByRole('listitem')
-  expect(asked.map(item => item.firstChild?.textContent)).toEqual([
-    'write made.txt',
-    'run `python check.py`',
-    'ask the user anything',
-  ])
-  // it stands after the turn's last words, not among them
-  expect(
-    screen.getByText('I could not do everything.').compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).toBeTruthy()
-  // what no trigger can allow has no link
-  expect(within(asked[2]).queryByRole('button')).not.toBeInTheDocument()
-  await userEvent.click(within(asked[0]).getByRole('button', { name: 'Allow this in the trigger' }))
-  expect(onAllow).toHaveBeenLastCalledWith('t1', { write: true })
-  await userEvent.click(within(asked[1]).getByRole('button', { name: 'Allow this in the trigger' }))
-  expect(onAllow).toHaveBeenLastCalledWith('t1', { command: 'python check.py' })
-})
-
-test('a turn that was refused nothing has no such block; nor has a turn of the user’s, whatever its tools said', () => {
-  const { unmount } = render(<MessageList state={unattended({ toolCalls: [] })} {...handlers} />)
-  expect(screen.queryByRole('group', { name: 'It would have asked you' })).not.toBeInTheDocument()
-  unmount()
-  const own = convState({
-    runs: [run('r', 'completed')],
-    messages: [userMessage('r', 'x'), assistantMessage('m1', 'r', 'done')],
-    toolCalls: [
-      toolCall('1', 'r', 'write_file', 'denied', '{"path":"a"}', {
-        message_id: 'm1',
-        result: refusedWith('change files'),
-      }),
-    ],
-  })
-  render(<MessageList state={own} {...handlers} />)
-  expect(screen.queryByRole('group', { name: 'It would have asked you' })).not.toBeInTheDocument()
-})
-
-test('a trigger that is no longer on record cannot be allowed anything: the requests are listed without the link', () => {
-  const state = unattended({
-    runs: [run('n', 'completed', { unattended: true, trigger_id: null, trigger_name: 'Nightly look' })],
-  })
-  render(<MessageList state={state} {...handlers} onAllowInTrigger={vi.fn()} />)
-  const block = screen.getByRole('group', { name: 'It would have asked you' })
-  expect(within(block).getAllByRole('listitem')).toHaveLength(3)
-  expect(within(block).queryByRole('button')).not.toBeInTheDocument()
-})
-
 // --- topics (slice 18b) ------------------------------------------------------------------------
 
 test('where the topic changes there is a divider: a new topic the first time, and the topic by name when the talk comes back to it', () => {

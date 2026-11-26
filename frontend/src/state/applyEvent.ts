@@ -26,7 +26,6 @@ import type {
   ToolCall,
   NotesOffer,
   Topic,
-  TriggerProposal,
   WebRequest,
 } from '../api/types'
 import { turnTeams } from '../agents/teamRun'
@@ -77,8 +76,6 @@ export interface ConvState {
   attachments: Attachment[]
   /** The "While you're away" cards the Lead put in this chat, with their nights (slice 106). */
   away: Away[]
-  /** The triggers its agents proposed (slice 69), decided or not. */
-  triggerProposals: TriggerProposal[]
   notesOffers: NotesOffer[]
   /** Where text from outside read like orders to an agent (93-A4), oldest first. */
   warnings: InjectionWarning[]
@@ -167,7 +164,6 @@ function keptOf(s: Snapshot) {
     merges: s.merges ?? [],
     attachments: s.attachments ?? [],
     away: s.away ?? [],
-    triggerProposals: s.trigger_proposals ?? [],
     notesOffers: s.notes_offers ?? [],
     warnings: s.warnings ?? [],
   }

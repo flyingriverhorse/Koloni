@@ -840,33 +840,17 @@ function nextStep(all, tools = [], model = '') {
         ['c106c', 'offer_away', { kept_out: ['secret106'] }],
       ])
     }
-    // Slice 69: asked to keep an eye on the dependencies, the Lead proposes a trigger; nothing is made before Approve.
-    if (/check the dependencies on fridays, 69/i.test(last.content)) {
-      return toolCall('c690', 'propose_trigger', {
-        name: 'Dependencies, 69',
-        kind: 'schedule',
-        config: { at: '17:00', days: ['fri'] },
-        message: 'Look over the dependencies: which are not pinned, which are unused. Change nothing.',
-        ends: { runs: 10 },
-      })
-    }
     if (/keep the backlog/i.test(last.content))
       return toolCall('c520', 'add_task', { title: 'Add a farewell', criteria: 'prints bye', priority: 'low' })
     // Slice 46's /<role>: the task handed to a sub-agent in the role the user named.
     const handed = /^Ask a sub-agent in the (.+?) role to do this: (.+)$/s.exec(String(last.content))
     if (handed) return toolCall('c460', 'spawn_agent', { role: handed[1], task: handed[2] })
-    // A trigger's turn (first of all: what a trigger's message carries besides - the last
-    // words of its turn before - is not something asked). It wants to leave a file behind.
-    if (/\bnightly check\b/i.test(last.content))
-      return toolCall('c40', 'write_file', { path: 'made.txt', content: 'checked\n' })
     // K-dosya-grubu: three files at once, which the canvas draws as one card.
     if (/write three files, k-dosya-grubu/i.test(last.content)) {
       return toolCalls(
         ['a', 'b', 'c'].map(name => [`cdg${name}`, 'write_file', { path: `dg-${name}.txt`, content: `${name}\n` }]),
       )
     }
-    // Another trigger's turn wants to run a command.
-    if (/\bnightly run\b/i.test(last.content)) return toolCall('c41', 'run_command', { command: 'python check.py' })
     // Slice 56: a file of its own, so the spec's one change is a change whatever ran before it.
     if (/make the day page of slice 56/i.test(last.content))
       return toolCall('c561', 'write_file', { path: 'day56.html', content: viewPage('day') })
@@ -1155,14 +1139,6 @@ function nextStep(all, tools = [], model = '') {
   if (/write the checked file, k-kanit/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
     return say(result.startsWith('applied') ? 'Wrote kanit.py.' : `kanit.py was not written: ${result}`)
   }
-  // The trigger's turn: refused for want of somebody to ask, it says so and goes on; allowed, it reports.
-  if (/\bnightly check\b/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
-    return say(
-      result.includes('nobody is here to ask')
-        ? 'I could not write made.txt: I would have asked you first.'
-        : 'Wrote made.txt.',
-    )
-  }
   if (/\bnightly run\b/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
     if (result.includes('nobody is here to ask'))
       return say('I could not run python check.py: I would have asked you first.')
@@ -1259,8 +1235,6 @@ function nextStep(all, tools = [], model = '') {
   if (result.startsWith('proposed task')) return say('Proposed a task for your backlog.')
   if (result.startsWith('A line under your answer offers'))
     return say('Two tasks are on your To-do: press Go away when you go.')
-  if (result.startsWith('proposed: the user sees the trigger'))
-    return say('The trigger is on a card: approve it if you want it.')
   if (result.startsWith('Coder finished'))
     return say(result.includes('goodbye') ? 'The coder changed it: it says goodbye.' : 'The coder added a farewell.')
   if (result.startsWith('The user answered: ')) return say('Going with ' + result.slice(19) + '.')

@@ -10,7 +10,7 @@ import { money } from './cost'
 export function BudgetPill({ budget, onOpen }: { budget: Budget | null; onOpen: () => void }) {
   if (!budget || !(budget.warn || unenforced(budget))) return null
   const said = unenforced(budget) ? 'not enforced' : `${budget.over ? 'over · ' : ''}${usedPercent(budget)}%`
-  // shortcut: near the budget the bar takes two lines just over 1250 and 1100 px with a turn that waits and a trigger
+  // shortcut: near the budget the bar takes two lines just over 1250 and 1100 px with a turn that waits and a
   // on (measured: 1283, 1171), as theme/base.css's B-174 steps already allow for longer states; the strip it replaced
   // was a line of its own. Step the bar by its own width there if that is met.
   // (Short, so that the bar keeps to one line - B-174; its whole warning in its title, its description: a name with

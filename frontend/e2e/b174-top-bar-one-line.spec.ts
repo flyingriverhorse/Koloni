@@ -1,4 +1,4 @@
-// B-174: with a turn at work, a trigger on, Stop everything and the bell in it, the top bar keeps to one line down to
+// B-174: with a turn at work, Stop everything and the bell in it, the top bar keeps to one line down to
 // 1000 px: the title gives way (cut short, never gone) and the lesser buttons show their icons alone. B-180: held too
 // (Stop everything says "Held" alone there). B-195: at 1283 and 1210 px it took two lines while the turn waited.
 import { expect, test } from './fixtures'
@@ -17,21 +17,7 @@ for (const [width, held] of [
   }) => {
     test.setTimeout(60_000)
     await page.setViewportSize({ width, height: 800 })
-    const project = await e2eProject(page)
-    const its = await (
-      await page.request.post('/api/conversations', { data: { project_id: project }, headers: OWN })
-    ).json()
-    const made = await page.request.post(`/api/projects/${project}/triggers`, {
-      headers: OWN,
-      data: {
-        name: `b174 ${width}`,
-        kind: 'webhook',
-        conversation_id: its.id,
-        message: 'Nothing: it is never called.',
-      },
-    })
-    expect(made.status()).toBe(201)
-    const trigger: { id: string } = await made.json()
+    await e2eProject(page)
     try {
       // (Your own messages still run while held.)
       if (held) expect((await page.request.post('/api/hold', { headers: OWN })).ok()).toBe(true)
@@ -70,7 +56,6 @@ for (const [width, held] of [
       const bar = page.locator('.topbar')
       await expect(bar.locator('[data-run="waiting_approval"]')).toBeVisible({ timeout: 15_000 })
       await expect(bar.getByRole('button', { name: /^Notifications/ })).toBeVisible({ timeout: 15_000 })
-      await expect(bar.getByRole('button', { name: /trigger/ })).toBeVisible()
       await expect(bar.getByRole('button', { name: held ? 'Held · Resume' : 'Stop everything' })).toBeVisible()
 
       // one line: everything in it is as high up as Help, and the bar no higher than a bar of one line
@@ -97,12 +82,11 @@ for (const [width, held] of [
       await page.unrouteAll({ behavior: 'ignoreErrors' })
       // (The backend is shared with the specs after this one: nothing is left held.)
       if (held) expect((await page.request.post('/api/hold/resume', { headers: OWN })).ok()).toBe(true)
-      await page.request.delete(`/api/triggers/${trigger.id}`, { headers: OWN })
     }
   })
 }
 
-// B-195 (live, 1283 px): two plans' use beside a turn that waits and a trigger took the bar to two lines from 1200 px
+// B-195 (live, 1283 px): two plans' use beside a turn that waits and a trigger (since removed) took the bar to two lines from 1200 px
 // up; there the plans take their strip under it (K-dar-cubuk), and the rest of the bar keeps to one line.
 test('at 1283 px, with two plans read and a turn that waits, the plans are in their strip and the bar is one line', async ({
   page,
@@ -145,16 +129,7 @@ test('at 1283 px, with two plans read and a turn that waits, the plans are in th
       json: { windows: [{ minutes: 300, name: '5h', used_percent: 85, stale: false, resets_at: null }], read_at: null },
     }),
   )
-  const project = await e2eProject(page)
-  const its = await (
-    await page.request.post('/api/conversations', { data: { project_id: project }, headers: OWN })
-  ).json()
-  const trigger: { id: string } = await (
-    await page.request.post(`/api/projects/${project}/triggers`, {
-      headers: OWN,
-      data: { name: 'b195', kind: 'webhook', conversation_id: its.id, message: 'Nothing: it is never called.' },
-    })
-  ).json()
+  await e2eProject(page)
   try {
     await openFreshConversation(page)
     await page.getByLabel('Message').fill('A turn at work in a bar 1283 px wide, run it slowly')
@@ -177,6 +152,5 @@ test('at 1283 px, with two plans read and a turn that waits, the plans are in th
     await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: 'Reject' }).click()
   } finally {
     await page.unrouteAll({ behavior: 'ignoreErrors' })
-    await page.request.delete(`/api/triggers/${trigger.id}`, { headers: OWN })
   }
 })

@@ -233,28 +233,3 @@ test('a question asked again because its files changed waits for nothing; in the
   expect(screen.getByText('Go on')).toBeInTheDocument()
   expect(screen.getByText('asked again: its files changed since')).toBeInTheDocument()
 })
-
-test('slice 69: a trigger an agent proposed waits as a decision with its card, until it is decided', () => {
-  const proposal = {
-    id: 'tp',
-    conversation_id: 'c1',
-    run_id: 'r',
-    name: 'Dependencies',
-    kind: 'schedule' as const,
-    config: { every_minutes: 60 },
-    message: 'Look.',
-    ends: { runs: 10 },
-    status: 'proposed' as const,
-    trigger_id: null,
-    created_at: 't',
-  }
-  const with69 = convState({
-    runs: [run('r', 'completed')],
-    triggerProposals: [proposal, { ...proposal, id: 'done', status: 'approved' }],
-  })
-  expect(waitingOf(with69).map(row => [row.kind, row.what, row.key])).toEqual([['decision', 'trigger', 'tp']])
-  render(<WaitingList state={with69} on={on} onDecidePlan={vi.fn()} known={known} />)
-  const card = screen.getByRole('region', { name: 'Proposed trigger: Dependencies' })
-  expect(within(card).getByRole('button', { name: 'Approve' })).toBeEnabled()
-  expect(card).toHaveTextContent('every 60 minutes · ends after 10 runs')
-})

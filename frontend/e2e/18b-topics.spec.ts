@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import path from 'node:path'
-import { expect, test, type APIRequestContext, type Locator, type Page } from './fixtures'
-import { agentFold, contrasts, level, openAgentFold, openFreshConversation, openTurns, OWN, shot } from './helpers'
+import { expect, test, type Locator, type Page } from './fixtures'
+import { agentFold, contrasts, level, openAgentFold, openFreshConversation, openTurns, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -9,22 +9,17 @@ test.use({ viewport: { width: 1440, height: 900 } })
 const FIRST = 'ask a coder to add a farewell'
 const SECOND = 'tell the coder to say goodbye'
 
-/** No trigger and none of the files this spec's turns write is left behind: the specs share the backend. */
-async function tidy(request: APIRequestContext) {
-  const projects: { id: string }[] = await (await request.get('/api/projects')).json()
-  for (const project of projects) {
-    const triggers: { id: string }[] = await (await request.get(`/api/projects/${project.id}/triggers`)).json()
-    for (const trigger of triggers) await request.delete(`/api/triggers/${trigger.id}`, { headers: OWN })
-  }
+/** None of the files this spec's turns write is left behind: the specs share the backend. */
+async function tidy() {
   for (const file of ['farewell.py', 'made.txt']) rmSync(path.join(PROJECT_DIR, file), { force: true })
 }
 
-test.beforeEach(async ({ request }) => {
-  await tidy(request)
+test.beforeEach(async () => {
+  await tidy()
 })
 
-test.afterEach(async ({ request }) => {
-  await tidy(request)
+test.afterEach(async () => {
+  await tidy()
 })
 
 async function say(page: Page, text: string, answer: string, times = 1) {
@@ -284,64 +279,6 @@ test('a message goes on with the topic: Recent names it, the canvas draws this t
     snap.topics[1].id,
     snap.topics[0].id,
   ])
-
-  // --- a trigger's turns are a topic of their own ------------------------------------------------
-  const made = await request.post(`/api/projects/${project.id}/triggers`, {
-    headers: OWN,
-    data: {
-      name: 'Nightly check',
-      kind: 'webhook',
-      conversation_id: conversation.id,
-      message: 'Do the nightly check.',
-    },
-  })
-  expect(made.status()).toBe(201)
-  const trigger: { id: string } = await made.json()
-  expect((await request.post(`/api/triggers/${trigger.id}/run`, { headers: OWN })).ok()).toBe(true)
-  const scheduled = turns.filter({ hasText: 'Nightly check' })
-  await openTurns(page)
-  await expect(scheduled).toContainText('done', { timeout: 20_000 })
-  // It took neither the canvas nor the topic the next message goes to.
-  await expect(requests).toHaveText([SECOND])
-  await goesOn(`${FIRST}`)
-  await expect(chat.locator('.msg-list').getByRole('separator').last()).toHaveText('New topic: Nightly check')
-  await expect(chat.getByRole('note', { name: 'Started by the trigger Nightly check' })).toBeVisible()
-  await openTurns(page)
-  await shot(list, '18b-turn-list-topics')
-  // Its turn picked: looking at it does not send the next message into the trigger's topic.
-  // The line still names the user's own, and offers the trigger's instead.
-  await openTurns(page)
-  await scheduled.click()
-  await expect(requests).toHaveText(['Do the nightly check.'])
-  await goesOn(`${FIRST}`)
-  const into = chat.getByRole('button', { name: 'Write into Nightly check instead' })
-  await expect(into).toBeVisible()
-  await shot(page.locator('.composer'), '18b-composer-on-a-trigger-turn')
-  await settled(page)
-  await shot(page, '18b-turn-list-two-topics-and-scheduled')
-  // Chosen, the line names the trigger's topic, with a way back; and back it is the user's own again.
-  await into.click()
-  await goesOn('Nightly check, a trigger’s topic')
-  await expect(into).toHaveCount(0)
-  await chat.getByRole('button', { name: `Continue ${FIRST} instead` }).click()
-  await goesOn(`${FIRST}`)
-  // A message written while the trigger's turn is on screen goes where the line says: the user's own topic.
-  await say(page, 'hello a third time', 'Hello! Ask me to read or change a file.', 3)
-  const after: { runs: { topic_id: string; unattended: boolean }[] } = await (
-    await request.get(`/api/conversations/${conversation.id}`)
-  ).json()
-  expect(after.runs.at(-1)).toMatchObject({ topic_id: snap.topics[0].id, unattended: false })
-  // Written into the trigger's topic by choice, it is a turn of that topic - and the choice was for that one message.
-  await openTurns(page)
-  await scheduled.click()
-  await into.click()
-  await say(page, 'hello, nightly', 'Hello! Ask me to read or change a file.', 4)
-  const last: { runs: { topic_id: string; unattended: boolean }[] } = await (
-    await request.get(`/api/conversations/${conversation.id}`)
-  ).json()
-  expect(last.runs.at(-1)).toMatchObject({ topic_id: after.runs.at(-2)!.topic_id, unattended: false })
-  await goesOn(`${FIRST}`)
-  await expect(chat.getByRole('button', { name: 'Write into Nightly check instead' })).toBeVisible()
 })
 
 test('in the dark theme the line above the message box and Recent stand out from what they are on (contrast 4.5 or more)', async ({

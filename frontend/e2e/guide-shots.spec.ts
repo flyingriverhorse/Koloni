@@ -345,7 +345,7 @@ test('a story’s strip and notebook', async ({ page }) => {
   }
 })
 
-test('Memory search, Triggers and Usage', async ({ page, request }) => {
+test('Memory search and Usage', async ({ page, request }) => {
   const id = await openFreshConversation(page)
   await say(page, 'Answer only: The ZEPPELIN hangar is in Kayseri.', 'The ZEPPELIN hangar is in Kayseri.')
   expect(
@@ -359,23 +359,6 @@ test('Memory search, Triggers and Usage', async ({ page, request }) => {
   await search.getByRole('button', { name: 'Search deeper' }).click()
   await expect(search.getByRole('list', { name: 'In earlier messages' }).getByRole('listitem').first()).toBeVisible()
   await picture(page, 'memory-search')
-
-  const pid = await e2eProject(page)
-  const made = await request.post(`/api/projects/${pid}/triggers`, {
-    headers: OWN,
-    data: {
-      name: 'Morning check',
-      kind: 'schedule',
-      conversation_id: id,
-      message: 'Run the tests and say what failed.',
-      config: { at: '07:30', days: 'weekdays' },
-    },
-  })
-  expect(made.ok(), await made.text()).toBe(true)
-  await rail(page, 'Triggers').click()
-  await expect(page.getByRole('article', { name: 'Morning check' })).toBeVisible()
-  await picture(page, 'triggers')
-  expect((await request.delete(`/api/triggers/${(await made.json()).id}`, { headers: OWN })).ok()).toBe(true)
 
   // (0.1.7: a command card answered, so Cards has one to count - asked at Ask, run once)
   await openFreshConversation(page)

@@ -88,9 +88,7 @@ test('models are given a tier, a role asks for one, and a lead’s model follows
   await expect(
     chat.getByText(/^One more request for each message you send: a fast model of your team guide is sent your message/),
   ).toBeVisible()
-  await expect(
-    chat.getByText(/It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\./),
-  ).toBeVisible()
+  await expect(chat.getByText(/It overrides the Orchestrator role’s own model and tier\./)).toBeVisible()
   await chat
     .locator('.hint', { hasText: 'The Orchestrator then runs on your first fast' })
     .getByRole('button', { name: 'About this' })

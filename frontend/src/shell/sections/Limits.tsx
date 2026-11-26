@@ -246,8 +246,8 @@ function TokenLimits({
             {spend && unenforced(spend) ? `${UNENFORCED}. ` : ''}
             For this calendar month’s messages. In the currency of your prices (Usage, under Prices), else USD, as
             models.dev’s prices are used where you set none{spend?.currency ? ` - now ${spend.currency}` : ''}. At 80%
-            you are told. At 100% a new message asks before its work starts, and triggers start none. Work on a model
-            with no price is not counted: Usage says how many there were.
+            you are told. At 100% a new message asks before its work starts. Work on a model with no price is not
+            counted: Usage says how many there were.
           </span>
         }
       >

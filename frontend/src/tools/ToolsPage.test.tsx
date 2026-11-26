@@ -211,7 +211,7 @@ test('the Servers tab says in one line what a server is; that it runs with your 
   )
   expect(more).toHaveTextContent('Its tools are given full paths')
   expect(more).toHaveTextContent(
-    'a CLI that works with its own tools (native), for a trigger’s message, in a project that runs its commands in Docker, or when an agent works only to answer another agent’s message or to speak in a discussion',
+    'a CLI that works with its own tools (native), in a project that runs its commands in Docker, or when an agent works only to answer another agent’s message or to speak in a discussion',
   )
   // what "How this works" said, and nothing else says, is in the fold
   expect(more).toHaveTextContent(

@@ -25,7 +25,6 @@ const NAMES = [
   'Tools',
   'Memory',
   'Knowledge',
-  'Triggers',
   'Usage',
   'Settings',
   'Theme',

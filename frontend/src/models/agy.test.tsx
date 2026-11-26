@@ -134,43 +134,6 @@ test('a check of agy only says the command was found', async () => {
   expect(screen.getByText(/One short run of the CLI, reading only/)).toBeInTheDocument()
 })
 
-test.each([
-  ['claude_cli', 'native'],
-  ['codex_cli', 'native'],
-  ['copilot_cli', 'native'],
-  ['agy_cli', 'reads'],
-  ['agy_cli', 'native'],
-] as const)('%s run as %s says it is not started by a trigger', async (kind, mode) => {
-  render(
-    <ModelsPage
-      providers={[{ ...local, id: 'p2', name: 'Own', kind, base_url: null, mode }]}
-      picked="p2"
-      {...handlers()}
-    />,
-  )
-  await userEvent.click(screen.getByRole('tab', { name: 'Connection' }))
-  expect(screen.getByRole('note')).toHaveTextContent(
-    'It is not started by a trigger: with nobody watching, only an agent that works with KOLONİ’s tools runs.',
-  )
-})
-
-test.each([
-  ['claude_cli', 'session'],
-  ['claude_cli', 'step'],
-  ['codex_cli', 'step'],
-  ['copilot_cli', 'session'],
-] as const)('%s run as %s works with KOLONİ’s tools, and nothing is said about triggers', (kind, mode) => {
-  render(
-    <ModelsPage
-      providers={[{ ...local, id: 'p2', name: 'Kept', kind, base_url: null, mode }]}
-      picked="p2"
-      {...handlers()}
-    />,
-  )
-  expect(screen.getByLabelText('How it runs')).toHaveValue(mode)
-  expect(screen.queryByText(/not started by a trigger/)).not.toBeInTheDocument()
-})
-
 test.each([true, false])('agy’s card says Google’s terms forbid it, on or off (enabled: %s)', enabled => {
   render(<ModelsPage providers={[local, { ...agy('reads'), enabled }]} {...handlers()} />)
   expect(document.getElementById('provider-card-p2')).toHaveTextContent(

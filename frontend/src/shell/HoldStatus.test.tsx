@@ -10,7 +10,6 @@ const calm: Hold = {
   held: false,
   since: null,
   running: 3,
-  triggers: 2,
   backlogs: ['shop'],
   nights: ['shop'],
   stopped: [],
@@ -58,7 +57,7 @@ test('Stop everything asks first, saying what runs and what will be held - and C
   await userEvent.click(await screen.findByRole('button', { name: 'Stop everything' }))
   const ask = screen.getByRole('dialog', { name: 'Stop everything' })
   expect(ask).toHaveTextContent(
-    '3 turns running in your chats will stop. 2 triggers, 1 project’s To-do queue and 1 project working while you’re away are held until you resume.',
+    '3 turns running in your chats will stop. 1 project’s To-do queue and 1 project working while you’re away are held until you resume.',
   )
   expect(ask).toHaveTextContent('Your own messages still run')
   await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }))
@@ -80,10 +79,6 @@ test('once confirmed it lists what stopped and what is held; the bar says Held, 
       .getAllByRole('listitem')
       .map(li => li.textContent),
   ).toEqual(['Fix the tests · 2 turns', 'Nightly look'])
-  expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent('2 triggers on')
-  expect(list).toHaveTextContent(
-    'times missed while held are skipped, also for triggers that catch up, and files changed meanwhile start nothing',
-  )
   expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent(
     'To-do queue of shop: its next task waits',
   )
@@ -183,19 +178,6 @@ test('chats of one title are told apart in the list: by project where those diff
   ])
 })
 
-test('it tells the bar whether it holds, and once resumed that it does not', async () => {
-  serve(held, [calm])
-  const onHeld = vi.fn()
-  render(<HoldStatus every={60_000} onOpen={() => {}} onHeld={onHeld} />)
-  await userEvent.click(await screen.findByRole('button', { name: 'Held · Resume' }))
-  expect(onHeld).toHaveBeenLastCalledWith(true)
-  await userEvent.click(
-    within(screen.getByRole('dialog', { name: 'Everything is held' })).getByRole('button', { name: 'Resume' }),
-  )
-  await screen.findByRole('button', { name: 'Stop everything' })
-  expect(onHeld).toHaveBeenLastCalledWith(false)
-})
-
 test('a turn slow to stop is said to be stopping, not left out; the button says Stopping… while it asks', async () => {
   let answer: (said: Response) => void = () => {}
   const asked = vi.fn(async (_url: string, init?: RequestInit) =>
@@ -218,9 +200,9 @@ test('a turn slow to stop is said to be stopping, not left out; the button says 
   expect(stopped).not.toHaveTextContent('Nothing was running.')
 })
 
-test('held with nothing stopped and no trigger on, and not held with nothing running, say so; a refusal is said', async () => {
+test('held with nothing stopped, and not held with nothing running, say so; a refusal is said', async () => {
   const since = new Date('2026-10-27T09:30:00Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  serve({ ...held, triggers: 0, backlogs: [], nights: [], stopped: [], stays_stopped: null }, [])
+  serve({ ...held, backlogs: [], nights: [], stopped: [], stays_stopped: null }, [])
   const { unmount } = render(<HoldStatus every={60_000} onOpen={() => {}} />)
   const bar = await screen.findByRole('button', { name: 'Held · Resume' })
   expect(bar).toHaveClass('btn hold-held')
@@ -229,9 +211,7 @@ test('held with nothing stopped and no trigger on, and not held with nothing run
   const list = screen.getByRole('dialog', { name: 'Everything is held' })
   expect(list.querySelector('.kicker')).toHaveTextContent(`Everything is held since ${since}`)
   expect(within(list).getByRole('region', { name: 'Stopped' })).toHaveTextContent(/^StoppedNothing was running\.$/)
-  expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent(
-    /^HeldTriggersNew work while you’re away$/,
-  )
+  expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent(/^HeldNew work while you’re away$/)
   expect(list).not.toHaveTextContent('Resume:')
   unmount()
 
@@ -239,16 +219,16 @@ test('held with nothing stopped and no trigger on, and not held with nothing run
   const asked = vi.fn(async (_url: string, init?: RequestInit) =>
     init?.method === 'POST'
       ? new Response(JSON.stringify({ detail: 'the server is busy' }), { status: 503 })
-      : new Response(JSON.stringify({ ...calm, running: 0, triggers: 0, backlogs: [], nights: [] }), { status: 200 }),
+      : new Response(JSON.stringify({ ...calm, running: 0, backlogs: [], nights: [] }), { status: 200 }),
   )
   vi.stubGlobal('fetch', asked)
   render(<HoldStatus every={60_000} onOpen={() => {}} />)
   const stop = await screen.findByRole('button', { name: 'Stop everything' })
   expect(stop).toHaveAttribute('class', 'btn')
-  expect(stop).toHaveAttribute('title', 'Stop every turn in every chat, and hold triggers and To-do queues')
+  expect(stop).toHaveAttribute('title', 'Stop every turn in every chat, and hold To-do queues')
   await userEvent.click(stop)
   const ask = screen.getByRole('dialog', { name: 'Stop everything' })
-  expect(ask).toHaveTextContent('No turn is running now. Triggers and To-do queues are held until you resume.')
+  expect(ask).toHaveTextContent('No turn is running now. To-do queues are held until you resume.')
   await userEvent.click(within(ask).getByRole('button', { name: 'Stop everything' }))
   expect(await within(ask).findByRole('alert')).toHaveTextContent(/^the server is busy$/)
 })

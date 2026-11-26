@@ -39,7 +39,6 @@ import type {
   Role,
   Run,
   ToolCall,
-  TriggerProposal,
   Usage,
 } from '../api/types'
 import { todoLabel, useTodo } from './todo'
@@ -67,10 +66,6 @@ import { NotesOfferCard } from '../knowledge/NotesOfferCard'
 import { RoomRow } from '../room/RoomRow'
 import { inRoom } from '../room/roomText'
 import { continuesFrom } from '../topics/topics'
-import { refusedIn } from '../triggers/refused'
-import type { Allow } from '../triggers/triggerText'
-import { WouldHaveAsked } from '../triggers/WouldHaveAsked'
-import { TriggerProposalCard } from '../triggers/TriggerProposalCard'
 import { SaidAloud } from '../voice/VoiceControls'
 import { AwayFrom, AwayOffer, AwaySummary } from '../backlog/Away'
 import { NightRow } from '../ready/NightRow'
@@ -135,8 +130,6 @@ interface Props {
   onOpenDiscussion?: (discussionId: string) => void
   /** Show a turn's room: its window. */
   onOpenRoom?: (roomId: string) => void
-  /** Open a trigger's form with something its turn was refused allowed in it - not saved. */
-  onAllowInTrigger?: (triggerId: string, allow: Allow) => void
   /**
    * The roles and providers as they stand now: a card that asks before an agent goes on
    * from an earlier turn says where its role would run today. Not known, it does not.
@@ -316,7 +309,6 @@ type Handlers = Required<
     | 'onRemoveQueued'
     | 'onOpenDiscussion'
     | 'onOpenRoom'
-    | 'onAllowInTrigger'
     | 'onDecidePlan'
     | 'roles'
     | 'providers'
@@ -559,21 +551,10 @@ function mergeSaid(state: ConvState, merge: Merge): { name: string; unfinished: 
   }
 }
 
-/** A proposed trigger's card, with what Approve, Edit and Reject do (slice 69). */
 /** K-bilgi 6: a Project notes offer's card, answered through the store - whenever you like. */
 function NotesCard({ offer }: { offer: NotesOffer }) {
   return (
     <NotesOfferCard offer={offer} onAnswer={(lines, add) => useApp.getState().answerNotesOffer(offer.id, lines, add)} />
-  )
-}
-
-function ProposalCard({ proposal }: { proposal: TriggerProposal }) {
-  return (
-    <TriggerProposalCard
-      proposal={proposal}
-      onDecide={decision => useApp.getState().decideProposal(proposal.id, decision)}
-      onEdit={() => useApp.getState().editProposal(proposal)}
-    />
   )
 }
 
@@ -706,7 +687,7 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
   }
 }
 
-type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'trigger' | 'notes' | 'night' }>
+type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'notes' | 'night' }>
 
 /** What waits for you that no agent asked leave for: the turn's plan and its work to take in, a night's card and jobs, what was proposed. */
 function turnCard(
@@ -734,8 +715,6 @@ function turnCard(
           }
         />
       )
-    case 'trigger':
-      return <ProposalCard proposal={row.item} />
     case 'notes':
       return <NotesCard offer={row.item} />
     case 'night':
@@ -1024,7 +1003,6 @@ export function MessageList({
   onAnswer = async () => {},
   onOpenDiscussion = () => {},
   onOpenRoom = () => {},
-  onAllowInTrigger,
   roles = NONE,
   providers = NONE,
   onUsage,
@@ -1660,8 +1638,6 @@ export function MessageList({
         state.away.filter(card => card.status === 'planned'),
         card => <AwayOffer conv={state} offer={card} />,
       ),
-      // A trigger an agent proposed in the turn (slice 69), under it.
-      ...of(state.triggerProposals, proposal => <ProposalCard proposal={proposal} />),
       // K-bilgi 6: what the turn (and turns nobody watched) found for the Project notes, under it.
       ...of(state.notesOffers, offer => <NotesCard offer={offer} />),
       // Text from outside that read like orders to one of the turn's agents (93-A4): the Lead's is not named.
@@ -1680,12 +1656,6 @@ export function MessageList({
           onDecide={(...decision) => onDecidePlan(run.id, ...decision)}
         />,
       ])
-    }
-    if (run?.unattended) {
-      // Under the last message of a turn nobody was watching: what it was refused for want of somebody to ask.
-      const trigger = run.trigger_id
-      const onAllow = trigger && onAllowInTrigger ? (allow: Allow) => onAllowInTrigger(trigger, allow) : undefined
-      cards.push(['refused', <WouldHaveAsked key="refused" refused={refusedIn(state, run.id)} onAllow={onAllow} />])
     }
     if (notice) cards.push(['notice', <RunNotice key="notice" notice={notice} />])
     // 0.1.8: a To-do task's Done?, Stuck or its story's Story done?, under its turn here.

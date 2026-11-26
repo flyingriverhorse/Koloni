@@ -53,7 +53,7 @@ const tile = (name: string) => screen.getByRole('button', { name })
 test('the tiles show what the role may use, and the summary and each group count it', async () => {
   await open(coder)
   // (assess_task is the role's, but no tile's: it is not counted)
-  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 4 of 36 tools · 1 MCP server · 1 skill')
+  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 4 of 35 tools · 1 MCP server · 1 skill')
   expect(screen.getByRole('heading', { name: /^To-do/ })).toHaveTextContent('To-do0 of 3')
   expect(screen.getByRole('heading', { name: /^Files/ })).toHaveTextContent('Files3 of 9')
   expect(screen.getByRole('heading', { name: /^Commands/ })).toHaveTextContent('Commands1 of 1')
@@ -107,7 +107,7 @@ test('a save that fails puts the tile back as saved and says why', async () => {
   await userEvent.click(tile('Write files'))
   expect(await screen.findByRole('alert')).toHaveTextContent('unknown tool: write_file')
   expect(tile('Write files')).toHaveAttribute('aria-pressed', 'false')
-  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 4 of 36')
+  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 4 of 35')
 })
 
 test('a tile is toggled from the keyboard', async () => {

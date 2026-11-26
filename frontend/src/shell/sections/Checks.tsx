@@ -11,7 +11,7 @@ import { part, Row } from './part'
 const COMMIT_OFFERED =
   'One commit per piece of work. Offered on the card once the changes are in, and only where this folder is the top folder of a git repository.'
 const COMMIT_REST =
-  'Always your click: never made by itself, never in a trigger’s turn. It commits only the files taken in from the sub-agent, edited ones too, with your repository’s own name and hooks. Nothing is pushed.'
+  'Always your click: never made by itself. It commits only the files taken in from the sub-agent, edited ones too, with your repository’s own name and hooks. Nothing is pushed.'
 
 /** This project › Checks and git: what is run on a sub-agent's work before it is added, and how it reaches git. */
 export function useChecks(project: Project, shown: boolean) {
@@ -50,8 +50,8 @@ export function useChecks(project: Project, shown: boolean) {
         each part’s test command from the project map narrowed to them; none written: no test before adding, and the
         card says so. KOLONİ’s check at the turn’s end still runs every test. Those tests are the sub-agent’s own code:
         they run by themselves in Full auto, or where the part’s test command is yours (set on the map, or a saved one
-        under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a
-        trigger’s run a guess never runs them.
+        under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are away a guess
+        never runs them.
       </p>
       <Row
         label="Measure command"

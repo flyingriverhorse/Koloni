@@ -479,9 +479,8 @@ function RoleLimits({
           <Hint doc={GUIDE.editingRole} id="role-max-steps-more">
             A change to the limit reaches an agent already open the next time it is told to go on. At the limit that
             agent stops as failed and says so; the agent that opened it hears it and goes on, and for the Orchestrator
-            the work on the message ends. With nobody watching (a trigger’s message), what a sub-agent stopped there had
-            changed is not kept. KOLONİ’s own step limit still holds. For a CLI session each message it writes is a
-            step.
+            the work on the message ends. KOLONİ’s own step limit still holds. For a CLI session each message it writes
+            is a step.
           </Hint>
         </span>
       </div>

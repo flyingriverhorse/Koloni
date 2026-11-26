@@ -93,7 +93,7 @@ test('a role names the MCP servers it may use; "on Tools →" goes there', async
   expect(h.onSave.mock.calls[0][1]).not.toHaveProperty('mcp')
   await userEvent.click(card('Documenter'))
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
-  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 2 of 36 tools · 0 MCP servers · 0 skills')
+  expect(screen.getByText(/^May use/)).toHaveTextContent('May use 2 of 35 tools · 0 MCP servers · 0 skills')
 })
 
 test('a built-in role keeps its name, can be reset and cannot be deleted', async () => {
@@ -656,7 +656,7 @@ test('a role’s limits on steps and tokens are whole numbers above zero, or emp
   expect(unheld.closest('.hint')).toBeNull()
   expect(
     screen.getByText(
-      /A change to the limit reaches an agent already open the next time it is told to go on\..*With nobody watching \(a trigger’s message\), what a sub-agent\s+stopped there had changed is not kept.*For a CLI session each message it\s+writes is a step\./s,
+      /A change to the limit reaches an agent already open the next time it is told to go on\..*KOLONİ’s own step limit still holds\..*For a CLI session each message it\s+writes is a step\./s,
     ),
   ).toBeInTheDocument()
   expect(screen.getByText(/an agent carried on for a later\s+message starts again from zero/)).toBeInTheDocument()

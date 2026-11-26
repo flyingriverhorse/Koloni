@@ -9,7 +9,7 @@ import { DeleteProject, KEPT_ON_DISK } from './DeleteProject'
 afterEach(() => vi.restoreAllMocks())
 
 const project = { id: 'p', name: 'demo' } as Project
-const PREVIEW = { chats: 12, memory: 34, tasks: 5, triggers: 1, knowledge: 0 }
+const PREVIEW = { chats: 12, memory: 34, tasks: 5, knowledge: 0 }
 
 async function opened() {
   vi.spyOn(api, 'get').mockResolvedValue(PREVIEW)
@@ -23,9 +23,7 @@ async function opened() {
 test('Delete project… asks with what goes counted, says the folder stays and it cannot be undone, offers an export, and deletes only once the name is typed', async () => {
   const gone = vi.spyOn(useApp.getState(), 'deleteProject').mockResolvedValue()
   const dialog = await opened()
-  expect(dialog).toHaveTextContent(
-    'This deletes 12 chats, 34 memory records, 5 To-do tasks, 1 trigger, 0 knowledge topics',
-  )
+  expect(dialog).toHaveTextContent('This deletes 12 chats, 34 memory records, 5 To-do tasks, 0 knowledge topics')
   expect(dialog).toHaveTextContent(KEPT_ON_DISK)
   expect(dialog).toHaveTextContent('It cannot be undone.')
   // the export: saved with no key in its address, its keys left out

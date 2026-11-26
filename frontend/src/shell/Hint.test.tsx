@@ -11,11 +11,9 @@ import { TodayView } from '../usage/TodayView'
 import { OutsideApproval } from '../commands/OutsideApproval'
 import { WebApproval } from '../commands/WebApproval'
 import { MergeCard } from '../changes/MergeCard'
-import { agent, conversation, convState, memoryRecord, projectMemory, run, toolCall } from '../test-fixtures'
+import { agent, convState, memoryRecord, projectMemory, run, toolCall } from '../test-fixtures'
 import { MemoryPage } from '../memory/MemoryPage'
 import { useApp } from '../state/store'
-import { newTrigger } from '../triggers/fixtures'
-import { TriggersPage } from '../triggers/TriggersPage'
 import { Hint } from './Hint'
 import { ProjectSettings } from './ProjectSettings'
 
@@ -255,39 +253,6 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     ],
   ],
   [
-    'Triggers',
-    async () => {
-      const none = vi.fn()
-      render(
-        <TriggersPage
-          triggers={[]}
-          conversations={[conversation]}
-          draft={null}
-          origin="http://127.0.0.1:8790"
-          onCreate={none}
-          onSave={none}
-          onDelete={none}
-          onRun={none}
-          onShowTurn={none}
-          onDraftTaken={none}
-          onRules={vi.fn(async () => [])}
-          onAddRule={none}
-        />,
-      )
-      await newTrigger()
-      await userEvent.selectOptions(screen.getByLabelText('Starts'), 'files')
-    },
-    [
-      /Only you make or change a trigger; no agent can\./,
-      /There is nobody to ask when it runs\. Anything not allowed here is refused/,
-      /The conversation’s own permission level does not apply\./,
-      /Without it, nothing a sub-agent or its commands write in its own working copy reaches the project\./,
-      /only “Runs a day” stops that/,
-      /a run that falls due is skipped; a change to its files waits until the conversation is free/,
-      /A run that goes over is stopped\. Three runs in a row that fail or go over switch the trigger off\./,
-    ],
-  ],
-  [
     'The approval cards',
     async () => {
       const card = (name: string, args: string, why_asked: string | null = null) => (
@@ -368,9 +333,7 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
       render(<ModelPicker providers={[local]} providerId={null} modelId={null} onSave={vi.fn()} />)
       await userEvent.click(screen.getByRole('button', { name: /Model: Local/ }))
     },
-    [
-      /One more request for each message you send: .* It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\./,
-    ],
+    [/One more request for each message you send: .* It overrides the Orchestrator role’s own model and tier\./],
   ],
   [
     'Models, Limits',

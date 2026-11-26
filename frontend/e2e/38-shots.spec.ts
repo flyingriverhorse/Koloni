@@ -87,7 +87,7 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 // Slice 38c: the list and detail pages - a role that ran with its record table, and the pages
-// with nothing on them yet (Tools, Triggers) saying so with their action.
+// with nothing on them yet (Tools) saying so with their action.
 for (const theme of ['light', 'dark'] as const) {
   test(`shots: the list and detail pages of slice 38c, ${theme}`, async ({ page }) => {
     test.setTimeout(90_000)
@@ -120,9 +120,6 @@ for (const theme of ['light', 'dark'] as const) {
     await rail(page, 'Tools').click()
     await expect(page.getByRole('heading', { name: 'Tools' })).toBeVisible()
     await snap('tools')
-    await rail(page, 'Triggers').click()
-    await expect(page.getByRole('heading', { name: 'Triggers' })).toBeVisible()
-    await snap('triggers')
   })
 }
 

@@ -84,7 +84,6 @@ const answer = (url: string, over: Record<string, unknown> = {}) => {
       held: false,
       since: null,
       running: 0,
-      triggers: 0,
       backlogs: [],
       nights: [],
       stopped: [],
@@ -512,7 +511,6 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', 'Reading the project’s memory…'],
     ['Knowledge', 'triggers-page knowledge-page', 'Knowledge'],
-    ['Triggers', 'triggers-page', 'Triggers'],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])
@@ -532,7 +530,6 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
     ['Knowledge', 'memory-page', noFolder('Knowledge page')],
-    ['Triggers', 'memory-page', noFolder('Triggers')],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])

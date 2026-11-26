@@ -203,9 +203,7 @@ export interface paths {
         post?: never;
         /**
          * Remove Rule
-         * @description Take a rule off its conversation's allow list. A trigger that had it ticked may
-         *     no longer run it, from this moment (`commands.ticked` reads the list as it is); that
-         *     is also written on the trigger, for the user to look over.
+         * @description Take a rule off its conversation's allow list.
          */
         delete: operations["remove_rule_api_allowed_commands__rule_id__delete"];
         options?: never;
@@ -1037,9 +1035,9 @@ export interface paths {
          * @description Archived conversations deleted for good (slice 76): their turns and all that hangs off
          *     them - messages, agents, their calls, changes and notes, events, and recall's index of
          *     what was said. The project's files and git are not touched, nor its memory: a record of
-         *     one only stops pointing at it. One that is not archived, has a turn at work, has a
-         *     trigger, or has changes still the user's to apply or discard is not deleted, and says
-         *     why; the others are.
+         *     one only stops pointing at it. One that is not archived, has a turn at work, or has
+         *     changes still the user's to apply or discard is not deleted, and says why; the others
+         *     are.
          */
         post: operations["delete_conversations_api_conversations_delete_post"];
         delete?: never;
@@ -1114,26 +1112,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{cid}/trigger-proposals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Proposals
-         * @description The triggers this chat's agents proposed, oldest first, decided or not (slice 69).
-         */
-        get: operations["read_proposals_api_conversations__cid__trigger_proposals_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/conversations/{conversation_id}": {
         parameters: {
             query?: never;
@@ -1164,10 +1142,9 @@ export interface paths {
         /**
          * Add Rule
          * @description Put a command on a conversation's allow list by hand, as "Always run" does when a
-         *     command is approved: the conversation's own turns then run it without asking, and a
-         *     trigger of that conversation can tick it. It says what may run unasked, so it is
-         *     taken only from the app's own page. A rule that is already there is answered with
-         *     (200), not made twice.
+         *     command is approved: the conversation's own turns then run it without asking. It says
+         *     what may run unasked, so it is taken only from the app's own page. A rule that is
+         *     already there is answered with (200), not made twice.
          */
         post: operations["add_rule_api_conversations__conversation_id__allowed_commands_post"];
         delete?: never;
@@ -1703,32 +1680,11 @@ export interface paths {
         put?: never;
         /**
          * Resume
-         * @description What was held goes on: each trigger from its next time, each backlog that works
-         *     itself with its next task, each night with its next job. What was stopped stays stopped,
-         *     and the answer says so (`stays_stopped`, read before the hold that lists them goes).
+         * @description What was held goes on: each backlog that works itself with its next task, each night
+         *     with its next job. What was stopped stays stopped, and the answer says so (`stays_stopped`,
+         *     read before the hold that lists them goes).
          */
         post: operations["resume_api_hold_resume_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/hooks/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Webhook
-         * @description Start a webhook trigger's turn. From this machine only; whoever does not have the
-         *     key is told nothing but "not found". The body is handed to the agent as data.
-         */
-        post: operations["webhook_api_hooks__key__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2531,11 +2487,11 @@ export interface paths {
         /**
          * Delete Project
          * @description KOLONİ's record of the project gone for good, in one transaction: its chats with all
-         *     of their turns, its memory, knowledge, To-do, triggers, nights, usage and vectors. Not
+         *     of their turns, its memory, knowledge, To-do, nights, usage and vectors. Not
          *     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
          *     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
          *     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
-         *     trigger clock is.
+         *     app's clock is.
          *     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
          *     not waited for; a row of the project it writes after the delete is refused by the foreign
          *     key, and a vector stays until the next start's `tidy_db`. Wait for it here if that bites.
@@ -3398,45 +3354,6 @@ export interface paths {
         put?: never;
         /** Add Story */
         post: operations["add_story_api_projects__project_id__stories_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/triggers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Triggers */
-        get: operations["list_triggers_api_projects__project_id__triggers_get"];
-        put?: never;
-        /** Create Trigger */
-        post: operations["create_trigger_api_projects__project_id__triggers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/triggers/changes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Changes
-         * @description The newest fifty things done to the project's triggers, newest first - those of
-         *     triggers that have since been deleted among them.
-         */
-        get: operations["list_changes_api_projects__project_id__triggers_changes_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4859,132 +4776,6 @@ export interface paths {
          * @description Name a topic. The name is the user's from here on, on one line.
          */
         patch: operations["patch_topic_api_topics__topic_id__patch"];
-        trace?: never;
-    };
-    "/api/trigger-proposals/{proposal_id}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Proposal
-         * @description The user's Approve: the trigger is made as proposed, with the safest leave - it reads
-         *     only, opens no sub-agent, has the usual budget. Anything more is the user's, in the form.
-         */
-        post: operations["approve_proposal_api_trigger_proposals__proposal_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/trigger-proposals/{proposal_id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reject Proposal */
-        post: operations["reject_proposal_api_trigger_proposals__proposal_id__reject_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/triggers/paused": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Paused */
-        get: operations["read_paused_api_triggers_paused_get"];
-        /**
-         * Set Paused
-         * @description Pause every trigger of every project at once, or let them go on. Pausing also
-         *     stops the unattended turns that are running.
-         */
-        put: operations["set_paused_api_triggers_paused_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/triggers/{trigger_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Trigger */
-        get: operations["read_trigger_api_triggers__trigger_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Trigger
-         * @description Remove a trigger and the list of its runs. The turns it started stay in their
-         *     conversation; one that is running is stopped. What was done to it stays on the
-         *     project's record, and that it was deleted is added to it.
-         */
-        delete: operations["delete_trigger_api_triggers__trigger_id__delete"];
-        options?: never;
-        head?: never;
-        /** Change Trigger */
-        patch: operations["change_trigger_api_triggers__trigger_id__patch"];
-        trace?: never;
-    };
-    "/api/triggers/{trigger_id}/key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * New Key
-         * @description A webhook's key made anew: the old address stops at once, the new one is shown this
-         *     once (only its digest is kept). For an address that got out.
-         */
-        post: operations["new_key_api_triggers__trigger_id__key_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/triggers/{trigger_id}/run": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run Trigger
-         * @description "Run now": the trigger's turn, with the trigger's permissions and nobody asked -
-         *     what it would do by itself, for the user to see.
-         */
-        post: operations["run_trigger_api_triggers__trigger_id__run_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/unattended": {
@@ -7806,7 +7597,7 @@ export interface components {
         /**
          * HoldOut
          * @description Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
-         *     chat have not ended, and what a hold holds (triggers on, the projects with To-do tasks
+         *     chat have not ended, and what a hold holds (the projects with To-do tasks
          *     waiting in a chat's queue - `backlogs` - and the projects' nights while the user is away) -
          *     and, while it holds, the turns it stopped.
          */
@@ -7827,8 +7618,6 @@ export interface components {
             stopped: components["schemas"]["HoldStopped"][];
             /** Stopping */
             stopping: number;
-            /** Triggers */
-            triggers: number;
         };
         /** HoldStopped */
         HoldStopped: {
@@ -9563,8 +9352,6 @@ export interface components {
             memory: number;
             /** Tasks */
             tasks: number;
-            /** Triggers */
-            triggers: number;
         };
         /**
          * ProjectEntryOut
@@ -11600,11 +11387,6 @@ export interface components {
             /** Topics */
             topics: components["schemas"]["TopicOut"][];
             /**
-             * Trigger Proposals
-             * @default []
-             */
-            trigger_proposals: components["schemas"]["TriggerProposalOut"][];
-            /**
              * Warnings
              * @default []
              */
@@ -12078,386 +11860,6 @@ export interface components {
             tasks: components["schemas"]["BacklogTaskIn"][];
             /** Title */
             title?: string | null;
-        };
-        /**
-         * TriggerBudget
-         * @description A turn's model steps (all its agents together) and its length in minutes; and how
-         *     many turns the trigger may start in a day. There is no "unlimited".
-         */
-        TriggerBudget: {
-            /**
-             * Minutes
-             * @default 10
-             */
-            minutes: number;
-            /**
-             * Per Day
-             * @default 24
-             */
-            per_day: number;
-            /**
-             * Steps
-             * @default 15
-             */
-            steps: number;
-        };
-        /**
-         * TriggerChangeOut
-         * @description One thing that was done to a trigger: made, changed, switched or deleted.
-         */
-        TriggerChangeOut: {
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /** Detail */
-            detail: string | null;
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Project Id */
-            project_id: string;
-            /** Trigger Id */
-            trigger_id: string;
-            /**
-             * What
-             * @enum {string}
-             */
-            what: "created" | "renamed" | "message changed" | "settings changed" | "permissions changed" | "budget changed" | "switched on" | "switched off" | "new key" | "deleted";
-        };
-        /** TriggerCreatedOut */
-        TriggerCreatedOut: {
-            budget: components["schemas"]["TriggerBudget"];
-            /** Catch Up */
-            catch_up: boolean;
-            /** Changes */
-            changes: components["schemas"]["TriggerChangeOut"][];
-            /** Command Lines */
-            command_lines: string[];
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Enabled */
-            enabled: boolean;
-            ends: components["schemas"]["TriggerEnds"] | null;
-            /** Failures */
-            failures: number;
-            /** Id */
-            id: string;
-            /** Idle */
-            idle: number;
-            /** Key */
-            key: string | null;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files" | "webhook";
-            /** Last Result */
-            last_result: string | null;
-            /** Last Run At */
-            last_run_at: string | null;
-            /** Last Words */
-            last_words: string | null;
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            /** Next At */
-            next_at: string | null;
-            /** Off Because */
-            off_because: string | null;
-            permissions: components["schemas"]["TriggerLeave"];
-            /** Project Id */
-            project_id: string;
-            /** Ran */
-            ran: number;
-            /** Run Unchanged */
-            run_unchanged: boolean;
-            /** Runs */
-            runs: components["schemas"]["TriggerRunOut"][];
-            /** Slowed */
-            slowed: number | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
-         * TriggerEnds
-         * @description When a trigger ends by itself: after so many runs, or after a day (the last it runs on).
-         */
-        TriggerEnds: {
-            /** Runs */
-            runs?: number;
-            /** Until */
-            until?: string;
-        };
-        /** TriggerIn */
-        TriggerIn: {
-            budget?: components["schemas"]["TriggerBudget"];
-            /**
-             * Catch Up
-             * @default true
-             */
-            catch_up: boolean;
-            /** Config */
-            config?: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Enabled
-             * @default true
-             */
-            enabled: boolean;
-            /** Ends */
-            ends?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files" | "webhook";
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            permissions?: components["schemas"]["TriggerPermissions"];
-            /** Proposal Id */
-            proposal_id?: string | null;
-            /**
-             * Run Unchanged
-             * @default false
-             */
-            run_unchanged: boolean;
-        };
-        /**
-         * TriggerLeave
-         * @description A trigger's permissions as they are kept and shown. What it may do on the web is
-         *     there only where it is allowed: left out, its turns may not.
-         */
-        TriggerLeave: {
-            /** Agents */
-            agents: number;
-            /** Commands */
-            commands: string[];
-            /** Hosts */
-            hosts?: string[];
-            /** Notify */
-            notify?: boolean;
-            /** Web */
-            web?: boolean;
-            /** Write */
-            write: boolean;
-        };
-        /** TriggerOut */
-        TriggerOut: {
-            budget: components["schemas"]["TriggerBudget"];
-            /** Catch Up */
-            catch_up: boolean;
-            /** Changes */
-            changes: components["schemas"]["TriggerChangeOut"][];
-            /** Command Lines */
-            command_lines: string[];
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Enabled */
-            enabled: boolean;
-            ends: components["schemas"]["TriggerEnds"] | null;
-            /** Failures */
-            failures: number;
-            /** Id */
-            id: string;
-            /** Idle */
-            idle: number;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files" | "webhook";
-            /** Last Result */
-            last_result: string | null;
-            /** Last Run At */
-            last_run_at: string | null;
-            /** Last Words */
-            last_words: string | null;
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            /** Next At */
-            next_at: string | null;
-            /** Off Because */
-            off_because: string | null;
-            permissions: components["schemas"]["TriggerLeave"];
-            /** Project Id */
-            project_id: string;
-            /** Ran */
-            ran: number;
-            /** Run Unchanged */
-            run_unchanged: boolean;
-            /** Runs */
-            runs: components["schemas"]["TriggerRunOut"][];
-            /** Slowed */
-            slowed: number | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
-         * TriggerPatch
-         * @description Left out: kept as it is. A trigger's kind does not change. `ends` sent as null: no
-         *     end.
-         */
-        TriggerPatch: {
-            budget?: components["schemas"]["TriggerBudget"] | null;
-            /** Catch Up */
-            catch_up?: boolean | null;
-            /** Config */
-            config?: {
-                [key: string]: unknown;
-            } | null;
-            /** Conversation Id */
-            conversation_id?: string | null;
-            /** Enabled */
-            enabled?: boolean | null;
-            /** Ends */
-            ends?: {
-                [key: string]: unknown;
-            } | null;
-            /** Message */
-            message?: string | null;
-            /** Name */
-            name?: string | null;
-            permissions?: components["schemas"]["TriggerPermissions"] | null;
-            /** Run Unchanged */
-            run_unchanged?: boolean | null;
-        };
-        /**
-         * TriggerPermissions
-         * @description What a trigger's turns may do without asking. Nothing, to begin with: such a turn
-         *     reads, and writes notes. The conversation's own level and allow list do not count.
-         */
-        TriggerPermissions: {
-            /**
-             * Agents
-             * @default 0
-             */
-            agents: number;
-            /** Commands */
-            commands?: string[];
-            /** Hosts */
-            hosts?: string[];
-            /**
-             * Notify
-             * @default false
-             */
-            notify: boolean;
-            /**
-             * Web
-             * @default false
-             */
-            web: boolean;
-            /**
-             * Write
-             * @default false
-             */
-            write: boolean;
-        };
-        /**
-         * TriggerProposalOut
-         * @description A trigger an agent proposed (slice 69), on its card until the user's word. Approved,
-         *     it reads only, opens no sub-agent and has the usual budget.
-         */
-        TriggerProposalOut: {
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
-            /** Conversation Id */
-            conversation_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            ends: components["schemas"]["TriggerEnds"];
-            /** Id */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "schedule" | "files";
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-            /** Run Id */
-            run_id: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "proposed" | "approved" | "rejected";
-            /** Trigger Id */
-            trigger_id: string | null;
-        };
-        /**
-         * TriggerRunOut
-         * @description One time a trigger came due.
-         */
-        TriggerRunOut: {
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /** Id */
-            id: string;
-            /** Late */
-            late: boolean;
-            /** Note */
-            note: string | null;
-            /** Outcome */
-            outcome: ("completed" | "failed" | "budget" | "stopped" | "skipped_busy" | "skipped_budget" | "skipped_month" | "skipped_limit" | "skipped_same") | null;
-            /** Run Id */
-            run_id: string | null;
-        };
-        /** TriggerStartedOut */
-        TriggerStartedOut: {
-            /** Run Id */
-            run_id: string;
-        };
-        /** TriggersPaused */
-        TriggersPaused: {
-            /** Paused */
-            paused: boolean;
         };
         /** TryIn */
         TryIn: {
@@ -14720,37 +14122,6 @@ export interface operations {
             };
         };
     };
-    read_proposals_api_conversations__cid__trigger_proposals_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                cid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerProposalOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     snapshot_api_conversations__conversation_id__get: {
         parameters: {
             query?: never;
@@ -15741,37 +15112,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoldOut"];
-                };
-            };
-        };
-    };
-    webhook_api_hooks__key__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerStartedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -19104,103 +18444,6 @@ export interface operations {
             };
         };
     };
-    list_triggers_api_projects__project_id__triggers_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_trigger_api_projects__project_id__triggers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerCreatedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_changes_api_projects__project_id__triggers_changes_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerChangeOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_providers_api_providers_get: {
         parameters: {
             query?: never;
@@ -21865,278 +21108,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TopicOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_proposal_api_trigger_proposals__proposal_id__approve_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                proposal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reject_proposal_api_trigger_proposals__proposal_id__reject_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                proposal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerProposalOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_paused_api_triggers_paused_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggersPaused"];
-                };
-            };
-        };
-    };
-    set_paused_api_triggers_paused_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggersPaused"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggersPaused"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_trigger_api_triggers__trigger_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_trigger_api_triggers__trigger_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    change_trigger_api_triggers__trigger_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TriggerPatch"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    new_key_api_triggers__trigger_id__key_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerCreatedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    run_trigger_api_triggers__trigger_id__run_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trigger_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerStartedOut"];
                 };
             };
             /** @description Validation Error */
