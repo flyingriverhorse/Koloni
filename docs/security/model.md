@@ -235,7 +235,9 @@ What is not framed:
   may not ask now (no room, the turn's token limit) is a card, never a run nor a refusal (it fails
   closed); a refused agent is told a general reason, never the judge's sentence (it read your messages,
   and would guide the next try), and after 3 refusals in a row (a command that runs ends a row) or 20
-  in a turn, by any of its agents, the rest of the turn's risky commands are cards. It reads your words
+  in a turn, by any of its agents, the rest of the turn's risky commands are cards. A narrow **Always
+  run** rule (`npm run build`) lets what it covers by unjudged - not a broad one (`npm`, `python`), nor a
+  line that runs a program an agent wrote. It reads your words
   and the agent's actions - its tool calls by name and arguments, never what they gave back (a file
   read, a command's output, a page), so text planted in a file or a page does not reach it that way.
   What it lets by runs as Full auto ran before it: a model's "fine" can be wrong; it reads the first

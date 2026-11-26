@@ -26,10 +26,12 @@ from app.commands import (
     _parts,
     _program,
     _words,
+    is_allowed,
     is_plain,
     is_wrapped,
     names_secret,
     only_reads,
+    rules_here,
     standing_asked,
     with_cwd,
 )
@@ -516,9 +518,11 @@ class RiskJudgeMixin:
         the project's switch off (read at each command), one that only reads, their own test
         command (but where an agent wrote the program it runs), one asked at every level anyway
         (a secret, a file that steers later turns), an ordinary line (`risk_judge.ordinary`, what
-        it runs not an agent's: `_planted`, W7), one they said Run to on its card this turn - or
-        not to ask about again here (`JudgeAllowed`). A card unasked: `risk_judge.risky_unasked`;
-        one with no model to ask, `_risk_asked`.
+        it runs not an agent's: `_planted`, W7), one a narrow "Always run" rule of the chat covers
+        in a turn the user watches (0.1.10, `_risk_line`: never a broad one, `risk_judge.
+        broad_rule`, nor one that runs a program an agent wrote), one they said Run to on its card
+        this turn - or not to ask about again here (`JudgeAllowed`). A card unasked:
+        `risk_judge.risky_unasked`; one with no model to ask, `_risk_asked`.
         `known`: False where `cwd` is no fact (a CLI's folder not known, or its model's word):
         then no program is read. Nothing is kept for such a line - neither its verdict, nor a Run
         on its card -, nor for one but where the file it runs was found, hashed, and is all it
@@ -541,30 +545,42 @@ class RiskJudgeMixin:
             return CARD.format(why=NOT_LOOKED), None
 
     def _risk_line(
-        self: "AgentRunner", ctx: Ctx, command: str, cwd: str, root: Path, known: bool
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str,
+        root: Path,
+        known: bool,
+        ruled: bool = False,
     ) -> tuple[bool, Path | None, tuple[str, str | None, int] | None, str, bool]:
-        """Whether a line is ordinary (`risk_judge.ordinary`, nothing it runs an agent's); the
+        """Whether a line is let by unjudged: ordinary (`risk_judge.ordinary`) or covered by a
+        narrow rule (`ruled`), nothing it runs an agent's (`_planted`; a ruled line's program not
+        an agent's either: `_agents`); the
         file it runs as its program (`_named_file`, where `known`); that program as the judge is
         shown it where an agent wrote it (`_agents`) - its text only where a write of an agent's
         on record made it, never one in the scratch it did not (0.1.10: a command's output, a
         fetched page; text None) -; its digest whoever wrote it ("": no file found); and whether
         that file is all the line runs (`_Files.exact`). Blocking."""
         npm = [_program(word) for word in _words(command.strip())[:1]] == ["npm"]  # (npm.cmd)
+        ordinary = risk_judge.ordinary(command, npm_run=True)
         plain = (
-            risk_judge.ordinary(command, npm_run=True)
+            (ordinary or ruled)
             and _planted(self._factory, ctx.cid, root, command, cwd) is None
             # W7: what `npm test` and `npm run x` run is package.json's - an agent's, where one of
             # its writes of one (or of a lock, a runner's setting) still stands: as npx's reads
             and not (npm and _planted(self._factory, ctx.cid, root, "npx -", cwd))
         )
-        path, exact = (None, False) if plain or not known else _named_file(root, command, cwd)
+        path, exact = (
+            (None, False) if plain and ordinary or not known else _named_file(root, command, cwd)
+        )
         if path is None:
             return plain, None, None, "", False
         shown, digest = _program_read(path, root)
         written = _agents(self._factory, ctx.cid, root, path, scratch=False)
         if not (written or in_scratch(shown[0])):
             return plain, path, None, digest, exact
-        return plain, path, shown if written else (shown[0], None, 0), digest, exact
+        # (a ruled line that runs an agent's program is judged: no rule covers what an agent wrote)
+        return False, path, shown if written else (shown[0], None, 0), digest, exact
 
     async def _risk_judging(
         self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path, known: bool
@@ -572,7 +588,8 @@ class RiskJudgeMixin:
         """`_risk_judged`'s work, which may raise."""
         line = with_cwd(command, cwd)
         with self._factory() as session:
-            project = project_of(session, session.get_one(Conversation, ctx.cid))
+            conversation = session.get_one(Conversation, ctx.cid)
+            project = project_of(session, conversation)
             if (
                 project is None
                 or not project.full_auto_judge
@@ -581,13 +598,21 @@ class RiskJudgeMixin:
                 or standing_asked(line, False)
             ):
                 return "", None
+            # (decision 6, 0.1.10: a narrow "Always run" rule lets a line by as Claude Code's auto
+            # mode does - in a turn the user watches, its folder known; a broad one never)
+            narrow = [
+                rule.prefix
+                for rule in session.scalars(rules_here(conversation))
+                if not risk_judge.broad_rule(rule.prefix)
+            ]
+            ruled = known and ctx.run_id not in self._away_jobs and is_allowed(command, narrow)
             project_id = project.id
             own = project_map.own_test(project.test_commands, command, cwd)
             earlier = self._risk_earlier(session, ctx)
             # (anywhere but the project itself - a working copy, a branch's worktree - is a copy)
             in_copy = root.resolve() != Path(project.root_path).resolve()
         plain, path, program, digest, exact = await asyncio.to_thread(
-            self._risk_line, ctx, command, cwd or ".", root, known
+            self._risk_line, ctx, command, cwd or ".", root, known, ruled
         )
         exact = exact and not _sees_python_path(command, in_copy)
         # (the user's own test command is theirs - but not where it runs a program an agent wrote)

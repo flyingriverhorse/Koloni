@@ -391,6 +391,8 @@ It is not asked about:
 - your own test command (the project map's) - but it is, where the line runs a program an agent wrote -,
   a skill's script you let run, and a delete KOLONİ found disposable where you allowed [such
   deletes](#disposable-deletes);
+- a line a narrow **Always run** rule of the chat covers, in a chat you watch - not a broad one (see
+  **Always run rules at Full auto** below), and not where it runs a program an agent wrote;
 - a command KOLONİ already asks about for a reason of its own - the list, a secret, `.koloni`, a file that
   steers agents, a working copy's reason: that card stays as it was (a delete or a send the list stops is
   put to [your words](#check-what-i-said-first) instead, where that box works). The judge never runs a
@@ -479,8 +481,18 @@ package run by its `__main__.py` (`python -m pkg`, `python pkg`), a Python line 
 working copy (its commands get the copy first on `PYTHONPATH`, so a `sitecustomize.py` there runs before
 the script) or where KOLONİ's own environment sets `PYTHONPATH`, `bun`, `Rscript`, any other runner
 KOLONİ does not know, a file it did not find (`python -m x` with no `x.py`), or a line whose folder is not
-known (a CLI that does not say). No **Always run** is offered, and an Always run rule does not let a command past the
-judge: a rule matches by its first words, and `python` would cover `python -c …`.
+known (a CLI that does not say). No **Always run** is offered on its card.
+
+**Always run rules at Full auto** (since 0.1.10, as Claude Code's auto mode): a **narrow** rule of the
+chat, one that names its task (`npm test`, `npm run build`, `python gen.py`, `make build`, `gh pr
+list`), lets a line it covers by with no judge, in a chat you watch, where KOLONİ knows the folder the
+line runs in, and not where the line runs a program an agent wrote (the judge reads that one). A **broad** rule does
+not: one with no word past its program that is not an option (`npm`, `git`, `docker`, `make`, `gh`,
+`pytest -x`), or one KOLONİ would offer no rule for at all - a shell's, a wrapped line, an interpreter or a
+package runner with no script or package named, a runner's `run` or `exec` with nothing named (`bash …`,
+`env …`, `python -c …`, `npx`, `npm run`, `uv run`). What a broad rule covers is looked at by the judge
+as if there were no rule. In a job while you're away no rule lets a line past the judge. Below Full auto
+rules work as they always did.
 
 **With no model to ask** - no Judge model chosen that can be asked, and none in the Fast tier - it does
 not step aside (since 0.1.10; as Claude Code's auto mode, it fails closed): each command it would look at

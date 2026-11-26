@@ -11,7 +11,7 @@ from collections.abc import Iterable, Sequence
 from typing import TypeGuard
 
 from app import injection, judge
-from app.commands import _in_a_shell, _program, _words, is_plain, is_wrapped
+from app.commands import _in_a_shell, _offer, _program, _words, is_plain, is_wrapped
 from app.masking import masked
 
 # A command longer than this is a card unasked: what the judge reads is cut nowhere.
@@ -204,6 +204,17 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
         else not _OUT.search(word)
         for word in rest[verbs is not None :]
     )
+
+
+def broad_rule(rule: str) -> bool:
+    """0.1.10 (as Claude Code's auto mode drops `Bash(*)`, `Bash(python*)`): whether an "Always
+    run" rule names no task, so at Full auto the judge still looks at what it covers - no word past
+    its program that is no option (`npm`, `make`, `gh`, `pytest -x`), or no rule KOLONİ would offer
+    for it (`commands._offer`): a shell's, a wrapped line, an interpreter or a package runner with
+    no script or package named, a runner's `run` / `exec` with nothing named (`bash x.sh`, `env x`,
+    `python -c x`, `npx`, `npm run`, `uv run`), not one plain line (`*`). A narrow one names its
+    task: `npm test`, `npm run build`, `python gen.py`, `make build`, `gh pr list`."""
+    return not _offer(rule) or all(word.startswith("-") for word in _words(rule.strip())[1:])
 
 
 def risky_unasked(command: str, program_text: str | None, earlier: Sequence[str] = ()) -> str:

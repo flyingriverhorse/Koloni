@@ -181,6 +181,10 @@ messages.
     - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
     - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
       asked, from that CLI's quota, and each such command waits for the CLI to start.
+    - A narrow **Always run** rule (`npm run build`, `make build`) lets what it covers by with no
+      judge, as Claude Code's auto mode does: what that script, target or tool then runs - a
+      `package.json` script or a Makefile recipe you wrote, a tool's settings - is not looked at
+      (one an agent wrote is). A broad rule (`npm`, `make`, `python`, `pytest -x`) does not.
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.

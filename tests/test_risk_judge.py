@@ -9,6 +9,7 @@ from app.risk_judge import (
     EARLIER_CHARS,
     MOST_COMMAND_CHARS,
     WHY_CHARS,
+    broad_rule,
     kept,
     ordinary,
     prompt,
@@ -210,3 +211,24 @@ def test_a_line_is_kept_only_with_its_key(record, want):
 )
 def test_refusals_in_a_row_and_in_a_turn(turn, want):
     assert refusals(turn) == want
+
+
+@pytest.mark.parametrize(
+    "rule",
+    ["npm test", "npm run build", "python gen.py", "python -m pytest", "make build", "gh pr list"]
+    + ["cargo test", "git status", "uv run pytest", "npx tsc", "docker build -t app ."],
+)
+def test_a_rule_that_names_its_task_is_narrow(rule):
+    assert not broad_rule(rule)
+
+
+@pytest.mark.parametrize(
+    "rule",
+    # (its program alone, or with options only: no task named)
+    ["npm", "git", "docker", "make", "gh", "pytest -x", "npm --version"]
+    # (an interpreter, a shell, a wrapper or a runner with nothing named; not one plain line)
+    + ["python", "python -c x", "node -e x", "bash x.sh", "cmd /c x", "powershell x", "env x"]
+    + ["npx", "npm run", "npm exec", "uv run", "corepack", "*", "python*", "bash *", ""],
+)
+def test_a_rule_that_names_no_task_is_broad(rule):
+    assert broad_rule(rule)
