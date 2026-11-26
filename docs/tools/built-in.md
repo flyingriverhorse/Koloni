@@ -40,6 +40,10 @@ are grouped like this. "Asks" means it waits for your card, as the chat's permis
 
 New skills and Ask for a folder always go to a card too.
 
+**Recall** is an agent's one tool to look things up: the project's memory and earlier messages, and,
+for a role that uses knowledge, that knowledge's pages too
+([How agents look things up](../knowledge.md#how-agents-look-things-up)).
+
 A role with **Run commands** also gets two tools for a command that keeps running in the chat (a dev
 server), in a turn you watch: one reads what it printed since, the other stops it - only one the agent
 started itself. See

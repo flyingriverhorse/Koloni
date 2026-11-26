@@ -17,6 +17,7 @@ from app import (
     copies,
     git,
     injection,
+    knows,
     mcp_client,
     models_dev,
     recipe_run,
@@ -326,6 +327,8 @@ class TalkMixin:
             show and ctx.agent_id not in self._read_only_agents,
         )
         schemas = [capped(s, cap) if s["function"]["name"] == "run_command" else s for s in schemas]
+        if ctx.agent_id not in self._read_only_agents:  # (KOLONİ's Reviewer: lookup, no memory)
+            schemas = knows.one_look_up(schemas)  # (0.1.10: one look-up tool)
         # (with the To-do list's tools: the jobs go onto it)
         at = next(
             (i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),

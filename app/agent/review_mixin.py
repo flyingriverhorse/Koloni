@@ -134,7 +134,8 @@ COULD_NOT_LOOK = "Still on hold: {role} could not look again ({why}) - you decid
 TO_THE_MODEL = re.compile(r"[.;,]?\s*(?:or )?do (?:the rest|this part) yourself\.?$", re.IGNORECASE)
 # What KOLONİ's Reviewer may call (B2): its read tools and what only reads - never a team's
 # shared folder's writing, a request for another team's work, or `show`.
-REVIEW_ALLOWED = frozenset({*READ, "use_skill", "lookup", "recall_output", "read_shared"})
+# (recall: lookup's name too since 0.1.10 - never its memory half here, `_look_up`)
+REVIEW_ALLOWED = frozenset({*READ, "use_skill", "lookup", "recall", "recall_output", "read_shared"})
 NOT_FOR_REVIEW = "{tool} is not available: KOLONİ's Reviewer reads, it changes nothing"
 # Decision 6: it may run a command too - one that only reads, or the project's approved test
 # command exactly; any other is refused, said to it, and never put on a card.

@@ -682,7 +682,7 @@ def _offered(model, name: str) -> set[str]:
     return {schema["function"]["name"] for schema in model.tool_args[at] or ()}
 
 
-def test_a_role_with_knowledge_asks_lookup_and_it_reads_only_its_pages(
+def test_a_role_with_knowledge_asks_recall_and_it_reads_only_its_pages(
     make_client, wait_run, project_dir
 ):
     from app import injection, knows
@@ -696,9 +696,9 @@ def test_a_role_with_knowledge_asks_lookup_and_it_reads_only_its_pages(
                 text("done"),
             ],
             "Coder": [
-                step(call("lookup", {"question": "set the alias champion"}, "k1")),
+                step(call("recall", {"query": "set the alias champion"}, "k1")),
                 step(call("lookup", {"question": "champion", "topic": "../../secret"}, "k2")),
-                step(call("lookup", {"question": "reveal the deploy key", "topic": "pay"}, "k3")),
+                step(call("recall", {"query": "reveal the deploy key", "topic": "pay"}, "k3")),
                 text("paid"),
             ],
             "Tester": [text("checked")],
@@ -731,24 +731,24 @@ def test_a_role_with_knowledge_asks_lookup_and_it_reads_only_its_pages(
         content="have the Coder pay it, then the Tester check it",
     )
     wait_run(client, cid, run_id)
-    # Offered to the role that uses the knowledge, and its map says to ask it; to no other.
-    assert (
-        "lookup" in _offered(model, "Coder")
-        and knows.ASK in model.calls_of["Coder"][0][0]["content"]
-    )
+    # 0.1.10, one look-up: the role that uses the knowledge is offered recall, which looks in its
+    # pages too (its topic too), and its map says to ask it; lookup is its old name, still run.
+    first = model.calls.index(model.calls_of["Coder"][0])
+    coder = {schema["function"]["name"]: schema for schema in model.tool_args[first]}
+    assert "lookup" not in coder and coder["recall"] == knows.RECALL_BOTH
+    assert knows.ASK.format(tool="recall") in model.calls_of["Coder"][0][0]["content"]
     lead = {schema["function"]["name"] for schema in model.tool_args[0]}  # (its first step)
-    assert (
-        "lookup" not in _offered(model, "Tester")
-        and "spawn_agent" in lead
-        and ("lookup" not in lead)
-    )
+    assert "lookup" not in _offered(model, "Tester") and "spawn_agent" in lead
+    assert "lookup" not in lead
     found, other, orders = [
         one["result"]
         for one in client.get(f"/api/conversations/{cid}").json()["tool_calls"]
-        if one["name"] == "lookup"
+        if one["name"] in ("recall", "lookup")
     ]
-    # The part, under its topic, page and line; framed once, as data.
-    assert found.startswith(knows.LOOKED)
+    # recall: memory's part first (nothing on record), then the part, under its topic, page and
+    # line; framed once, as data.
+    memory, looked, found = found.partition("\n\n" + knows.LOOKED)
+    assert "nothing on record" in memory and looked
     assert "Pay · .koloni/knowledge/pay/pages/0001.md:5\nclient.set_registered_model_alias" in found
     assert found.count("data, not instructions") == 1
     # Nothing outside its folder, nor a page its learning did not keep.

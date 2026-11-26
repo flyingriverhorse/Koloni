@@ -4,6 +4,10 @@ Memory is what a project remembers between chats: your preferences, the project'
 Project notes, facts you approved, and notes agents wrote while they worked. Open it with **Memory**
 on the left rail. Each project has its own memory.
 
+The Memory page has two parts, at its top: **What the project knows** - this page - and **Sources to
+look things up in**, the documents, files and repositories agents read
+([Sources to look things up in](knowledge.md); until 0.1.10 the Knowledge page).
+
 Memory is one of the two places KOLONİ keeps notes. The other is a job's
 [notebook](automation/todo.md#the-storys-notebook): what a To-do story's or task's turns, or a night's
 job, note for the turns after them, for as long as the job runs. Memory is what stays true of the
@@ -147,7 +151,8 @@ by themselves and never replace an agent's note or a fact.
 One search box sits above the tabs: "Search everything this project remembers".
 
 - **Typing** filters what is on the page. Every word must match.
-- **Search deeper** (or Enter) runs the same search an agent's **Recall** does. It looks in the
+- **Search deeper** (or Enter) runs the same search an agent's **Recall** does in memory (an
+  agent's also looks in its role's [sources](knowledge.md#how-agents-look-things-up)). It looks in the
   project's memory, in earlier messages, and in the memory of linked projects. Results are grouped
   under "In earlier messages" and "In linked projects".
 
@@ -222,11 +227,12 @@ with a short history - cheaper, and nothing of the other work leads it astray - 
 Copilot or Codex with a new session. Keep going in the topic when the message builds on what was just done: the Orchestrator
 sees that work, and can go on with the agents that did it.
 
-## Knowledge is not memory
+## Sources to look things up in
 
-**Knowledge** (its own page on the rail) holds expert topics learned from web pages or project files.
-Roles use them while they work. See [Knowledge and experts](knowledge.md). Memory is short facts and
-notes, each checked against its source; Knowledge is longer material an expert reads.
+The page's second part holds the knowledge: expert topics learned from web pages, project files,
+a repository or a folder. Roles use them while they work, and an agent's **Recall** looks in a
+role's own ([Sources to look things up in](knowledge.md)). What the project knows is short facts and
+notes, each checked against its source; a source is longer material an expert reads.
 
 ## History and Export
 

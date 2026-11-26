@@ -217,8 +217,9 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
     await userEvent.type(within(palette()!).getByRole('combobox'), `${words}{Enter}`)
     expect(palette()).not.toBeInTheDocument()
   }
+  // 0.1.10: Knowledge is the Memory page's sources
   await pick('knowledge')
-  expect(await screen.findByRole('heading', { name: 'Knowledge' })).toBeInTheDocument()
+  expect(await screen.findByText(/^Sources: what agents can look things up in/)).toBeInTheDocument()
   // the Conversations page by the rail's word for it, too
   await pick('chats')
   expect(await screen.findByRole('heading', { name: 'Conversations' })).toBeInTheDocument()
@@ -477,6 +478,6 @@ test('gone to another page by Enter, the focus is on that page, not lost', async
   await userEvent.click(box)
   await userEvent.keyboard('{Control>}k{/Control}')
   await userEvent.type(within(palette()!).getByRole('combobox'), 'knowledge{Enter}')
-  await screen.findByRole('heading', { name: 'Knowledge' })
+  await screen.findByText(/^Sources: what agents can look things up in/)
   await waitFor(() => expect(document.querySelector('.main')).toHaveFocus())
 })

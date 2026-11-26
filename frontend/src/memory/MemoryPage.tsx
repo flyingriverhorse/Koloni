@@ -25,6 +25,8 @@ import { Hint } from '../shell/Hint'
 import { KEPT_IN_FOLDER } from '../shell/ProjectSettings'
 
 interface Props {
+  /** 0.1.10: the page's two parts (`MemoryParts`), under its heading. */
+  parts?: ReactNode
   /** The open project's memory; null until it has been read. */
   memory: ProjectMemory | null
   /** Why it could not be read, if it could not. */
@@ -163,7 +165,7 @@ function ExportButton({ onExport }: { onExport: () => Promise<void> }) {
   )
 }
 
-export function MemoryPage({ memory, error, onReload, onSearch, onExport, searchFor, ...on }: Props) {
+export function MemoryPage({ memory, error, onReload, onSearch, onExport, searchFor, parts, ...on }: Props) {
   const [tab, setTab] = useState<Tab>('facts')
   const [factTopic, setFactTopic] = useState('')
   const [noteTopic, setNoteTopic] = useState('')
@@ -484,6 +486,7 @@ export function MemoryPage({ memory, error, onReload, onSearch, onExport, search
           {onExport && <ExportButton onExport={onExport} />}
         </div>
       </div>
+      {parts}
       {error && (
         <div role="alert" className="alert">
           {error}

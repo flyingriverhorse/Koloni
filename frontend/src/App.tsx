@@ -27,6 +27,7 @@ import { Inspector } from './inspector/Inspector'
 import { ConversationList } from './shell/ConversationList'
 import { ModelBanner } from './shell/ModelBanner'
 import { KnowledgePage } from './knowledge/KnowledgePage'
+import { MemoryParts } from './memory/MemoryParts'
 import { MemoryPage } from './memory/MemoryPage'
 import { ModelsPage } from './models/ModelsPage'
 import { FirstSteps } from './shell/FirstSteps'
@@ -124,7 +125,7 @@ const PAGES: [View, string][] = [
   ['models', 'Models'],
   ['tools', 'Tools'],
   ['memory', 'Memory'],
-  ['knowledge', 'Knowledge'],
+  ['knowledge', 'Memory › Sources (Knowledge)'],
   ['usage', 'Usage'],
 ]
 
@@ -889,6 +890,7 @@ export function App() {
     ) : (
       <MemoryPage
         key={project.id}
+        parts={<MemoryParts sources={false} onPart={sources => sources && setView('knowledge')} />}
         searchFor={pick?.view === 'memory' ? { words: pick.id, n: pick.n } : undefined}
         memory={memory}
         error={memoryError}
@@ -912,10 +914,11 @@ export function App() {
     )
   const knowledgePage = () =>
     !project ? (
-      noFolder('Knowledge page')
+      noFolder('Memory')
     ) : (
       <KnowledgePage
         key={project.id}
+        parts={<MemoryParts sources onPart={sources => !sources && setView('memory')} />}
         items={knowledge}
         error={knowledgeError}
         projectName={project.name}

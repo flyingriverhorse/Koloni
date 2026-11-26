@@ -1,4 +1,4 @@
-import { type FormEvent, type KeyboardEvent, useEffect, useId, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useState } from 'react'
 import { errorText, overWhat } from '../api/client'
 import type {
   Knowledge,
@@ -16,6 +16,8 @@ import { Hint } from '../shell/Hint'
 import { CopyGuide, Guide, Pages, type Sent, Sources } from './KnowledgeParts'
 
 interface Props {
+  /** 0.1.10: the Memory page's two parts (`MemoryParts`): this is its sources. */
+  parts?: ReactNode
   /** The project's knowledge and every project's; null while it is read. */
   items: KnowledgeItem[] | null
   error: string | null
@@ -55,8 +57,6 @@ const minutesAgo = (iso: string) => {
 // K-bilgi 8: this project's code - its only source (app/knowledge.py CODE), scanned with no model.
 const CODE = 'code:'
 const isCode = (known: Knowledge) => known.sources.length === 1 && known.sources[0] === CODE
-// K-bilgi 6: the Project notes - notes KOLONİ writes from what you accept at a turn's end (app/project_notes.py); nothing to learn.
-const isNotes = (known: Knowledge) => known.sources.length === 1 && known.sources[0] === 'notes:'
 // KOLONİ's own guide, its docs/ (app/knowledge.py KOLONI_GUIDE): only the learner reads it, only on Learn.
 const KOLONI_GUIDE = 'koloni-guide:'
 // K-bilgi-repo: a repository, cloned on Learn outside the project (app/knowledge.py REPO) - its docs' pages, its code files and its free scan;
@@ -138,7 +138,7 @@ function AddOwnGuide({
 }
 
 export function KnowledgePage(props: Props) {
-  const { items, error, projectName, providers, onReload, onAdd, onLearn } = props
+  const { items, error, projectName, providers, onReload, onAdd, onLearn, parts } = props
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [said, setSaid] = useState<string | null>(null)
@@ -174,9 +174,9 @@ export function KnowledgePage(props: Props) {
   return (
     <div className="triggers-page knowledge-page">
       <div className="conv-head">
-        <h2>Knowledge</h2>
+        <h2>Memory</h2>
         <span className="muted trigger-lede">
-          What agents can look things up in.{' '}
+          Sources: what agents can look things up in.{' '}
           <Hint doc={GUIDE.knowledge}>
             What the agents of {projectName} can look things up in. A role uses only what you give it, on its Knowledge
             tab. Knowledge marked “every project” is in all of your projects; “+ Add knowledge” adds to this one.
@@ -188,6 +188,7 @@ export function KnowledgePage(props: Props) {
           </button>
         </div>
       </div>
+      {parts}
       {(error || said) && (
         <div role="alert" className="alert">
           {error ?? said}
@@ -324,8 +325,7 @@ function Card({
   // K-uzman-derin: every page under its sources is read; its guide is written from as many as its money limit pays for.
   const written = learned?.guide_from ?? 0
   const code = isCode(known)
-  const notes = isNotes(known)
-  const web = !code && !notes
+  const web = !code
   const fresh = freshOf(state, code)
   const more = goesOn(learned)
   const button = buttonOf(code, learned, more)
@@ -431,12 +431,7 @@ function Card({
         {known.topic} · it names its folder, {state.folder}
       </p>
       {/* (Anew once saved: what is saved is what it shows.) */}
-      {notes ? (
-        <p className="muted">
-          Notes KOLONİ writes from what you tick on a turn’s “Add to Project notes?” card: fixed findings and docs/
-          changes, one page each.
-        </p>
-      ) : code ? (
+      {code ? (
         <p className="muted">
           The Python and JS/TS files here, as the agents’ file tools see them: no secret, no node_modules or build
           output.
@@ -465,7 +460,7 @@ function Card({
         {open ? '▾' : '▸'} {known.topic}
       </button>
       <span className="muted knowledge-source">
-        {code ? 'scanned from the project' : notes ? 'decisions the project kept' : known.sources[0]}
+        {code ? 'scanned from the project' : known.sources[0]}
         {known.sources.length > 1 && ` +${known.sources.length - 1}`}
       </span>
       {item.project_id === null && <span className="tag">every project</span>}
@@ -473,23 +468,17 @@ function Card({
       <button type="button" className="btn btn-small" aria-expanded={trying} onClick={() => setTrying(!trying)}>
         Try it
       </button>
-      {notes ? (
-        <span className="muted">written as you accept them</span>
-      ) : (
-        <>
-          {/* What its next learning spends: in sight beside the button that spends it. */}
-          <span className="muted knowledge-cost">{cost}</span>
-          <button
-            type="button"
-            className="btn btn-primary btn-small"
-            disabled={state.learning || dirty}
-            title={dirty ? 'Save first: Save and learn uses what you changed' : undefined}
-            onClick={onLearn}
-          >
-            {button}
-          </button>
-        </>
-      )}
+      {/* What its next learning spends: in sight beside the button that spends it. */}
+      <span className="muted knowledge-cost">{cost}</span>
+      <button
+        type="button"
+        className="btn btn-primary btn-small"
+        disabled={state.learning || dirty}
+        title={dirty ? 'Save first: Save and learn uses what you changed' : undefined}
+        onClick={onLearn}
+      >
+        {button}
+      </button>
     </div>
   )
   /** How much of what was read is in its guide, a repository's code files, and why it holds fewer. */
@@ -644,15 +633,7 @@ function Card({
   /** Its facts - a scan's, the notes' or a learned guide's - and who uses it. */
   const facts = () => (
     <div className="knowledge-facts">
-      {code ? (
-        codeFacts()
-      ) : notes ? (
-        <span>
-          <b>{written}</b> notes
-        </span>
-      ) : (
-        learnedFacts()
-      )}
+      {code ? codeFacts() : learnedFacts()}
       {usedBy}
     </div>
   )

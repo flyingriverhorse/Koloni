@@ -95,7 +95,8 @@ how they hang together.
 **Knowledge**
 : What agents can look things up in: a docs site, files, a repository or a topic, read once and turned
   into a short guide. A role uses a knowledge only if you give it to the role. Memory is what the project
-  learned; knowledge is reading you hand to agents. See [Knowledge and experts](../knowledge.md).
+  learned; knowledge is reading you hand to agents - both on the Memory page, its two parts, and one
+  tool, **Recall**, looks in both. See [Sources to look things up in](../knowledge.md).
 
 ## Work that starts by itself
 
