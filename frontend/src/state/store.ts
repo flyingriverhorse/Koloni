@@ -82,7 +82,6 @@ import type {
   RecipeDraft,
   BacklogDraft,
   Recipes,
-  Goal,
   Story,
   TodoTree,
   TodoTreeAdded,
@@ -231,19 +230,12 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   backlogError: string | null
   /** Who "Write it with the Hive keeper" asks, read with it; null until then. */
   drafter: BacklogDrafter | null
-  /** 0.1.8: its stories and goals, read with it; null until then. */
+  /** 0.1.8: its stories, read with it; null until then. (0.1.10: To-do's goal level is hidden.) */
   stories: Story[] | null
-  goals: Goal[] | null
   loadBacklog(): Promise<void>
-  /** A goal or a story of the open project added, changed or deleted (what was under it stays); each throws ApiError. */
-  addGoal(title: string): Promise<Goal>
-  changeGoal(goalId: string, change: { title?: string; position?: number }): Promise<void>
-  deleteGoal(goalId: string): Promise<void>
-  addStory(title: string, goalId?: string | null): Promise<Story>
-  changeStory(
-    storyId: string,
-    change: { title?: string; goal_id?: string | null; position?: number; closed?: boolean },
-  ): Promise<void>
+  /** A story of the open project added, changed or deleted (what was under it stays); each throws ApiError. */
+  addStory(title: string): Promise<Story>
+  changeStory(storyId: string, change: { title?: string; position?: number; closed?: boolean }): Promise<void>
   deleteStory(storyId: string): Promise<void>
   /** The Hive keeper's draft, or a part of it, added at once by your word: what was added. Throws ApiError. */
   addTree(tree: TodoTreeIn): Promise<TodoTreeAdded>
@@ -710,7 +702,6 @@ export const useApp = create<AppStore>()((set, get) => {
       backlogError: null,
       drafter: null,
       stories: null,
-      goals: null,
       away: null,
       knowledge: null,
       knowledgeError: null,
@@ -1021,7 +1012,6 @@ export const useApp = create<AppStore>()((set, get) => {
     backlogError: null,
     drafter: null,
     stories: null,
-    goals: null,
 
     async loadBacklog() {
       const { projectId } = get()
@@ -1034,31 +1024,14 @@ export const useApp = create<AppStore>()((set, get) => {
           api.get<BacklogDrafter>('/projects/' + projectId + '/backlog/drafter' + inChat(get())),
           api.get<TodoTree>('/projects/' + projectId + '/stories'),
         ])
-        if (mine === backlogReads)
-          set({ backlog, drafter, stories: tree.stories, goals: tree.goals, backlogError: null })
+        if (mine === backlogReads) set({ backlog, drafter, stories: tree.stories, backlogError: null })
       } catch (err) {
         if (mine === backlogReads) set({ backlogError: errorText(err) })
       }
     },
 
-    async addGoal(title) {
-      const goal = await api.post<Goal>('/projects/' + get().projectId + '/goals', { title })
-      await get().loadBacklog()
-      return goal
-    },
-
-    async changeGoal(goalId, change) {
-      await api.patch('/goals/' + goalId, change)
-      await get().loadBacklog()
-    },
-
-    async deleteGoal(goalId) {
-      await api.delete('/goals/' + goalId)
-      await get().loadBacklog()
-    },
-
-    async addStory(title, goalId = null) {
-      const story = await api.post<Story>('/projects/' + get().projectId + '/stories', { title, goal_id: goalId })
+    async addStory(title) {
+      const story = await api.post<Story>('/projects/' + get().projectId + '/stories', { title })
       await get().loadBacklog()
       return story
     },

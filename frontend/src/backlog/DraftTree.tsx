@@ -7,7 +7,7 @@ type Shaped = { title: string; notes: string[]; tasks: Task[] }
 
 interface Props {
   draft: BacklogDraft
-  /** Adds this part of it: what was added - the goal made, so that the rest goes under it. Throws ApiError. */
+  /** Adds this part of it: what was added. Throws ApiError. */
   onAdd: (tree: TodoTreeIn) => Promise<TodoTreeAdded>
   /** Nothing of it is left. */
   onDrop: () => void
@@ -26,14 +26,12 @@ const editable = (task: Task): Task => ({ ...task, detail: task.detail ?? '', cr
 const shapedOf = (story: DraftStory): Shaped => ({ ...story, tasks: story.tasks.map(editable) })
 
 /**
- * The Hive keeper's draft (0.1.8): a goal, its stories - each with its notes and tasks - and the tasks that stand
- * alone, all to change as you like; a story's Add adds it (under the goal), Add all the rest, ✕ leaves a task out.
- * Nothing is saved until added.
+ * The Hive keeper's draft (0.1.8): its stories - each with its notes and tasks - and the tasks that stand alone, all
+ * to change as you like; a story's Add adds it, Add all the rest, ✕ leaves a task out. Nothing is saved until added.
+ * (0.1.10: no goal - To-do's goal level is hidden.)
  */
 export function DraftTree({ draft, onAdd, onDrop, taskFields }: Props) {
   const adding = useAsk()
-  const [goal, setGoal] = useState(draft.goal ?? null)
-  const [goalId, setGoalId] = useState<string | null>(null)
   const [stories, setStories] = useState<Shaped[]>((draft.stories ?? []).map(shapedOf))
   const [loose, setLoose] = useState<Task[]>(draft.tasks.map(editable))
   const left = (nextStories: Shaped[], nextLoose: Task[]) => {
@@ -43,16 +41,10 @@ export function DraftTree({ draft, onAdd, onDrop, taskFields }: Props) {
   }
   const add = (some: Shaped[], alone: Task[]) =>
     void adding.ask(async () => {
-      const added = await onAdd({
-        goal: goalId ? null : goal?.trim() || null,
-        goal_id: goalId,
+      await onAdd({
         stories: some.map(one => ({ title: one.title.trim(), notes: one.notes, tasks: one.tasks.map(clean) })),
         tasks: alone.map(clean),
-      }).catch(err => {
-        setGoalId(null) // (the goal it made may be gone since: the next Add names it again)
-        throw err
       })
-      if (added.goal_id) setGoalId(added.goal_id)
       left(
         stories.filter(one => !some.includes(one)),
         loose.filter(one => !alone.includes(one)),
@@ -108,18 +100,6 @@ export function DraftTree({ draft, onAdd, onDrop, taskFields }: Props) {
       <p className="muted">Written by {draft.by}: change them as you like. Nothing is saved until you add it.</p>
       {/* Held while adding: a draft changed then would be another, and added twice. */}
       <fieldset className="recipe-rows" disabled={adding.busy}>
-        {goal !== null && !goalId && (
-          <div className="field todo-draft-goal">
-            <label htmlFor="draft-goal">Goal</label>
-            <input
-              id="draft-goal"
-              className="input"
-              maxLength={200}
-              value={goal}
-              onChange={e => setGoal(e.target.value)}
-            />
-          </div>
-        )}
         {stories.map((story, s) => (
           <div key={s} role="group" aria-label={`Story ${s + 1}`} className="field todo-draft-story">
             <div className="field">

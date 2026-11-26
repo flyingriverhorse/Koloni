@@ -70,14 +70,10 @@ KOLONİ's own words, as they appear on screen.
 : A short piece of memory that you approved or wrote, usually pointing to lines of a file. It is
   given to an agent whose task names its subject.
 
-**Goal**
-: On the To-do page, what a few stories are for together, with how many of them are done. See
-  [Goals and stories](../automation/todo.md#goals-and-stories).
-
 **Hive keeper**
 : The built-in role that keeps the To-do list: it turns a goal into stories and tasks, each with what
   makes it done, and puts them in order. **Write it with the Hive keeper** on the To-do page asks for its
-  way of writing a note as a goal, its stories and their tasks. See [To-do](../automation/todo.md).
+  way of writing a note as stories and their tasks. See [To-do](../automation/todo.md).
 
 **Journal**
 : The notes in a project's memory: what agents wrote while they worked. Agents find notes only
@@ -185,7 +181,7 @@ KOLONİ's own words, as they appear on screen.
 : On the To-do page, tasks and bugs that go on together. Its state comes from its tasks; it is done
   only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
   on in one topic of a chat. A **bug** is a task about something that works wrong. See
-  [Goals and stories](../automation/todo.md#goals-and-stories) and
+  [Stories](../automation/todo.md#goals-and-stories) and
   [The story's notebook](../automation/todo.md#the-storys-notebook).
 
 **Sub-agent**
@@ -215,7 +211,7 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order: goals hold stories, stories hold tasks and bugs. Ticked tasks run
+: A project's tasks, in your order: stories hold tasks and bugs. Ticked tasks run
   in a chat you give them to (**Do in chat**), one by one, at that chat's level and on its model. Agents,
   and the Scout after a turn, propose tasks; you decide. See [To-do](../automation/todo.md).
 

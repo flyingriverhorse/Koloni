@@ -7,7 +7,7 @@ from datetime import datetime
 import pytest
 
 from app import backlog, stories
-from app.db.models import BacklogTask, Goal, Story
+from app.db.models import BacklogTask, Story
 from app.stories import goal_progress, story_state
 from tests.test_backlog import ORIGIN, agent, setup
 
@@ -209,11 +209,9 @@ def test_a_name_with_the_turkish_dotted_i_is_the_same_name(client, project_dir):
         "tasks": [],
     }
     assert client.post(f"/api/projects/{pid}/backlog/tree", json=twins).status_code == 422
-    goal = client.post(f"/api/projects/{pid}/goals", json={"title": "İlk Sürüm"}).json()["id"]
     with client.app.state.session_factory() as session:
         for title in ("ZZ135 LOGİN", "zz135 logın", "ZZ135 LOGIN"):
             assert stories.story_named(session, pid, title).id == first.json()["id"], title
-        assert stories.goal_named(session, pid, "ilk sürüm").id == goal
 
 
 def test_a_name_in_another_unicode_form_or_with_what_nobody_sees_is_the_same_name(
@@ -288,19 +286,11 @@ def test_a_name_two_stories_of_an_older_store_share_is_the_exact_ones_or_refused
     with pytest.raises(backlog.Refused, match='"Batch  Alpha", "Batch Alpha" - give the exact'):
         agent(client, pid, "add_task", title="t2", story="BATCH ALPHA")
     assert [task["title"] for task in client.get(f"/api/projects/{pid}/backlog").json()] == ["t1"]
-    # (two goals of one name are no such dead end: the first of them, by their order)
-    for title in ("Release", "Release", "release"):
-        client.post(f"/api/projects/{pid}/goals", json={"title": title})
-    goals = [goal["id"] for goal in tree(client, pid)["goals"]]
-    with client.app.state.session_factory() as session:
-        assert stories.goal_named(session, pid, "Release").id == goals[0]
-        assert stories.goal_named(session, pid, "release").id == goals[2]
-        with pytest.raises(backlog.Refused, match="3 goals match this name"):
-            stories.goal_named(session, pid, "RELEASE")
 
 
 def test_a_goal_name_nobody_can_see_is_refused(client, project_dir):
-    """S1: as a story's (K3) - wherever a goal is named: added, renamed, drafted, an agent's."""
+    """S1: as a story's (K3) - wherever a goal is named: added, renamed, drafted. (An agent's
+    add_task takes no goal since 0.1.10: the goal level is hidden.)"""
     pid, _ = setup(client, project_dir)
     for title in ("\u200b", "\u2800\u200b", " \ufe0f "):
         made = client.post(f"/api/projects/{pid}/goals", json={"title": title})
@@ -311,15 +301,11 @@ def test_a_goal_name_nobody_can_see_is_refused(client, project_dir):
     drawn = {"goal": "\u200b", "stories": [{"title": "S", "tasks": [{"title": "t"}]}], "tasks": []}
     added = client.post(f"/api/projects/{pid}/backlog/tree", json=drawn)
     assert added.status_code == 422 and added.json()["detail"] == stories.NO_GOAL_NAME
-    with pytest.raises(backlog.Refused, match=stories.NO_GOAL_NAME):
-        agent(client, pid, "add_task", title="t", story="New", goal="\u2800")
     assert [goal["title"] for goal in tree(client, pid)["goals"]] == ["Seen"]
     assert tree(client, pid)["stories"] == []
     assert client.get(f"/api/projects/{pid}/backlog").json() == []
-    # (nor is it one such goal an older store held: the agent's new story goes under none)
+    # An agent's goal, from an older prompt, is not taken: its new story goes under none.
+    agent(client, pid, "add_task", title="t", story="New", goal="\u2800")
     with client.app.state.session_factory() as session:
-        session.add(Goal(project_id=pid, title="​", position=1, created_by="user"))
-        session.commit()
-    with pytest.raises(backlog.Refused, match=stories.NO_GOAL_NAME):
-        agent(client, pid, "add_task", title="t", story="New", goal="⠀")
-    assert tree(client, pid)["stories"] == []
+        assert [(s.title, s.goal_id) for s in session.query(Story).all()] == [("New", None)]
+    assert [goal["title"] for goal in tree(client, pid)["goals"]] == ["Seen"]

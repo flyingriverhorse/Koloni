@@ -20,6 +20,9 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+- **To-do has no goal level.** Your stories stand at the top of the tree, those a goal held too; a
+  story's **⋯** no longer offers **Goal**, and the Hive keeper writes a note as stories and tasks only.
+  Your goals are not deleted: they stay in the database, and nothing in it changes.
 - **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
   Workspace's files and opens there as any other file that is not a page or a picture: its text where
   it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."

@@ -8,7 +8,6 @@ import type {
   BacklogDrafter,
   BacklogTask,
   Board,
-  Goal,
   NewBacklogTask,
   Provider,
   Story,
@@ -459,7 +458,7 @@ async function noteBox() {
 }
 const added = { goal_id: 'g1', story_ids: ['s1'], task_ids: ['t1'] }
 
-test('the note is written as a goal, stories and tasks: each changed, a story added by its Add, the rest by Add all', async () => {
+test('the note is written as stories and tasks (a goal it names is not shown: 0.1.10): each changed, a story added by its Add, the rest by Add all', async () => {
   const props = page()
   const onDraft = vi.fn(async (_text: string) => DRAFT)
   const onAddTree = vi.fn(async (_tree: TodoTreeIn) => added)
@@ -486,7 +485,7 @@ test('the note is written as a goal, stories and tasks: each changed, a story ad
   expect(onDraft).toHaveBeenCalledWith('login mobilde bozuk')
   const drafts = await screen.findByRole('region', { name: 'Drafted tasks' })
   expect(within(drafts).getByText(/Written by Cloud \(mini\)/)).toBeVisible()
-  expect(within(drafts).getByLabelText('Goal')).toHaveValue('Sign-in holds')
+  expect(within(drafts).queryByLabelText('Goal')).toBeNull()
   // The box closed (Esc, or its button again), the draft stays - it was a request - and so does the note.
   await userEvent.keyboard('{Escape}')
   expect(screen.queryByRole('form', { name: 'Write it with the Hive keeper' })).toBeNull()
@@ -500,10 +499,8 @@ test('the note is written as a goal, stories and tasks: each changed, a story ad
   await userEvent.type(within(first).getByLabelText('Title'), 'Fix the login page')
   await userEvent.selectOptions(within(first).getByLabelText('Priority'), 'normal')
   await userEvent.click(within(login).getByRole('button', { name: 'Add' }))
-  // Only this story, under the goal.
+  // Only this story.
   expect(onAddTree).toHaveBeenLastCalledWith({
-    goal: 'Sign-in holds',
-    goal_id: null,
     stories: [
       {
         title: 'Login on mobile',
@@ -521,10 +518,8 @@ test('the note is written as a goal, stories and tasks: each changed, a story ad
       .map(group => within(group).getByLabelText<HTMLInputElement>('Title').value),
   ).toEqual(['Password reset', 'Footer year'])
   await userEvent.click(within(drafts).getByRole('button', { name: 'Add all' }))
-  // The rest, under the goal the first Add made.
+  // The rest.
   expect(onAddTree).toHaveBeenLastCalledWith({
-    goal: null,
-    goal_id: 'g1',
     stories: [{ title: 'Password reset', notes: [], tasks: [one('Password reset')] }],
     tasks: [one('Footer year')],
   })
@@ -735,7 +730,8 @@ test('while the drafts are written the button says so, and neither it nor Plan i
   expect(addForm().getByRole('button', { name: 'Add task' })).toBeEnabled()
 })
 
-// 0.1.8: To-do as a tree - goals, their stories, tasks and bugs, the tasks of no story; the filters; a task's story and type.
+// 0.1.8: To-do as a tree - stories, their tasks and bugs, the tasks of no story; the filters; a task's story and type.
+// (0.1.10: no goal level - two stories a goal holds, made before, stand at the top.)
 const note = (text: string) => ({ kind: 'decision', text, by: 'Orchestrator', at: '2026-11-24T10:00:00Z' })
 const STORIES: Story[] = [
   {
@@ -759,30 +755,18 @@ const STORIES: Story[] = [
     closed_at: '2026-11-24T09:00:00Z',
   },
 ]
-const GOALS: Goal[] = [
-  {
-    id: 'g1',
-    title: 'Kullanıcı girişi sağlam olsun',
-    position: 0,
-    created_by: 'user',
-    stories_done: 1,
-    stories_all: 2,
-  },
-]
 const TREE_TASKS = [
   task({ id: 't1', title: 'E-posta gönderimi', story_id: 's1', status: 'doing', conversation_id: 'c1' }),
   task({ id: 't2', title: 'Mobilde buton kayık', story_id: 's2', kind: 'bug', status: 'done', position: 1 }),
   task({ id: 't3', title: 'Footer’daki yıl yanlış', position: 2 }),
 ]
 
-test('the tree: a goal with its stories done, a story’s notes, state and chat, a bug, the tasks of no story; the filters', async () => {
+test('the tree: stories at the top (a goal’s too), a story’s notes, state and chat, a bug, the tasks of no story; the filters', async () => {
   const props = page()
-  render(<BacklogPage {...props} backlog={TREE_TASKS} stories={STORIES} goals={GOALS} chats={{ c1: 'Auth work' }} />)
+  render(<BacklogPage {...props} backlog={TREE_TASKS} stories={STORIES} chats={{ c1: 'Auth work' }} />)
   const tree = screen.getByRole('list', { name: 'Tasks' })
-  const goal = within(tree).getByRole('listitem', { name: 'Kullanıcı girişi sağlam olsun' })
-  expect(goal).toHaveTextContent('Goal')
-  expect(goal).toHaveTextContent('1 / 2 stories')
-  expect(within(goal).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1')
+  expect(within(tree).queryByText('Goal')).toBeNull()
+  expect(within(tree).queryByRole('progressbar')).toBeNull()
   const running = within(tree).getByRole('listitem', { name: 'Şifre sıfırlama' })
   expect(within(running).getByRole('button', { name: '4 notes' })).toBeVisible()
   expect(running).toHaveTextContent('● running')
@@ -796,30 +780,27 @@ test('the tree: a goal with its stories done, a story’s notes, state and chat,
   await userEvent.click(within(running).getByRole('button', { name: '4 notes' }))
   expect(screen.getByRole('dialog', { name: 'Notebook of Şifre sıfırlama' })).toHaveTextContent('Decision a')
   await userEvent.keyboard('{Escape}')
-  // Done: only the done task, under its story and goal.
+  // Done: only the done task, under its story.
   await userEvent.click(screen.getByRole('button', { name: 'Done', pressed: false }))
   expect(
     within(tree)
       .getAllByRole('listitem')
       .map(row => row.getAttribute('aria-labelledby') && row.querySelector('strong')?.textContent),
-  ).toEqual(['Kullanıcı girişi sağlam olsun', 'Login düzelt', 'Mobilde buton kayık'])
+  ).toEqual(['Login düzelt', 'Mobilde buton kayık'])
 })
 
-test('a story’s tick ticks its open tasks; ⋯ Goal moves it to another goal or a new one', async () => {
+test('a story’s tick ticks its open tasks; its ⋯ has no Goal (0.1.10)', async () => {
   const props = page()
   const tree = {
-    onGoal: vi.fn(async () => {}),
-    onDeleteGoal: vi.fn(async () => {}),
     onStory: vi.fn(async () => {}),
     onDeleteStory: vi.fn(async () => {}),
-    onNewGoal: vi.fn(async (title: string) => ({ ...GOALS[0], id: 'g2', title })),
     onNewStory: vi.fn(async (title: string) => ({ ...STORIES[0], id: 's9', title })),
   }
   const backlog = [
     task({ title: 'one', story_id: 's1' }),
     task({ title: 'two', story_id: 's1', status: 'done', position: 1 }),
   ]
-  render(<BacklogPage {...props} backlog={backlog} stories={STORIES} goals={GOALS} tree={tree} />)
+  render(<BacklogPage {...props} backlog={backlog} stories={STORIES} tree={tree} />)
   await userEvent.click(screen.getByRole('checkbox', { name: 'Tick the story Şifre sıfırlama' }))
   expect(screen.getByRole('checkbox', { name: 'Tick one' })).toBeChecked()
   expect(screen.getByRole('checkbox', { name: 'Tick two' })).toBeDisabled() // (done: nothing to do in a chat)
@@ -828,35 +809,21 @@ test('a story’s tick ticks its open tasks; ⋯ Goal moves it to another goal o
     within(screen.getByRole('menu'))
       .getAllByRole('menuitem')
       .map(item => item.textContent),
-  ).toEqual(['Rename', 'Goal', 'Delete'])
-  await userEvent.click(screen.getByRole('menuitem', { name: 'Goal' }))
-  await userEvent.selectOptions(screen.getByLabelText('Goal of Şifre sıfırlama'), 'New goal…')
-  await userEvent.type(screen.getByLabelText('Rename “”'), 'Sign-in{Enter}')
-  expect(tree.onNewGoal).toHaveBeenCalledWith('Sign-in')
-  expect(tree.onStory).toHaveBeenCalledWith('s1', { goal_id: 'g2' })
+  ).toEqual(['Rename', 'Delete'])
 })
 
 test('a story whose tasks are all done is closed by your word, and opened again', async () => {
   const props = page()
   const onStory = vi.fn(async () => {})
-  const tree = {
-    onGoal: vi.fn(),
-    onDeleteGoal: vi.fn(),
-    onStory,
-    onDeleteStory: vi.fn(),
-    onNewGoal: vi.fn(),
-    onNewStory: vi.fn(),
-  }
+  const tree = { onStory, onDeleteStory: vi.fn(), onNewStory: vi.fn() }
   const asked = { ...STORIES[0], state: 'done?' as const }
   const backlog = [task({ id: 'd1', title: 'done one', story_id: 's1', status: 'done' })]
-  const { rerender } = render(<BacklogPage {...props} backlog={backlog} stories={[asked]} goals={GOALS} tree={tree} />)
+  const { rerender } = render(<BacklogPage {...props} backlog={backlog} stories={[asked]} tree={tree} />)
   expect(screen.getByRole('listitem', { name: 'Şifre sıfırlama' })).toHaveTextContent('done?')
   await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: more' }))
   await userEvent.click(screen.getByRole('menuitem', { name: 'Close the story' }))
   expect(onStory).toHaveBeenLastCalledWith('s1', { closed: true })
-  rerender(
-    <BacklogPage {...props} backlog={backlog} stories={[{ ...asked, state: 'done' }]} goals={GOALS} tree={tree} />,
-  )
+  rerender(<BacklogPage {...props} backlog={backlog} stories={[{ ...asked, state: 'done' }]} tree={tree} />)
   await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: more' }))
   await userEvent.click(screen.getByRole('menuitem', { name: 'Open it again' }))
   expect(onStory).toHaveBeenLastCalledWith('s1', { closed: false })
@@ -865,15 +832,8 @@ test('a story whose tasks are all done is closed by your word, and opened again'
 test('Edit gives a task its story and its type; a new story is made by its title', async () => {
   const props = page()
   const onNewStory = vi.fn(async (title: string) => ({ ...STORIES[0], id: 's9', title }))
-  const tree = {
-    onGoal: vi.fn(),
-    onDeleteGoal: vi.fn(),
-    onStory: vi.fn(),
-    onDeleteStory: vi.fn(),
-    onNewGoal: vi.fn(),
-    onNewStory,
-  }
-  render(<BacklogPage {...props} backlog={[task({ title: 'lone' })]} stories={STORIES} goals={GOALS} tree={tree} />)
+  const tree = { onStory: vi.fn(), onDeleteStory: vi.fn(), onNewStory }
+  render(<BacklogPage {...props} backlog={[task({ title: 'lone' })]} stories={STORIES} tree={tree} />)
   await userEvent.click(within(await more('lone')).getByRole('menuitem', { name: 'Edit' }))
   const form = screen.getByRole('form', { name: 'Edit lone' })
   await userEvent.selectOptions(within(form).getByLabelText('Story'), 'Login düzelt')
@@ -891,14 +851,7 @@ test('Edit gives a task its story and its type; a new story is made by its title
 
 test('review M1 / M2 / LOW: a proposal says where adding it puts it; a story waiting at done? is closed only once each task is done; the focus comes back', async () => {
   const props = page()
-  const tree = {
-    onGoal: vi.fn(async () => {}),
-    onDeleteGoal: vi.fn(),
-    onStory: vi.fn(async () => {}),
-    onDeleteStory: vi.fn(),
-    onNewGoal: vi.fn(),
-    onNewStory: vi.fn(),
-  }
+  const tree = { onStory: vi.fn(async () => {}), onDeleteStory: vi.fn(), onNewStory: vi.fn() }
   const proposal = task({
     id: 'p1',
     title: 'Mobile button',
@@ -913,9 +866,10 @@ test('review M1 / M2 / LOW: a proposal says where adding it puts it; a story wai
   })
   const waiting = { ...STORIES[0], state: 'done?' as const }
   const backlog = [proposal, task({ id: 'r1', title: 'waits', story_id: 's1', status: 'review' })]
-  render(<BacklogPage {...props} backlog={backlog} stories={[waiting]} goals={GOALS} tree={tree} onDraft={vi.fn()} />)
+  render(<BacklogPage {...props} backlog={backlog} stories={[waiting]} tree={tree} onDraft={vi.fn()} />)
+  // (A goal a row still names, of a story made before 0.1.10, is not said: the goal level is hidden.)
   expect(screen.getByRole('group', { name: 'Proposed task: Mobile button' })).toHaveTextContent(
-    'Proposed by an agent · In story “Login” (new) · goal “Auth” · bug',
+    /Proposed by an agent · In story “Login” \(new\) · bugAdd/,
   )
   // done? with a task still at done?: no Close the story yet.
   const dots = screen.getByRole('button', { name: 'Şifre sıfırlama: more' })

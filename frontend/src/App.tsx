@@ -174,7 +174,6 @@ export function App() {
   const backlogError = useApp(s => s.backlogError)
   const drafter = useApp(s => s.drafter)
   const stories = useApp(s => s.stories)
-  const goals = useApp(s => s.goals)
   const chatList = useApp(s => s.conversations)
   const away = useApp(s => s.away)
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
@@ -864,15 +863,11 @@ export function App() {
           setView('canvas')
         }}
         stories={stories}
-        goals={goals}
         chats={Object.fromEntries(chatList.map(chat => [chat.id, chat.title]))}
         projectId={project.id}
         tree={{
-          onGoal: useApp.getState().changeGoal,
-          onDeleteGoal: useApp.getState().deleteGoal,
           onStory: useApp.getState().changeStory,
           onDeleteStory: useApp.getState().deleteStory,
-          onNewGoal: useApp.getState().addGoal,
           onNewStory: title => useApp.getState().addStory(title),
         }}
       />

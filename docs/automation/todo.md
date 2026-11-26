@@ -1,7 +1,7 @@
 # To-do
 
-The To-do page holds a project's tasks, in your order: a **goal** holds **stories**, a story holds the
-**tasks** and **bugs** that go on together (see [Goals and stories](#goals-and-stories)). Ticked tasks
+The To-do page holds a project's tasks, in your order: a **story** holds the **tasks** and **bugs**
+that go on together (see [Stories](#goals-and-stories)). Ticked tasks
 run in a chat you give them to, one by one; you decide when each is done (see
 [Doing tasks in a chat](#doing-tasks-in-a-chat)). Open **To-do** on the left rail.
 
@@ -16,11 +16,11 @@ Type in **Add a task — title, then Enter**. Once there is a title you can also
 (high, normal, low), a **Detail**, **Done when (optional)**, its **Story** (none, one of the project's,
 or **New story…**, named there) and its **Type** (task or bug), then press **Add task**.
 
-A rough note can become a goal, its stories and their tasks. Press **Write it with the Hive keeper** on
+A rough note can become stories and their tasks. Press **Write it with the Hive keeper** on
 the bar - the role that keeps the To-do list - type the note in **Your note**, for example "the login page
 is broken on mobile, and we need a password reset", and press **Write it**. A model writes it the way
-that role would: tasks that go on together as a story, a goal over the stories when the note asks for
-several, and each task with a title, detail, done when, priority and whether it is a task or a bug. A
+that role would: tasks that go on together as a story, and each task with a title, detail, done when,
+priority and whether it is a task or a bug. A
 story may come with a few notes for its notebook. A small note stays a single story or a single task;
 at most 4 stories and 12 tasks in all. It is asked once, with no tools, as **Or write it** asks (see
 [Recipes](../agents/recipes.md)) - your fast models first, then the other tiers', then the
@@ -28,24 +28,23 @@ Orchestrator's model in the chat you are in, then your newest chat's. One that d
 on in the same press; with none answering, the message names each one asked and why, and how to fix it.
 The line under the buttons says which model is asked first and whether the request costs money.
 
-The draft appears under the box for you to change: the goal, each story's title and tasks, and the
-tasks that stand alone. A story's **Add** adds that story, under the goal; **✕** drops a task; **Add
+The draft appears under the box for you to change: each story's title and tasks, and the tasks that
+stand alone. A story's **Add** adds that story; **✕** drops a task; **Add
 all** adds the rest. The tasks are yours and to do, as if you had typed them. Nothing is saved until you
 add it. **Plan it in a chat** works the other way: it opens a chat in the project whose first message
 asks for the Hive keeper. The Hive keeper reads the project and proposes tasks, which wait for you like
 any agent's. Esc closes the note box.
 
-![The To-do page: a rough note in the Hive keeper's box, and under it the goal, stories and tasks the model wrote from it, each story with Add and each task with a cross to drop it](../images/todo-draft.png)
+![The To-do page: a rough note in the Hive keeper's box, and under it the stories and tasks the model wrote from it, each story with Add and each task with a cross to drop it](../images/todo-draft.png)
 
-*A rough note written as a goal, two stories and three tasks by **Write it with the Hive keeper**;
+*A rough note written as two stories and three tasks by **Write it with the Hive keeper**;
 nothing is saved until you add it.*
 
 Agents with the To-do tools (the Hive keeper and the Scout) can propose tasks and
 changes. A task an agent proposes may name its story: one of the project's open stories by its title,
-or a new one (with a goal) that shows on the list once you add one of its tasks. Its card says where
-adding it puts it - *In story “Login” (new) · goal “Auth” · bug*, "(new)" where the agent's proposal
-opened the story or goal. Once you add one of its tasks, the story and its goal are yours: they stay
-though their tasks go. A story an agent opened goes when you reject all its tasks. They wait for you
+or a new one that shows on the list once you add one of its tasks. Its card says where adding it puts
+it - *In story “Login” (new) · bug*, "(new)" where the agent's proposal opened the story. Once you add
+one of its tasks, the story is yours: it stays though its tasks go. A story an agent opened goes when you reject all its tasks. They wait for you
 under **Waiting for you**:
 
 | What waits | Buttons |
@@ -108,12 +107,12 @@ wait for you.
 
 Turn it off, or choose the tier, in [Settings › This project › Agents](../settings.md#agents).
 
-## Goals and stories
+## Stories { #goals-and-stories }
 
-**Your tasks** is a tree. A **goal** comes first, with a honey line on its left, how many of its stories
-are done ("1 / 2 stories") and a bar of it. Under it are its **stories**, and under each story its tasks.
-Stories of no goal come after the goals; the tasks of no story are last, under **Without a story**. A
-plain list with no story has no such heading.
+**Your tasks** is a tree: the **stories** in their order, and under each story its tasks; the tasks of no
+story are last, under **Without a story**. A plain list with no story has no such heading. (Since 0.1.10
+there is no goal level over the stories. A goal made before stays in the database, and its stories
+stand at the top like any other.)
 
 - A **story** is tasks and bugs that go on together. Its state comes from its tasks: **○ todo** (none
   started), **● running** (one at work, with the chat it runs in: *in “Auth work”*), **⚠ stuck** (one
@@ -124,17 +123,15 @@ plain list with no story has no such heading.
 - A **task** is work to do; a **bug** is something that works wrong, its tag in rose. **⋯ → Edit** sets
   a task's **Story** and **Type**; **None** takes it out of its story. Dragging moves a task within its
   story only.
-- A story's **⋯** has **Rename**, **Goal** (none, one of the project's, or **New goal…**) and **Delete**.
-  A goal's **⋯** has **Rename** and **Delete**. Deleting a goal or a story keeps what was under it: its
-  stories lose their goal, its tasks their story.
+- A story's **⋯** has **Rename** and **Delete**. Deleting a story keeps its tasks: they lose their
+  story.
 - A story's name is one in its project, whatever its case: agents name a story by it, so "Login" and
   "LOGIN" would leave which one they mean to chance. The Turkish İ and ı count as an i: "LOGİN" and
   "logın" are "login" too, and so is the "logi̇n" that lowercasing "LOGİN" gives (an i with a dot
   above of its own); so does a name in another Unicode form, with a character nobody sees in it, or
   with two spaces or a tab where the page shows one space. A name another story has, open or closed,
   is refused; an agent naming a closed story is told so. A name of what nobody sees alone - a
-  zero-width space, a braille blank - is refused too: "a story needs a name you can see", and a
-  goal's: "a goal needs a name you can see". Two open stories made before 0.1.9 whose names are now
+  zero-width space, a braille blank - is refused too: "a story needs a name you can see". Two open stories made before 0.1.9 whose names are now
   one ("Batch  Alpha" and "Batch Alpha") both stay: an agent naming one gets the story of exactly that
   name, and where neither is, it is told both names and asked for the exact one.
 
@@ -142,9 +139,9 @@ The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is
 done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed
 it). A story whose tasks are all filtered out still shows when its own state fits.
 
-![The To-do page as a tree: a goal with its stories done of all, a running story with its notebook, a bug in rose, the tasks without a story, and two ticked: the bar under it says "2 selected · Do in chat"](../images/todo-tree.png)
+![The To-do page as a tree: a story that is done, a running story with its notebook, a bug in rose, the tasks without a story, and two ticked: the bar under it says "2 selected · Do in chat"](../images/todo-tree.png)
 
-*A goal, its stories and their tasks and bugs; the tasks of no story last.*
+*Stories and their tasks and bugs; the tasks of no story last.*
 
 ### The story's notebook
 
