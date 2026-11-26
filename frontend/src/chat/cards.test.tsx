@@ -291,15 +291,17 @@ test('Ready for you in three parts: what needs your answer, what is ready to tak
 
 beforeEach(() => resetStoreForTests())
 
-test('the page has the same parts: the open chat’s copy apart, what else waits under Needs your answer; no Told you', () => {
+test('the page has them in one list, one frame (0.1.10): the question and the copy to take in, each saying what it is; no Told you', () => {
   useApp.setState({ conv: chat, projectId: chat.conversation.project_id })
   const Page = () => <ReadyPage items={useReady()} openChat={vi.fn(async () => {})} />
   render(<Page />)
-  const needs = screen.getByRole('region', { name: 'Needs your answer' })
-  expect(within(needs).getByText('Which greeting?')).toBeInTheDocument()
-  expect(
-    within(screen.getByRole('region', { name: 'Ready to take in' })).getByText("Teams' work is ready"),
-  ).toBeInTheDocument()
+  const waiting = screen.getByRole('region', { name: /^Waiting for your word/ })
+  const rows = within(waiting).getAllByRole('group', { name: /^chat:/ })
+  expect(within(waiting).getByText('Which greeting?')).toBeInTheDocument()
+  expect(within(waiting).getByText("Teams' work is ready")).toBeInTheDocument()
+  expect(rows.map(row => row.querySelector('.ready-item-kind')?.textContent)).toEqual(
+    expect.arrayContaining(['Question', 'Ready to take in']),
+  )
   // (Decided for you is the page's own column, the project's decision log: given none here, none)
   expect(screen.queryByRole('region', { name: 'Told you' })).toBeNull()
   expect(screen.getByText(/^\d+ things wait for your word\.$/)).toBeInTheDocument()

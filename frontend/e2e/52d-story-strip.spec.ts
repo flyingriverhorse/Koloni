@@ -3,7 +3,7 @@
 // <name> · 1 / 2 · next: <task> · 📓 notes" - and its 📓 opens the notebook. Once its first task's turn has ended,
 // the notebook says how (KOLONİ's result line), from the 📓 on the story's topic line too.
 import { expect, test } from './fixtures'
-import { OWN, e2eProject, openFreshConversation, rail } from './helpers'
+import { OWN, e2eProject, openFreshConversation, story, todo } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -31,11 +31,11 @@ test("a story at work in a chat: the strip over it, and its notebook from the st
   const pid = await e2eProject(page)
   const tree = { stories: [{ title: STORY, notes: [NOTE], tasks: [{ title: FIRST }, { title: SECOND }] }] }
   expect((await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })).ok()).toBe(true)
-  await rail(page, 'To-do').click()
-  await page
-    .getByRole('list', { name: 'Tasks' })
-    .getByRole('checkbox', { name: `Tick the story ${STORY}` })
-    .check()
+  await todo(page)
+  // (Its card opened: the story's panel - its notebook in sight, with who wrote each note.)
+  const panel = await story(page, STORY)
+  await expect(panel.getByRole('region', { name: "The job's notebook" })).toContainText(`${NOTE} · Hive keeper`)
+  await panel.getByRole('checkbox', { name: `Tick the story ${STORY}` }).check()
   // (Stop everything holds the queue: the strip is seen before the story's first task runs.)
   expect((await page.request.post('/api/hold', { headers: OWN })).ok()).toBe(true)
   await page

@@ -57,7 +57,7 @@ for (const theme of ['light', 'dark'] as const) {
     // The turn starts here, and the user goes to another page before it asks.
     await page.getByLabel('Message').fill(title)
     await page.getByRole('button', { name: 'Send' }).click()
-    await rail(page, 'To-do').click()
+    await rail(page, 'Usage').click()
     await expect(toasts.getByText(`Orchestrator waits for you · ${title}`)).toBeVisible({ timeout: 15_000 })
     await expect.poll(() => waiting(page)).toBe(before + 1)
     await expect(rail(page, 'Ready')).toHaveAccessibleName('Ready')

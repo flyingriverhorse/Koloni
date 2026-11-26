@@ -56,6 +56,27 @@ export function treeOf(tasks: BacklogTask[], stories: Story[], filter: Filter): 
   return [...rows, ...loose.map(task => ({ kind: 'task' as const, task, depth: 0 as const }))]
 }
 
+/** A card of To-do (0.1.10): a story and its tasks shown, or the tasks of no story (`story` null). */
+export interface Card {
+  key: string
+  story: Story | null
+  tasks: BacklogTask[]
+}
+
+/** The tree as cards: each story with the tasks under it, then one card of the tasks of no story, where there are any. */
+export function cardsOf(rows: TreeRow[]): Card[] {
+  const cards: Card[] = []
+  for (const row of rows) {
+    if (row.kind === 'story') cards.push({ key: row.story.id, story: row.story, tasks: [] })
+    else if (row.kind === 'task' && row.depth === 1) cards.at(-1)?.tasks.push(row.task)
+    else if (row.kind === 'task') {
+      if (cards.at(-1)?.story !== null) cards.push({ key: 'none', story: null, tasks: [] })
+      cards.at(-1)!.tasks.push(row.task)
+    }
+  }
+  return cards
+}
+
 /** A task that can be ticked to go into a chat: to do or stuck, not waiting in a chat's queue already. */
 export const tickable = (task: BacklogTask) => (task.status === 'todo' || task.status === 'blocked') && !task.place
 

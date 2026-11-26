@@ -1,9 +1,9 @@
-// The To-do page's "Write it with the Hive keeper" (6 Nov; 0.1.8 as a tree): a rough note typed in its box, written by the
-// scripted model as stories and their tasks - shown to change, each story added only by the user's word (a goal the model
-// names is not taken: 0.1.10); and "Plan it in a chat", which opens a chat in the project whose first message asks for
-// the Hive keeper.
+// To-do's rough note (6 Nov; 0.1.8 as a tree; 0.1.10 always in sight under To-do's cards, its button Split into tasks):
+// a rough note typed in its box, written by the scripted model as stories and their tasks - shown to change, each story
+// added only by the user's word (a goal the model names is not taken: 0.1.10); and "Plan it in a chat", which opens a
+// chat in the project whose first message asks for the Hive keeper.
 import { expect, test } from './fixtures'
-import { OWN, e2eProject, openFreshConversation, rail } from './helpers'
+import { OWN, e2eProject, openFreshConversation, story, todo } from './helpers'
 
 const NOTE = 'login sayfası mobilde bozuk, bir de şifre sıfırlama lazım, po'
 const ADDED = 'Fix the login page (po)'
@@ -28,16 +28,12 @@ test.afterEach(async ({ page }) => {
 
 test('a rough note is written as stories and tasks, added by your word; or planned in a chat', async ({ page }) => {
   await openFreshConversation(page)
-  await rail(page, 'To-do').click()
-  await page
-    .getByRole('toolbar', { name: 'To-do' })
-    .getByRole('button', { name: 'Write it with the Hive keeper' })
-    .click()
-  const box = page.getByRole('form', { name: 'Write it with the Hive keeper' })
-  await box.getByLabel('Your note').fill(NOTE)
+  const half = await todo(page)
+  const box = half.getByRole('form', { name: 'Your rough note' })
+  await box.getByLabel('Your rough note').fill(NOTE)
   // Who writes them and what it costs, in sight.
   await expect(box.locator('#draft-who')).toContainText('writes them: one request')
-  await box.getByRole('button', { name: 'Write it', exact: true }).click()
+  await box.getByRole('button', { name: 'Split into tasks', exact: true }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
   await expect(drafts.getByLabel('Goal')).toHaveCount(0)
   const login = drafts.getByRole('group', { name: 'Story 1' })
@@ -46,29 +42,22 @@ test('a rough note is written as stories and tasks, added by your word; or plann
   const first = login.getByRole('group', { name: 'Draft 1' })
   await expect(first.getByLabel('Title')).toHaveValue('Fix the login page on mobile')
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
-  const tasks = page.getByRole('list', { name: 'Tasks' })
-  await expect(tasks.getByText('Add a password reset')).toHaveCount(0) // nothing saved yet
-  // Esc closes the box (review H1: it hid in no browser); the draft stays, and the button opens the box again.
-  const hive = page
-    .getByRole('toolbar', { name: 'To-do' })
-    .getByRole('button', { name: 'Write it with the Hive keeper' })
-  await box.getByLabel('Your note').press('Escape')
-  await expect(box).toBeHidden()
-  await expect(hive).toBeFocused()
-  await expect(drafts).toBeVisible()
-  await hive.click()
-  await expect(box.getByLabel('Your note')).toHaveValue(NOTE)
+  const cards = half.getByRole('list', { name: 'Stories' })
+  await expect(cards.getByText('Add a password reset')).toHaveCount(0) // nothing saved yet
+  await expect(box.getByLabel('Your rough note')).toHaveValue(NOTE)
   await first.getByLabel('Title').fill(ADDED)
   await login.getByRole('button', { name: 'Add', exact: true }).click()
-  // In the tree: the story at the top - no goal over it - and the task, a bug, as the Hive keeper wrote it.
-  await expect(tasks.getByRole('listitem', { name: STORY })).toBeVisible()
-  await expect(tasks.getByRole('listitem', { name: GOAL })).toHaveCount(0)
-  await expect(tasks.getByRole('listitem', { name: ADDED })).toContainText('bug')
+  // A card of its own: the story - no goal over it - and the task, a bug, as the Hive keeper wrote it.
+  await expect(cards.getByRole('button', { name: `${STORY}: 0 of 1 done` })).toBeVisible()
+  await expect(cards.getByRole('button', { name: new RegExp(`^${GOAL}`) })).toHaveCount(0)
   // The other story left out, a task at a time: the draft is gone.
   await drafts.getByRole('button', { name: 'Remove draft 1' }).click()
   await drafts.getByRole('button', { name: 'Remove draft 1' }).click()
   await expect(drafts).toBeHidden()
-  await expect(tasks.getByText('Add a password reset')).toHaveCount(0)
+  await expect(cards.getByText('Add a password reset')).toHaveCount(0)
+  const panel = await story(page, STORY)
+  await expect(panel.getByRole('listitem', { name: ADDED })).toContainText('bug')
+  await panel.getByRole('button', { name: `Close ${STORY}` }).click()
 
   // The other way: a chat in the project, its first message asking the Lead for the Hive keeper.
   await box.getByRole('button', { name: 'Plan it in a chat' }).click()

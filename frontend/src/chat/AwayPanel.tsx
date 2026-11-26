@@ -32,6 +32,8 @@ interface Props {
   conv: ConvState
   /** The Orchestrator's offer it opens from: its places kept out and limits, as heard from you. */
   offer?: Away
+  /** 0.1.10: the tasks ticked first - a story's, from its "☾ Do tonight" on To-do. */
+  pick?: string[]
   onClose: () => void
 }
 
@@ -40,7 +42,7 @@ interface Props {
  * new ones from this chat ticked already; what the Orchestrator decides for you and what always waits; the limits; Go
  * away. Nothing starts before Go away.
  */
-export function AwayPanel({ conv, offer, onClose }: Props) {
+export function AwayPanel({ conv, offer, pick, onClose }: Props) {
   const cid = conv.conversation.id
   const backlog = useApp(s => s.backlog)
   useEffect(() => {
@@ -59,8 +61,9 @@ export function AwayPanel({ conv, offer, onClose }: Props) {
     ...(order ?? []).filter(id => tasks.some(t => t.id === id)),
     ...tasks.map(t => t.id).filter(id => !order?.includes(id)),
   ]
-  // (From the Orchestrator's line: the tasks it named there; from the chip: the new ones of this chat.)
-  const first = offer ? new Set(offer.jobs.map(job => job.task_id)) : null
+  // (From the Orchestrator's line: the tasks it named there; from a story's ☾ Do tonight, its tasks; from the chip: the
+  // new ones of this chat.)
+  const first = offer ? new Set(offer.jobs.map(job => job.task_id)) : pick ? new Set(pick) : null
   const on =
     ticked ??
     new Set(

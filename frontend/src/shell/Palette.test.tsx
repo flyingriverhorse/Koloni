@@ -154,6 +154,7 @@ beforeEach(() => {
     },
     '/api/tiers': { strongest: [], balanced: [], fast: [] },
     '/api/projects/p/others-instructions': { paths: [], more: 0, partial: false },
+    '/api/projects/p/decisions': { rows: [], judge_fine: 0, more: false },
   }
   asked = []
   vi.stubGlobal(
@@ -223,6 +224,10 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
   // the Conversations page by the rail's word for it, too
   await pick('chats')
   expect(await screen.findByRole('heading', { name: 'Conversations' })).toBeInTheDocument()
+  // To-do, Ready for you's right half (0.1.10): that page, its To-do heading taking the focus
+  await pick('to-do')
+  expect(await screen.findByRole('heading', { name: /^To-do/ })).toHaveFocus()
+  expect(screen.getByRole('button', { name: 'Ready' })).toHaveAttribute('aria-pressed', 'true')
   // a role: the Agents page, open on it rather than on the first
   await pick('documenter')
   await userEvent.click(await screen.findByRole('tab', { name: 'Instructions' }))

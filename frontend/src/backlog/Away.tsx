@@ -1,5 +1,5 @@
 import { Moon } from '@phosphor-icons/react'
-import { type CSSProperties, useEffect, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
 import type { Away, AwayJob } from '../api/types'
 import { AwayPanel } from '../chat/AwayPanel'
 import { useAsk } from '../memory/useAsk'
@@ -229,41 +229,58 @@ function BranchLine({ job }: { job: AwayJob }) {
   )
 }
 
-/** One job of a night, with what you can do about it as it stands. */
-export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen: (cid: string) => void }) {
+/**
+ * One job of a night, with what you can do about it as it stands. On Ready for you's report (`report`): its cell for
+ * its mark, and no Allow for what it asks - that is answered on its card (tek-ev decision 1).
+ */
+export function JobRow({
+  away,
+  job,
+  onOpen,
+  report,
+}: {
+  away: Away
+  job: AwayJob
+  onOpen: (cid: string) => void
+  report?: ReactNode
+}) {
   const { busy, error, ask } = useAsk()
   const store = useApp.getState
   const chat = job.conversation_id
   const line = lineOf(away, job)
   // B-122: a job that changed nothing is not "done" as one with work to take in is.
   const word = unchanged(job) ? 'Done, nothing changed' : STATE_WORD[job.state]
+  /** What it asks, each with Allow and go on or Refuse - not on the report, where its card answers it. */
+  const asks = () =>
+    job.state === 'waits' &&
+    !report &&
+    job.asks
+      .filter(one => one.kind)
+      .map(one => (
+        <span key={one.id} className="away-ask">
+          <span className="mono">{one.text}</span>
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            disabled={busy}
+            onClick={() => void ask(() => store().answerAsk(one, true))}
+          >
+            Allow and go on
+          </button>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy}
+            onClick={() => void ask(() => store().answerAsk(one, false))}
+          >
+            Refuse
+          </button>
+        </span>
+      ))
   /** What you can do about it: answer what it asks, Take in, Try again, open its chat. */
   const actions = () => (
     <div className="memory-actions">
-      {job.state === 'waits' &&
-        job.asks
-          .filter(one => one.kind)
-          .map(one => (
-            <span key={one.id} className="away-ask">
-              <span className="mono">{one.text}</span>
-              <button
-                type="button"
-                className="btn btn-small btn-primary"
-                disabled={busy}
-                onClick={() => void ask(() => store().answerAsk(one, true))}
-              >
-                Allow and go on
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                disabled={busy}
-                onClick={() => void ask(() => store().answerAsk(one, false))}
-              >
-                Refuse
-              </button>
-            </span>
-          ))}
+      {asks()}
       {/* (One that needs the project itself waits with its copy: Take in it as it is, then do the rest there.) */}
       {(job.state === 'done' || job.state === 'waits') && job.kept.length > 0 && (
         // (Not taken - a line that clashes with the project's, say: its chat's card of the kept copy decides it.)
@@ -295,9 +312,11 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
   )
   return (
     <li className={`away-job away-${job.state}`} aria-label={`${job.title}: ${word}`}>
-      <span className="away-mark" aria-hidden="true">
-        {STATE_MARK[job.state]}
-      </span>
+      {report ?? (
+        <span className="away-mark" aria-hidden="true">
+          {STATE_MARK[job.state]}
+        </span>
+      )}
       <div className="away-grow">
         <b>{job.title}</b>
         {line && <div className="muted away-line">{line}</div>}

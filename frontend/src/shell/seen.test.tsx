@@ -118,7 +118,8 @@ test('the badge on the Ready button (tek-ev §1) counts what waits, goes with a 
   const { rerender } = render(<Rail {...props} waiting={waitingTotal(asking)} />)
   // its name stays the page's; the count is its description
   const button = screen.getByRole('button', { name: 'Ready' })
-  expect(screen.getByRole('button', { name: 'To-do' })).not.toHaveAttribute('aria-describedby')
+  // (To-do is Ready for you's right half since 0.1.10: no button of its own)
+  expect(screen.queryByRole('button', { name: 'To-do' })).toBeNull()
   expect(button).toHaveAccessibleDescription('2 waiting')
   expect(within(button).getByText('2')).toHaveClass('tag-warn')
   // a fake approval more, then the decisions
