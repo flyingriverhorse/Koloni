@@ -233,7 +233,11 @@ function Row({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (id: str
         <span className="decision-head">
           <b className={`decision-who who-${row.who}`}>{whoOf(row)}</b>
           {where && <span className="muted decision-where">{where}</span>}
-          {row.seen === false && <span className="decision-unseen">not seen</span>}
+          {row.seen === false && (
+            <span className="decision-unseen" title="Not seen yet: OK says you have">
+              new
+            </span>
+          )}
         </span>
         <span>
           {row.what}

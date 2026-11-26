@@ -82,6 +82,14 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(list.getByRole('region', { name: /^To-do/ })).toBeVisible()
     expect((await list.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `page-${theme}.png`) })
+    // A narrow window: the halves one under the other, nothing wider than the window.
+    await page.setViewportSize({ width: 800, height: 900 })
+    expect(
+      await list.evaluate(
+        p => p.scrollWidth <= p.clientWidth && document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true)
+    await page.setViewportSize({ width: 1440, height: 900 })
     // Open chat on the first chat's row: that chat on the canvas, and the panel at its card - This chat now.
     const firstRow = list.getByRole('group', { name: new RegExp(first) })
     const command = await page.request

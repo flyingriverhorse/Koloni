@@ -1118,6 +1118,7 @@ export function BacklogPage({
       <Cards backlog={backlog} error={error} empty={view.empty}>
         <StoryCards
           cards={cards}
+          listed={listed}
           openKey={card?.key ?? null}
           onOpen={key => (key ? setOpened({ key }) : close())}
           pushes={pushes}

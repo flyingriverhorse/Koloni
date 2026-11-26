@@ -121,7 +121,7 @@ test('five rows, then Show all; each says when, who, where, what, the words it i
   expect(within(list).getAllByRole('listitem')).toHaveLength(5)
   const [first, second] = within(list).getAllByRole('listitem')
   expect(within(first).getByText('Orchestrator')).toHaveClass('who-orchestrator')
-  expect(first).toHaveTextContent('Fix loginnot seen')
+  expect(first).toHaveTextContent('Fix loginnew')
   expect(first).toHaveTextContent('Answered a question for you: Which database for the tests? → SQLite')
   expect(within(first).getByText('they make one in a temp folder').tagName).toBe('Q')
   // (a rule of yours: in its colour, and in words)

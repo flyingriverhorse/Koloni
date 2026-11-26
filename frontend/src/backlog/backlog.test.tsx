@@ -725,7 +725,7 @@ test('a story opened: its facts, its notebook with when and who, its tasks with 
   expect(card).toHaveAttribute('aria-expanded', 'true')
   expect(panel).toHaveFocus()
   expect(panel).toHaveTextContent('State● running, 0 of 1 tasks done')
-  expect(panel).toHaveTextContent('Chat“Auth work”, in a topic of its own')
+  expect(panel).toHaveTextContent('Chat“Auth work”')
   // Its notebook, in the panel: each note with its kind, its words, who wrote it and when.
   const book = within(panel).getByRole('region', { name: "The job's notebook" })
   expect(within(book).getAllByRole('listitem')[0]).toHaveTextContent(/^Decision a · Orchestrator · /)
@@ -857,4 +857,18 @@ test('review M1 / M2 / LOW: a proposal says where adding it puts it; a story wai
   await userEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
   await userEvent.click(screen.getByRole('button', { name: 'Keep it' }))
   expect(screen.getByRole('button', { name: 'Şifre sıfırlama: more' })).toHaveFocus()
+})
+
+test('under a filter a card shows the tasks it lets through, and counts all of its story', async () => {
+  const story = { ...STORIES[0], state: 'running' as const }
+  const backlog = [
+    task({ id: 'a', title: 'first', story_id: 's1', status: 'done' }),
+    task({ id: 'b', title: 'second', story_id: 's1', position: 1 }),
+  ]
+  render(<BacklogPage {...page()} backlog={backlog} stories={[story]} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Todo', pressed: false }))
+  const card = screen.getByRole('button', { name: 'Şifre sıfırlama: 1 of 2 done' })
+  expect(card).toHaveTextContent('1 / 2')
+  expect(card).toHaveTextContent('second')
+  expect(card).not.toHaveTextContent('first')
 })

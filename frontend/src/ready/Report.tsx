@@ -12,10 +12,10 @@ import { axisOf, isNews, nightLede, nightTitle, spentLine } from './nightText'
 function Decided({ away }: { away: Away }) {
   const rows = away.jobs.flatMap(job => job.decisions)
   const unseen = rows.filter(row => row.seen === false).length
-  if (!rows.length) return <span>Nothing was decided for you.</span>
+  if (!rows.length) return <span>Nothing was decided for you on its jobs.</span>
   return (
     <span>
-      {rows.length} decided for you{unseen > 0 && `, ${unseen} not seen`}{' '}
+      {rows.length} decided for you on its jobs{unseen > 0 && `, ${unseen} not seen`}{' '}
       <button type="button" className="link-btn" onClick={() => openDecisions(unseen > 0)}>
         See them
       </button>
@@ -44,15 +44,14 @@ function Body({ away, onOpen }: { away: Away; onOpen: (conversationId: string) =
   )
 }
 
-/** Whether the night is news, as it was when the page first saw it: once on screen it is seen (the strip says so), and
- *  the report stays until another night comes. */
+/** Whether the night is news - or was, while this page has shown it: once on screen it is seen (the strip says so),
+ *  and its report stays until another night comes. A night planned, then gone away under the same id, shows at once. */
 function useNews(away: Away | null): boolean {
-  const [first, setFirst] = useState<{ id: string; news: boolean } | null>(null)
-  if (away && first?.id !== away.id) {
-    setFirst({ id: away.id, news: isNews(away) })
-    return isNews(away)
-  }
-  return !!away && !!first?.news
+  const [shown, setShown] = useState<string | null>(null)
+  const id = away?.id ?? null
+  const news = isNews(away)
+  if (news && shown !== id) setShown(id)
+  return news || (id !== null && shown === id)
 }
 
 /**

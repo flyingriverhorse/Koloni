@@ -19,21 +19,24 @@ const standsOf = (card: Card, pushes: Set<string>) =>
   card.tasks.map(task => ({ task, said: taskStands(task, pushes.has(task.id)) }))
 
 /**
- * A story as a card (0.1.10): its name, how many of its tasks are done, a cell for each task - a row of honeycomb - and
- * its tasks, each with its cell and how it stands. The card is one button: it opens the story's panel.
+ * A story as a card (0.1.10): its name, how many of all its tasks are done (`all`: a filter shows some), a cell for each
+ * task shown - a row of honeycomb - and those tasks, each with its cell and how it stands. The card is one button: it
+ * opens the story's panel.
  */
 function StoryCard({
   card,
+  all,
   open,
   onOpen,
   pushes,
 }: {
   card: Card
+  all: BacklogTask[]
   open: boolean
   onOpen: () => void
   pushes: Set<string>
 }) {
-  const done = card.tasks.filter(task => task.status === 'done').length
+  const done = all.filter(task => task.status === 'done').length
   const stands = standsOf(card, pushes)
   const title = titleOf(card)
   return (
@@ -44,13 +47,13 @@ function StoryCard({
         className="todo-card"
         aria-expanded={open}
         aria-controls={open ? PANEL : undefined}
-        aria-label={`${title}: ${done} of ${card.tasks.length} done`}
+        aria-label={`${title}: ${done} of ${all.length} done`}
         onClick={onOpen}
       >
         <span className="todo-card-line">
           <span className="todo-card-name">{title}</span>
           <span className="muted">
-            {done} / {card.tasks.length}
+            {done} / {all.length}
           </span>
         </span>
         <span className="cell-comb">
@@ -73,24 +76,34 @@ function StoryCard({
   )
 }
 
-/** To-do's stories as cards, and its tasks of no story as one more; one open at a time. */
+/** To-do's stories as cards, and its tasks of no story as one more; one open at a time. `listed`: every task on To-do,
+ *  proposals left out - a card counts all of its own. */
 export function StoryCards({
   cards,
+  listed,
   openKey,
   onOpen,
   pushes,
 }: {
   cards: Card[]
+  listed: BacklogTask[]
   openKey: string | null
   onOpen: (key: string | null) => void
   pushes: Set<string>
 }) {
+  const stories = new Set(cards.flatMap(card => (card.story ? [card.story.id] : [])))
+  // (A task of no story, or of a story not shown: the last card's, as the tree has it.)
+  const allOf = (card: Card) =>
+    listed.filter(task =>
+      card.story ? task.story_id === card.story.id : !task.story_id || !stories.has(task.story_id),
+    )
   return (
     <ul className="todo-cards" aria-label="Stories">
       {cards.map(card => (
         <StoryCard
           key={card.key}
           card={card}
+          all={allOf(card)}
           open={openKey === card.key}
           onOpen={() => onOpen(openKey === card.key ? null : card.key)}
           pushes={pushes}
@@ -142,14 +155,14 @@ function Facts({
     <dl className="todo-facts">
       {branches.length > 0 && (
         <>
-          <dt>Branch</dt>
+          <dt>Night branch</dt>
           <dd className="mono">{branches.join(', ')}</dd>
         </>
       )}
       {chat && chats[chat] && (
         <>
           <dt>Chat</dt>
-          <dd>“{chats[chat]}”, in a topic of its own</dd>
+          <dd>“{chats[chat]}”</dd>
         </>
       )}
       <dt>State</dt>

@@ -259,7 +259,7 @@ test('the report (0.1.10): one sentence, a row per job with its cell, no Allow -
   expect(within(rows[0]).getByRole('img', { name: 'Done' })).toHaveClass('cell-ok', 'cell-full')
   expect(within(rows[1]).getByRole('img', { name: 'Waits for you' })).toHaveClass('cell-honey', 'cell-soft')
   expect(within(report).queryByRole('button', { name: 'Allow and go on' })).toBeNull()
-  expect(report).toHaveTextContent('2 decided for you, 1 not seen')
+  expect(report).toHaveTextContent('2 decided for you on its jobs, 1 not seen')
   expect(within(report).getByRole('button', { name: 'Copy report as Markdown' })).toBeVisible()
 })
 
@@ -296,4 +296,12 @@ test('the greeting by the hour, and the night in one sentence', () => {
     '1 of 3 jobs done, 2 could not be done.',
   )
   expect(nightLede(night([JOBS[0]]))).toBe('1 of 1 job done.')
+})
+
+test('a night planned, then gone away under the same id, is reported at once - never held as "nothing new"', () => {
+  const planned = night([JOBS[3]], { status: 'planned', started_at: null, ended_at: null })
+  const { rerender } = render(<Report away={planned} parked={[]} onOpen={vi.fn()} />)
+  expect(screen.getByText('Nothing new since you last looked.')).toBeVisible()
+  rerender(<Report away={{ ...planned, status: 'running', started_at: at(2, 10) }} parked={[]} onOpen={vi.fn()} />)
+  expect(screen.getByRole('region', { name: /^☾ While you're away, since / })).toBeVisible()
 })
