@@ -1,5 +1,6 @@
-/* A page in the shape the Triggers page had (the Knowledge page), Stop everything in the top bar, and what a
-   turn nobody watched says in the chat. Every colour is the theme's: nothing here is right in one theme only. */
+/* Stop everything in the top bar; beside it, the Knowledge page's shape (the one the Triggers page had) and the
+   badge of a turn a trigger started before 0.1.10. Every colour is the theme's: nothing here is right in one theme
+   only. */
 
 .triggers-page {
   flex: 1;

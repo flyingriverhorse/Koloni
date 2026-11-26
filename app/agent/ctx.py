@@ -4,7 +4,7 @@
 (`_Transcript`), the watch over a copy (`_Watch`, `_Hold`), `TERMINAL`, `announce` /
 `announce_memory`, which tell the page what changed, and `sent_effort` (the thinking level a
 step's model is sent).
-A leaf: at run time it imports nothing else of `app.agent` (`app.triggers` takes `TERMINAL` and
+A leaf: at run time it imports nothing else of `app.agent` (`app.clock` takes `TERMINAL` and
 `announce` at its top).
 """
 

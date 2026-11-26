@@ -40,6 +40,17 @@ def test_port_override_is_an_allowed_origin(tmp_path):
     assert load_settings({"KOLONI_RUNTIME_ROOT": str(tmp_path)}).port == 8790
 
 
+def test_the_clock_by_its_name_and_by_its_old_one(tmp_path):
+    def clock(**env):
+        return load_settings({"KOLONI_RUNTIME_ROOT": str(tmp_path), **env}).clock
+
+    assert clock() is True
+    assert clock(KOLONI_CLOCK="0") is False
+    # (Its name while it ran triggers, read for one release: a user's .env keeps working.)
+    assert clock(KOLONI_TRIGGER_CLOCK="0") is False
+    assert clock(KOLONI_CLOCK="1", KOLONI_TRIGGER_CLOCK="0") is True
+
+
 def test_only_this_machine_unless_in_the_image():
     for host in ("127.0.0.1", "::1", "localhost"):
         assert main.bind_allowed(host, {})

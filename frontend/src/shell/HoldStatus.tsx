@@ -183,7 +183,7 @@ export function HoldStatus({ every, onOpen }: { every: number; onOpen: (conversa
         ref={button}
         type="button"
         className={`btn${hold.held ? ' hold-held' : ''}`}
-        // (Named here: in a narrow window its words are not shown, theme/triggers.css.)
+        // (Named here: in a narrow window its words are not shown, theme/hold.css.)
         aria-label={hold.held ? 'Held · Resume' : 'Stop everything'}
         aria-expanded={open}
         title={

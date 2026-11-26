@@ -26,7 +26,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import load_settings
-from app.main import PageKey, create_app, hide_webhook_keys, open_code, opens_browser, show_link
+from app.main import PageKey, create_app, hide_page_keys, open_code, opens_browser, show_link
 
 ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 HEADER = "X-KOLONI-Key"
@@ -153,7 +153,7 @@ def test_a_key_given_for_tests_never_reaches_a_child(monkeypatch, settings_env):
 
 
 def test_the_key_is_not_in_the_access_log(caplog):
-    hide_webhook_keys()
+    hide_page_keys()
     with caplog.at_level(logging.INFO, logger="uvicorn.access"):
         logging.getLogger("uvicorn.access").info(
             '%s - "%s %s HTTP/%s" %d',

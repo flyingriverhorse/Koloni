@@ -156,7 +156,7 @@ def test_stop_everything_cuts_the_nights_job_and_holds_its_next_until_resume(
     assert one["conversation_id"] in {s["conversation_id"] for s in held["stopped"]}
     assert held["nights"] == [project_dir.name] and night(client, pid)["status"] == "running"
     # the clock's look starts no next job while held
-    client.app.state.triggers.tick(now())
+    client.app.state.clock.tick(now())
     assert night(client, pid)["jobs"][1]["conversation_id"] is None
     client.post("/api/hold/resume")
     two = until(lambda: night(client, pid)["jobs"][1]["conversation_id"])

@@ -20,6 +20,8 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+- **`KOLONI_TRIGGER_CLOCK` is now `KOLONI_CLOCK`.** A `.env` that sets the old name keeps working for
+  one more release; rename it to `KOLONI_CLOCK` (see [Environment variables](environment.md)).
 - **Native is experimental.** Claude Code, Codex and Copilot offer **Native** under **Experimental**
   in **How it runs** only with **Show experimental features** on (Settings › The app › Agents; the switch
   that was **Show experimental CLIs**, kept as you had it). A provider you already run Native keeps working
