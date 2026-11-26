@@ -223,6 +223,8 @@ def test_a_thin_recipe_goes_back_to_its_build_and_koloni_s_round_keeps_its_round
     # user's (before 0195 each fix round gave the review group 2 rounds more).
     client, _model = make_client([])
     ready = {r["name"]: r["graph"] for r in listed(client)["recipes"] if r["ready"]}
+    # (Its review is none of KOLONİ's: a big or security-touching change still gets KOLONİ's look.)
+    assert {s["who"].get("role") for s in ready[name]["steps"]}.isdisjoint(review_mixin.REVIEWERS)
     for anew in (True, False):
         state = _at_its_end(ready[name])
         state.update(rounds={review: 2}, sent_back=review)
