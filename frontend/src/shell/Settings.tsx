@@ -448,7 +448,7 @@ function AppSettings({ toLimits, moreOpen = false }: { toLimits?: () => void; mo
         high={95}
         why="For every project: once an agent’s context passes this much of its model’s window, the older part is summarised before its next step."
       />
-      <MoreLimits set={set} open={moreOpen}>
+      <MoreLimits set={set} bad={usual.some(([one]) => one.bad)} open={moreOpen}>
         <WholeRow
           id="max-steps"
           label="Steps an agent may take"
