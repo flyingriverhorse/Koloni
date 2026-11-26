@@ -42,7 +42,7 @@ the project, so it has none. What stops it:
 - it goes round in circles (below);
 - a limit you set: the **Lead** role's **At most this many steps**;
 - in a To-do task's turn, and in a job while you're away: nothing has moved
-  for Settings › The app › **Stuck after this many minutes with no progress** (30 unless you change
+  for Settings › The app › More limits › **Stuck after this many minutes with no progress** (30 unless you change
   it) - no file of the turn changed, no agent finished its work, no failing command passed. Each of
   those starts the minutes again, so honest work runs as long as it needs. They do not run out while
   a card waits for you, a command or a model step of the turn is under way, or an agent below the
