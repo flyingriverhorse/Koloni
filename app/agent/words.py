@@ -321,7 +321,7 @@ NEAR_TESTS = (
 )
 PROOF_LEAD = (
     "After a turn that changes code KOLONİ runs the project's tests once on the work as it is "
-    "then, asks for a test where none changed, and - under Test and review - has a big or "
+    "then, may ask for a test where none changed, and - under Test and review - has a big or "
     "security-touching change read by a Reviewer. Do not run the whole test suite yourself at "
     "the end; its result comes to you."
 )

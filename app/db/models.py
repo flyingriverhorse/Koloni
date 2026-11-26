@@ -223,8 +223,8 @@ class Project(Base):
     ci_commands: Mapped[dict | None] = mapped_column(JSON, default=None)
     # S5a (0167): which kinds of work KOLONİ checks after a turn wrote them - {kind: on} for
     # "docs", "slides", "diagram", "data", "config", "scripts", "style" (`app.proof_kinds.KINDS`),
-    # S5b's "ui"; a kind left out is on - so a kind added later is on in every project, with no
-    # migration.
+    # S5b's "ui"; a kind left out is on, with no migration - but `proof.OFF_UNLESS_TICKED` (0.1.10:
+    # "ui", and "test", A test for the change), off.
     check_kinds: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
