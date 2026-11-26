@@ -301,12 +301,8 @@ def test_stopped_after_a_copy_was_taken_in_the_turn_is_completed(
 
 def test_what_counts_as_a_repeat():
     counts = signs.Counts()
-    room = ("wait_for_room", "{}", "nobody said anything new")
-    for _ in range(3 * signs.IDLE_STOP):  # (a room at work for long: the same answer each time)
-        counts.heard(*room, waited=True)
-    assert counts.idle == 0
-    for _ in range(3):  # (one back at once with the same words is a repeat)
-        counts.heard(*room)
+    for _ in range(3):  # (the same call with the same words is a repeat)
+        counts.heard("read_file", "{}", "the same")
     assert counts.idle == 2
     counts.moved()
     for _ in range(11):  # (a fan-out of one call in one step is one)

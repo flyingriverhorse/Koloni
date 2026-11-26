@@ -18,7 +18,6 @@ from sqlalchemy import literal_column, select
 from sqlalchemy.orm import Session
 
 from app import attachments, board, catalog, evolve, injection, models_dev, topics, views, web
-from app import room as rooms
 from app.agent.cards import _who
 from app.agent.ctx import Ctx
 from app.agent.summary import _without
@@ -677,7 +676,8 @@ class AttachmentsMixin:
     def _noted_for_team(self: "AgentRunner", session, ctx: Ctx, team_id: str) -> str:
         """K-devir-5: what a team's new lead is given of the notebook of the turn before
         (`_notes_before`): the notes a team's lead wrote for this team or for every team, and
-        what a room between teams decided (KOLONİ's note of it) - not KOLONİ's note of the
+        what a room between teams decided before 0.1.10 (KOLONİ's note of it) - not KOLONİ's note
+        of the
         turn's end (the Lead has that, `board.pushed`), nor the user's (their words stand in
         the history as they were). Newest first, at most `board.FOR_TEAM_MOST`; "" for none."""
         before = self._notes_before(session, ctx)
@@ -689,12 +689,13 @@ class AttachmentsMixin:
                 select(Agent.id).where(Agent.run_id == before[0].run_id, Agent.role_name.in_(leads))
             )
         )
-        # (A room's decision is KOLONİ's note that starts with its own constant words.)
+        # (A room's decision is KOLONİ's note that starts with its own constant words - rooms are
+        # gone since 0.1.10, an old chat's turn before may have one.)
         posts = [
             post
             for post in reversed(before)
             if (post.agent_id in by_lead and (post.everyone or post.team_id == team_id))
-            or (post.koloni and post.content.startswith(rooms.DECIDED.partition("{")[0]))
+            or (post.koloni and post.content.startswith("The room between "))
             or (post.koloni and post.content.startswith(evolve.ROUND_RESULT))  # (K-evrim)
         ][: board.FOR_TEAM_MOST]
         if not posts:

@@ -77,10 +77,6 @@ def test_a_chat_takes_each_group_of_fields(client, plain, tmp_path):
         "teams_mode": "none",
         "lead_effort": "low",
         "discussion_budget": 9000,
-        "room_posts": 5,
-        "room_tokens": 6000,
-        "room_minutes": 7,
-        "room_min_tokens": 8,
         "also_in": [str(tmp_path / "other")],
         "part": ".",
         "archived": True,
@@ -118,10 +114,6 @@ def test_a_chat_takes_each_group_of_fields(client, plain, tmp_path):
         {"teams": []},
         {"lead_effort": None},
         {"discussion_budget": None},
-        {"room_posts": None},
-        {"room_tokens": 5},
-        {"room_minutes": None},
-        {"room_min_tokens": None},
         {"part": None},
         {"archived": True},
         {"archived": False},
@@ -234,10 +226,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "spawn_max_agents": 3,
         "spawn_max_parallel": 4,
         "discussion_budget": 9000,
-        "room_posts": 5,
-        "room_tokens": 6000,
-        "room_minutes": 7,
-        "room_min_tokens": 8,
         "after_change": "tests",
         "judge_words": True,
         "judge_risky": "ask",
@@ -271,7 +259,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
             "turn_token_limit": None,
             "max_agents": None,
             "monthly_budget": None,
-            "room_posts": None,
         },
     )
     assert status == 200, out
@@ -284,9 +271,8 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
             "turn_token_limit",
             "max_agents",
             "monthly_budget",
-            "room_posts",
         )
-    ] == [None] * 7
+    ] == [None] * 6
 
 
 @pytest.mark.parametrize(
@@ -319,10 +305,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         {"spawn_max_parallel": 1},
         {"turn_token_limit": None},
         {"discussion_budget": None},
-        {"room_posts": None},
-        {"room_tokens": None},
-        {"room_minutes": None},
-        {"room_min_tokens": None},
         {"max_agents": None},
         {"day_note_at": None},
         {"monthly_budget": None},

@@ -24,7 +24,6 @@ from app import koloni, project_files
 from app.db.models import Provider, Team
 from app.providers import Providers, list_providers
 from app.roles import LEAD, find_agent_role, shown_name
-from app.room import MAX_MEMBERS, MIN_MEMBERS
 from app.schemas import RecipeEnd, RecipeGraph, RecipeGroup, RecipeIn, RecipeStep, WhoCandidates
 from app.team import Entry, choose, guide, not_listed, only_in_project, quoted
 from app.views import DEVICES, Refused
@@ -328,14 +327,6 @@ def _whos(session: Session, graph: RecipeGraph, providers: Providers, say: Say) 
     for step in graph.steps:
         role = getattr(step.who, "role", None) or getattr(step.who, "candidates", None)
         team = getattr(step.who, "team", None)
-        room = getattr(step.who, "room", None)
-        if room is not None:
-            if not MIN_MEMBERS <= len(room) <= MAX_MEMBERS:
-                say(step.id, f"{step.name}: a room has {MIN_MEMBERS} to {MAX_MEMBERS} roles")
-            if len({one.casefold() for one in room}) < len(room):
-                say(step.id, f"{step.name}: its room names a role twice")
-            if step.group is not None:
-                say(step.id, f"{step.name}: a room meets on its own, not at once with other steps")
         # K-evrim: one best of them goes on - picked from them alone, of work each made.
         if getattr(step.who, "candidates", None) is not None and step.done_when != "done":
             say(step.id, f"{step.name}: candidates do the work; a review is a step of its own")
@@ -355,7 +346,7 @@ def _whos(session: Session, graph: RecipeGraph, providers: Providers, say: Say) 
                 tools=tried.tools if tried else None,
             ):
                 say(step.id, f"{step.name}: candidate {n}'s model: {why}")
-        for one in room or ([role] if role is not None else []):
+        for one in [role] if role is not None else []:
             found_role = find_agent_role(session, one)
             # (The Lead is no step's role: "the Lead picks" is.)
             if found_role is None or (found_role.builtin and found_role.name == LEAD):
@@ -442,9 +433,6 @@ def _beside_ways(
                 f"{names[loop.from_]}: its loop is on a way beside others; loop "
                 "back from where they meet",
             )
-    for step in graph.steps:
-        if getattr(step.who, "room", None) is not None and step.id in on_ways:
-            say(step.id, f"{step.name}: a room meets on its own, not at once with other steps")
     for at in forks(graph):
         if sum(isinstance(s.who, WhoCandidates) for s in steps_of(graph, f"{at}+")) > 1:
             say(at, f"{names[at]}: its ways have one step of candidates at most")
@@ -517,7 +505,6 @@ DRAW = (
     'with "most": 2 to 5 where the sentence wants up to that many of it at once, each on a '
     "part of the work -, "
     '{"team": a team\'s name} (its stages in order), {"lead": true} (the Orchestrator picks), '
-    '{"room": 2 to 6 roles\' names} (they meet in one room; never in a group), '
     '{"experts": "all"} (the team\'s experts, at once), {"experts": "stale"} (those '
     'of them whose guide is old: they learn) or {"experts": "learned"} (those that have '
     "learned; none: the step is passed). "

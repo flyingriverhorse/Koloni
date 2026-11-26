@@ -639,7 +639,7 @@ class OutsideMixin:
         outside all of them once the user says so, at every level: Full auto is leave
         for the project. The call is `pending` while it waits. What KOLONİ never opens
         is refused by the tool itself, nobody asked. A write of an agent that works in a
-        copy (a sub-agent, a room's member) is asked about every time: the copy has none
+        copy (a sub-agent) is asked about every time: the copy has none
         of these folders, and what is written there goes straight in. So is a command of
         a side of a comparison: before the user's choice nothing of it goes outside its copy."""
         # A change - a command too - goes unasked only into a folder to write in.

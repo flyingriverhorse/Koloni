@@ -607,7 +607,6 @@ def test_the_lead_opens_a_sub_agent_only_on_a_provider_known_to_have_room(
     )
     clock = held(client)
     monkeypatch.setattr(client.app.state.runner.providers.limits, "last", lambda provider: plan)
-    monkeypatch.setattr("app.agent.rooms_mixin.over_month", lambda session, project: over)
     monkeypatch.setattr("app.agent.questions_mixin.over_month", lambda session, project: over)
     monkeypatch.setattr("app.agent.spawn_mixin.over_month", lambda session, project: over)
     if first is None:  # (no turn before: nothing has run on it)

@@ -244,58 +244,6 @@ async def test_what_is_sent_with_one_step_only_is_never_marked_but_what_is_befor
     ]
 
 
-def test_a_room_members_mark_is_on_what_its_next_step_sends_again(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    from app.model_client import Transient
-    from tests.fakes import ScriptedModel
-    from tests.test_cache_scenarios import marked, sent, unmarked
-    from tests.test_room_scenarios import LONG, add, finish, start, take
-    from tests.test_spawn import call, step
-
-    plain, coder = ScriptedModel.stream_step, []
-
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, **more):
-        if "Your name here is Coder" in str(messages[0]["content"]):
-            coder.append((list(messages), tools))  # the messages themselves, as sent
-        return await plain(self, model_id, messages, tools, on_delta, on_thinking)
-
-    # (before the room opens: its first steps are taken while `start` returns)
-    monkeypatch.setattr(ScriptedModel, "stream_step", stream_step)
-    client, _model, cid, run_id, _room = start(
-        make_client,
-        project_dir,
-        {
-            "Coder": [
-                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                step(call("read_file", {"path": "hello.py"}, "r1")),
-                step(finish(1, "read it", "f1")),
-                text("My part is done."),
-            ],
-            "Reviewer": [
-                step(add("Review", id="a2"), take(2, "t2")),
-                step(finish(2, "fine", "f2")),
-                text("Looked at it."),
-            ],
-        },
-    )
-    assert wait_run(client, cid, run_id, timeout=LONG)["runs"][0]["status"] == "completed"
-    assert len(coder) >= 3
-    bodies = [asyncio.run(sent(messages, tools, cache=True))[0] for messages, tools in coder]
-    for (messages, _tools), body in zip(coder, bodies, strict=True):
-        # how the room stands is told at the end of every step, and with that step only
-        assert isinstance(messages[-1], Transient) and "cache_control" not in str(
-            body["messages"][-1]
-        )
-        assert len(marked(body)) == 2
-    # what was marked is what the next step begins with (the first two steps: what the room
-    # says to a member later is placed again at each step, which this does not pin)
-    first, after = bodies[0], bodies[1]
-    upto = next(at for at, m in enumerate(first["messages"]) if "cache_control" in str(m))
-    assert upto == len(first["messages"]) - 2
-    assert unmarked(after)["messages"][: upto + 1] == unmarked(first)["messages"][: upto + 1]
-
-
 def test_a_bool_is_never_counted_as_a_token():
     from app.model_cli import _input_tokens
     from app.model_native import ClaudeNativeClient

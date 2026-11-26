@@ -20,7 +20,7 @@ OWN = [Depends(require_own_origin)]
 
 # The box's own commands (slice 46, 49's `/plan`, 54's `/compare`): a saved one would
 # never be reached.
-RESERVED = frozenset({"new", "room", "stop", "model", "mode", "plan", "compare"})
+RESERVED = frozenset({"new", "stop", "model", "mode", "plan", "compare"})
 NAME = re.compile(r"[^\s/]{1,40}")
 
 

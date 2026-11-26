@@ -98,8 +98,6 @@ CheckKind = Literal["docs", "slides", "diagram", "data", "ui", "config", "script
 FinishWay = Literal["merge", "pull_request"]
 MAX_AWAY_MINUTES = 1440
 SpawnApproval = Literal["auto", "always", "never"]
-# The most a room's budget can be set to: a number, not a way round having one.
-MAX_ROOM_POSTS, MAX_ROOM_TOKENS, MAX_ROOM_MINUTES = 1000, 100_000_000, 24 * 60
 MAX_CHAT_TEAMS = 6
 # 0.1.8: a project's longest command, in minutes - the most the user may raise it to.
 LONGEST_COMMAND = (10, 60)
@@ -131,8 +129,6 @@ class RecipePart(BaseModel):
     state: Literal["done", "now", "next", "skipped"]
     # How many times its loops came back to it.
     round: int
-    # A Room step (slice 84e): its roles meet in one room.
-    room: bool = False
     # A review its writer checks, as the user said, or nobody was there to ask ("Who checks?").
     own_check: bool = False
     # B-173: the names of its steps the user's choice on a card left out.
@@ -257,8 +253,7 @@ class ProjectOut(Out):
     canary: bool
     # Its chats' sub-agent settings, every chat's (tek-ev: `models.settings_of`): who changes
     # the files, who answers while the user is away (K-cli-vekil), when opening a sub-agent
-    # asks, how far a turn's tree may grow, a discussion's tokens (None: no limit), and what a
-    # room may spend unless said otherwise as it is opened (None: no limit).
+    # asks, how far a turn's tree may grow, and a discussion's tokens (None: no limit).
     lead_work: LeadWork
     when_away: WhenAway
     away_minutes: int
@@ -267,11 +262,6 @@ class ProjectOut(Out):
     spawn_max_agents: int
     spawn_max_parallel: int
     discussion_budget: int | None
-    room_posts: int | None
-    room_tokens: int | None
-    room_minutes: int | None
-    # B-414: the least tokens an agent's room is given (`room_tokens` wins where lower); None: none.
-    room_min_tokens: int | None
     # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
     after_change: AfterChange
     # S3: how often the end check sends work back a turn - tests and the Reviewer's findings;
@@ -390,10 +380,6 @@ class ProjectPatch(BaseModel):
     spawn_max_parallel: int | None = Field(default=None, ge=1, le=32, strict=True)
     # Sent as null to take the limit away; left out to keep it.
     discussion_budget: int | None = Field(default=None, gt=0, le=2**53, strict=True)
-    room_posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS, strict=True)
-    room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
-    room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
-    room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
     # k-canli-016: 1 to 10, or "until" (null too) - until it passes; left out: kept.
     fix_rounds: Annotated[int, Field(ge=1, le=10, strict=True)] | Literal["until"] | None = None
@@ -548,12 +534,6 @@ class ConversationOut(Out):
     away_minutes: int
     # The Lead's reasoning level here; None: its role's.
     lead_effort: Effort | None
-    # What a room opened here may spend unless the user says otherwise as they open it:
-    # posts by its members, tokens as their models report them, minutes. None: no limit.
-    room_posts: int | None
-    room_tokens: int | None
-    room_minutes: int | None
-    room_min_tokens: int | None  # (B-414: the least tokens an agent's room is given)
     # Folders outside the project it also works in: its folder's at its start, from the
     # user's messages, cards and "This chat's folders" (slice 86b).
     also_in: list[str]
@@ -651,11 +631,6 @@ class ConversationPatch(BaseModel):
     away_minutes: int | None = Field(default=None, ge=0, le=MAX_AWAY_MINUTES, strict=True)
     # Sent as null to go back to the Lead role's level; left out to keep it.
     lead_effort: Effort | None = None
-    # Left out: kept as it is. Null: no limit.
-    room_posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS)
-    room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
-    room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES)
-    room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
     # Left out: kept as it is. The whole list, as it is to be: one added only from the app's
     # own page; one in both lists is one to write in.
     also_in: list[FolderPath] | None = Field(default=None, max_length=500)
@@ -1057,7 +1032,7 @@ class FileChangeOut(BaseModel):
     run_id: str
     agent_id: str
     origin: Literal["koloni", "cli"]
-    # None: no agent's call made it - a room's copy brought it into the project.
+    # None: no agent's call made it - a room's copy brought it into the project (before 0.1.10).
     tool_call_id: str | None
     path: str
     kind: Literal["create", "modify", "delete"]
@@ -1252,7 +1227,8 @@ class CommandOut(BaseModel):
     run_id: str
     agent_id: str
     origin: Literal["koloni", "cli"]
-    # None: no agent's call asked for it - the project's check, run on a room's copy.
+    # None: no agent's call asked for it - the project's check, run on a room's copy (before
+    # 0.1.10).
     tool_call_id: str | None
     command: str
     cwd: str | None
@@ -1734,8 +1710,6 @@ class MergeOut(Out):
     commit: MergeCommitOut | None = None
     # None: a copy's, taken in file by file.
     branch: MergeBranchOut | None = None
-    # The room whose one copy this is; None: an agent's own.
-    room_id: str | None = None
     created_at: datetime
     decided_at: datetime | None
 
@@ -2353,128 +2327,6 @@ class DiscussionPostIn(BaseModel):
     content: str = Field(max_length=1500)
 
 
-class RoomMemberIn(BaseModel):
-    role: str = Field(max_length=60)
-    # The provider (its name) and model the user gives this member; left out: its role's.
-    provider: str | None = Field(default=None, max_length=60)
-    model: str | None = Field(default=None, max_length=200)
-
-
-class RoomBudgetIn(BaseModel):
-    """What one room may spend. Left out: the conversation's own. Null: no limit."""
-
-    posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS)
-    tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
-    minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES)
-
-
-class RoomIn(BaseModel):
-    goal: str = Field(max_length=4000)
-    # (`with` on the wire: the word is taken in Python.)
-    members: list[RoomMemberIn] = Field(alias="with", min_length=2, max_length=6)
-    budget: RoomBudgetIn | None = None
-    # The user's word to open it though the project is over this month's budget.
-    over_budget: bool = False
-
-
-class RoomMoreIn(BaseModel):
-    """What is added to a running room's budget; a limit it does not have stays none."""
-
-    posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS)
-    tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
-    minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES)
-
-
-class RoomBudgetOut(BaseModel):
-    """A room's limits (None: none) - or, as `spent`, how much of each is used."""
-
-    posts: int | None
-    tokens: int | None
-    minutes: float | None
-
-
-class RoomMemberOut(BaseModel):
-    # None until its agent is opened, right after the room is.
-    agent_id: str | None
-    role: str
-    # "waiting": for a post. "done": its work is over. "left": it failed.
-    status: Literal["in", "waiting", "done", "left"]
-
-
-class RoomOut(BaseModel):
-    """Two to six agents working on one goal at the same time, in one working copy."""
-
-    id: str
-    run_id: str
-    goal: str
-    # The agent that opened it; None: the user did.
-    agent_id: str | None
-    # "sharing": its members share the work out, a step each, before they start.
-    status: Literal["sharing", "working", "ended", "cancelled", "interrupted"]
-    # "ended_by_opener": the agent that opened it ended it (K-oda-lead).
-    outcome: Literal["agreed", "budget", "ended_by_user", "ended_by_opener", "too_few"] | None
-    # Which of its reasons: the limit of a room that ended at its budget; "unanswered" for
-    # one that ended "too_few" because a question was left with nobody to answer it.
-    why: Literal["posts", "tokens", "minutes", "unanswered"] | None
-    budget: RoomBudgetOut
-    # Posts by its members; tokens as their models reported them (None: none of them
-    # reported any); the minutes its clock has counted.
-    spent: RoomBudgetOut
-    # What it came to, in a line: the sentence its opener ended it with, else its done items'
-    # first lines (`app.room.summary`); None: none.
-    summary: str | None
-    # 29c: the user paused it - its members take no step and post nothing until Resume.
-    paused: bool
-    # K-oda-izle: whether the turn's Lead follows the room the user opened - or, R178, its agent
-    # opener follows the room it opened (`Room.lead_follows`).
-    lead_follows: Literal["off", "on", "stopped"]
-    members: list[RoomMemberOut]
-    created_at: datetime
-    ended_at: datetime | None
-
-
-class RoomItemOut(Out):
-    id: str
-    room_id: str
-    number: int
-    title: str
-    paths: list[str]
-    # Who has it - or had it when it was finished or dropped. None: nobody's.
-    holder_agent_id: str | None
-    status: Literal["open", "taken", "done", "dropped"]
-    result: str | None
-    created_at: datetime
-
-
-class RoomPostOut(Out):
-    id: str
-    room_id: str
-    number: int
-    # None: the user's.
-    agent_id: str | None
-    # "said": the user's. "done" and "left" are KOLONİ's own, for a member whose work is
-    # over (with its last words) or that failed.
-    # "ended": the opener's sentence of what came of it, as it ended it (K-oda-lead).
-    type: Literal[
-        "result", "review", "question", "answer", "blocked", "said", "done", "left", "ended"
-    ]
-    text: str
-    to_agent_id: str | None
-    reply_to: int | None
-    # A question nobody has replied to yet.
-    open: bool
-    created_at: datetime
-
-
-class RoomPostIn(BaseModel):
-    text: str = Field(max_length=1500)
-
-
-class RoomOpenedOut(BaseModel):
-    run: RunOut
-    room: RoomOut
-
-
 class ViewOut(BaseModel):
     """A file of the conversation to be seen beside the chat (slice 39, `app.views`): one
     an agent wrote, or one it put before the user with `show`."""
@@ -2580,9 +2432,6 @@ class SnapshotOut(BaseModel):
     questions: list[QuestionOut]
     discussions: list[DiscussionOut]
     discussion_posts: list[DiscussionPostOut]
-    rooms: list[RoomOut]
-    room_items: list[RoomItemOut]
-    room_posts: list[RoomPostOut]
     board_posts: list[BoardPostOut]
     # The files of the project held right now, by agents of any of its conversations.
     claims: list[ClaimOut]
@@ -3018,9 +2867,56 @@ class WhoExperts(Shut):
     experts: Literal["all", "stale", "learned"]
 
 
-class WhoRoom(Shut):
-    # Slice 84e: a Room step - its roles meet in one room (2 to 6 of them: `problems` says so).
-    room: list[Annotated[str, Field(max_length=60)]] = Field(max_length=10)
+def without_rooms(graph: object) -> object:
+    """0.1.10, rooms are gone: a Room step ({"room": [roles]}, slice 84e) of a recipe drawn
+    before - saved, a folder's file, a run's state - read as an "All at once" group in its place
+    (its id, name and spot, so its arrows and loops still meet it) with a step of each role, each
+    keeping the step's other choices. One role, or none, is a plain step of it (none: "" - no role
+    here, which the board says). Anything else is left as it is, for the schema to judge."""
+    if not isinstance(graph, dict) or not isinstance(graph.get("steps"), list):
+        return graph
+    steps, groups = [], list(graph.get("groups") or [])
+    taken = {
+        one.get("id")
+        for one in [*graph["steps"], *groups, *(graph.get("ends") or [])]
+        if isinstance(one, dict)
+    }
+    for step in graph["steps"]:
+        who = step.get("who") if isinstance(step, dict) else None
+        if not (isinstance(who, dict) and isinstance(who.get("room"), list)):
+            steps.append(step)
+            continue
+        roles = list(dict.fromkeys(one for one in who["room"] if isinstance(one, str)))
+        rest = {key: value for key, value in step.items() if key not in ("id", "name", "who")}
+        if len(roles) < 2 or rest.get("group") is not None:
+            # (A room in a group was never ready: its roles go into that group.)
+            ids = [step.get("id")] + [_fresh(step.get("id"), taken) for _one in roles[1:]]
+            names = [step.get("name", ""), *roles[1:]]  # (the first keeps the step's own)
+            steps += [
+                {**rest, "id": i, "name": name, "who": {"role": one}}
+                for i, name, one in zip(ids, names, roles or [""], strict=False)
+            ]
+            continue
+        group = {"id": step.get("id"), "name": step.get("name", "")}
+        if rest.get("pos") is not None:
+            group["pos"] = rest["pos"]
+        groups.append(group)
+        rest = {**rest, "group": step.get("id")}
+        rest.pop("pos", None)
+        steps += [
+            {**rest, "id": _fresh(step.get("id"), taken), "name": one, "who": {"role": one}}
+            for one in roles
+        ]
+    return {**graph, "steps": steps, "groups": groups} if steps != graph["steps"] else graph
+
+
+def _fresh(base: object, taken: set) -> str:
+    """`without_rooms`: an id no node of the recipe has, from its Room step's (`NodeId`)."""
+    n = 1
+    while (made := f"{str(base)[:36]}-{n}") in taken:
+        n += 1
+    taken.add(made)
+    return made
 
 
 # K-tarif-surukle: where the user dragged a part on the board (a group's step: from its group's
@@ -3041,7 +2937,7 @@ Pos = Annotated[RecipePos | None, Field(None, exclude_if=lambda value: value is 
 class RecipeStep(Shut):
     id: NodeId
     name: StepName
-    who: WhoRole | WhoTeam | WhoLead | WhoRoom | WhoExperts | WhoCandidates
+    who: WhoRole | WhoTeam | WhoLead | WhoExperts | WhoCandidates
     # "done": its agents say they are; "no_findings": a review that leaves no finding.
     done_when: Literal["done", "no_findings"] = "done"
     if_fails: Literal["ask", "stop"] = "ask"
@@ -3110,6 +3006,7 @@ class RecipeChecks(Shut):
 
 
 class RecipeGraph(Shut):
+    _no_rooms = model_validator(mode="before")(without_rooms)
     version: Literal[1] = 1
     steps: list[RecipeStep] = Field(max_length=60)
     groups: list[RecipeGroup] = Field([], max_length=20)
@@ -3509,12 +3406,11 @@ class RolesHistoryOut(BaseModel):
 class RunOn(BaseModel):
     """A provider a role's agents could be given as their own model (the chat's team picker):
     the model they would run with there, and whether such an agent could be a recipe's step
-    and a room's member (B-89)."""
+    (B-89)."""
 
     provider_id: str
     model_id: str | None
     step: bool
-    room: bool
 
 
 class RoleModelOut(BaseModel):
@@ -3543,10 +3439,8 @@ class RoleModelOut(BaseModel):
     # CLI that cannot be opened here now (as `cannot_pick` says it). None: it would.
     cannot_run: str | None
     # Why an agent of the role, where it runs, could not be a recipe's step (a CLI working in
-    # the project itself), and could not be a member of a room (a CLI with its own tools), as
-    # the agent that opens one is told (B-89). None: it could.
+    # the project itself), as the agent that opens one is told (B-89). None: it could.
     cannot_step: str | None = None
-    cannot_room: str | None = None
     # Where its agents could run instead, as their own model; [] where none could.
     run_on: list[RunOn] = []
     # Of the team guide (the role's own list is judged too, so not `pick_from` alone), the

@@ -413,47 +413,6 @@ def test_a_review_that_names_no_check_is_no_pass(make_client, wait_run, project_
     ]
 
 
-def test_beside_teams_leads_the_lead_opens_no_room_by_the_roles_the_message_names(
-    make_client, wait_run, project_dir
-):
-    # B-100 (live): named in the message, Coder and Tester were opened in a room by the Lead itself;
-    # Backend / API's lead never ran, and its team had no row at Ready for you.
-    from tests.test_recipe_run_scenarios import one_step
-    from tests.test_room_open_scenarios import open_room
-
-    client, _model = make_client(
-        {"Lead": [open_room(members=("Coder", "Tester")), text("done"), text("done"), text("done")]}
-    )
-    teams = teams_of(client)
-    cid, run_id = begin(
-        client,
-        project_dir,
-        mode="auto_edit",
-        spawn_approval="never",
-        teams_mode="manual",
-        content="Web app builds it; Docs, with the Coder and the Tester in a room, writes it",
-        teams=[
-            {
-                "team_id": teams["Web app"]["id"],
-                "recipe_id": one_step(client, "Just build", "Coder")["id"],
-            },
-            {
-                "team_id": teams["Docs"]["id"],
-                "recipe_id": one_step(client, "Just write", "Docs writer")["id"],
-            },
-        ],
-    )
-    snap = wait_run(client, cid, run_id)
-    ((status, said),) = [
-        (t["status"], t["result"]) for t in snap["tool_calls"] if t["name"] == "open_room"
-    ]
-    assert (
-        status == "failed"
-        and "Coder is in Web app, which its coordinator runs: hand it to Web app lead" in said
-    )
-    assert not [a for a in snap["agents"] if a["depth"]]
-
-
 def test_a_lead_refused_a_tier_by_its_rule_does_not_start_its_teams_recipe(
     make_client, wait_run, project_dir, monkeypatch
 ):
@@ -907,8 +866,8 @@ def test_a_team_with_no_recipe_beside_one_stops_alone(make_client, wait_run, pro
 
 
 def test_a_review_by_the_role_that_did_the_work_before_it_is_marked_as_it_is_saved(make_client):
-    # (Who did the work does not pass its check.) Only a step before it on the way did the work; a
-    # room's review passes as a whole.
+    # (Who did the work does not pass its check.) Only a step before it on the way did the work - and
+    # a Room step that reviewed (0.1.10: a group, a review of each of its roles) is held to it too.
     from tests.test_chat_teams_scenarios import OWN
 
     def saved(name, steps, arrows):
@@ -947,7 +906,15 @@ def test_a_review_by_the_role_that_did_the_work_before_it_is_marked_as_it_is_sav
         ],
         [("start", "build"), ("build", "meet"), ("meet", "end")],
     )
-    assert (later.status_code, room.status_code) == (201, 201), (later.text, room.text)
+    assert later.status_code == 201, later.text
+    assert room.status_code == 422 and room.json()["detail"] == [
+        {
+            "loc": ["body", "graph"],
+            "msg": "Coder: Coder would check its own work (Build it)",
+            "type": "recipe",
+            "at": "meet-1",
+        }
+    ]
 
 
 # --- the rules as recipe_run holds them (batch-16's review) ---------------------------------------
@@ -955,12 +922,10 @@ def test_a_review_by_the_role_that_did_the_work_before_it_is_marked_as_it_is_sav
 
 def run_of(drawn, picks=("Coder", "Reviewer")):
     from app import recipe_run
-    from app.schemas import RecipeGraph, WhoRole, WhoRoom
+    from app.schemas import RecipeGraph, WhoRole
 
     def who(one):
-        if isinstance(one.who, WhoRole):
-            return [(one.who.role,)]
-        return [(role,) for role in one.who.room] if isinstance(one.who, WhoRoom) else [picks]
+        return [(one.who.role,)] if isinstance(one.who, WhoRole) else [picks]
 
     return recipe_run.begin(RecipeGraph.model_validate(drawn), "r", "x", who)
 
@@ -1030,25 +995,6 @@ def test_findings_left_name_the_loop_that_sent_the_run_back():
         done(state, role, found=found)
         recipe_run.advance(state)
     assert recipe_run.found_left(state) == "findings are left after 1 round of Test it"
-
-
-def test_a_room_that_reviews_opens_with_the_one_who_built_it():
-    from app import recipe_run
-
-    state = run_of(
-        graph(
-            [
-                part("build", "Build it", {"role": "Coder"}),
-                part(
-                    "meet", "Look at it", {"room": ["Coder", "Reviewer"]}, done_when="no_findings"
-                ),
-            ],
-            [("start", "build"), ("build", "meet"), ("meet", "end")],
-        )
-    )
-    done(state, "Coder")
-    recipe_run.advance(state)
-    assert recipe_run.open_to(state) == ["Coder", "Reviewer"]
 
 
 def test_a_review_with_no_loop_that_leaves_findings_stops_before_the_next_step():

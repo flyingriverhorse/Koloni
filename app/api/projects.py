@@ -802,14 +802,8 @@ async def patch_project(
         *SPAWN,
     )
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
-    # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
-    spends = {
-        "discussion_budget",
-        "room_posts",
-        "room_tokens",
-        "room_minutes",
-        "room_min_tokens",
-    } & body.model_fields_set
+    # tek-ev: what a discussion may spend; null: no limit.
+    spends = {"discussion_budget"} & body.model_fields_set
     crowded = "max_agents" in body.model_fields_set  # the same: null takes it away
     noted = "day_note_at" in body.model_fields_set  # the same: null sends it no more
     budgeted = "monthly_budget" in body.model_fields_set  # the same
@@ -837,7 +831,7 @@ async def patch_project(
         # chat's Lead writes files itself, or answers for the user while they are away (a
         # request of their plan, K-cli-vekil), or what KOLONİ checks after a change (it runs the
         # tests, and may ask a model).
-        # And so are its chats' sub-agent settings and what their discussions and rooms spend,
+        # And so are its chats' sub-agent settings and what their discussions spend,
         # and which deletes go without a card.
         require_own_origin(request)
     _change_teams_and_folders(session, request, project, body)

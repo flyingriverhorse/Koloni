@@ -4,14 +4,13 @@ it to the step (`allowed`) and moves the row on as the step's agents finish (`en
 `complete`, `advance`). Nothing here reads the record: the row's state is a dict kept on the
 row (`ConversationTeam.state`), and a step's roles come from the caller (`Slots`).
 
-A part is what the arrows join: a step outside a group, or a group (its steps at once). It is
-done when each of its slots has an agent that finished: a step whose Who is a role has one
-slot, "the Lead picks" one of the team's roles, a team one for each of its stages, a room
-(slice 84e) one for each of its roles. A part opens as many agents as it draws (`size`). A
-role's step that draws more than one (`WhoRole.most`, K-rol-cogul) is done with fewer: once
-every agent it opened finished - those its lead asks for in one reply all open before any
-starts (`AgentRunner._run_tools`); one asked for in a later reply, after those finished, comes
-too late: the part has gone on.
+A part is what the arrows join: a step outside a group, or a group (its steps at once). It is done
+when each of its slots has an agent that finished: a step whose Who is a role has one slot, "the
+Lead picks" one of the team's roles, a team one for each of its stages. A part opens as many agents
+as it draws (`size`). A role's step that draws more than one (`WhoRole.most`, K-rol-cogul) is done
+with fewer: once every agent it opened finished - those its lead asks for in one reply all open
+before any starts (`AgentRunner._run_tools`); one asked for in a later reply, after those finished,
+comes too late: the part has gone on.
 shortcut: a team's stages are slots of one part, not run one after another; sequence them if
 that is felt.
 B-375: a part with more than one arrow on forks - its ways run at once, as one part (`forks`,
@@ -32,7 +31,6 @@ from app.schemas import (
     WhoExperts,
     WhoLead,
     WhoRole,
-    WhoRoom,
 )
 
 RUNNING = "running"  # its step's roles are opened, or are to be
@@ -525,16 +523,12 @@ def _before(graph: RecipeGraph, part: str) -> list[str]:
 
 
 def _kept_off(state: dict, graph: RecipeGraph, part: str) -> tuple[set[str], set[str]]:
-    """G1.2, who wrote the work does not pass its check: a part's review steps - not a room's,
-    which passes as a whole, its other members checking, nor one the user let its writer
-    check (`checks`) - and the roles (casefolded) that did a part before it on the way."""
+    """G1.2, who wrote the work does not pass its check: a part's review steps - not one the
+    user let its writer check (`checks`) - and the roles (casefolded) that did a part before it
+    on the way."""
     wrote, own = state.get("wrote", {}), state.get("own", ())
     return (
-        {
-            s.id
-            for s in steps_of(graph, part)
-            if s.done_when == "no_findings" and not isinstance(s.who, WhoRoom) and s.id not in own
-        },
+        {s.id for s in steps_of(graph, part) if s.done_when == "no_findings" and s.id not in own},
         {role for one in _before(graph, part) for role in wrote.get(one, ())},
     )
 
@@ -586,7 +580,7 @@ def checks(state: dict, part: str, slot: int, role: str | None) -> None:
 def own_checks(graph: RecipeGraph) -> list[tuple[str, str]]:
     """The review steps of one role that a step of that role before them on the way did the
     work for, each (its id, what is said): drawn so, the writer would pass its own check. (A
-    room's, or a step the Lead or a team fills, is known only as it runs: `_fits`.)"""
+    step the Lead or a team fills is known only as it runs: `_fits`.)"""
     found = []
     for part in strip(graph):
         before = [step for one in _before(graph, part) for step in steps_of(graph, one)]
@@ -1179,8 +1173,8 @@ def strip(graph: RecipeGraph) -> list[str]:
 
 def size(graph: RecipeGraph, slots: dict[str, list[list]], part: str) -> int:
     """How many agents a part draws (slice 84e), and so opens at most: a role's step its
-    `most` (one unless drawn more, K-rol-cogul), a team's a role of each stage, a room a
-    member each; "the Lead picks" one."""
+    `most` (one unless drawn more, K-rol-cogul), a team's a role of each stage; "the Lead
+    picks" one."""
     return sum(_draws(graph, step, roles) for step, roles in slots.get(part, []))
 
 
@@ -1222,19 +1216,10 @@ def least(graph: RecipeGraph, slots: dict[str, list[list]]) -> int:
 
 def drawn(step: RecipeStep) -> list[tuple[str, ...]]:
     """A step's slots from the drawing alone, as no chat has picked its team yet (the recipes'
-    list, `RecipeOut.agents`): a room's a slot for each of its roles, any other step one.
+    list, `RecipeOut.agents`): one.
     shortcut: a role switched off is counted, and a team's experts or stages count one slot -
     read them as a run does (`AgentRunner._slots_of`) if the list's numbers are seen to mislead."""
-    return (
-        [(name,) for name in step.who.room]
-        if isinstance(step.who, WhoRoom)
-        else [(role_of(step) or "",)]
-    )
-
-
-def room_at(graph: RecipeGraph, part: str) -> RecipeStep | None:
-    """The part's Room step (slice 84e: a room meets on its own, in no group); None: not one."""
-    return next((s for s in steps_of(graph, part) if isinstance(s.who, WhoRoom)), None)
+    return [(role_of(step) or "",)]
 
 
 def round_at(state: dict, graph: RecipeGraph, part: str) -> int:

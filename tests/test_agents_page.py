@@ -157,24 +157,6 @@ def test_a_role_the_lead_makes_in_a_chat_with_teams_stays_out_of_them(
     )
 
 
-def test_a_room_the_lead_opens_passes_the_same_door(make_client, wait_run, project_dir):
-    from tests.test_room_open_scenarios import lead_calls, open_room
-
-    client, _model = make_client(
-        {"Lead": [open_room(members=("Coder", "Translator")), text("done")]}
-    )
-    client.headers["Origin"] = ORIGIN
-    translator = next(r for r in client.get("/api/roles").json() if r["name"] == "Translator")
-    assert (
-        client.patch(f"/api/roles/{translator['id']}", json={"enabled": False}).status_code == 200
-    )
-    cid, run_id = begin(client, project_dir, mode="full_auto")
-    snap = wait_run(client, cid, run_id)
-    (tried,) = lead_calls(snap)
-    assert tried["status"] == "failed" and "Translator role is off" in tried["result"]
-    assert [a["name"] for a in snap["agents"]] == ["Lead"]
-
-
 # --- the door, after review --------------------------------------------------------------------
 
 

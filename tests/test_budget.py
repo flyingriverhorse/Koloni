@@ -128,18 +128,6 @@ def test_costs_in_two_currencies_are_not_added_and_the_budget_holds_nothing_back
     assert (seen["currency"], seen["over"]) == ("USD", True) and seen["spent"] >= 13.5
 
 
-def test_a_room_is_not_opened_over_the_budget_without_the_users_word(
-    make_client, wait_run, project_dir
-):
-    client, _pid, cid, _run = over(make_client, wait_run, project_dir, [text("b", 1, 1)] * 4)
-    room = {"goal": "together", "with": [{"role": "Coder"}, {"role": "Reviewer"}]}
-    refused = client.post(f"/api/conversations/{cid}/rooms", json=room)
-    assert refused.status_code == 409 and "month's budget (10.50 of 10.00 USD)" in refused.text
-    going = client.post(f"/api/conversations/{cid}/rooms", json={**room, "over_budget": True})
-    assert going.status_code == 201, going.text
-    wait_run(client, cid, going.json()["run"]["id"])
-
-
 def test_an_approved_plan_starts_its_work_over_the_budget_only_on_the_users_word(
     make_client, wait_run, project_dir
 ):

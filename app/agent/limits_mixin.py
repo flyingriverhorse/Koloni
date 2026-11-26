@@ -195,8 +195,6 @@ class LimitsMixin:
         through: a place that goes from one of its agents to the next stops no clock."""
         if run_id in self._unwatched:
             asyncio.get_running_loop().call_soon(self._count_minutes, run_id)
-        elif run_id in self._rooms:
-            asyncio.get_running_loop().call_soon(self._room_minutes, run_id)
 
     def _count_minutes(self: "AgentRunner", run_id: str) -> None:
         """An unattended turn's minutes are not counted while it is only kept waiting
@@ -286,12 +284,7 @@ class LimitsMixin:
     def _count_step(self: "AgentRunner", ctx: Ctx) -> None:
         """A model step of an unattended turn is about to be taken, by whichever of its
         agents: one more than its budget has, and the whole turn stops here. So does any
-        turn - watched or not - that is over its project's limit on tokens. And a member
-        of a room that has ended takes none: its work stops here, as the room's end
-        stops it wherever else it is."""
-        found = self._member_of(ctx)
-        if found is not None and found[0].outcome is not None:
-            raise asyncio.CancelledError
+        turn - watched or not - that is over its project's limit on tokens."""
         self._hold_to_limit(ctx)
         unwatched = self._unwatched.get(ctx.run_id)
         if unwatched is None:
@@ -378,14 +371,9 @@ class LimitsMixin:
 
     def _role_counts(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether a job's steps add up with its agent's others against its role's limit. Not
-        one with a limit of its own (a room's sharing step), nor a room member's: each time
-        it is woken counts on its own, as before B-325."""
-        room = self._rooms.get(ctx.run_id)
-        return (
-            _goes_on(ctx)
-            and not ctx.max_steps
-            and not (room is not None and ctx.agent_id in room.members)
-        )
+        one with a limit of its own (a speech): each time it is woken counts on its own, as
+        before B-325."""
+        return _goes_on(ctx) and not ctx.max_steps
 
     def _role_now(self: "AgentRunner", ctx: Ctx) -> Ctx:
         """B-325: an agent with its role's limits as they stand now (the user may have changed
@@ -465,7 +453,7 @@ class LimitsMixin:
         """The most steps one agent takes on a job. In an unattended turn the trigger's
         budget, which counts all its agents together, is what holds. A job on a budget given
         on top (K-devam-butce) takes that many. None: no count of its own - the Orchestrator.
-        B-413: three teams, a room and the messages between them ran its fixed count out
+        B-413: three teams and the messages between them ran its fixed count out
         after the work was in the project, and no Continue card is asked of it. What holds it
         instead: the loop guard (`_counted`, `_circled`), a limit the user set - its role's own
         (the Lead's `max_steps`), a trigger's steps for the whole turn (`_count_step`) - the
@@ -862,8 +850,8 @@ class LimitsMixin:
         answers the card for the user (K-fullauto-sorma: a "card"), either way, once for each
         agent in a turn (`_budgeted`, as K-devam-butce): past that it ends. No card where nobody
         would be there to answer - a turn a trigger started, a night's job, a backlog task - nor
-        for a job with a limit of its own (a room's sharing step), an answer, a turn on another's
-        message (its sender waits for the reply), or a room member. Nor where its work is kept
+        for a job with a limit of its own (a speech), an answer, or a turn on another's
+        message (its sender waits for the reply). Nor where its work is kept
         on a card of its own with Continue on it (B-322: that ends at once and holds nobody up).
         Its role's step limit still holds: Continue gives at most what the role has left, and
         none is asked where it has none left. A go on by message (`_go_on_gate`) counts as its
@@ -917,7 +905,6 @@ class LimitsMixin:
             or ctx.agent_id in self._halted
             or not self._watched(ctx.run_id)
             or ctx.run_id in self._away_jobs
-            or self._member_of(ctx) is not None
             or await self._kept_card_comes(ctx)
         ):
             return False

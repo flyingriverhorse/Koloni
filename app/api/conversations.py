@@ -40,9 +40,6 @@ from app.db.models import (
     Message,
     Project,
     Question,
-    Room,
-    RoomItem,
-    RoomPost,
     Run,
     Story,
     ToolCall,
@@ -82,9 +79,6 @@ from app.serialize import (
     merge_out,
     message_out,
     question_out,
-    room_item_out,
-    room_out,
-    room_post_out,
     run_out,
     tool_call_out,
     topic_out,
@@ -279,22 +273,6 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
         .where(DiscussionPost.discussion_id.in_([talk.id for talk in discussions]))
         .order_by(DiscussionPost.created_at, literal_column("discussion_posts.rowid"))
     ).all()
-    rooms = session.scalars(
-        select(Room)
-        .where(Room.run_id.in_(run_ids))
-        .order_by(Room.created_at, literal_column("rooms.rowid"))
-    ).all()
-    room_ids = [room.id for room in rooms]
-    items = session.scalars(
-        select(RoomItem)
-        .where(RoomItem.room_id.in_(room_ids))
-        .order_by(RoomItem.created_at, RoomItem.number)
-    ).all()
-    said = session.scalars(
-        select(RoomPost)
-        .where(RoomPost.room_id.in_(room_ids))
-        .order_by(RoomPost.created_at, RoomPost.number)
-    ).all()
     notes = session.scalars(
         select(BoardPost)
         .where(BoardPost.run_id.in_(run_ids))
@@ -369,9 +347,6 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
         "questions": [question_out(question) for question in questions],
         "discussions": [discussion_out(session, talk) for talk in discussions],
         "discussion_posts": [discussion_post_out(post) for post in posts],
-        "rooms": [room_out(session, room) for room in rooms],
-        "room_items": [room_item_out(item) for item in items],
-        "room_posts": [room_post_out(post) for post in said],
         "board_posts": [board_post_out(note, read_by.get(note.id, ())) for note in notes],
         "claims": claims,
         "merges": [merge_out(merge) for merge in merges],
@@ -708,18 +683,6 @@ def _change_effort_and_limits(
         # against the app's address.
         require_own_origin(request)
         conversation.discussion_budget = body.discussion_budget
-    limits = {
-        "room_posts",
-        "room_tokens",
-        "room_minutes",
-        "room_min_tokens",
-    } & body.model_fields_set
-    if limits:
-        # What a room may spend is leave to spend, as opening one and giving it more are:
-        # the user's to give from the app's own page.
-        require_own_origin(request)
-    for limit in sorted(limits):
-        setattr(conversation, limit, getattr(body, limit))  # (null: no limit)
 
 
 def _change_folders(
@@ -1055,7 +1018,7 @@ async def post_message(
         topic.id,
         content,
         spoken=body.spoken.model_dump(exclude_none=True) if body.spoken else None,
-        # Only here, from the user's own message: a trigger's turn, a room and the work turn
+        # Only here, from the user's own message: a trigger's turn and the work turn
         # of an approved plan never plan first - nor a plain chat, with no project to plan in.
         plan_turn=conversation.plan_first and project is not None,
     )

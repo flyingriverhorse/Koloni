@@ -128,7 +128,7 @@ class MemoryMixin:
                 and self._leads_teams(session, ctx)
             ):
                 # K-devir-5: a team's new lead is given what the leads noted for its team in
-                # the turn before, and what a room between teams decided then. Once: the
+                # the turn before (and what a room between teams decided, before 0.1.10). Once: the
                 # briefing is built once an agent (`_briefed`); a new turn's lead is a new agent.
                 # shortcut: not in a plain chat (no project: nothing is briefed there at all);
                 # lift it above the project check if teams are run in plain chats.
@@ -540,7 +540,7 @@ class MemoryMixin:
         first where one is kept for it."""
         if kind == "continue":
             self._set_agent(ctx.cid, target.agent_id, status="running", error=None, ended_at=None)
-            # (Only its own: a room's member or a recipe's agent leaves its lead's be.)
+            # (Only its own: a recipe's agent leaves its lead's be.)
             owner = self._copy_owner(target) or target.agent_id
             if owner == target.agent_id and owner not in self._copies:
                 if back := self._give_back(owner):

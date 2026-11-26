@@ -58,7 +58,6 @@ ALL_TOOLS = (
     "ask_user",
     "ask_folder",
     "message_agent",
-    "open_room",
     "discuss",
     "read_backlog",
     "add_task",
@@ -232,15 +231,12 @@ LEAD_INSTRUCTIONS = (
     "do the work: hand every file job and every finding to the right role - you "
     f"write no file yourself; report to the Orchestrator. {TEAM_SPLITS}"
 )
-# (open_room and discuss: a team's lead meets its step's roles too, slice 84e.)
-# shortcut: only a team made from here on has them - an older team's lead is given them on
-# its card (Tools); add a migration if the ready teams' leads are to have them unasked.
+# (discuss: a team's lead talks with its step's roles too, slice 84e.)
 LEAD_TOOLS = (
     *READ,
     "spawn_agent",
     "ask_user",
     "message_agent",
-    "open_room",
     "discuss",
     *NOTEBOOK,
     *MEMORY,
@@ -740,7 +736,7 @@ def was_named(name: str) -> str:
 
 def find_agent_role(session: Session, name: str) -> Role | None:
     """`find_role` for opening an agent: a team's lead is no role one is opened in - only the
-    Orchestrator opens one, by spawn_agent or in a room (`AgentRunner._team_lead`, 84b)."""
+    Orchestrator opens one, by spawn_agent (`AgentRunner._team_lead`, 84b)."""
     role = find_role(session, name)
     return None if role is None or is_team_lead(session, role) else role
 

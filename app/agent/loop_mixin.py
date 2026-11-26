@@ -35,7 +35,6 @@ from app import (
     web,
 )
 from app import memory as kept
-from app import room as rooms
 from app.agent.cards import _at_a_step_limit, _goes_on, _in_its_chat, _role_asked
 from app.agent.context_mixin import _koloni_compacts, _older
 from app.agent.ctx import FLUSH_SECONDS, TERMINAL, Ctx, _Transcript, joined, sent_effort
@@ -531,7 +530,6 @@ class LoopMixin:
         self: "AgentRunner", ctx: Ctx, again: bool = False
     ) -> tuple[str, str | None]:
         run_id, cid = ctx.run_id, ctx.cid
-        stopped = False
         try:
             # Before it takes any place: the summary it waits for may need the last one.
             await self._after_idle(ctx)
@@ -540,12 +538,8 @@ class LoopMixin:
                     pass  # (K-dallar: not while the git map switches the project's branch)
             self._map_start(ctx)  # (not waited for: made while git is looked at, and after)
             await self._git_start(ctx)  # (the Lead's, once: before any agent of the turn works)
-            # A room the user opened is the whole of the turn until it is over: its lead
-            # takes no step, and is asked nothing, before.
-            await self._hold_room(ctx)
             # Before its first place: the question holds one of its own, where it goes.
             ctx = await self._by_how_hard(ctx)
-            await self._lead_on_session(ctx)
             # In here: the lead may wait for room in its project, and Stop ends that too.
             # (`_take`, not `_settle`: its first place, not one given up for a wait.)
             await self._take(ctx)
@@ -573,7 +567,6 @@ class LoopMixin:
             return await self._loop_again(ctx, info, again)
         except asyncio.CancelledError:
             # Stop reaches the lead from wherever in the tree the work was.
-            stopped = True
             self._interrupt_open_calls(run_id, cid)
             if run_id in self._over and not self._closing:
                 return "failed", self._why_over(run_id)  # stopped for going over its budget
@@ -588,29 +581,6 @@ class LoopMixin:
         except Exception as exc:  # a bug in the loop must not leave the run hanging
             self._interrupt_open_calls(run_id, cid)
             return "failed", f"internal error: {exc!r}"
-        finally:
-            await self._unfollowed(ctx, stopped)
-
-    async def _unfollowed(self: "AgentRunner", ctx: Ctx, stopped: bool) -> None:
-        """K-oda-izle: a turn that ended before the Lead the user let follow their room took steps
-        of its own (`_loop` sees to it from there). Stopped, the room is cut with it; else - its
-        model gone, a refusal - it runs to its end and its copy is taken in, as S1's does."""
-        room = self._following.get(ctx.agent_id)
-        if room is None or room.life is None:
-            return
-        try:
-            if not stopped:
-                with contextlib.suppress(Exception):
-                    await self._follow(ctx, room, to_end=True)
-        finally:
-            if self._following.pop(ctx.agent_id, None) is not None:  # (not closed by `_follow`)
-                life = room.life
-                # (A room still at work is cut by `_room_work` as it is cancelled.)
-                over = life.done() and not life.cancelled() and life.exception() is None
-                life.cancel()
-                await asyncio.shield(asyncio.gather(life, return_exceptions=True))
-                if over and room.status != "ended":
-                    self._room_cut(room)
 
     @staticmethod
     def _turn_in_words(session, ctx: Ctx) -> str:
@@ -686,9 +656,9 @@ class LoopMixin:
     async def _git_start(self: "AgentRunner", ctx: Ctx) -> None:
         """The project's git as the turn begins (slice 70): what a CLI of it is told, and
         what its end is compared with. Once a turn, by its Lead, before any agent of the turn
-        works (`_attempt`: where Stop is taken) - never at an agent's steps, which a room's
-        members take in an order of their own. A folder with no `.git` is not looked at
-        (no thread); one that is, in a thread: `git.where` keeps to its own time limit.
+        works (`_attempt`: where Stop is taken) - never at an agent's steps. A folder with no
+        `.git` is not looked at (no thread); one that is, in a thread: `git.where` keeps to its
+        own time limit.
         shortcut: also a turn none of whose agents turns out to be a CLI or run a command;
         which will is not known yet as it begins."""
         if ctx.root is None or ctx.run_id in self._git_at:
@@ -750,24 +720,18 @@ class LoopMixin:
             raise
         except Exception:
             if not (ctx.answering or ctx.discussion):  # (G2.5: an answer it asked for, the Lead's)
-                # K-oda-lead (S1): its model failed in a step while it followed its room (429, a
-                # server gone): the room runs to its end, and its copy is taken in, as it would
-                # be had it only waited.
-                if (room := self._following.get(ctx.agent_id)) is not None:
-                    with contextlib.suppress(Exception):
-                        await self._follow(ctx, room, to_end=True)
                 await team_requests.woken(self, ctx, "failed")
             raise
         finally:
             await self._loop_end(ctx, counts, stopped)
 
     async def _loop_steps(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> tuple[str, str | None]:
-        """`_loop`: its steps until the turn may end - not while a room it follows runs,
-        an answer it did not wait for comes, its teams work, or a step is left to do."""
+        """`_loop`: its steps until the turn may end - not while an answer it did not wait for
+        comes, its teams work, or a step is left to do."""
         calls = None
         while True:
             status, error = await self._steps_held(ctx, info)
-            # B-413: its loop guard ended it - the turn's end: no room, team, answer or step
+            # B-413: its loop guard ended it - the turn's end: no team, answer or step
             # left is waited for or told.
             if ctx.agent_id in self._guard_ended:
                 self._guard_ended.discard(ctx.agent_id)
@@ -777,18 +741,6 @@ class LoopMixin:
             # given on top.
             if status != "completed" and error == "step_limit" and await self._more_steps(ctx):
                 continue
-            # K-oda-lead: no end while the room it opened runs - it waits for the room's
-            # end, and reads its record at a step more (failed, it only waits).
-            if (
-                room := None
-                if ctx.answering or ctx.discussion
-                else self._following.get(ctx.agent_id)
-            ) is not None:
-                said = await self._follow(ctx, room, to_end=True)
-                if status == "completed":  # (its members' posts noted: `_room_record`)
-                    self._nudge(ctx, rooms.OVER_MEANWHILE.format(record=said))
-                    continue
-                return status, error
             # K-takimlar-arasi: an answer it did not wait for comes now, and is read.
             if (
                 not (ctx.answering or ctx.discussion)
@@ -855,7 +807,7 @@ class LoopMixin:
         last lead it opened, else of the last agent it opened - a card is always in a call;
         with none, no recipe ran."""
         mine = [one for one in self._ctxs.values() if one.run_id == ctx.run_id and one.depth == 1]
-        with self._factory() as session:  # (one of the user's room has no call)
+        with self._factory() as session:
             called = set(
                 session.scalars(
                     select(Agent.id).where(
@@ -872,7 +824,7 @@ class LoopMixin:
 
     async def _loop_end(self: "AgentRunner", ctx: Ctx, counts, stopped: bool) -> None:
         """`_loop`, however it ended: its counts kept, its MCP servers and the sub-agents it
-        did not wait for ended, and the room it followed with it."""
+        did not wait for ended."""
         if counts:
             used = self._steps_used.pop(ctx.agent_id, 0)
             if self._role_counts(ctx):
@@ -908,22 +860,6 @@ class LoopMixin:
             # A second Stop: the turn's end waits for them, and says how they ended.
             self._later_work.setdefault(ctx.run_id, []).extend(later)
             raise
-        finally:
-            await self._loop_end_room(ctx)
-
-    async def _loop_end_room(self: "AgentRunner", ctx: Ctx) -> None:
-        """`_loop_end`: the room the agent followed does not outlive it."""
-        # K-oda-lead: the room it followed does not outlive it - Stop, in a step of its
-        # own as much as while it waited (as before: `cancelled`).
-        followed = (
-            None if ctx.answering or ctx.discussion else self._following.pop(ctx.agent_id, None)
-        )
-        if followed is not None and followed.life is not None:
-            followed.life.cancel()
-            await asyncio.shield(asyncio.gather(followed.life, return_exceptions=True))
-            if followed.status != "ended":  # (over, and not closed yet: no copy taken)
-                self._room_cut(followed)
-            self._room_returned(ctx, followed)
 
     async def _steps_held(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> tuple[str, str | None]:
         """`_steps`; B-413: the Orchestrator's only step limit is its role's (OwnStop) - at it,
@@ -938,8 +874,6 @@ class LoopMixin:
             return "failed", str(stop)
 
     async def _steps(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> tuple[str, str | None]:
-        # 29c: a member of a paused room starts nothing - nor a CLI's session, its own loop.
-        await self._while_paused(ctx)
         await self._steps_first(ctx)
         if ctx.root is None and getattr(ctx.model, "native", False):
             # (A sub-agent's client is its talker from its opening on: `_spawn`.)
@@ -965,7 +899,7 @@ class LoopMixin:
         # to summarise: `_compact` asks nothing.)
         sent = self._sent_before(ctx)
         # The nearer of the app's and the role's step limits (one set for this job - a
-        # speech, a room's sharing step - is its own, and says so itself; a budget given on
+        # speech - is its own, and says so itself; a budget given on
         # top, K-devam-butce, is the whole of it: `_step_limit`).
         role = (
             None
@@ -974,7 +908,6 @@ class LoopMixin:
         )
         # (Told to go on, B-83: from the steps it took before - `_loop`.)
         taken = self._steps_used.get(ctx.agent_id, 0) if _goes_on(ctx) else 0
-        waits = 0  # (its steps that only waited in its room: `rooms.WAITS`)
         # (The limit read at each step: a recipe's runner's grows as it starts its recipe and
         # as the user sends it back - R147, `_recipe_steps`.)
         # (B-413: none for the Orchestrator - its loop guard holds it: `_counted`, `_circled`.)
@@ -982,7 +915,6 @@ class LoopMixin:
             most = (
                 None if ctx.max_steps else min((one for one in (limit, role) if one), default=None)
             )
-            await self._while_paused(ctx)  # (29c: no model is asked for a paused room)
             self._hold_to_role(ctx, taken)
             self._steps_left[ctx.agent_id] = None if most is None else most - taken
             result, message_id = await self._model_step(ctx, info, sent)
@@ -1003,30 +935,9 @@ class LoopMixin:
             await self._run_tools(ctx, info, message_id, result.tool_calls)
             if ctx.agent_id in self._stuck and (end := await self._circled(ctx)) is not None:
                 return end
-            free = self._only_waited(ctx, result, taken, waits)
-            waits += free
-            taken += not free
+            taken += 1
         self._stopped_by_koloni(ctx)
         return "failed", self._given_limit(ctx)
-
-    def _only_waited(
-        self: "AgentRunner", ctx: Ctx, result: StepResult, taken: int, waits: int
-    ) -> bool:
-        """B-203: whether `_steps`' step only waited in its room - none of its steps, up to
-        `rooms.FREE_WAITS` of them (its steps used put back to `taken`).
-        shortcut: a step's model only - a CLI's session or native loop still counts its waits;
-        leave them out there too if a member on one is seen to run out waiting.
-        shortcut: an unattended turn's budget (`_count_step`) still counts them, as any step;
-        leave them out there too if a night's room is seen to spend it waiting."""
-        if (
-            waits >= rooms.FREE_WAITS
-            or self._member_of(ctx) is None
-            or any(one.name not in rooms.WAITS for one in result.tool_calls)
-        ):
-            return False
-        if _goes_on(ctx):
-            self._steps_used[ctx.agent_id] = taken
-        return True
 
     def _codex_tried(self: "AgentRunner", ctx: Ctx, result: StepResult) -> int | None:
         """B-387: a step in which Codex tried its own tools, which are off here - its stderr says
@@ -1126,22 +1037,18 @@ class LoopMixin:
                     }
                 ]
             )
-            # 29c: its next step is its own loop's: a paused room holds the answer it waits for.
-            await self._while_paused(ctx)
             if ctx.agent_id in self._stuck and (end := await self._circled(ctx)) is not None:
                 stop = SessionStop(end[1] or "")
                 stop.ended = end[0]
                 raise stop
             # The CLI keeps its own loop: a note left for it rides on the next result,
-            # and so does word that a fact it was given no longer stands - and, for a
-            # member of a room, how the room stands when that has changed - and what the user
+            # and so does word that a fact it was given no longer stands - and what the user
             # said to it since (`steer`), once.
             notes = (
                 self._deliver(ctx)
                 + self._no_longer_given(ctx)
                 + self._heard_later.pop(ctx.agent_id, [])
             )
-            stands = self._room_now(ctx, changed=True)
             # B-382: near its limit it is told to report, as a step is (`_near_a_limit`) - each
             # wording once: a session's tokens are known only at its end, so that one repeats.
             near = "" if ctx.answering or ctx.discussion else self._near_a_limit(ctx)
@@ -1150,7 +1057,7 @@ class LoopMixin:
             told_near.add(near)
             return (
                 status == "succeeded",
-                "\n\n".join(filter(None, [output, *notes, stands, near])),  # pyrefly: ignore[no-matching-overload]  # (filter(None, ...))
+                "\n\n".join(filter(None, [output, *notes, near])),  # pyrefly: ignore[no-matching-overload]  # (filter(None, ...))
                 images,
             )
 
@@ -1244,12 +1151,7 @@ class LoopMixin:
             cid, ctx.agent_id, last_event_at=now(), effort=effort, context_window=window
         )
         # (Its message is begun before its history is built: a note handed over while it
-        # is built (`_deliver`) comes after this step in every later one.) K-oda-onbellek: a
-        # room's posts are handed first, so they stay where this step read them, before its
-        # message, and the next step's request begins with this one's (a prompt cache's).
-        # shortcut: a post said between here and `_deliver` - and the notebook's notes - still
-        # move behind this step once, breaking the cache there; hand those here too if seen.
-        self._hand_posts(ctx)
+        # is built (`_deliver`) comes after this step in every later one.)
         with self._factory() as session:
             message = Message(
                 conversation_id=cid,
@@ -1405,14 +1307,11 @@ class LoopMixin:
         if getattr(client, "caches", False):
             # Every step of an agent sends what the one before it sent, and more.
             more["cache"] = True
-        room = self._rooms.get(ctx.run_id)
-        if getattr(client, "replays_blocks", False) and (
-            ctx.discussion or (room is not None and ctx.agent_id in room.members)
-        ):
-            # Told how its room or discussion stands at each step and never again, it would
+        if getattr(client, "replays_blocks", False) and ctx.discussion:
+            # Told how its discussion stands at each step and never again, it would
             # have none of its thinking sent back (`_replayed`): none is asked for where
             # that is a choice. shortcut: make those notes append-only (or send the API's
-            # `drop_block`) to keep a member's thinking.
+            # `drop_block`) to keep a speaker's thinking.
             more["think"] = False
         return more
 

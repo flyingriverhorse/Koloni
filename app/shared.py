@@ -1,8 +1,8 @@
-"""K-ortak-klasor: the teams' shared folder, `.koloni/shared/` in the project. Every agent reads
-all of it; `decisions/` is KOLONİ's (a room's decision, K-not-oda), `contracts/` a team lead's
-(or a `request_work` contract), and each team's own folder (its name made a slug) only its own
-agents'. Outside the working copies (`copies._scan` leaves it out, Take in never touches it), out
-of git by its own `.gitignore`, and each file starts with a header saying who wrote it.
+"""K-ortak-klasor: the teams' shared folder, `.koloni/shared/` in the project. Every agent reads all
+of it; `decisions/` is KOLONİ's (a room's decision, K-not-oda, until 0.1.10), `contracts/` a team
+lead's (or a `request_work` contract), and each team's own folder (its name made a slug) only its
+own agents'. Outside the working copies (`copies._scan` leaves it out, Take in never touches it),
+out of git by its own `.gitignore`, and each file starts with a header saying who wrote it.
 
 Plain functions: they read and write files. Who may write where is the caller's to say (`may`).
 """
@@ -107,7 +107,7 @@ def may(
     name) (None: an agent of no team); `lead`: it is a team's lead; `others`: the chat's other
     teams - one whose folder would be the same ("Web app", "web-app") makes it nobody's."""
     if folder == DECISIONS:
-        return "decisions/ is KOLONİ's own: it writes there what a room between teams decided"
+        return "decisions/ is KOLONİ's own: what teams decided together, kept there"
     if team is None:
         return "only an agent of a team writes in the shared folder"
     if folder == CONTRACTS:

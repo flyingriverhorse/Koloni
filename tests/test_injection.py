@@ -5,7 +5,6 @@ import time
 import pytest
 
 from app import board, injection, web
-from app import room as rooms
 
 RULES = [*injection.PHRASES, "fake_turn_marker", "hidden_characters", "bidi_control"]
 
@@ -104,7 +103,6 @@ def test_ordinary_text_breaks_no_rule(text):
 def test_kolonis_own_frames_break_no_rule():
     framed = web.framed("weather is fine", "result of the MCP tool fake__echo")
     assert injection.scan(framed) == [] and web.inside(framed) == "weather is fine"
-    assert injection.scan(rooms.handed(3, "Coder", "result", "you", 2, "done")) == []
     assert injection.scan(board.handed("Coder", "the agent you work for", "fine")) == []
     assert web.inside("error: no frame here") == ""
 

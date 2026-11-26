@@ -1,9 +1,9 @@
 """What a piece of an agent's work carries, and the small state objects around a turn.
 
 `Ctx` (the agent the work is done for), the refusals a gate raises, a turn's live transcript
-(`_Transcript`), the watch over a copy (`_Watch`, `_Hold`), a room's members (`_Member`,
-`_Room`), `TERMINAL`, `announce` / `announce_memory`, which tell the page what changed, and
-`sent_effort` (the thinking level a step's model is sent).
+(`_Transcript`), the watch over a copy (`_Watch`, `_Hold`), `TERMINAL`, `announce` /
+`announce_memory`, which tell the page what changed, and `sent_effort` (the thinking level a
+step's model is sent).
 A leaf: at run time it imports nothing else of `app.agent` (`app.triggers` takes `TERMINAL` and
 `announce` at its top).
 """
@@ -13,7 +13,7 @@ import contextlib
 import json
 import time
 from collections.abc import Awaitable, Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -440,78 +440,6 @@ class _Hold:
             self._away -= 1
             if self._away == 0:
                 await self.take()
-
-
-@dataclass
-class _Member:
-    """A member of a room, for as long as the room is not done with: its agent, and where
-    it stands - "in" (at work), "waiting" (for a post), "done" (its work is over) or
-    "left" (it failed)."""
-
-    ctx: Ctx
-    row: str  # its `RoomMember`
-    state: str = "in"
-    # Set when a post it has not been given is there: what `wait_for_post` waits for -
-    # and `wait_for_item`, for the item numbered `awaits` to be closed.
-    news: asyncio.Event = field(default_factory=asyncio.Event)
-    awaits: int | None = None
-    # Set when a question for it comes after its work was over: it goes on - and that
-    # question's number, which its next last words answer where no post of its own did (B-156).
-    wake: asyncio.Event = field(default_factory=asyncio.Event)
-    woken_by: int | None = None
-    # Set when its opener answered a question of its after its work was over (S3): it reads it.
-    answered: bool = False
-    # How the room stood when it was last told (a CLI session is told only what is new).
-    told: str = ""
-
-
-@dataclass
-class _Room:
-    """A room that runs, or is over and has its copy still to be taken into the project:
-    the turn's lead - who takes no part, and in whose name the room's one working copy
-    is kept - and its members by their agents' ids, in the order the user named them."""
-
-    id: str
-    lead: Ctx
-    members: dict[str, _Member] = field(default_factory=dict)
-    status: str = "sharing"
-    # How it ended, once it has - set before its members are stopped - and why, where
-    # there is more to say (`Room.why`).
-    outcome: str | None = None
-    reached: str | None = None
-    # What of it is being done right now: stopped when it ends.
-    tasks: list[asyncio.Task] = field(default_factory=list)
-    # Its minutes: the seconds counted so far, since when (the loop's time) they are
-    # being counted now - None while its clock stands - and what ends it at its limit.
-    seconds: float = 0.0
-    since: float | None = None
-    timer: asyncio.TimerHandle | None = None
-    # K-not-oda: the teams its members come from, where no one team holds them all - a room
-    # between teams, which talks and decides and changes no file (`_talk_only`). Set as it
-    # opens: nobody of another team is invited into one within a team (`_invite`).
-    between: tuple[str, ...] = ()
-    # 29c: set while it may go on; cleared while the user has it paused (`_while_paused`).
-    go: asyncio.Event = field(default_factory=lambda: _set(asyncio.Event()))
-    # K-oda-lead: for one its opener follows - or the user's (K-oda-izle) - its life from opening
-    # to record as a task of its own (`_room_life`); set at each post of somebody else's; the
-    # number of the last post the opener was given.
-    life: asyncio.Task | None = None
-    heard: asyncio.Event = field(default_factory=asyncio.Event)
-    seen: int = 0
-    # While its opener follows it and reads what is said (not in its last steps, `FOLLOW_RESERVE`):
-    # it is one more at work to its members - whom they may ask, and who may answer (S3).
-    reads: bool = False
-    # The last post it had been given when it was told its members only wait (`_follow`).
-    alone_at: int = -1
-    # K-oda-izle: set while the user lets the turn's Lead follow the room they opened (`reads`
-    # too), which wakes it; and once its Lead follows it no further, whatever the user says.
-    follow: asyncio.Event = field(default_factory=asyncio.Event)
-    read_out: bool = False
-
-
-def _set(event: asyncio.Event) -> asyncio.Event:
-    event.set()
-    return event
 
 
 def announce_memory(session_factory, bus, project_id: str, but: str | None = None) -> None:

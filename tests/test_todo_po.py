@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import agent, backlog
 from app.agent import po_mixin
-from app.db.models import Agent, BacklogTask, Discussion, Project, Room, Run, Topic
+from app.db.models import Agent, BacklogTask, Discussion, Project, Run, Topic
 from app.team import Entry, quoted
 from tests.test_away_scenarios import ended as night_over
 from tests.test_away_scenarios import go_away, to_do
@@ -525,10 +525,6 @@ def test_the_turns_that_are_not_asked_about(team, project_dir, ended):  # noqa: 
     with factory() as session:
         run = session.get_one(Run, run_id)
         assert backlog.po_asked(session, run)  # a step that failed
-        session.add(Room(run_id=run_id, goal="g"))
-        session.flush()
-        assert not backlog.po_asked(session, run)  # a room's
-        session.rollback()
         lead = session.scalar(select(Agent.id).where(Agent.run_id == run_id))
         session.add(
             Discussion(run_id=run_id, agent_id=lead, tool_call_id="c", topic="t", max_rounds=2)

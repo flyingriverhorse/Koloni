@@ -270,12 +270,6 @@ def chat_off(client, _pid, cid):
     )
 
 
-def no_teams(client, _pid, cid):
-    """(The chat's teams set aside: its Lead works as one with none - here, a room.)"""
-    said = client.patch(f"/api/conversations/{cid}", json={"teams": []}, headers=OWN)
-    assert said.status_code == 200, said.text
-
-
 def lowered_to_tests_only(client, pid, _cid):
     assert (
         client.patch(
@@ -298,32 +292,6 @@ def test_fix_it_on_held_work_keeps_the_held_turns_checks(make_client, wait_run, 
     assert any(r["kind"] == "review" and "HOLD" in r["text"] for r in rows), rows
     assert any(r["kind"] == "not_taken" for r in rows), [r["text"] for r in rows]
     assert not (project_dir / "calc.py").exists()
-
-
-def test_a_room_in_a_fix_it_turn_takes_none_of_the_held_work_in(make_client, wait_run, project_dir):
-    # (B4: a room the Fix it turn's Lead opens works in the kept copy - its end takes nothing in;
-    # the turn's end check does, or keeps it held)
-    from tests.test_proof_review_scenarios import hold
-    from tests.test_room_open_scenarios import open_room
-
-    client, _model, cid, second, snap = held_then_fix_it(
-        make_client,
-        wait_run,
-        project_dir,
-        hold("calc.py: still wrong"),
-        lower=no_teams,
-        then=[open_room(members=("Coder", "Tester")), text("the room is over")],
-        more={"Coder": [text("Nothing to add.")], "Tester": [text("Nothing to add.")]},
-    )
-    assert snap["rooms"], [
-        (t["name"], t["status"], (t["result"] or "")[:300])
-        for t in snap["tool_calls"]
-        if t["run_id"] == second
-    ]
-    assert not (project_dir / "calc.py").exists()
-    assert any(r["kind"] == "not_taken" for r in held_rows(snap, second)), [
-        r["text"] for r in held_rows(snap, second)
-    ]
 
 
 class _Unread:
