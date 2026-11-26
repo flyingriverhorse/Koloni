@@ -1,4 +1,4 @@
-import type { Away, AwayJob, BacklogTask, MemoryRecord, ProjectMemory } from '../api/types'
+import type { Away, AwayJob, BacklogTask, MemoryRecord, ProjectMemory, Waiting as Parked } from '../api/types'
 import { type Waiting, waitingOf } from '../chat/waiting'
 import type { ConvState } from '../state/applyEvent'
 
@@ -9,7 +9,7 @@ export const SOURCES: [ReadySource, string][] = [
   ['chat', 'Chats'],
   ['todo', 'To-do'],
   ['memory', 'Memory'],
-  ['night', 'While away'],
+  ['night', 'Last night'],
   ['other', 'Other folders'],
 ]
 
@@ -19,6 +19,7 @@ export type ReadyItem = { key: string; source: ReadySource; at: string } & (
   | { what: 'task'; task: BacklogTask; kind: TaskWait }
   | { what: 'memory'; record: MemoryRecord; suggestion: boolean }
   | { what: 'night'; away: Away; job: AwayJob }
+  | { what: 'parked'; away: Away; row: Parked }
 )
 
 /** A To-do decision, as the To-do list's own rows name it (`WaitRow`'s `only`). */
@@ -36,20 +37,41 @@ interface Sources {
   /** The open chat, and the other chats where something waits (`readyChats`). */
   conv: ConvState | null
   chats: Record<string, ConvState>
-  /** The open chat's folder, and its To-do list, memory and night. */
+  /** The open chat's folder, and its To-do list, memory and night - and what its night parked for you (§10). */
   projectId: string | null
   backlog: BacklogTask[] | null
   memory: ProjectMemory | null
   away: Away | null
+  parked?: Parked[]
 }
 
 /**
- * Everything that waits for your word, in one list, oldest first (tek-ev §1): each chat's cards as its chat counts them
- * (`waitingOf`, what can be answered now), the folder's To-do items, Memory's proposals and suggestions, and the night's
- * jobs that wait. Each decision once: a night job whose asks are all cards of its chat already is that card, and a
+ * What the night parked for you and you have not decided (§10), as Waiting for you's rows: its push first - the
+ * morning's one row of KOLONİ's own -, then the commands and questions, task by task in the night's order. None of a
+ * plan, or of no night.
+ */
+function parkedItems(away: Away | null, parked: Parked[]): ReadyItem[] {
+  if (!away || away.status === 'planned') return []
+  const open = parked.filter(row => !row.decision)
+  return [...open.filter(row => row.kind === 'push'), ...open.filter(row => row.kind !== 'push')].map(row => ({
+    what: 'parked',
+    // (a push made again with a new commit: a new row - its notes seen go)
+    key: `parked:${row.id}:${row.tip ?? ''}`,
+    source: 'night',
+    at: '',
+    away,
+    row,
+  }))
+}
+
+/**
+ * Everything that waits for your word, in one list, oldest first (tek-ev §1) - what the night parked for you first, its
+ * push first of all: each chat's cards as its chat counts them (`waitingOf`, what can be answered now), the folder's
+ * To-do items, Memory's proposals and suggestions, and the night's jobs that wait. Each decision once: a night job whose
+ * asks are all cards of its chat already is that card, one that waits only for what it parked is those rows, and a
  * task whose work waits for Take in is its chat's card.
  */
-export function readyItems({ conv, chats, projectId, backlog, memory, away }: Sources): ReadyItem[] {
+export function readyItems({ conv, chats, projectId, backlog, memory, away, parked = [] }: Sources): ReadyItem[] {
   const states = [
     conv,
     ...Object.values(chats).filter(state => state.conversation.id !== conv?.conversation.id),
@@ -75,12 +97,15 @@ export function readyItems({ conv, chats, projectId, backlog, memory, away }: So
       })),
   )
   const keys = new Set(cards.map(card => card.key))
+  const first = parkedItems(away, parked)
+  const parkedOf = new Set(first.flatMap(item => (item.what === 'parked' ? [item.row.task_id] : [])))
   const night: ReadyItem[] = (away?.status === 'planned' ? [] : (away?.jobs ?? []))
     .filter(job => job.state === 'waits')
     .filter(
       job =>
         !keys.has(`${away!.id}:${job.task_id}`) &&
-        !(job.asks.some(ask => ask.kind) && job.asks.every(ask => !ask.kind || keys.has(ask.id))),
+        !(job.asks.some(ask => ask.kind) && job.asks.every(ask => !ask.kind || keys.has(ask.id))) &&
+        !(job.asks.length === 0 && parkedOf.has(job.task_id ?? '')),
     )
     .map(job => ({
       what: 'night',
@@ -123,9 +148,10 @@ export function readyItems({ conv, chats, projectId, backlog, memory, away }: So
     suggestion,
   }))
   // Oldest first; those with no time last, in the order they came.
-  return [...cards, ...night, ...tasks, ...records].sort((a, b) =>
+  const rest = [...cards, ...night, ...tasks, ...records].sort((a, b) =>
     !a.at || !b.at ? Number(!a.at) - Number(!b.at) : a.at.localeCompare(b.at),
   )
+  return [...first, ...rest]
 }
 
 /** The open chat's own, and the rest: the panel's two parts. */
@@ -137,6 +163,7 @@ export function chatOf(item: ReadyItem): string | null {
   if (item.what === 'card') return item.state.conversation.id
   if (item.what === 'task') return item.task.conversation_id
   if (item.what === 'memory') return item.record.conversation_id
+  if (item.what === 'parked') return item.row.conversation_id
   return item.job.conversation_id ?? null
 }
 

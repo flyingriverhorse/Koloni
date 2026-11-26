@@ -366,6 +366,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/away/{away_id}/jobs/{task_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Task
+         * @description Stop this task: what it parked is closed, it is stopped - no going-on turn; one under way
+         *     is cut (what was Run and runs now is killed).
+         */
+        post: operations["stop_task_api_away__away_id__jobs__task_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/away/{away_id}/seen": {
         parameters: {
             query?: never;
@@ -407,6 +428,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/away/{away_id}/waiting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Waiting
+         * @description Waiting for you: what the card's jobs parked, its jobs in order, each in the order parked.
+         */
+        get: operations["read_waiting_api_away__away_id__waiting_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/away/{away_id}/waiting/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Waiting
+         * @description The user's Run, Reject or answer of a parked row - only from the app's own page.
+         */
+        post: operations["decide_waiting_api_away__away_id__waiting__item_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/backlog/{task_id}": {
         parameters: {
             query?: never;
@@ -437,7 +498,8 @@ export interface paths {
         /**
          * Decide
          * @description The user's word on a task an agent proposed, or on a change it proposed: the task as
-         *     it is now, or null when a proposed task was turned down (it is gone).
+         *     it is now, or null when a proposed task was turned down (it is gone). With `expect`, the
+         *     decision log's Change: only on the Orchestrator's word as its row showed it (409 else).
          */
         post: operations["decide_api_backlog__task_id__decide_post"];
         delete?: never;
@@ -1673,6 +1735,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/judge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Judge */
+        get: operations["get_judge_api_judge_get"];
+        /**
+         * Put Judge
+         * @description The user's Judge model: one of `choices` now, or none (both null: the Fast tier's first).
+         */
+        put: operations["put_judge_api_judge_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/knowledge-limits": {
         parameters: {
             query?: never;
@@ -2754,6 +2837,49 @@ export interface paths {
         put?: never;
         /** Day Words */
         post: operations["day_words_api_projects__project_id__day_words_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read
+         * @description What was decided for the user in the project from `since` until `until` (each where
+         *     given), newest first, and how many commands the judge found fine meanwhile. `unseen`: only
+         *     those that wait for your OK, of any age.
+         */
+        get: operations["read_api_projects__project_id__decisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/decisions/{question_id}/redo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redo
+         * @description Change and redo (`app.redo`): the user's answer in place of the Orchestrator's on a card of
+         *     the project's whose agent has finished, and a new turn of its chat that goes on with it.
+         */
+        post: operations["redo_api_projects__project_id__decisions__question_id__redo_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5201,6 +5327,11 @@ export interface components {
              * @default false
              */
             remember: boolean;
+            /**
+             * Remember Line
+             * @default false
+             */
+            remember_line: boolean;
         };
         /** AskFirstIn */
         AskFirstIn: {
@@ -5294,6 +5425,38 @@ export interface components {
             text: string;
         };
         /**
+         * AwayBranchOut
+         * @description 0.1.9: a job's branch as its turn left it (`away_branch.row`) - its name, its commit and
+         *     the branch it was made from, its commits and files since, KOLONİ's checks' verdict, origin's
+         *     address (never its password) and what moved outside it meanwhile (H2); `why`: what git said
+         *     where it could not look at the branch.
+         */
+        AwayBranchOut: {
+            /** Checks */
+            checks: ("green" | "red" | "not complete") | null;
+            /** Commits */
+            commits: number | null;
+            /** Files */
+            files: number | null;
+            /** From Head */
+            from_head?: string | null;
+            /** Into */
+            into: string | null;
+            /**
+             * Moved
+             * @default []
+             */
+            moved: string[];
+            /** Name */
+            name: string | null;
+            /** Origin */
+            origin: string | null;
+            /** Tip */
+            tip: string | null;
+            /** Why */
+            why?: string | null;
+        };
+        /**
          * AwayGoIn
          * @description The user's Go away (☾ Away): the To-do tasks ticked, the panel's order of the list, the
          *     places kept out and the limits - none unless named.
@@ -5333,6 +5496,7 @@ export interface components {
             asks: components["schemas"]["AwayAsk"][];
             /** Assessment */
             assessment?: string | null;
+            branch?: components["schemas"]["AwayBranchOut"] | null;
             /**
              * Checks
              * @default []
@@ -5340,6 +5504,13 @@ export interface components {
             checks: string[];
             /** Conversation Id */
             conversation_id?: string | null;
+            /**
+             * Decisions
+             * @default []
+             */
+            decisions: components["schemas"]["Decision"][];
+            /** Ended At */
+            ended_at?: string | null;
             /**
              * Files
              * @default []
@@ -5357,6 +5528,12 @@ export interface components {
             kept_out: string[];
             /** Line */
             line: string | null;
+            /** Mode */
+            mode?: ("copy" | "branch" | "push") | null;
+            /** Mode Why */
+            mode_why?: string | null;
+            /** Not Checked */
+            not_checked?: string[] | null;
             /** Now */
             now?: string | null;
             /** Recipe */
@@ -5368,6 +5545,8 @@ export interface components {
             shared: string[];
             /** Spent */
             spent?: number | null;
+            /** Started At */
+            started_at?: string | null;
             /**
              * State
              * @default planned
@@ -5458,14 +5637,6 @@ export interface components {
             task_id: string | null;
             /** What */
             what: string;
-        };
-        /** BacklogDecideIn */
-        BacklogDecideIn: {
-            /**
-             * Decision
-             * @enum {string}
-             */
-            decision: "approve" | "reject";
         };
         /**
          * BacklogDoIn
@@ -6220,7 +6391,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "check" | "stronger";
+            kind: "check" | "stronger" | "asked";
             /** Looks */
             looks: components["schemas"]["CheckedLook"][];
             /** N */
@@ -6319,6 +6490,11 @@ export interface components {
             /** Keep Running */
             keep_running: boolean;
             /**
+             * Keeps Line
+             * @default false
+             */
+            keeps_line: boolean;
+            /**
              * Location
              * @enum {string}
              */
@@ -6342,7 +6518,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked" | "refused";
+            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked" | "refused" | "parked";
             /** Suggested Prefix */
             suggested_prefix: string;
             /** Timeout Seconds */
@@ -6892,6 +7068,102 @@ export interface components {
             provider_name: string;
             /** Text */
             text: string;
+        };
+        /** DecideIn */
+        DecideIn: {
+            /** Answer */
+            answer?: string | null;
+            /**
+             * Seen
+             * @default []
+             */
+            seen: string[];
+            /** Tip */
+            tip?: string | null;
+            /**
+             * Word
+             * @enum {string}
+             */
+            word: "run" | "reject" | "answer";
+        };
+        /**
+         * Decision
+         * @description One thing decided for the user. `what` is KOLONİ's own sentence; `quote`, `answer` and `why`
+         *     are agents' and models' words (and, of Check what I said first, the user's own line): every
+         *     secret KOLONİ knows masked, on one line, cut, and after `injection.NOTE` where they read like
+         *     orders.
+         */
+        Decision: {
+            /** Answer */
+            answer?: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Chat */
+            chat?: string | null;
+            /** Conversation Id */
+            conversation_id: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "answer" | "command" | "task" | "spawn";
+            link: components["schemas"]["DecisionLink"];
+            /** Options */
+            options?: string[] | null;
+            /** Quote */
+            quote: string | null;
+            /** Seen */
+            seen: boolean | null;
+            /** Source */
+            source?: ("preferences" | "rules" | "message") | null;
+            /**
+             * Undo
+             * @enum {string}
+             */
+            undo: "change" | "change_and_redo" | "none";
+            /** Undo Note */
+            undo_note?: string | null;
+            /** Undo Reason */
+            undo_reason: string | null;
+            /** What */
+            what: string;
+            /**
+             * Who
+             * @enum {string}
+             */
+            who: "orchestrator" | "judge" | "your_words";
+            /** Why */
+            why: string | null;
+        };
+        /**
+         * DecisionLink
+         * @description What a row is of: the card, the command, the To-do task or the agent opened.
+         */
+        DecisionLink: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "question" | "command" | "task" | "agent";
+        };
+        /** DecisionLog */
+        DecisionLog: {
+            /** Judge Fine */
+            judge_fine: number;
+            /**
+             * More
+             * @default false
+             */
+            more: boolean;
+            /** Rows */
+            rows: components["schemas"]["Decision"][];
         };
         /**
          * DiagramPictureIn
@@ -7574,15 +7846,70 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** JudgeChoice */
+        JudgeChoice: {
+            /** Cli */
+            cli: boolean;
+            /** Measured */
+            measured: boolean;
+            /** Model Id */
+            model_id: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Provider Name */
+            provider_name: string;
+            /** Tier */
+            tier: string;
+        };
+        /** JudgeIn */
+        JudgeIn: {
+            /** Model Id */
+            model_id?: string | null;
+            /** Provider Id */
+            provider_id?: string | null;
+        };
+        /** JudgeModel */
+        JudgeModel: {
+            /** Cli */
+            cli: boolean;
+            /** Measured */
+            measured: boolean;
+            /** Model Id */
+            model_id: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Provider Name */
+            provider_name: string;
+        };
+        /** JudgeOut */
+        JudgeOut: {
+            /** Choices */
+            choices: components["schemas"]["JudgeChoice"][];
+            /** Model Id */
+            model_id: string | null;
+            now: components["schemas"]["JudgeModel"] | null;
+            /** Provider Id */
+            provider_id: string | null;
+        };
         /**
          * Judged
          * @description K-yargic: what the check of the user's words said of a command at Full auto: it ran with
          *     no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
          *     agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
          *     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
-         *     (Decided for you).
+         *     (Decided for you). Full auto's judge's (`kind` "risk"): "fine", it ran; "risky", its card -
+         *     `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
+         *     (`model` then "" where none was asked); "refuse", not run, its agent told the judge's sentence
+         *     (the project's Refuse and go on; `seen` as above). Since §8 the check of the user's words is
+         *     the judge's too, `kind` "words" ("" on a record from before 0.1.9).
          */
         Judged: {
+            /**
+             * Kind
+             * @default
+             * @enum {string}
+             */
+            kind: "" | "risk" | "words";
             /**
              * Model
              * @default
@@ -7608,7 +7935,7 @@ export interface components {
              * Verdict
              * @enum {string}
              */
-            verdict: "run" | "ask" | "refuse";
+            verdict: "run" | "ask" | "refuse" | "fine" | "risky";
             /**
              * Why
              * @default
@@ -9397,6 +9724,8 @@ export interface components {
              * @enum {string}
              */
             full_auto_check: "ask" | "judge";
+            /** Full Auto Judge */
+            full_auto_judge: boolean;
             /** Git Commit */
             git_commit: boolean;
             /** Has Notify Url */
@@ -9411,6 +9740,13 @@ export interface components {
             hide_secrets: boolean;
             /** Id */
             id: string;
+            /**
+             * Judge Risky
+             * @enum {string}
+             */
+            judge_risky: "refuse" | "ask";
+            /** Judge Words */
+            judge_words: boolean;
             /** @description What the folder's `.koloni/` holds, read now. */
             readonly koloni: components["schemas"]["KoloniOut"];
             /**
@@ -9583,12 +9919,16 @@ export interface components {
             fix_rounds?: number | "until" | null;
             /** Forget Tests Found */
             forget_tests_found?: boolean | null;
-            /** Full Auto Check */
-            full_auto_check?: ("ask" | "judge") | null;
+            /** Full Auto Judge */
+            full_auto_judge?: boolean | null;
             /** Git Commit */
             git_commit?: boolean | null;
             /** Hide Secrets */
             hide_secrets?: boolean | null;
+            /** Judge Risky */
+            judge_risky?: ("refuse" | "ask") | null;
+            /** Judge Words */
+            judge_words?: boolean | null;
             /** Lead Work */
             lead_work?: ("delegates" | "decides" | "itself") | null;
             /** Longest Command */
@@ -9887,7 +10227,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pending" | "answered" | "cancelled" | "interrupted" | "superseded";
+            status: "pending" | "answered" | "cancelled" | "interrupted" | "superseded" | "parked";
             /** Tool Call Id */
             tool_call_id: string | null;
         };
@@ -11480,6 +11820,22 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /**
+         * TaskDecideIn
+         * @description The user's word on a task an agent proposed - and, from the decision log's Change, the
+         *     state its row showed the Orchestrator's word in (`decisions.as_shown`): None from
+         *     the To-do page and the chat, which decide what waits now. (Here, not beside the log's shapes
+         *     in `app.schemas_decisions`: those are in `AwayJobOut`, which `app.schemas` imports.)
+         */
+        TaskDecideIn: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Expect */
+            expect?: ("proposed" | "added") | null;
+        };
         /** TeamIn */
         TeamIn: {
             /** Name */
@@ -12268,6 +12624,57 @@ export interface components {
             path: string;
         };
         /**
+         * WaitingOut
+         * @description A row of Waiting for you (`parked.waiting`): what a job parked, why in KOLONİ's words alone,
+         *     and - not decided yet - why it cannot be now (`closed`; None: it can).
+         */
+        WaitingOut: {
+            /** Answer */
+            answer: string | null;
+            /** Closed */
+            closed: string | null;
+            /** Conversation Id */
+            conversation_id: string | null;
+            /** Cwd */
+            cwd: string | null;
+            /** Danger */
+            danger: string | null;
+            /** Decision */
+            decision: string | null;
+            /** Held */
+            held: boolean;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Opens Pr */
+            opens_pr?: boolean | null;
+            /** Options */
+            options: string[];
+            /** Place */
+            place: ("copy" | "project" | "gone") | null;
+            /** Result */
+            result: string | null;
+            /** Seq */
+            seq: number;
+            /** Task */
+            task: string;
+            /** Task Id */
+            task_id: string;
+            /** Tip */
+            tip?: string | null;
+            /** Warn */
+            warn: string | null;
+            /** What */
+            what: string;
+            /** What Shown */
+            what_shown: string;
+            /** Why */
+            why: string;
+            /** Wrote */
+            wrote: string | null;
+        };
+        /**
          * WarningOut
          * @description Text from outside that read like orders to an agent (`app.injection`): the rule and
          *     where it came from, never the text.
@@ -12990,6 +13397,38 @@ export interface operations {
             };
         };
     };
+    stop_task_api_away__away_id__jobs__task_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                away_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     seen_api_away__away_id__seen_post: {
         parameters: {
             query?: never;
@@ -13037,6 +13476,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AwayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_waiting_api_away__away_id__waiting_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                away_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_waiting_api_away__away_id__waiting__item_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                away_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitingOut"][];
                 };
             };
             /** @description Validation Error */
@@ -13125,7 +13631,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BacklogDecideIn"];
+                "application/json": components["schemas"]["TaskDecideIn"];
             };
         };
         responses: {
@@ -15274,6 +15780,59 @@ export interface operations {
             };
         };
     };
+    get_judge_api_judge_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgeOut"];
+                };
+            };
+        };
+    };
+    put_judge_api_judge_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JudgeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     tree_limits_api_knowledge_limits_get: {
         parameters: {
             query?: never;
@@ -17408,6 +17967,75 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DayWordsOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_api_projects__project_id__decisions_get: {
+        parameters: {
+            query?: {
+                since?: string | null;
+                until?: string | null;
+                unseen?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionLog"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    redo_api_projects__project_id__decisions__question_id__redo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

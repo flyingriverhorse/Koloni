@@ -4,7 +4,17 @@ import type { PermissionMode } from '../api/types'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
-import { type Checks, checksOn, checksSaid, checksValue, LEVELS, NO_CHECKS_AT_FULL_AUTO, PLAN_FIRST } from './levels'
+import { useJudgeMeasured } from './judgeMeasured'
+import {
+  type Checks,
+  checksOn,
+  checksSaid,
+  checksValue,
+  type JudgeWords,
+  LEVELS,
+  NO_CHECKS_AT_FULL_AUTO,
+  PLAN_FIRST,
+} from './levels'
 
 const MODES = Object.keys(LEVELS) as PermissionMode[]
 
@@ -38,16 +48,29 @@ interface Props {
   planFirst: boolean
   /** Turn Plan first on or off; without it there is no conversation to set it on. */
   onPlanFirst?: (on: boolean) => void
-  /** K-yargıç: the project checks your own words before a harmful-looking command waits for you. */
-  checkFirst?: boolean
-  /** Turn it on or off; without it (a plain chat) there is no project to set it on. */
-  onCheckFirst?: (on: boolean) => void
+  /** 0.1.9: Full auto's judge, the project's - and its setter, none in a plain chat. */
+  judge?: boolean
+  onJudge?: (on: boolean) => void
+  /** §8: what the judge does with your words - its box off, on, or on but not until its measurement. */
+  judgeWords?: JudgeWords
+  /** What it does with a command it finds risky, the project's (Settings › This project › Asking and away). */
+  judgeRisky?: JudgeRisky
   /** S10: Check after a change for this chat; without it (a plain chat, nothing to check) no switch. */
   checks?: Checks
 }
 
-const CHECK_FIRST =
-  'Before a harmful-looking command waits for you at Full auto or while you’re away, your own words are read first; it runs without a card only where a line of yours names it.'
+type JudgeRisky = 'refuse' | 'ask'
+const JUDGE =
+  'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop '
+const RISKY: Record<JudgeRisky, string> = {
+  refuse: 'is refused if it looks risky (while you’re away, it is parked for you)',
+  ask: 'waits for you if it looks risky',
+}
+const JUDGE_WORDS = '; a harmful-looking one runs without a card only where a line of yours names it'
+/** The judge's line: what it does with a risky command, its part for your words only where its box is on, and " (after
+ *  its measurement)" until then. */
+const judgeSays = (words: JudgeWords, risky: JudgeRisky) =>
+  `${JUDGE}${RISKY[risky]}${words === 'off' ? '' : JUDGE_WORDS}${words === 'unmeasured' ? ' (after its measurement)' : ''}.`
 
 /** A switch row of the panel: its name and what it does. */
 function SwitchRow({
@@ -110,12 +133,45 @@ function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; che
   )
 }
 
+/** Under the levels, the project's own switch at Full auto: its judge (0.1.9; Check what I said first is its question
+ *  since §8) - none without its setter (a plain chat). */
+function ProjectSwitches(p: {
+  id: string
+  judge: boolean
+  onJudge?: (on: boolean) => void
+  words: JudgeWords
+  risky: JudgeRisky
+}) {
+  // (the box on and no old choice: its words work where the Judge model was measured)
+  const measured = useJudgeMeasured(p.words === 'unmeasured' && Boolean(p.onJudge))
+  if (!p.onJudge) return null
+  return (
+    <SwitchRow
+      id={`${p.id}-judge`}
+      name="Full auto’s judge"
+      says={judgeSays(measured ? 'on' : p.words, p.risky)}
+      on={p.judge}
+      onChange={p.onJudge}
+    />
+  )
+}
+
 /**
  * The permission level in the message box's row (0.1.5): its comb and its short name - with Plan first on, " · plan"
  * after it, and " · no checks" where this chat's changes are not checked -; a click opens each level with a line on what
  * it does, Plan first and Check after a change. Esc closes it, the focus back on its button.
  */
-export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = false, onCheckFirst, checks }: Props) {
+export function LevelMenu({
+  mode,
+  onMode,
+  planFirst,
+  onPlanFirst,
+  judge = true,
+  onJudge,
+  judgeWords = 'off',
+  judgeRisky = 'refuse',
+  checks,
+}: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
   const id = useId()
   const level = LEVELS[mode]
@@ -185,15 +241,7 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
               </button>
             ))}
           </div>
-          {onCheckFirst && (
-            <SwitchRow
-              id={`${id}-check`}
-              name="Check what I said first"
-              says={CHECK_FIRST}
-              on={checkFirst}
-              onChange={onCheckFirst}
-            />
-          )}
+          <ProjectSwitches id={id} judge={judge} onJudge={onJudge} words={judgeWords} risky={judgeRisky} />
           {onPlanFirst && (
             <>
               <hr className="level-sep" />

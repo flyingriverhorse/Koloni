@@ -35,8 +35,10 @@ import { AskCard } from './AskCard'
 import { ChatTodoQueue } from './TodoQueue'
 import type { Second } from './Compare'
 import { Composer, type ComposerTopic } from './Composer'
+import { judgeWordsOf } from './levels'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { ChatStoryStrip } from './StoryStrip'
+import { DecidedLine } from './DecidedLine'
 import { toFront } from '../shell/move'
 import { testsRun } from '../shell/sections/afterChangeWords'
 import { FilesWindow } from '../views/FilesWindow'
@@ -654,6 +656,8 @@ export function ChatPanel() {
         <WidthEdge open={open} />
         <ChatTabs tab={tab} handoffs={handoffs} notes={notes} count={count} onHide={toggle} />
         <ChatStoryStrip conv={conv} tab={tab} />
+        {/* Decided for you, in one line: Ready for you says each (karar defteri). */}
+        <DecidedLine conv={conv} />
         {/* The tab's own content scrolls in what the tabs and the message box leave (base.css .chat-pane). */}
         {/* (B-142: its tabs' panel, by name, for a screen reader) */}
         <div className="chat-pane" role="tabpanel" id="chat-tabpanel" aria-labelledby={tabId(tab)}>
@@ -685,10 +689,12 @@ export function ChatPanel() {
         onPermissionMode={mode => void useApp.getState().setPermissionMode(mode)}
         planFirst={conv?.conversation.plan_first}
         onPlanFirst={on => void useApp.getState().setPlanFirst(on)}
-        checkFirst={project?.full_auto_check === 'judge'}
-        onCheckFirst={
+        judge={project?.full_auto_judge}
+        judgeWords={judgeWordsOf(project)}
+        judgeRisky={project?.judge_risky}
+        onJudge={
           conv?.conversation.project_id
-            ? on => void useApp.getState().saveProjectSettings({ full_auto_check: on ? 'judge' : 'ask' })
+            ? on => void useApp.getState().saveProjectSettings({ full_auto_judge: on })
             : undefined
         }
         checks={

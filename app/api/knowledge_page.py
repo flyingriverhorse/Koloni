@@ -105,7 +105,7 @@ def priced(session: Session, row: ProjectKnowledge, root: str) -> KnowledgeState
     try:
         provider, model = learner(session, row, answering=True)
     except HTTPException as exc:
-        found.answers_refused = str(exc.detail)
+        found.answers_refused = str(exc.detail)  # pyrefly: ignore[unnecessary-type-conversion]  # (a detail: any JSON)
         return found
     found.answers_on = f"{provider.name} · {model or 'its own default model'}"
     found.per_token = (

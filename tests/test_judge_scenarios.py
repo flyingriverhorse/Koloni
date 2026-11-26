@@ -103,22 +103,23 @@ def begin(
     content,
     *,
     check="judge",
+    words=None,
     mode="full_auto",
     rules=None,
     preferences=None,
     origin=OWN,
     provider=None,
+    risky=None,
 ):
-    """A project with the check as given, the user's rules and preferences saved, a chat at
-    `mode` (its Lead on `provider`, where given) and its first message - sent from the app's own
-    page unless `origin` says else."""
+    """A project with the check as given (`old_choice`, its box `words`; `risky`: what the judge
+    does with a "risky", where given), the user's rules and preferences saved,
+    a chat at `mode` (its Lead on `provider`, where given) and its first message - sent from the
+    app's own page unless `origin` says else."""
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert (
-        client.patch(
-            f"/api/projects/{pid}", json={"full_auto_check": check}, headers=OWN
-        ).status_code
-        == 200
-    )
+    old_choice(client, pid, check, words)
+    if risky is not None:
+        patched = client.patch(f"/api/projects/{pid}", json={"judge_risky": risky}, headers=OWN)
+        assert patched.status_code == 200, patched.text
     if rules is not None:
         assert (
             client.put(f"/api/projects/{pid}/rules", json={"rules": rules}, headers=OWN).status_code
@@ -145,6 +146,19 @@ def begin(
     return pid, cid, run["id"]
 
 
+def old_choice(client, pid, check, words=None):
+    """The project's check of the user's words as a KOLONİ before 0.1.9 left it (§8: the API
+    writes `full_auto_check` no more) - "judge": the judge's box on too, as migration 0185 sets
+    it (`words`: the box as given)."""
+    from app.db.models import Project
+
+    with client.app.state.session_factory() as session:
+        project = session.get_one(Project, pid)
+        project.full_auto_check = check
+        project.judge_words = check == "judge" if words is None else words
+        session.commit()
+
+
 def carded(client, cid, run_id, wait_run):
     """The one command waiting on its card, after it is turned down and the turn is over."""
     (asked,) = wait_status(client, cid, "waiting_approval")["commands"]
@@ -154,18 +168,23 @@ def carded(client, cid, run_id, wait_run):
 
 
 def test_a_project_asks_as_before_until_the_user_turns_the_check_on(client, project_dir):
+    # (§8: the old choice is read, never written - the judge's box is the switch now)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.get(f"/api/projects/{pid}").json()["full_auto_check"] == "ask"
-    assert (
-        client.patch(f"/api/projects/{pid}", json={"full_auto_check": "judge"}).status_code == 403
+    got = client.get(f"/api/projects/{pid}").json()
+    assert (got["full_auto_check"], got["full_auto_judge"], got["judge_words"]) == (
+        "ask",
+        True,
+        False,
     )
-    assert (
-        client.patch(f"/api/projects/{pid}", json={"full_auto_check": "judge"}, headers=OWN).json()[
-            "full_auto_check"
-        ]
-        == "judge"
+    assert client.patch(f"/api/projects/{pid}", json={"judge_words": True}).status_code == 403
+    sent = client.patch(
+        f"/api/projects/{pid}", json={"full_auto_check": "judge", "judge_words": True}, headers=OWN
     )
-    assert "full_auto_check" not in koloni.SETTINGS
+    assert sent.status_code == 200, sent.text
+    assert (sent.json()["full_auto_check"], sent.json()["judge_words"]) == ("ask", True)
+    old_choice(client, pid, "judge")
+    assert client.get(f"/api/projects/{pid}").json()["full_auto_check"] == "judge"
+    assert not {"full_auto_check", "judge_words"} & set(koloni.SETTINGS)
 
 
 @pytest.mark.no_po
@@ -179,6 +198,7 @@ def test_a_delete_the_users_rule_names_runs_without_a_card_and_says_which_line(
     snap = wait_run(client, cid, run_id)
     (ran,) = snap["commands"]
     assert ran["status"] == "exited" and ran["judged"] == {
+        "kind": "words",
         "verdict": "run",
         "quote": RULE,
         "source": "rules",
@@ -206,6 +226,7 @@ def test_a_quote_the_user_never_wrote_is_a_card(judging, wait_run, project_dir):
     asked = carded(client, cid, run_id, wait_run)
     assert asked["status"] == "proposed" and asked["danger"] == harms("rm -rf build")
     assert asked["judged"] == {
+        "kind": "words",
         "verdict": "ask",
         "quote": "",
         "source": "",
@@ -259,7 +280,7 @@ def test_when_the_judge_fails_the_card_is_todays(judging, wait_run, project_dir,
         "unreadable": text("I think it is fine"),
     }.get(how)
     if how == "timeout":
-        monkeypatch.setattr("app.judge.JUDGE_SECONDS", 0.05)
+        monkeypatch.setattr("app.risk_judge.API_SECONDS", 0.05)
     if how == "over budget":
         monkeypatch.setattr(
             "app.agent.po_mixin.over_month", lambda *_: "over this month's budget (1 of 1 USD)"
@@ -310,6 +331,55 @@ def test_the_gate_stands_aside_in_a_side_a_night_job_and_a_trigger(judging, monk
     finally:
         for kept in (runner._sides, runner._away_jobs, runner._unwatched):
             kept.pop("r", None)
+
+
+# --- One judge (§8): the check of your words is a question of Full auto's judge ---------------
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    "check, judge_on, words, measured, runs",
+    [
+        ("ask", True, True, False, False),  # (the box on, its model not measured: today's card)
+        ("judge", True, True, False, True),  # (the old choice, taken knowingly: it goes on)
+        ("ask", True, True, True, True),  # (its model measured: for every project with the box)
+        ("judge", True, False, False, False),  # (the box turned off, the old choice or not)
+        ("judge", False, True, False, False),  # (the judge itself off: no question at all)
+    ],
+)
+def test_the_check_of_your_words_runs_only_under_the_judge_its_box_and_a_measurement(
+    judging, wait_run, project_dir, monkeypatch, check, judge_on, words, measured, runs
+):
+    if measured:
+        monkeypatch.setattr("app.judge.measured", lambda _provider, model: model == "quick")
+    client, _lead, judge, executor = judging(
+        [cmd("rm -rf build"), text("done")], [verdict_line("run", RULE)], [Script([])]
+    )
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    sent = client.patch(f"/api/projects/{pid}", json={"full_auto_judge": judge_on}, headers=OWN)
+    assert sent.status_code == 200, sent.text
+    _, cid, run_id = begin(client, project_dir, "tidy up", check=check, words=words, rules=RULE)
+    if runs:
+        (ran,) = wait_run(client, cid, run_id)["commands"]
+        assert ran["status"] == "exited" and ran["judged"]["kind"] == "words"
+        assert len(judge.calls) == 1 and executor.started[0][0] == "rm -rf build"
+    else:
+        asked = carded(client, cid, run_id, wait_run)
+        assert asked["status"] == "proposed" and asked["judged"] is None
+        assert judge.calls == [] and executor.started == []
+
+
+@pytest.mark.no_po
+def test_a_run_beside_a_line_that_forbids_the_same_delete_is_a_card(judging, wait_run, project_dir):
+    # (§8, CL-352: two lines that disagree - the one that forbids wins over the model's run)
+    may, never = "You may delete ./x.", "Never delete ./x."
+    client, _lead, judge, executor = judging(
+        [cmd("rm -rf ./x"), text("left it")], [verdict_line("run", may)], []
+    )
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=f"{may}\n{never}")
+    asked = carded(client, cid, run_id, wait_run)
+    assert asked["status"] == "proposed" and asked["judged"]["verdict"] == "ask"
+    assert len(judge.calls) == 1 and executor.started == []
 
 
 @pytest.mark.no_po
@@ -681,6 +751,7 @@ def test_a_push_the_users_rule_forbids_is_not_run_and_the_agent_hears_the_rule(
         and refused["ended_at"]
         and refused["judged"]
         == {
+            "kind": "words",
             "verdict": "refuse",
             "quote": NO_MAIN,
             "source": "rules",
@@ -705,6 +776,7 @@ def test_a_refuse_on_a_line_that_forbids_nothing_is_a_card(judging, wait_run, pr
     _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
     asked = carded(client, cid, run_id, wait_run)
     assert asked["status"] == "proposed" and asked["judged"] == {
+        "kind": "words",
         "verdict": "ask",
         "quote": "",
         "source": "",
@@ -856,13 +928,18 @@ def test_a_verdict_that_comes_back_once_the_check_stood_aside_is_a_card(judging)
 
 
 def left(client, pid, cid, change):
-    """The chat's level lowered to Auto-edit, or the project's check turned off."""
+    """The chat's level lowered to Auto-edit, or the project's check turned off: the judge's box
+    for the user's words ("setting"), or the judge itself ("judge")."""
     changed = (
         client.patch(
             f"/api/conversations/{cid}", json={"permission_mode": "auto_edit"}, headers=OWN
         )
         if change == "level"
-        else client.patch(f"/api/projects/{pid}", json={"full_auto_check": "ask"}, headers=OWN)
+        else client.patch(
+            f"/api/projects/{pid}",
+            json={"judge_words" if change == "setting" else "full_auto_judge": False},
+            headers=OWN,
+        )
     )
     assert changed.status_code == 200, changed.text
 
@@ -912,17 +989,19 @@ def test_claude_codes_bash_refused_once_full_auto_was_left_is_a_card(
 
 
 @pytest.mark.no_po
+@pytest.mark.parametrize("change", ["setting", "judge"])
 def test_a_run_that_comes_back_once_the_check_was_turned_off_is_a_card(
-    judging, wait_run, project_dir
+    judging, wait_run, project_dir, change
 ):
-    # (as a refusal is: a run holds only while the chat is at Full auto and the check is on)
+    # (as a refusal is: a run holds only while the chat is at Full auto and the check is on - the
+    # judge's box for your words, and the judge itself, §8)
     gate = Gate()
     client, _lead, _judge, executor = judging(
         [cmd("rm -rf build"), text("left it")], [gate.step(verdict_line("run", RULE))], []
     )
     pid, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
     gate.wait_partial()
-    left(client, pid, cid, "setting")
+    left(client, pid, cid, change)
     gate.release()
     asked = carded(client, cid, run_id, wait_run)
     assert asked["status"] == "proposed" and asked["judged"] is None and executor.started == []
@@ -970,6 +1049,11 @@ def away_with(client, project_dir, wait_run, mode, rules=RULE, todo=None):
 TIDY = {"jobs": [{"title": "tidy", "line": "delete every file in sight"}]}
 
 
+def checked(judge):
+    """What the check of the user's words was asked - not the Scout's look at a finished job."""
+    return [one for one in judge.calls if "You are the Scout" not in str(one[0]["content"])]
+
+
 @pytest.mark.no_po
 def test_while_away_a_jobs_delete_your_words_allow_runs_in_its_copy_without_a_card(
     judging, wait_run, project_dir
@@ -999,11 +1083,13 @@ def test_while_away_below_full_auto_a_jobs_delete_still_waits(judging, wait_run,
     from tests.test_away_scenarios import ended, to_do
 
     client, _lead, judge, executor = judging(
-        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("never")], [], []
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("left it")], [], []
     )
     pid, _night = away_with(client, project_dir, wait_run, "auto_edit")
     (job,) = ended(client, pid)["jobs"]
-    assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+    # (§10: its card parked for the morning, the job waits on it)
+    assert (job["state"], job["why"]) == ("waits", "1 parked")
+    assert checked(judge) == [] and executor.started == []
 
 
 # Spec §6 / plan Task 5: in a job, only a delete in the folder is the check's. A send, a git
@@ -1052,7 +1138,7 @@ def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
     from tests.test_away_scenarios import ended, to_do
 
     client, _lead, judge, executor = judging(
-        [to_do(TIDY), text("on your To-do"), cmd(line), text("never")],
+        [to_do(TIDY), text("on your To-do"), cmd(line), text("left it")],
         [verdict_line("run", SENDS)],
         [],
     )
@@ -1061,8 +1147,9 @@ def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
     )
     (job,) = ended(client, pid)["jobs"]
     (asked,) = client.get(f"/api/conversations/{job['conversation_id']}").json()["commands"]
-    assert (job["state"], asked["status"], asked["judged"]) == ("waits", "proposed", None)
-    assert judge.calls == [] and executor.started == []
+    # (§10: its card parked for the morning)
+    assert (job["state"], asked["status"], asked["judged"]) == ("waits", "parked", None)
+    assert checked(judge) == [] and executor.started == []
 
 
 @pytest.mark.no_po
@@ -1071,7 +1158,7 @@ def test_while_away_a_job_runs_at_the_level_of_the_chat_gone_from(judging, wait_
     from tests.test_away_scenarios import ended, to_do
 
     client, _lead, judge, executor = judging(
-        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("never")],
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("left it")],
         [verdict_line("run", RULE)],
         [],
     )
@@ -1079,7 +1166,7 @@ def test_while_away_a_job_runs_at_the_level_of_the_chat_gone_from(judging, wait_
     (job,) = ended(client, pid)["jobs"]
     chat = client.get(f"/api/conversations/{job['conversation_id']}").json()
     assert chat["conversation"]["permission_mode"] == "ask"
-    assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+    assert job["state"] == "waits" and checked(judge) == [] and executor.started == []
 
 
 @pytest.mark.no_po
@@ -1091,12 +1178,7 @@ def test_in_the_chat_you_went_away_from_a_send_keeps_its_card(judging, wait_run,
         [cmd("git push --force origin main"), text("never")], [verdict_line("run", SENDS)], []
     )
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert (
-        client.patch(
-            f"/api/projects/{pid}", json={"full_auto_check": "judge"}, headers=OWN
-        ).status_code
-        == 200
-    )
+    old_choice(client, pid, "judge")
     assert (
         client.put(f"/api/projects/{pid}/rules", json={"rules": SENDS}, headers=OWN).status_code
         == 200
@@ -1125,12 +1207,7 @@ def gone_from_chat(client, project_dir, rules, status="running"):
     from app.db.models import AwayRun
 
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert (
-        client.patch(
-            f"/api/projects/{pid}", json={"full_auto_check": "judge"}, headers=OWN
-        ).status_code
-        == 200
-    )
+    old_choice(client, pid, "judge")
     assert (
         client.put(f"/api/projects/{pid}/rules", json={"rules": rules}, headers=OWN).status_code
         == 200

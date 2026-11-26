@@ -26,6 +26,7 @@ const job = (over: Partial<AwayJob>): AwayJob => ({
   kept_out: [],
   asks: [],
   checks: [],
+  decisions: [],
   now: null,
   spent: null,
   ...over,
@@ -624,4 +625,43 @@ test('an offer with no task of its own (a CLI whose own sub-agents KOLONİ canno
   await userEvent.click(within(line).getByRole('button', { name: 'Change' }))
   expect(screen.getByRole('checkbox', { name: 'Task t1' })).not.toBeChecked()
   useApp.setState({ backlog: null })
+})
+
+test('0.1.9: a job on its branch says its commits, files and checks; with no remote, how to take it; in a copy, why; what moved outside it, apart', () => {
+  stub()
+  const branch = (over: Partial<NonNullable<AwayJob['branch']>>) => ({
+    name: 'koloni/x-ab12',
+    tip: 'abc1234def',
+    into: 'main',
+    commits: 2,
+    files: 2,
+    checks: 'green' as const,
+    origin: 'https://***@example.com/x.git',
+    moved: [],
+    ...over,
+  })
+  const night = card({
+    status: 'ended',
+    jobs: [
+      job({ title: 'one', task_id: 't1', state: 'done', mode: 'push', branch: branch({}) }),
+      job({
+        title: 'two',
+        task_id: 't2',
+        state: 'done',
+        mode: 'branch',
+        branch: branch({ checks: 'red', moved: ['Changed outside its branch: main 1a2b3c4 → 3c4d5e6'] }),
+      }),
+      job({ title: 'three', task_id: 't3', state: 'done', mode: 'copy', mode_why: 'HEAD is detached' }),
+    ],
+  })
+  render(<AwayNight away={night} onOpen={() => {}} />)
+  const row = (name: RegExp) => screen.getByRole('listitem', { name })
+  expect(row(/^one/)).toHaveTextContent('On branch koloni/x-ab12 · 2 commits · 2 files · checks ✓')
+  expect(row(/^one/)).not.toHaveTextContent('No remote')
+  expect(row(/^two/)).toHaveTextContent('checks ✗')
+  expect(row(/^two/)).toHaveTextContent('No remote: merge it with git, or Take in.')
+  expect(within(row(/^two/)).getByText('Changed outside its branch: main 1a2b3c4 → 3c4d5e6').className).toBe(
+    'away-shared',
+  )
+  expect(row(/^three/)).toHaveTextContent('In a copy: HEAD is detached')
 })

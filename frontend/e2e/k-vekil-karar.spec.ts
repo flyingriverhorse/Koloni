@@ -2,12 +2,12 @@ import { mkdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { contrasts, openFreshConversation, projectSettings, saveSettings } from './helpers'
+import { contrasts, openFreshConversation, projectSettings, rail, saveSettings } from './helpers'
 
 // K-vekil-karar: while you're away, the Lead answers what it safely can. The setting is turned on in the chat's
 // settings; a Coder is to be opened, and then asks which greeting: the Lead (the fake model) decides both, each with
-// a reason, and they are under "Decided for you" on Ready for you's panel - OK on the one that cannot be undone, Change on the
-// Coder's while it is still at work. Nothing leaves the machine.
+// a reason: the chat says so in one line, and Ready for you's Decided for you lists them - OK on the one that cannot be
+// undone, Change on the Coder's while it is still at work. Nothing leaves the machine.
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'vk-shots')
 
 for (const theme of ['light', 'dark'] as const) {
@@ -37,32 +37,44 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Send' }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     // (To look at, not waiting: the pill says "2 decided" - or, where other chats of the run wait, how many do;
-    // the panel has the two under This chat.)
+    // the chat says it in one line, and so does the panel's This chat.)
     const pill = page.locator('.ready-pill')
     await expect(pill).toHaveText(/^(2 decided|\d+ waits?)$/, { timeout: 20_000 })
+    await expect(chat.locator('.decided-line')).toHaveText(
+      'While you were away, 2 things were decided for you. Open in Ready for you',
+    )
     await pill.click()
     const panel = page.getByRole('complementary', { name: /^Ready for you/ })
     await expect(panel.getByRole('heading', { name: 'This chat · 0' })).toBeVisible()
-    const decided = panel.getByRole('region', { name: /Decided for you while you were away/ })
-    await expect(decided).toContainText('2 ·')
-    const items = decided.locator('.decided-item')
-    const opening = items.filter({ hasText: 'Open Coder for this task?' })
-    const greeting = items.filter({ hasText: 'Coder asked: Which greeting should I use?' })
-    await expect(opening).toContainText('Orchestrator chose Approve')
-    await expect(opening).toContainText('“It is the first choice, and nothing asks for another.”')
-    await expect(opening).toContainText("can't be undone: the next step ran")
-    await expect(greeting).toContainText('Orchestrator chose hello')
+    await expect(panel.getByRole('region', { name: /Decided for you/ })).toHaveCount(0)
     // (Nothing of it waits: the list's other parts are empty.)
     await expect(panel.getByRole('region', { name: 'Needs your answer' })).toHaveCount(0)
-    await panel.screenshot({ path: path.join(SHOTS, `decided-${theme}.png`) })
-    expect((await panel.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
+    await panel.getByRole('button', { name: 'Open in Ready for you' }).click()
 
-    // Change, while the Coder still works: your choice goes to it.
+    // Ready for you: its Decided for you, in view - the two rows, with who, why and what can still be done.
+    const decided = page.getByRole('region', { name: /^Decided for you/ })
+    await expect(decided).toBeFocused()
+    const rows = decided.getByRole('listitem')
+    const opening = rows.filter({ hasText: 'Open Coder for this task?' }).first()
+    const greeting = rows.filter({ hasText: 'Which greeting should I use?' }).first()
+    await expect(opening).toContainText('Opened a sub-agent')
+    await expect(opening.locator('.decision-who')).toHaveText('Orchestrator')
+    await expect(opening.locator('.decision-why')).toHaveText('It is the first choice, and nothing asks for another.')
+    await expect(opening).toContainText("can't be undone: the agent was opened")
+    await expect(greeting).toContainText('Answered a question for you')
+    await expect(greeting).toContainText('→ hello')
+    await decided.screenshot({ path: path.join(SHOTS, `decided-${theme}.png`) })
+    expect((await decided.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
+
+    // Change, while the Coder still works: your choice goes to it, and the Orchestrator's word leaves the log.
     await greeting.getByRole('button', { name: 'Change → hey' }).click()
-    await expect(greeting).toHaveCount(0)
+    await expect(decided.getByRole('status')).toHaveText('Sent to the agent that asked, while it works')
+    await expect(rows.filter({ hasText: 'Which greeting should I use?' })).toHaveCount(0)
+    // OK: it stays, seen.
     await opening.getByRole('button', { name: 'OK' }).click()
-    await expect(decided).toHaveCount(0)
-    await panel.getByRole('button', { name: 'Close Ready for you' }).click()
+    await expect(opening.getByRole('button', { name: 'OK' })).toHaveCount(0)
+    await expect(opening.locator('.decision-unseen')).toHaveCount(0)
+    await rail(page, 'Canvas').click()
     await expect(chat.getByText('The Coder went with your hey.')).toBeVisible({ timeout: 20_000 })
   })
 }

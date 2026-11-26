@@ -28,7 +28,7 @@ import { leadQuestion } from './chatLine'
 import { Compare, type Second } from './Compare'
 import { ComposerStatus } from './ComposerStatus'
 import { asCode } from './pastedCode'
-import type { Checks } from './levels'
+import type { Checks, JudgeWords } from './levels'
 import { LevelMenu } from './LevelMenu'
 import { type SlashCommand, useSlash } from './slashCommands'
 import { useAttach } from './useAttach'
@@ -71,9 +71,13 @@ interface Props {
   planFirst?: boolean
   /** Turn Plan first on or off; without it there is nothing to set it on. */
   onPlanFirst?: (on: boolean) => void
-  /** Check what I said first (K-yargıç), the project's; without its setter (a plain chat) the level menu has no switch. */
-  checkFirst?: boolean
-  onCheckFirst?: (on: boolean) => void
+  /** Full auto's judge (0.1.9), the project's; without its setter (a plain chat) the level menu has no switch. */
+  judge?: boolean
+  onJudge?: (on: boolean) => void
+  /** §8: what the judge does with your words (Check what I said first), for its line in the level menu. */
+  judgeWords?: JudgeWords
+  /** What it does with a command it finds risky, the project's - for the same line. */
+  judgeRisky?: 'refuse' | 'ask'
   /** S10: Check after a change for this chat, in the level menu; none in a plain chat. */
   checks?: Checks
   /** Where this project's commands run; decides whether full auto needs a warning. */
@@ -134,8 +138,10 @@ export function Composer({
   onPermissionMode,
   planFirst = false,
   onPlanFirst,
-  checkFirst = false,
-  onCheckFirst,
+  judge = true,
+  onJudge,
+  judgeWords,
+  judgeRisky,
   checks,
   location = 'host',
   model,
@@ -390,8 +396,10 @@ export function Composer({
             onMode={onPermissionMode}
             planFirst={planFirst}
             onPlanFirst={onPlanFirst}
-            checkFirst={checkFirst}
-            onCheckFirst={onCheckFirst}
+            judge={judge}
+            onJudge={onJudge}
+            judgeWords={judgeWords}
+            judgeRisky={judgeRisky}
             checks={checks}
             dictate={voice}
             running={running}
@@ -718,8 +726,10 @@ function ComposerBar(p: {
   onMode: (mode: PermissionMode) => void
   planFirst: boolean
   onPlanFirst?: (on: boolean) => void
-  checkFirst: boolean
-  onCheckFirst?: (on: boolean) => void
+  judge: boolean
+  onJudge?: (on: boolean) => void
+  judgeWords?: JudgeWords
+  judgeRisky?: 'refuse' | 'ask'
   checks?: Checks
   dictate: ReactNode
   running: boolean
@@ -735,8 +745,10 @@ function ComposerBar(p: {
         onMode={p.onMode}
         planFirst={p.planFirst}
         onPlanFirst={p.onPlanFirst}
-        checkFirst={p.checkFirst}
-        onCheckFirst={p.onCheckFirst}
+        judge={p.judge}
+        onJudge={p.onJudge}
+        judgeWords={p.judgeWords}
+        judgeRisky={p.judgeRisky}
         checks={p.checks}
       />
       <span className="composer-actions">

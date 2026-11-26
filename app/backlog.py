@@ -35,6 +35,7 @@ from app.db.models import (
     now,
 )
 from app.likeness import alike as alike
+from app.masking import masked
 from app.model_client import OwnStop
 from app.providers import works_with_own_tools
 from app.roles import HIVE_KEEPER, LEAD
@@ -92,11 +93,7 @@ FIX = (
 # being fixed - a fix round would only meet the same limit.
 OVER_LIMIT = "this turn used "
 USED_UP = ("rate_limited", "credits_exhausted")
-
-
-class Refused(ValueError):
-    """What is wrong with an agent's call, said back to it."""
-
+Refused = stories.Refused  # (what is wrong with an agent's call, said back to it)
 
 # Stop everything (`app.api.hold`): what starts by itself waits until Resume - a chat's queue of
 # To-do tasks, a night, a trigger. Its value is when it began. Not the user's own messages.
@@ -182,6 +179,7 @@ def renumber(
 def add(session: Session, project_id: str, fields: dict, created_by: str) -> BacklogTask:
     """A new task at the end of the order: todo from the user, proposed from an agent. A story
     closed before is open again with a task added to it: it is not done any more."""
+    # (its story is one of the project's: `_in_story`, `_check_tree`, `_story_for`, `open_story`)
     if (story := session.get(Story, fields.get("story_id") or "")) is not None:
         story.closed_at = None
     last = session.scalar(
@@ -210,11 +208,12 @@ def declined(task: BacklogTask) -> bool:
 def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | None:
     """The user's word on what waits: a proposed task is kept as todo, or removed (None); one
     the Lead added at Full auto (`unseen`) is OK'd, or removed; a pending change is applied,
-    or dropped. Refused when nothing waits."""
+    or dropped. Refused when nothing waits. (The decision log's Change acts only on the
+    Orchestrator's word as its row showed it: `decisions.as_shown`, asked first.)"""
     if task.status == "proposed" or unseen(task) and task.status == "todo":
         if approve and task.status == "proposed":
             task.status = "todo"
-            stories.adopt(session, task.story_id)
+            stories.adopt(session, task.story_id, task.project_id)
             return task
         if approve:
             task.po = {**(task.po or {}), "seen": True}  # (replaced whole)
@@ -223,7 +222,7 @@ def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | 
         session.delete(task)
         session.flush()
         renumber(session, task.project_id)
-        tidy_story(session, task.story_id)
+        tidy_story(session, task.story_id, task.project_id)
         return None
     if task.pending is None:
         raise Refused("nothing of this task waits for a decision")
@@ -234,9 +233,10 @@ def decide(session: Session, task: BacklogTask, approve: bool) -> BacklogTask | 
     return task
 
 
-def tidy_story(session: Session, story_id: str | None) -> None:
-    """After a task of it went: the story an agent opened goes too where nothing is left in it."""
-    if story_id is not None and (story := session.get(Story, story_id)) is not None:
+def tidy_story(session: Session, story_id: str | None, project_id: str) -> None:
+    """After a task of it went: the story an agent opened goes too where nothing is left in it -
+    a story of the task's project (another's, its id on a task row, is none)."""
+    if (story := stories.story_of(session, story_id, project_id)) is not None:
         stories.drop_if_empty(session, story)
 
 
@@ -250,7 +250,7 @@ def turned_down(session: Session, task: BacklogTask) -> None:
 
 def first_message(
     task: BacklogTask,
-    night: bool = False,
+    night: bool | str = False,
     story: Story | None = None,
     place: tuple[int, int] | None = None,
     notes: str = "",
@@ -284,7 +284,7 @@ def first_message(
     if task.criteria:
         parts.append(f"Done when:\n{task.criteria}")
     parts += [notes] if notes else []
-    parts.append(AWAY_JOB if night else SAY_NOT_FINISHED)
+    parts.append((night if isinstance(night, str) else AWAY_JOB) if night else SAY_NOT_FINISHED)
     return "\n\n".join(parts)
 
 
@@ -335,15 +335,15 @@ def start(
     bus,
     start_run: Callable[[str], object],
     shape: Callable[[Conversation], None] | None = None,
-    night: bool = False,
+    night: bool | str = False,
 ) -> str:
     """A night's job (slice 106, `app.away`): `task` in a new conversation, its first message
     the task itself as if the user had written it there - an ordinary turn of that chat. The
     task is doing until that turn ends.
     Committed, before its turn can start - or end. A folder the task names is not opened by
     it: its words may be an agent's. `shape`: what else of the new chat is set first (the chat
-    gone from's level and model); `night`: told it is a job while the user is away. The
-    conversation's id."""
+    gone from's level and model); `night`: told it is a job while the user is away (a text: told
+    so in its words). The conversation's id."""
     project = session.get_one(Project, task.project_id)
     conversation = new_chat(session, project)  # (as any new chat: its folder's folders, teams)
     if shape is not None:
@@ -451,15 +451,19 @@ def chat_queue(session: Session, cid: str) -> list[BacklogTask]:
 
 
 def _story_elsewhere(
-    session: Session, story_id: str, cid: str, asked: set[str]
+    session: Session, project_id: str, story_id: str, cid: str, asked: set[str]
 ) -> BacklogTask | None:
-    """A task of the story, not one of `asked`, that waits or works in another chat than `cid`."""
+    """A task of the story, not one of `asked`, that waits or works in another chat than `cid` -
+    none for a story of another project (its id on a task row is no key)."""
+    if stories.story_of(session, story_id, project_id) is None:
+        return None
     return next(
         (
             one
             for one in session.scalars(
                 select(BacklogTask).where(
                     BacklogTask.story_id == story_id,
+                    BacklogTask.project_id == project_id,
                     BacklogTask.conversation_id.is_not(None),
                     BacklogTask.conversation_id != cid,
                 )
@@ -494,7 +498,7 @@ def queue_in_chat(session: Session, conversation: Conversation, tasks: list[Back
             raise Refused(f"{quoted(task.title)} waits in a chat's queue already")
     asked = {task.id for task in tasks}
     for story_id in sorted({task.story_id for task in tasks if task.story_id}):
-        if (other := _story_elsewhere(session, story_id, conversation.id, asked)) is not None:
+        if other := _story_elsewhere(session, project_id, story_id, conversation.id, asked):
             raise Refused(
                 f"a task of its story ({quoted(other.title)}) is in another chat: "
                 "do the story there"
@@ -535,9 +539,9 @@ def next_in_chat(session: Session, cid: str) -> BacklogTask | None:
 
 
 def story_place(session: Session, task: BacklogTask) -> tuple[Story | None, tuple[int, int] | None]:
-    """The task's story (None: of none, or deleted since) and which of its tasks it is, i of n
-    in the list's order - its proposals left out."""
-    story = session.get(Story, task.story_id) if task.story_id else None
+    """The task's story (None: of none, deleted since, or another project's) and which of its
+    tasks it is, i of n in the list's order - its proposals left out."""
+    story = stories.story_of(session, task.story_id, task.project_id)
     if story is None:
         return None, None
     ids = [one.id for one in stories.tasks_of(session, story.id) if one.status != "proposed"]
@@ -721,7 +725,9 @@ def fix_again(session: Session, task: BacklogTask) -> None:
     if task.status != "blocked" or task.conversation_id is None:
         raise Refused("only a task stuck in a chat gets a fix round")
     if task.story_id and (
-        other := _story_elsewhere(session, task.story_id, task.conversation_id, {task.id})
+        other := _story_elsewhere(
+            session, task.project_id, task.story_id, task.conversation_id, {task.id}
+        )
     ):
         raise Refused(
             f"a task of its story ({quoted(other.title)}) is in another chat: fix it once that "
@@ -969,13 +975,13 @@ def _check_tree(session: Session, project_id: str, tree: dict) -> None:
         if one.get("id") is not None:
             if not stories.of_project(session, Story, project_id, one["id"]):
                 raise Refused("a task's story is one of its project")
-        elif not (one.get("title") or "").strip():
-            raise Refused("a new story needs a title")
+        elif not stories.name_key(one.get("title") or ""):
+            raise Refused(stories.NO_NAME)
     new = [one["title"].strip() for one in tree["stories"] if one.get("id") is None]
     for title in new:
         if (found := stories.taken(session, project_id, title)) is not None:
             raise Refused(f"the project has a story of this name already: “{found.title}”")
-    if len({title.casefold() for title in new}) < len(new):
+    if len({stories.name_key(title) for title in new}) < len(new):
         raise Refused("two new stories of one name")
     every = [*(task for one in tree["stories"] for task in one["tasks"]), *tree["tasks"]]
     if any(not task["title"].strip() for task in every):
@@ -1241,9 +1247,13 @@ def lead_decided(said: str, count: int) -> dict[int, tuple[bool, str]]:
     for one in listed:
         if not isinstance(one, dict):
             continue
-        n, add, why = one.get("task"), one.get("add"), _cut(one.get("why"), MAX_WHY)
+        # (masked before the cut: a secret cut in half would no longer be known to hide)
+        given = one.get("why")
+        shown = masked(given) if isinstance(given, str) else None
+        why = _cut(shown, MAX_WHY)
+        n, add = one.get("task"), one.get("add")
         if type(n) is int and 1 <= n <= count and isinstance(add, bool) and why:
-            decided.setdefault(n, (add, " ".join(why.split())))
+            decided.setdefault(n, (add, why))
     return decided
 
 
@@ -1444,6 +1454,8 @@ def _story_for(session: Session, project_id: str, args: dict) -> Story | None:
     title, goal = _text(args, "story"), _text(args, "goal")
     if title is None:
         return None
+    if not stories.name_key(title):
+        raise Refused(f"{stories.NO_NAME}, or none for a task that stands alone")
     if (story := stories.story_named(session, project_id, title)) is not None:
         return story
     if (closed := stories.taken(session, project_id, title)) is not None:

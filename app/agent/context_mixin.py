@@ -59,7 +59,6 @@ from app.agent.words import (
     IMAGE_MIME,
     IMAGE_SHOWN,
     NEAR_TESTS,
-    PROOF_LEAD,
     UNFINISHED,
 )
 from app.commands import recallable
@@ -600,7 +599,7 @@ def _taken_from(before: Agent | None, lead: Agent | None) -> str | None:
     def named(agent: Agent) -> str | None:
         known = agent.model_id and agent.model_from is None and agent.model_id not in NOT_A_MODEL
         # (Whatever a server named itself: one plain line of it, as `who_line` shows it.)
-        return kept.one_line(agent.model_id)[:200] if known else None
+        return kept.one_line(agent.model_id)[:200] if known else None  # pyrefly: ignore[bad-argument-type]  # (`known`: a str)
 
     was, now_on = named(before), named(lead)
     if before.provider_name == lead.provider_name and (
@@ -1608,7 +1607,7 @@ class ContextMixin:
         if any("__" in name for name in has):  # (none of KOLONİ's own tools is named so)
             system += "\n\n" + MCP_PROMPT.format(root=here)
         if (seen := self._git_of(ctx)) is not None:
-            system += "\n\n" + git_prompt(seen["branch"], copy is not None, self._reports_git(ctx))
+            system += "\n\n" + self._git_section(ctx, seen, copy)  # (0.1.9: a job's branch too)
             # A CLI told of git: one of the turn's, named for what git shows at its end.
             self._git_clis.setdefault(ctx.run_id, {})[ctx.agent_id] = ctx.provider or "A CLI"
         return system, write_in
@@ -1689,7 +1688,7 @@ class ContextMixin:
         if not (ctx.answering or ctx.discussion or ctx.run_id in self._sides) and (
             self._checks_told(session, ctx)
         ):
-            system += "\n\n" + PROOF_LEAD  # (S2: what the end gate checks - its agent only)
+            system += "\n\n" + self._proof_lead(ctx)  # (S2: what the end gate checks)
         return system
 
     def _checks_told(self: "AgentRunner", session: Session, ctx: Ctx) -> bool:
@@ -1988,7 +1987,7 @@ class ContextMixin:
         turn_before: str | None = None
         for row in rows:
             messages.extend({"role": "user", "content": words} for words in nudged.pop(before, ()))
-            if turn_before not in (None, row.run_id) and (said := records.get(turn_before)):
+            if turn_before not in (None, row.run_id) and (said := records.get(turn_before)):  # pyrefly: ignore[bad-argument-type]  # (None tested first)
                 messages.append(_Record(role="user", content=said))
             before, turn_before = row.id, row.run_id
             made = calls.get(row.id, [])
@@ -2231,7 +2230,7 @@ class ContextMixin:
                 if shot
                 else "(An earlier image, not shown again: view it again if you need to.)",
             }
-        if turn_before not in (None, ctx.run_id) and (said := records.get(turn_before)):
+        if turn_before not in (None, ctx.run_id) and (said := records.get(turn_before)):  # pyrefly: ignore[bad-argument-type]  # (None tested first)
             messages.append(_Record(role="user", content=said))
         # (After its last message, or - one it never wrote - at the end.)
         messages.extend(

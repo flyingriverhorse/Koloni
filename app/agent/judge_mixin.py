@@ -6,11 +6,12 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import away, judge, raw
+from app import away, cards, judge, raw, risk_judge
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
@@ -18,7 +19,7 @@ from app.commands import _reasons, harm_class, with_cwd
 from app.db.models import Conversation, Message, Provider, Run, project_of
 from app.providers import ask_once
 from app.roles import LEAD, find_role
-from app.team import asked_how_hard, would_run
+from app.team import judge_chosen, judge_pick, would_run
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -62,20 +63,23 @@ class JudgeMixin:
         asked_anyway: bool = False,
     ) -> tuple[str, dict | None]:
         """K-yargıç: `reason`, why `command` (run in `cwd`, as `with_cwd` judges it) waits for
-        the user, checked first against the user's own words where the project says so
-        (`Project.full_auto_check` "judge"): ("", record) - a line of theirs names it, and it
+        the user, checked first against the user's own words where the project says so - since
+        0.1.9 a question of Full auto's judge's (§8: `Project.full_auto_judge`, and
+        `judge.words_on` for its model): ("", record) - a line of theirs names it, and it
         runs with no card, that line on its record; (reason, record) - the check found none,
         and its card says so, or (record "refuse") a sentence of theirs forbids it, and it is
         neither asked nor run; (reason, None) - not checked: no reason, one asked at every level
         (`asked_anyway`, `harm_class` other than "soft"), a side of a comparison, not a watched
-        Full auto turn, the check off or stood aside for the turn (`_stood_aside`), no project,
-        the turn over its token limit, no Fast model that answers with no tools, no room on its
+        Full auto turn, the check off - or its judge model not measured, nor the project's old
+        choice "judge" (`judge.words_on`) - or stood aside for the turn (`_stood_aside`), no
+        project, the turn over its token limit, no judge model (`judge_pick`), no room on its
         provider, or any failure.
         What it reads: the user's preferences, this project's rules as saved (the column - never
         the folder's `.koloni/rules.md`, which a pull or a script may change), and their own
         messages in this chat (`Run.by_user`), each masked (`raw.hidden`) - never an agent's
-        words, a tool's result or a file. One tool-less request of the Fast tier's first model
-        (`ask_once`), in the turn's usage (`_own_request`); a verdict is kept for the turn by
+        words, a tool's result or a file. One tool-less request of the judges' model
+        (`judge_pick`: the user's Judge model, else the Fast tier's first; `ask_once`), in the
+        turn's usage (`_own_request`); a verdict is kept for the turn by
         command, folder and those words as they are (`_judge_cache`: a rule taken away is asked
         again). Whatever goes wrong in it but a Stop is today's card."""
         try:
@@ -110,9 +114,25 @@ class JudgeMixin:
             project = project_of(session, conversation)
             if (
                 project is None
-                or project.full_auto_check != "judge"
+                # (the box first: `words_on` needs the model, which costs a look)
+                or not (project.full_auto_judge and project.judge_words)
                 or self._away_holds(session, ctx, line)
             ):
+                return reason, None
+            chosen = judge_chosen(session)
+            fast = judge_pick(
+                session,
+                would_run(session, find_role(session, LEAD), conversation),
+                self.providers,
+                chosen,
+            )
+            if fast is None:
+                return reason, None
+            provider = session.get_one(Provider, fast[0].provider_id)
+            # (measured as it runs, and the user's own pick: a model asked because the chosen one
+            # is down never makes the check live - `judge.words_on`)
+            fallback = chosen is not None and (fast[0].provider_id, fast[1]) != chosen
+            if not judge.words_on(project, judge.measured(provider, fast[1]) and not fallback):
                 return reason, None
             # (A job's: the chat the user went away from - never its task's own words.)
             night = away.night_of(session, ctx.cid) if ctx.run_id in self._away_jobs else None
@@ -127,19 +147,10 @@ class JudgeMixin:
             if key in (cache := self._judge_cache.setdefault(ctx.run_id, {})):
                 return self._judgement(ctx, reason, cache[key])
             limit = project.turn_token_limit
-            fast = asked_how_hard(
-                session,
-                would_run(session, find_role(session, LEAD), conversation),
-                self.providers,
-                "fast",
-            )
             if (
                 limit
                 and self._turn_spent(session, ctx.run_id)[0] > limit
-                or fast is None
-                or not self._has_room(
-                    session, session.get_one(Provider, fast[0].provider_id), project
-                )
+                or not self._has_room(session, provider, project)
             ):
                 return reason, None
             asking, mode = self._on(session, ctx, *fast)
@@ -152,7 +163,11 @@ class JudgeMixin:
                 "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}"),
             },
         )
-        cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts)
+
+        def names(one: str) -> bool:  # (a line that names what this delete takes: `cards`')
+            return bool(cards.mentioned([one], command, cwd))
+
+        cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts, names)
         return self._judgement(ctx, reason, cache[key])
 
     def _away_holds(self: "AgentRunner", session, ctx: Ctx, line: str) -> bool:
@@ -192,12 +207,17 @@ class JudgeMixin:
         mode: str | None,
         asked: str,
         texts: dict[str, list[str]],
+        names: Callable[[str], bool],
     ) -> dict | None:
-        """`_judged`'s one request: the record of what the judge said, or None where it failed,
-        timed out or said nothing that can be read. Stop goes on as Stop."""
+        """`_judged`'s one request: the record of what the judge said (`kind` "words", §8), or
+        None where it failed, timed out (Full auto's judge's limits) or said nothing that can be
+        read - a run never beside a line that forbids what `names` reads. Stop goes on as Stop."""
         try:
             try:
-                async with asyncio.timeout(judge.JUDGE_SECONDS):
+                # (a CLI's one-shot start is longer: Full auto's judge's limit for it)
+                async with asyncio.timeout(
+                    risk_judge.API_SECONDS if mode is None else risk_judge.CLI_SECONDS
+                ):
                     said, answer = await ask_once(
                         asking.model, asking.model_name or "", [{"role": "user", "content": asked}]
                     )
@@ -210,10 +230,10 @@ class JudgeMixin:
         except Exception:
             log.warning("run %s: the check of the user's words failed", ctx.run_id, exc_info=True)
             return None
-        got = judge.verdict(_answer(said), texts)
+        got = judge.verdict(_answer(said), texts, names)
         if got is None:
             return None
-        return {**got, "model": f"{asking.provider} · {asking.model_name}"}
+        return {"kind": "words", **got, "model": f"{asking.provider} · {asking.model_name}"}
 
     def _stood_aside(self: "AgentRunner", run_id: str) -> bool:
         """Whether the check stands aside for the rest of turn `run_id`: it refused

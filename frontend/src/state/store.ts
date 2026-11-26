@@ -272,7 +272,7 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** I'm back: Away ends, its summary in the chat; the job at work finishes. Throws ApiError. */
   comeBack(awayId: string): Promise<void>
   /** Stop all, or Try again for a job once Away is over. Away is read again. Throws ApiError. */
-  awayDo(awayId: string, action: 'stop' | `jobs/${string}/again`): Promise<void>
+  awayDo(awayId: string, action: 'stop' | `${'jobs' | 'waiting'}/${string}`, body?: unknown): Promise<void>
   /** You type an answer to a question: the Orchestrator does not decide it for you meanwhile (at most once in 30 s). */
   typing(questionId: string): void
   /** Yes or no to what a waiting job asks, at its own endpoint (Allow and go on, Refuse). Throws ApiError. */
@@ -549,8 +549,9 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   decidePlan(runId: string, decision: 'approve' | 'reject', text?: string, overBudget?: boolean): Promise<void>
   /** "False alarm" on a warning of the open chat (93-A4): counted for its rule, once. Throws ApiError. */
   falseAlarm(warningId: number): Promise<void>
-  /** Run once, always run (adds an allow-list rule), run once and allow such deletes in the project (a disposable one) or reject a waiting command. */
-  decideCommand(commandId: string, decision: 'once' | 'always' | 'disposable' | 'reject'): Promise<void>
+  /** Run once, always run (adds an allow-list rule), run once and allow such deletes in the project (a disposable one),
+   *  run once and not ask about the line again here (Full auto's judge's card) or reject a waiting command. */
+  decideCommand(commandId: string, decision: 'once' | 'always' | 'disposable' | 'line' | 'reject'): Promise<void>
   removeRule(ruleId: string): Promise<void>
   /** Let a waiting web search or HTTP request go out once, always (keeps a rule), or not. */
   decideWeb(requestId: string, decision: 'once' | 'always' | 'reject'): Promise<void>
@@ -1294,8 +1295,8 @@ export const useApp = create<AppStore>()((set, get) => {
       await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
     },
 
-    async awayDo(awayId, action) {
-      await api.post('/away/' + awayId + '/' + action)
+    async awayDo(awayId, action, body) {
+      await api.post('/away/' + awayId + '/' + action, body)
       await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
     },
 
@@ -2261,6 +2262,7 @@ export const useApp = create<AppStore>()((set, get) => {
         await api.post(`/commands/${commandId}/approve`, {
           remember: decision === 'always',
           disposable: decision === 'disposable',
+          ...(decision === 'line' && { remember_line: true }),
         })
       // (Its project allows such deletes now: no later card offers it again.)
       if (decision === 'disposable')

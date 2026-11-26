@@ -183,7 +183,7 @@ def apply_place(session: Session, request: Request, role: Role, body) -> None:
     if (
         "inside_cli" in sent
         and body.inside_cli is not None
-        and (body.inside_cli != bool(role.inside_cli))
+        and (body.inside_cli != bool(role.inside_cli))  # pyrefly: ignore[unnecessary-type-conversion]  # (a row's value, kept as it was)
     ):
         require_own_origin(request)
         role.inside_cli = body.inside_cli

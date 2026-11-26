@@ -76,8 +76,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   **Checked** under the answer says what passed and what did not. [What KOLONİ checked](docs/use/checked.md)
 - **Control**: cards for changes, commands, web and HTTP; a delete or a send off the machine asks at
   every level, unless at Full auto **Check what I said first** finds a line of yours that allows it, or
-  you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); secret
-  files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
+  you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); at
+  Full auto, **Full auto's judge** (a small model, on by default) refuses any other command it finds risky -
+  the agent goes on another way - or, with **Ask me**, puts it on a card; secret files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
   reaches only that command. [Permissions](docs/use/permissions.md) · [Security model](docs/security/model.md)
 - **Agents side by side**: each sub-agent in its own copy; a command that reaches another agent's copy,
   your linked `node_modules` or `.venv`, or stops programs by name asks at every level.
@@ -90,8 +91,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   (each story in a topic of its own with a short notebook, on a git branch of its own that is checked,
   then merged or sent as a pull request when you close the story), with suggested tasks, triggers
   (clock, files, webhook), and
-  **☾ Away**: your To-do tasks worked through one at a time, each in its own copy, until you are back,
-  then one summary of what is done, decided and waiting.
+  **☾ Away**: your To-do tasks worked through one at a time, each in its own copy - in a git repository
+  on a branch of its own, its push waiting for your Run - until you are back, then one summary of what
+  is done, decided and waiting.
   [To-do](docs/automation/todo.md) · [Triggers](docs/automation/triggers.md) · [☾ Away](docs/automation/overnight.md)
 - **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
   merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from

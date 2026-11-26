@@ -26,7 +26,14 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from app.workspace import SCRATCH, Workspace, WorkspaceError, is_kept_code, write_bytes
+from app.workspace import (
+    SCRATCH,
+    Workspace,
+    WorkspaceError,
+    is_kept_code,
+    sha256_text,
+    write_bytes,
+)
 
 # More than this is not copied: the agent works in the project, as before.
 MAX_FILES = 20_000
@@ -157,6 +164,24 @@ def ceiling(tree: Path) -> str:
     )
 
 
+def _tree_key(tree: Path) -> str:
+    return os.path.normcase(os.path.realpath(tree))
+
+
+# H1: the trees of ☾ Away jobs on their branch (`no_push`), by `_tree_key` - this process's.
+_NO_PUSH: set[str] = set()
+# Every push URL starts with "": rewritten to a scheme git has no helper for, it fails; a fetch is
+# not rewritten (`pushInsteadOf` is push's alone). Measured with git 2.53 (25 Nov): a push to a
+# remote's name, a path and a file:// URL fail; a fetch works.
+NO_PUSH = "'url.koloni-no-push://.pushInsteadOf='"
+
+
+def no_push(tree: Path) -> None:
+    """H1: whatever is started in `tree` - a ☾ Away job's worktree - pushes nothing: `git_env`
+    adds `NO_PUSH` there. For this process: set again wherever such a tree is opened."""
+    _NO_PUSH.add(_tree_key(tree))
+
+
 def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     """What git is given for whatever is started in a copy's tree, `env` being the environment it
     is started with: it looks no higher than the copies folder (`ceiling`), and runs no hook of the
@@ -170,14 +195,23 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     name (`commands.secret_name`), held back where its count is not - and git stops at a count
     with no key. Not `safe.bareRepository=explicit`, as KOLONİ's own git has it: a project's tests
     that use a bare repository by its folder (`git -C remote.git log`) would fail in a copy
-    (measured), and what such a repository's config could run (hooks, fsmonitor) is off here."""
+    (measured), and what such a repository's config could run (hooks, fsmonitor) is off here.
+    H1, in a ☾ Away job's worktree (`no_push`): no push (`NO_PUSH`), and no prompt for a login.
+    shortcut: H1 is no wall - measured with git 2.53, a script of the job's own pushes all the same
+    with `git send-pack`, its own `-c url.<x>.pushInsteadOf=...`, a `remote.origin.pushurl` it
+    sets first, or this environment replaced (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`); so
+    does a pushurl or a longer pushInsteadOf of the user's. Each such line the agent types itself
+    is refused or asked on a card; what a script it runs does is not read. H2 says what moved
+    outside the branch in the morning, and the morning's push checks origin itself (H3)."""
     # shortcut: an empty core.hooksPath stops the hooks git finds in a folder, not hooks set in its
     # config (`hook.<name>.command` / `.event`: git 2.53 ran none, probed 21 Nov); turn those off
     # here too once a git that runs them is seen.
     empty = tree.parent / NO_HOOKS
     empty.mkdir(exist_ok=True)
     ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)
+    away = _tree_key(tree) in _NO_PUSH
     return {
+        **({"GIT_TERMINAL_PROMPT": "0"} if away else {}),
         "GIT_CEILING_DIRECTORIES": ceiling(tree),
         "GIT_CONFIG_PARAMETERS": " ".join(
             filter(
@@ -188,6 +222,7 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
                     "'core.fsmonitor=false'",
                     "'commit.gpgsign=false'",
                     "'core.logAllRefUpdates=true'",
+                    NO_PUSH if away else None,
                 ],
             )
         ),
@@ -710,12 +745,60 @@ class Copy:
             return ("changed", "refused") if was is not None else None
         if here == was:
             return None
+        if there not in (was, here, None, OUTSIDE) and self._ends_alone(path):
+            there = was  # (T1: as git stores it, the project's file is what the copy began from)
         kind = "deleted" if here is None else "new" if was is None else "changed"
         if there == OUTSIDE:
             return kind, "refused"
         if kind == "new" and (there is None or not self.git) and self.ignored(path):
             return kind, "left_out"  # (B-189: `changes`; `git`: one the project has, a conflict)
         return kind, "ready" if there in (was, here) else "conflict"
+
+    def _ends_alone(self, path: str) -> bool:
+        """T1: whether a branch copy's file was made from what the project holds but for its line
+        ends, where git stores the two alike (`_stored_alike`: a worktree git checked out with
+        `core.autocrlf=true`, Windows' default, holds CRLF where the project's file is LF) - not
+        where git records the line ends as a change. Never of a plain copy, made byte for byte."""
+        place = self.there(path) if self.branch else None
+        try:
+            project = place.read_bytes() if place is not None and place.is_file() else None
+        except OSError:
+            return False
+        base = self.started_from(path) if project is not None else None
+        if base is None or project is None or b"\0" in base or b"\0" in project:
+            return False
+        if base.replace(b"\r\n", b"\n") != project.replace(b"\r\n", b"\n"):
+            return False
+        return _stored_alike(self.project, self.names.get(_key(path), path), base, project)
+
+    def ends_kept(
+        self, path: str, before: str | None, after: str | None, rows: Sequence
+    ) -> tuple[str | None, str | None]:
+        """T1: the project's text of a file and this branch copy's (`before`, `after`), the copy's -
+        and its agent's records of it (`rows`, their after-texts) - turned to the project's own line
+        ends where the two hold one kind each and not the same, and git stores the copy's text so
+        turned as it is (`_stored_alike`: a worktree checked out with `core.autocrlf=true`): Take
+        in never turns a whole file's line ends - nor undoes an agent's own change of them where
+        git records one. As they are for a plain copy, made byte for byte, or a mixed file."""
+        to, was = (_ends(before), _ends(after)) if self.branch else (None, None)
+        if to is None or was is None or to == was:
+            return before, after
+        turned = _ended(after or "", to)
+        name = self.names.get(_key(path), path)
+        if not _stored_alike(self.project, name, (after or "").encode(), turned.encode()):
+            return before, after
+        for row in rows:
+            if row.kind != "delete" and row.after_content and _ends(row.after_content) == was:
+                row.after_content = _ended(row.after_content, to)
+                row.after_sha = sha256_text(row.after_content)
+        return before, turned
+
+    def every_secret(self) -> list[str]:
+        """MEDIUM-2: the secrets given in its turn (`secrets`) and all KOLONİ checks a branch's
+        commit, merge and push for (`secret_set.checked`), as they are looked for."""
+        from app import secret_set  # (here: app.secret_set reads app.commands, which reads this)
+
+        return secret_set.checked(self.secrets())
 
     def changes(
         self, base: dict[str, str] | None = None, names: dict[str, str] | None = None
@@ -1028,6 +1111,50 @@ def _carry(
         except OSError:
             failed.append(path)
     return failed
+
+
+def _ends(text: str | None) -> str | None:
+    """A text's one kind of line end, "\\r\\n" or "\\n"; None for none, both, or no text."""
+    if not text or "\n" not in text:
+        return None
+    crlf = text.count("\r\n")
+    return "\r\n" if crlf == text.count("\n") else "\n" if crlf == 0 else None
+
+
+def _stored_alike(project: Path, path: str, one: bytes, other: bytes) -> bool:
+    """T1: whether git stores two texts of `path` alike in `project` - its line-end settings and
+    attributes applied, as `git hash-object --path` reads them, no filter driver of the
+    repository's run (`git._no_filters`). False where git does not say."""
+    from app import git  # (here: git's executors import commands, which imports this)
+
+    found = set()
+    try:
+        exe, _folder = git.repository(project)
+        off = git._no_filters(project, exe, git.SHORT_SECONDS)
+        for data in (one, other):
+            code, out, _said = git._fed(
+                project,
+                exe,
+                data,
+                *git.UNASKED,
+                "hash-object",
+                f"--path={path}",
+                "--stdin",
+                seconds=git.SHORT_SECONDS,
+                **git.UNASKED_ENV,
+                **off,
+            )
+            if code != 0:
+                return False
+            found.add(out.strip())
+    except git.Refused:  # (git timed out or did not start)
+        return False
+    return len(found) == 1
+
+
+def _ended(text: str, ends: str) -> str:
+    """`text` with each line end `ends` (T1)."""
+    return text.replace("\r\n", "\n").replace("\n", ends)
 
 
 def make_branch(

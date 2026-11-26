@@ -367,7 +367,7 @@ def continuable(session: Session, run_id: str) -> list[Earlier]:
             agent.provider_name,
             agent.model_id,
             agent.model_from,
-            bool(agent.chosen),
+            bool(agent.chosen),  # pyrefly: ignore[unnecessary-type-conversion]  # (a row's value, kept as it was)
             agent.status,
             agent.task,
             number[agent.run_id],

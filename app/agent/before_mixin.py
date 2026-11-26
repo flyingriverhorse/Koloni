@@ -15,6 +15,7 @@ import re
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from pathlib import Path
@@ -77,7 +78,7 @@ def _touched(test_id: str, cwd: str, touched: set[str]) -> bool:
     file) is one of `touched` - from the run's folder or the project's root, or ending so (a
     rootdir elsewhere), whatever its case where the disk ignores case (Windows, macOS): any
     doubt, touched."""
-    fold = str.casefold if sys.platform in ("win32", "darwin") else str
+    fold: Callable[[str], str] = str.casefold if sys.platform in ("win32", "darwin") else str
     file = fold(test_id.split("::", 1)[0].replace("\\", "/").removeprefix("./"))
     joined = posixpath.normpath(posixpath.join(fold(cwd), file)) if cwd not in ("", ".") else file
     return any(
@@ -369,7 +370,7 @@ class BeforeMixin:
                     Command.run_id.in_(runs),
                     Command.tool_call_id.is_not(None),
                     Command.tool_call_id.not_in(mine),
-                    Command.status.not_in(("proposed", "rejected")),
+                    Command.status.not_in(("proposed", "rejected", "parked")),
                 )
             )
         )

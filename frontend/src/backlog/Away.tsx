@@ -5,17 +5,9 @@ import { AwayPanel } from '../chat/AwayPanel'
 import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
-import { amount, clock, doneSaid } from './awayText'
+import { STATE_WORD, amount, clock, doneSaid } from './awayText'
+import { WaitingForYou } from './WaitingForYou'
 
-const STATE_WORD: Record<AwayJob['state'], string> = {
-  planned: '',
-  next: 'Next',
-  working: 'Working',
-  waits: 'Waits for you',
-  done: 'Done',
-  failed: 'Could not be done',
-  stopped: 'Stopped',
-}
 const STATE_MARK: Record<AwayJob['state'], string> = {
   planned: '',
   next: '·',
@@ -121,6 +113,7 @@ export function AwaySummary({ line, conv }: { line: string; conv: ConvState }) {
           <span className="away-k">decided</span> {away.decided.join(' · ')}
         </p>
       )}
+      <WaitingForYou away={away} />
       <ol className="away-jobs">
         {away.jobs
           .filter(job => job.state === 'waits')
@@ -209,6 +202,33 @@ const lineOf = (away: Away, job: AwayJob) =>
         ? null
         : job.why
 
+/** KOLONİ's checks' verdict on a job's branch, as its mark. */
+const CHECKS_MARK: Record<string, string> = { green: '✓', red: '✗' }
+
+/**
+ * 0.1.9: where a job's work is - on its own branch in the project's repository (its commits, files and checks, what
+ * moved outside it meanwhile), or in a copy and why where git is there.
+ */
+function BranchLine({ job }: { job: AwayJob }) {
+  const branch = job.branch
+  if (job.mode === 'copy' && job.mode_why) return <div className="muted away-line">In a copy: {job.mode_why}</div>
+  if (!branch) return null
+  return (
+    <>
+      <div className="muted away-line">
+        On branch <span className="mono">{branch.name}</span> · {branch.commits ?? '?'} commits · {branch.files ?? '?'}{' '}
+        files · checks {CHECKS_MARK[branch.checks ?? ''] ?? '…'}
+      </div>
+      {job.mode === 'branch' && <div className="muted away-line">No remote: merge it with git, or Take in.</div>}
+      {[branch.why, ...(branch.moved ?? [])].filter(Boolean).map(said => (
+        <div key={said} className="away-shared">
+          {said}
+        </div>
+      ))}
+    </>
+  )
+}
+
 /** One job of a night, with what you can do about it as it stands. */
 export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen: (cid: string) => void }) {
   const { busy, error, ask } = useAsk()
@@ -281,6 +301,7 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
       <div className="away-grow">
         <b>{job.title}</b>
         {line && <div className="muted away-line">{line}</div>}
+        <BranchLine job={job} />
         {job.state === 'working' && job.now && <span className="away-now mono">{job.now}</span>}
         {job.checks.length > 0 && <div className="muted away-line">{job.checks.join(' · ')}</div>}
         {job.assessment && <q className="away-view">{job.assessment}</q>}
@@ -361,6 +382,7 @@ export function AwayNight({ away, onOpen }: { away: Away; onOpen: (cid: string) 
   const night = (
     <>
       <Strip away={away} />
+      <WaitingForYou away={away} />
       <ol className="away-jobs">
         {away.jobs.map(job => (
           <JobRow key={job.task_id ?? job.title} away={away} job={job} onOpen={onOpen} />
@@ -488,6 +510,7 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
         </button>
       )}
       {section('Done', done)}
+      <WaitingForYou away={away} />
       {section('Waits for your word', of('waits'))}
       {section('Could not be done', of('failed'))}
       {section('Stopped', of('stopped'))}

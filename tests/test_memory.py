@@ -28,7 +28,7 @@ from app.agent import (
     shell_note,
 )
 from app.agent.context_mixin import ASKED_IN_WORDS
-from app.agent.words import NEAR_TESTS, PROOF_LEAD
+from app.agent.words import NEAR_TESTS, PROOF_LEAD, RUN_CHECKS_LEAD
 from app.config import load_settings
 from app.db.models import Memory, Project
 from app.main import create_app
@@ -152,7 +152,7 @@ def plain(value, root: str):
             " " + handoff.REPORT_PROMPT,
             "\n\n" + handoff.HEAD,
             " " + ASKED_IN_WORDS,
-            "\n\n" + PROOF_LEAD,
+            "\n\n" + PROOF_LEAD + " " + RUN_CHECKS_LEAD,  # (0.1.9: and run_checks' line)
             "\n\n" + NEAR_TESTS,
         ):
             # (the roles a finding may name, whatever they are, stand where {roles} is; a CLI's
@@ -197,8 +197,8 @@ def without_memory(tools):
         "offer_away",
         "propose_trigger",
         "recall_output",
-        "command_output",
-        "stop_command",
+        *SERVING_TOOLS,
+        *("run_checks", "read_status"),  # (0.1.9)
     )
     if tools and isinstance(tools[0], str):
         return [name for name in tools if name not in later]

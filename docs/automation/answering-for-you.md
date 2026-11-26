@@ -35,17 +35,28 @@ Discard, Commit, a different model that may cost money, and Stop. It also does n
 is over its token limit, the project is over its monthly budget, or the provider is over its limit.
 
 The same rule holds in To-do task chats and while you're away. Your Orchestrator's own questions to
-you always wait for you.
+you wait for you - but in a job while you're away (☾ Away), where it decides them itself: "The user is
+away. Decide yourself and say what you assumed in one sentence. Only if the answer is something only
+the user can know (a password, an account, a personal fact), answer `park`." Its answer and reason are
+under **Decided for you**. What it answers `park` is parked for you under **Waiting for you**, and so is
+a question it could not answer (no answer it could read, a CLI past its most or with tools of its own);
+the job goes on. A sub-agent's question there is asked with the second sentence alone. `park` decides
+nothing by itself - an option spelled "Park" is parked, not picked. See [Work while you're
+away](overnight.md#questions-and-approvals).
 
 ## Decided for you
 
-What it answered shows under **Decided for you while you were away**: who asked, what the Orchestrator
-chose, and why. Press **OK** to keep it, or **Change →** to give another answer. If the answer cannot be
-undone any more, it says so.
+What it answered shows under **Decided for you** on the [Ready for you](../use/ready.md) page, the
+project's whole list: who decided, what the Orchestrator chose, and why. Press **OK** to keep it, or
+**Change →** to give another answer while the agent that asked still works. If the answer cannot be
+undone any more, the row says why. The chat says it in one line at its top, "While you were away, 3
+things were decided for you and 2 wait for you.", with **Open in Ready for you**. See
+[Decisions](../use/decisions.md). A chat with no folder keeps its own **Decided for you while you were
+away** box, with the same **OK** and **Change →**.
 
 At **Full auto** the Orchestrator also answers questions in a chat you watch, at once, and some of
 KOLONİ's own cards, such as an agent's Continue / Stop here card at its
-[step limit](../agents/step-limits.md#who-answers-the-card); those answers show under the same heading.
+[step limit](../agents/step-limits.md#who-answers-the-card); those answers are in the same list.
 So does a command that [Check what I said first](../use/permissions.md#check-what-i-said-first) ran
 without a card, or did not run, on a line of yours: "Coder ran … without asking" or "KOLONİ did not run
 … for Coder", with that line, until you press **OK**.

@@ -160,6 +160,9 @@ def test_the_cards_of_a_period_by_reason_answer_and_check(db):
         card(session, "r1", None, decided=None, judged={"verdict": "run", "quote": "x"})
         card(session, "r1", "delete", decided=None, judged={"verdict": "ask"})
         card(session, "r1", None, status="refused", decided=None, judged={"verdict": "refuse"})
+        # (Full auto's judge's own refusal is no outcome of the check of the user's words)
+        refused = {"kind": "risk", "verdict": "refuse"}
+        card(session, "r1", None, status="refused", decided=None, judged=refused)
         card(session, "r2", "install", decided=40)  # (another project)
         session.commit()
         here = cards.stats(session, "p", now() - timedelta(days=7))
@@ -480,3 +483,69 @@ def test_add_to_rules_refuses_a_delete_whose_path_the_users_preferences_name(
     refused = client.post(f"/api/projects/{pid}/card-suggestions/{one['key']}", headers=OWN)
     assert refused.status_code == 409 and "Never delete ./build" in refused.json()["detail"]
     assert not (project_dir / ".koloni" / "rules.md").exists()
+
+
+# --- §8: two lines that disagree about a delete (the check of the user's words) ---------------
+
+
+def _against(rules: str, command: str, message: str = "") -> bool:
+    said = judge.said(None, rules, [message] if message else [])
+    return judge.set_against(said, lambda line: bool(cards.mentioned([line], command, ".")))
+
+
+def test_a_line_that_forbids_the_same_delete_sets_a_run_against_it():
+    assert _against("You may delete ./x.\nNever delete ./x.", "rm -rf ./x")
+    assert _against("You may delete ./x.\n\nNever delete these:\n- ./x", "rm -rf ./x")
+    assert not _against("You may delete build/ and dist/.", "rm -rf build")
+    assert not _against("You may delete ./x.\nNever delete ./y.", "rm -rf ./x")
+    # (wide on purpose - a wrong card is safe, a wrong run is not: a line of the chat that names
+    # the target and sets a condition counts too)
+    assert _against(
+        "You may delete build/ and dist/.", "rm -rf build", "Clean the build before the tests"
+    )
+
+
+def test_a_heading_forbids_only_its_own_list():
+    """Codex P2-3 (W1): a heading's scope ends at a blank line after its lines or the next heading
+    - for a list's items, at a line of prose (as `judge._units` reads it) - not at the end of the
+    words; a heading right under another is read with it."""
+    for elsewhere in ("Never delete these:\n- ./archive", "Do not commit secrets:\n- .env"):
+        for allowed in ("Disposable outputs:\nYou may delete ./build.", "You may delete ./build."):
+            assert not _against(f"{elsewhere}\n\n{allowed}", "rm -rf ./build"), (elsewhere, allowed)
+    # (its own list, and a line right under it, as before - a blank line between a heading and
+    # its list, or between the list's items, parts neither)
+    assert _against("Never delete these:\n- ./build\nYou may delete ./build.", "rm -rf ./build")
+    assert _against("Never delete these:\n\n- ./a\n\n- ./build", "rm -rf ./build")
+    assert not _against("Never delete these:\n- ./a\n\nKeep it tidy.\n- ./build", "rm -rf ./build")
+    # (review of k-kucuk-019: a sub-heading never lifts the forbid of the heading it is under -
+    # each of these ran `rm -rf ./build` beside "You may delete ./build." where 0.1.9 carded it)
+    for nested in (
+        "Never delete:\nOutputs:\n- ./build",
+        "Do not delete the following:\nGenerated files:\n- ./build",
+        "Never delete these:\n\nGenerated:\n- ./build",
+        "Never delete:\n- ./data\nGenerated:\n- ./build",
+        "Asla silme:\nÇıktılar:\n- ./build",
+        "Ask me before deleting:\nOutputs:\n- ./build",
+    ):
+        assert _against(f"You may delete ./build.\n\n{nested}", "rm -rf ./build"), nested
+    # (the judge's decision on the model's quote of the allowing line, as Codex's probe read it)
+    for rules, decided in (
+        ("Never delete these:\n- ./archive\n\nDisposable outputs:\nYou may delete ./build.", "run"),
+        ("Never delete these:\n- ./archive\nDisposable outputs:\nYou may delete ./build.", "ask"),
+        ("Never delete these:\n- ./build\nYou may delete ./build.", "ask"),
+    ):
+        assert _decided(rules, "You may delete ./build.", "rm -rf ./build") == decided, rules
+
+
+def _decided(rules: str, quote: str, command: str) -> str:
+    answer = json.dumps({"verdict": "run", "quote": quote, "why": ""})
+    said = judge.said(None, rules, [])
+    found = judge.verdict(answer, said, lambda line: bool(cards.mentioned([line], command, ".")))
+    return found["verdict"] if found else ""
+
+
+def test_a_delete_of_dot_slash_x_names_x():
+    assert cards._targets("rm -rf ./x", ".") == ["x"]
+    assert cards._targets("rm -rf ./", ".") is None and cards._targets("rm -rf ./*", ".") is None
+    # (and so its rule is offered, as for `rm -rf build`)
+    assert cards.rule_line("rm -rf ./build", ".") == "You may delete ./build."

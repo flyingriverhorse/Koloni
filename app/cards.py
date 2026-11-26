@@ -41,6 +41,7 @@ REASONS = {
     "web": "The web, with web tools off",
     "server": "Starts a server",
     "rule": "No rule covers it",
+    "judge": "Full auto's judge found it risky",
     "other": "Another reason",
 }
 # A reason's sentence (`harms`, `copy_reason`, `installs`, `runs_another`, `web_off_reason`, the
@@ -60,6 +61,7 @@ _FAMILIES = (
     ("standing", r"(?:Names|Sets this project's git|Applies a patch)\b"),
     ("outside", r"(?:it names|it writes in|Climbs out|Makes a link|Opens a git worktree)\b"),
     ("web", r"web is off\b"),
+    ("judge", r"KOLONİ's judge: "),  # (Full auto's judge's card: `risk_judge.CARD`)
 )
 _FAMILY = [(name, re.compile(pattern)) for name, pattern in _FAMILIES]
 
@@ -174,8 +176,10 @@ def stats(session: Session, project_id: str | None, since: datetime | None) -> d
         since,
     )
     verdict = Command.judged["verdict"].as_string()
+    # (Full auto's judge's own refusal, `kind` "risk", is none of them; none before 0.1.9 has one)
+    words = func.coalesce(Command.judged["kind"].as_string(), "") != "risk"
     judged = _in_period(
-        select(verdict, func.count()).where(verdict.in_(_VERDICTS)).group_by(verdict),
+        select(verdict, func.count()).where(verdict.in_(_VERDICTS), words).group_by(verdict),
         project_id,
         since,
     )
@@ -211,7 +215,8 @@ def _targets(command: str, cwd: str | None) -> list[str] | None:
     plain = _DELETERS[program]
     if any((w if program in _CASED else w.casefold()) not in plain for w in switches):
         return None
-    named = [w for w in words[1:] if not w.startswith(("-", "/"))]
+    # (`./build` is `build`: §8's two lines that disagree name it so - "Never delete ./build.")
+    named = [w.removeprefix("./") for w in words[1:] if not w.startswith(("-", "/"))]
     if not named or len(named) > MOST_TARGETS:
         return None
     # The path as joined, never resolved, is what must be plain - its folder is on record as the

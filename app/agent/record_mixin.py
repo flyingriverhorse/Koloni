@@ -32,6 +32,7 @@ from app.db.models import (
     WebRequest,
     now,
 )
+from app.judge import whole
 from app.roles import LEAD, shown_name
 from app.serialize import (
     board_post_out,
@@ -61,7 +62,7 @@ class RecordMixin:
     ) -> dict:
         with self._factory() as session:
             message = session.get(Message, message_id)
-            message.content = content
+            message.content = whole(content)  # (Y1: a half of a pair alone, as it is kept)
             message.status = status
             message.blocks = blocks or message.blocks
             session.commit()
@@ -482,7 +483,7 @@ class RecordMixin:
                 .where(
                     Question.run_id == run_id,
                     Question.tool_call_id.is_not(None),
-                    Question.status.in_(("pending", "cancelled", "interrupted")),
+                    Question.status.in_(("pending", "cancelled", "interrupted", "parked")),
                 )
                 .order_by(Question.created_at)
             )

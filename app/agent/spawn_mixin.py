@@ -1185,14 +1185,14 @@ class SpawnMixin:
                 asked.discard(one["role"].casefold())
             asked.discard(wanted)
             if more:  # (its reply's others wait for none of them)
-                held[0].difference_update(one.id for one in requests)
+                held[0].difference_update(one.id for one in requests)  # pyrefly: ignore[unbound-name]  # (set with `more`)
                 self._arrive(call_id)
             return first.result()
         with self._factory() as session:
             message_id = session.get_one(ToolCall, call_id).message_id
         made = self._record_calls(ctx, message_id, requests)
         if more:
-            held[0].difference_update(one.id for one in requests)
+            held[0].difference_update(one.id for one in requests)  # pyrefly: ignore[unbound-name]  # (set with `more`)
             held[0].update(made_id for made_id, _payload in made)
             self._at_once.update(dict.fromkeys((made_id for made_id, _payload in made), held))
         for one, (made_id, _payload) in zip(beside, made, strict=True):
@@ -3503,20 +3503,20 @@ class SpawnMixin:
         # While its context stands for the request, nobody else takes the agent up: to the
         # others it is at work (a note, not a turn of its own; no discussion).
         self._answering[child.agent_id] = "running"
-        self._ctxs[child.agent_id] = asking  # its place is counted where the request goes
+        self._ctxs[child.agent_id] = asking  # pyrefly: ignore[unbound-name]  # (set where no note is) its place is counted where the request goes
         try:
             async with self._working(asking, shown=False):
                 # Its provider's own default, where none is named: as the model names it.
-                name = asking.model_name or (await model.info()).model_id
+                name = asking.model_name or (await model.info()).model_id  # pyrefly: ignore[unbound-name]  # (set where no note is)
                 asking = replace(asking, model_name=name)
                 try:
                     # A time of its own: the opener waits for this, and nothing else ends it.
                     async with asyncio.timeout(observer.SECONDS):
-                        said, answer = await ask_once(model, name, asked)
+                        said, answer = await ask_once(model, name, asked)  # pyrefly: ignore[unbound-name]  # (set where no note is)
                 except BaseException:
-                    self._own_request(child, asking, mode, None)  # sent, and not heard out
+                    self._own_request(child, asking, mode, None)  # pyrefly: ignore[unbound-name]  # (set where no note is) sent, and not heard out
                     raise
-                self._own_request(child, asking, mode, answer)
+                self._own_request(child, asking, mode, answer)  # pyrefly: ignore[unbound-name]  # (set where no note is)
             opinion = observer.kept_of(_answer(said))
             note = None if opinion else observer.SAID_NOTHING
         except TimeoutError:

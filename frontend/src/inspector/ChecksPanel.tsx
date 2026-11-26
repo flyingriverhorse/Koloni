@@ -88,6 +88,7 @@ function Round({
       <div className="kicker">
         Round {round.n}
         {round.kind === 'stronger' && ` · a stronger model${round.tier ? ` (${round.tier})` : ''}`}
+        {round.kind === 'asked' && ' · asked by the Orchestrator'}
       </div>
       {round.diagnosis && (
         <p className="checks-panel-li">

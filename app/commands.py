@@ -3932,7 +3932,7 @@ def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
     )
     for mark in re.finditer(r"""[(){}'"]""" if quotes else r"[(){}]", command):
         char, at = mark[0], mark.start()
-        if quote:
+        if quote:  # pyrefly: ignore[redundant-condition]  # (set in the loop)
             quote = "" if char == quote else quote
         elif char in "'\"":
             quote = char
@@ -5681,10 +5681,10 @@ _SECRET_PARTS = frozenset(
 # Secrets that are known by their shape, wherever they come from.
 _TOKENS = re.compile(
     # (`sk-` with a digit in it, and not inside a word: `task-runner-...` is no key)
-    r"\b(?:(?<![\w-])sk-(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}"
-    r"|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}"
-    r"|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}"
-    r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
+    r"\b(?:(?<![\w-])sk-(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{36}"
+    r"|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|glpat-[A-Za-z0-9_-]{20,}"
+    r"|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[A-Za-z0-9_-]{35}|hf_[A-Za-z0-9]{30,}"
+    r"|[rs]k_live_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
 )
 _BEARER = re.compile(r"(\bBearer[ \t]+)[A-Za-z0-9._~+/=-]{16,}", re.IGNORECASE)
 _ADDRESS_PASSWORD = re.compile(r"(://[^\s:/@]*:)[^\s@/]+(@)")  # `redis://:pass@` too
@@ -6721,7 +6721,7 @@ def _folder_targets(words: list[str], shell: str | None) -> list[tuple[str, str,
     if shell not in _DELETE_FORMS:
         return None
     deleters, recursions, others, forcings, most = _DELETE_FORMS[shell]
-    read = str.casefold if shell == POWERSHELL else str
+    read: Callable[[str], str] = str.casefold if shell == POWERSHELL else str
     flags = {read(word) for word in words[1:] if word.startswith("-")}
     paths = [word for word in words[1:] if not word.startswith("-")]
     if (

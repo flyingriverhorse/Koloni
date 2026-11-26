@@ -14,7 +14,10 @@ way, and where that ends.
   simple commands.
 - **Full auto** runs commands without asking. Its check for harmful commands (deleting, force-pushing,
   sending data off the machine) is a courtesy for honest commands, not a wall: a command written to hide
-  what it does is not seen. Use Full auto only for work you are ready to let run.
+  what it does is not seen. [Full auto's judge](../use/permissions.md#full-autos-judge), on by default,
+  also asks a small model about each command that list does not stop, and puts one it finds risky on a
+  card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
+  then it runs. Use Full auto only for work you are ready to let run.
 - For a wall against a deliberate attacker on your own account, run agents' commands in Docker, or run
   KOLONİ as another user.
 
@@ -71,6 +74,49 @@ or any line that is not one plain delete. What is checked is the folder
 as it is then - KOLONİ's own command a second time just before it runs: one swapped for a link
 after that look is not seen. Windows PowerShell 5.1.26100, PowerShell 7 and Git Bash delete through
 no junction; older Windows 10 builds of PowerShell 5.1 do.
+
+### While you're away
+
+In a job while you're away a card does not wait: it is parked under **Waiting for you**
+([Work while you're away](../automation/overnight.md#waiting-for-you)). What is parked - a line, a
+question, what a command printed in the morning, your answer - is data: the agent is told it did not
+run, in KOLONİ's own words with the line quoted; the going-on turn's message is KOLONİ's, never yours (it
+starts "KOLONİ:", is not counted as your words by the judge or **Check what I said first**, and what a
+command printed, why one could not run and your answer are each in quotes - a line of their own cannot
+pass for KOLONİ's - and behind KOLONİ's note where they read like orders). Nothing parked runs without
+your **Run**, from the app's own page; the card endpoint does not decide a parked row, and no agent tool
+can.
+
+**Run** runs the line as it was recorded - its words, its folder, where commands run, its time limit -
+with no card, and only while that still holds: it is looked at again just before it runs. It does not
+run where its job's copy was taken in or discarded after your **Run**; in KOLONİ's shell when a CLI
+asked for it in its own (another shell reads the same words otherwise); nor for a server. If anything
+in the job's copy changed after a line was parked - a file an agent wrote, one a command wrote, one an
+earlier line of the same morning wrote - **Run** does not run it: "the job changed files after this was
+parked: run it yourself" (KOLONİ keeps what the copy's work was as the line was parked - its changed
+files, and every file in its `__pycache__`, `build` and `dist` folders and the agents' scratch - and
+looks again just before it runs; the list says so as soon as the job's turn is over). Where it would run
+in the project, some of the copy taken in, the same holds of the project's files: "its work was taken in
+after this was parked: run it yourself". A Python of the morning keeps its compiled files in a folder
+of its own, never the copy's `__pycache__`. A command that runs none of the project's code is the
+exception: a file command (`rm`, `rmdir`, `del`, `mkdir`, `md`, `cp`, `copy`, `mv`, `move`, `ren`,
+`chmod`, `touch`), and `curl` or `wget` only where every word after it is an `http://` or `https://`
+address, one of a few flags that take no value (curl's `-s`, `-S`, `-f`, `-L`, `-I`, `-v`, `-sS`, `-fsS`,
+`-fsSL`, `-sSL`, `-fL`, `--silent`, `--show-error`, `--fail`, `--location`, `--head`, `--verbose`,
+`--compressed`; wget's `-q`, `-nv`, `--quiet`, `--no-verbose`, `-S`, `--server-response`, `--spider`),
+or its output file (`curl -o NAME`, `wget -O NAME`, a plain file name). Any other word - a config, a file
+to send, a value glued on, a quote, `file://` - and it is held to the copy as any line. A program an agent
+wrote and a place you kept out are still refused. The list says where a line would run and which file
+an agent wrote that it runs. Nothing goes into your project without your Take in: the going-on turn's
+work, at Full auto too, is kept in its copy.
+
+In a git repository a job works on a branch of its own in a worktree of your repository, not in a copy:
+its `.git` is yours. Its own `git push` is refused; what reaches the rest of your repository is
+parked. A script's push is set to fail there (git's `pushInsteadOf`), your branches, stash, tags,
+remotes and git's config are compared before and after the job, and its push in the morning goes up
+only on your **Run**, only the commit KOLONİ checked at the job's end, as one commit of KOLONİ's - none
+of these is a wall: a script in the job reaches your repository as you could. See
+[Known limits](../reference/known-limits.md#away-on-a-branch).
 
 ## Places agents never open
 
@@ -186,6 +232,18 @@ What is not framed:
   model decide whether a harmful-looking command at Full auto runs: it reads only your own words, never
   an agent's, and asks on a card when anything is unclear, but a model can misread a line. Leave it on
   **Ask me** where a wrong delete would cost you.
+- [Full auto's judge](../use/permissions.md#full-autos-judge) never lets a command run that asks, and
+  refuses only on its own "risky" - an error, a slow answer, an unreadable one, a model it may not ask
+  now (no room, the turn's token limit) is a card, never a run nor a refusal; a refused agent is told a
+  general reason, never the judge's sentence (it read your messages, and would guide the next try), and
+  after 3 refusals in a turn, by any of its agents, the next risky command is a card;
+  it stands aside only with no model to ask - but what it lets by runs as Full auto ran before it: a
+  model's "fine" can be wrong; it reads the first 4 KB of a program an agent wrote, not a file that
+  program imports, a tool an agent changed without writing it, nor a file an agent made by copying
+  (`cp x.txt x.py`); test runners and build tools run an agent's `conftest.py`, test files, plugins or
+  `build.rs` on an ordinary line it is not asked about; and for a CLI run **Native** it sees only the
+  command the CLI reports. Everything but your own words reaches it marked as an agent's data, but text
+  written to steer a model can still sway one.
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
   about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
   safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its

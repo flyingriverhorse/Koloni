@@ -52,13 +52,14 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import and_, func, literal_column, or_, select, update
 from sqlalchemy.orm import Session
 
 from app import (
     away,
+    away_branch,
     browser,
     copies,
     diagram,
@@ -114,6 +115,7 @@ from app.agent.cards import lead_pick as lead_pick
 from app.agent.cards import needs_full_auto as needs_full_auto
 from app.agent.cards import outside_a_copy as outside_a_copy
 from app.agent.cards import sandbox_denied as sandbox_denied
+from app.agent.checks_tool_mixin import ChecksToolMixin
 from app.agent.claims_mixin import ClaimsMixin
 from app.agent.context_mixin import ASK_NOT_REPORT as ASK_NOT_REPORT
 from app.agent.context_mixin import AWAY_CUES as AWAY_CUES
@@ -243,6 +245,7 @@ from app.agent.questions_mixin import USER_TOLD as USER_TOLD
 from app.agent.questions_mixin import QuestionsMixin
 from app.agent.record_mixin import RecordMixin
 from app.agent.review_mixin import ReviewMixin
+from app.agent.risk_judge_mixin import RiskJudgeMixin
 from app.agent.rooms_mixin import CODEX_NATIVE_NO_RECIPE as CODEX_NATIVE_NO_RECIPE
 from app.agent.rooms_mixin import RoomsMixin
 from app.agent.skills_mixin import SkillsMixin
@@ -990,15 +993,9 @@ BRANCH_THEIRS = (
     "merge would write over it"
 )
 BRANCH_SECRET = (
-    "{files} on the branch holds a secret given this turn: not merged - take it off "
+    "{files} on the branch holds a secret KOLONİ knows: not merged - take it off "
     "the branch first, or Discard, which deletes the branch"
 )
-BRANCH_SECRET_GONE = (
-    "{name}'s changes were not merged, and its branch {branch} was deleted"
-    "{earlier}: it held a secret given this turn, which no branch keeps. Do not "
-    "go on as if they were in the project."
-)
-EARLIER_TURNS_TOO = ", with the work of its earlier turns on it"
 BRANCH_SPECIAL = (
     "{files}: the branch changes how git reads the project (.gitignore, "
     ".gitattributes, .gitmodules), or holds a link or a submodule - look before "
@@ -1047,12 +1044,7 @@ BRANCH_KEPT_TOLD = "The branch {branch} is kept, as you asked"
 BRANCH_NOT_KEPT = (
     "The branch {branch} was not kept: one of its agents' commits holds a secret given in this turn"
 )
-PR_BODY = (
-    "{task}\n\nMade by KOLONİ's agents ({name}) on the branch `{branch}`, pushed as one "
-    "commit.\n\n### Changed files\n{files}\n\n### Check\n{check}\n\n"
-    "### {name}'s notes\n{notes}\n"
-)
-PR_NOTES = 4000
+# (its body: `away_branch.team_pr_body`, L-3)
 PR_CONFIG = (
     ".git/config changed during this turn - a push runs what it names (an address, a "
     "credential helper, an ssh command): look at it, then Open pull request"
@@ -1060,9 +1052,8 @@ PR_CONFIG = (
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
 # ... and where the user holds commits origin does not, or a stash: what an agent copied of them
 # into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
-PR_UNPUSHED = (
-    "you have {commits} not on GitHub yet: before a pull request, check its files are "
-    "the agent's work"
+PR_UNPUSHED = (  # (D2: "GitHub" only where origin is GitHub's - `AgentRunner._origin_is`)
+    "you have {commits} not on {where} yet: before a push, check its files are the agent's work"
 )
 # ... said with its commits where another worktree of the user's holds one (`git.unpushed_places`):
 # by its folder, and one deleted by hand is still git's until it is pruned.
@@ -1072,6 +1063,11 @@ PR_HELD_GONE = (
 )
 # ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
 # agent's copy of a file of it, under another name, is its own work to git.
+# ...or where origin did not answer what it holds: nothing of that could be looked at.
+PR_NO_ORIGIN = (
+    "origin did not answer, so KOLONİ could not check what it holds ({why}): before a pull "
+    "request, check its files are the agent's work"
+)
 PR_SNAPSHOT = (
     "it began from your folder with work not committed: before a pull request, check "
     "its files are the agent's work"
@@ -1211,6 +1207,7 @@ class AgentRunner(
     BrowserMixin,
     PoMixin,
     JudgeMixin,
+    RiskJudgeMixin,
     ProofMixin,
     FoundMixin,
     ProofLaterMixin,
@@ -1222,6 +1219,7 @@ class AgentRunner(
     StrongerMixin,
     TryMixin,
     StoryBranchMixin,
+    ChecksToolMixin,
 ):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
@@ -1576,6 +1574,9 @@ class AgentRunner(
         self._judge_cache: dict[str, dict[tuple[str, str | None, str], dict | None]] = {}
         # ...and run -> how many it refused in a row and in all (`_judgement`).
         self._judge_refused: dict[str, tuple[int, int]] = {}
+        # Full auto's judge: run -> a line's key -> its record or "approved"; -> why it stood aside
+        self._risk_cache: dict[str, dict[tuple, dict | str]] = {}
+        self._risk_aside: dict[str, str] = {}
         # K-fullauto-sorma: run -> how often a failing check went back to the Lead (`_merge`).
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}
@@ -1911,6 +1912,7 @@ class AgentRunner(
             if t.job:
                 self._away_jobs[run_id] = ctx.agent_id
                 self._arm_deadline(run_id, cid)
+                await self._away_on_branch(run_id, t, ctx)  # (0.1.9: in a git repository)
             if t.todo_turn:  # (B-413: it ends where nothing moves - its chat's rules else)
                 self._todo_turns.add(run_id)
                 self._arm_todo_deadline(run_id)
@@ -1993,8 +1995,9 @@ class AgentRunner(
             lead, t.lead_tools, instructions, t.planning = self._lead_tools(
                 session, run, project, part_gone
             )
-            # (Only while its night runs: a turn of its chat in the morning is the user's.)
-            t.job = not t.run_compare and away.night_job(session, cid) is not None
+            # (Only while its night runs: a turn of its chat in the morning is the user's - but the
+            # going-on turn after their decisions, §10.)
+            t.job = not t.run_compare and away.job_turn(session, run)
             # (0.1.8: a To-do task's own turn - its brief, its fix round - not the user's
             # message in its chat.)
             t.todo_turn = not t.run_compare and not t.job and run.task_id is not None
@@ -2139,6 +2142,7 @@ class AgentRunner(
                     self._koloni_line(cid, run_id, said)
         if t.run_compare and status in ("completed", "failed"):
             await self._side_aside(ctx, t.run_compare)
+        await to_its_end(self._away_branch_end(ctx, status))  # (0.1.9: a job's, before it is kept)
         own = run_id in self._branch_runs or run_id in self._resumed  # (the Lead's own copy)
         if own and run_id in self._held_back:  # (S11: never merged, nor taken in)
             self._set_aside(
@@ -2230,7 +2234,7 @@ class AgentRunner(
             # A working copy still there is thrown away: nothing of it is taken.
             with contextlib.suppress(Exception):
                 self._drop_copy(agent_id)
-            self._native_turn.pop((cid, agent_id), None)  # (its copy's place: `_native_place`)
+            self._native_turn.pop((cid, agent_id), None)  # pyrefly: ignore[no-matching-overload]  # (a None cid finds none) (its copy's place: `_native_place`)
             self._kept_live.pop(agent_id, None)  # (its card stays: only the turn is over)
             self._kept_apart.pop(agent_id, None)
             self._given_back.discard(agent_id)
@@ -2349,6 +2353,8 @@ class AgentRunner(
         self._asked_again.pop(run_id, None)
         self._judge_cache.pop(run_id, None)
         self._judge_refused.pop(run_id, None)
+        self._risk_cache.pop(run_id, None)
+        self._risk_aside.pop(run_id, None)
         self._check_rounds.pop(run_id, None)
         self._away_cut.pop(run_id, None)
         if (timer := self._away_timers.pop(run_id, None)) is not None:
@@ -2614,22 +2620,6 @@ class AgentRunner(
                 "not_taken": record.get("not_taken"),
             }
 
-    def _drop_branch(self, copy: copies.Copy, force: bool = False) -> None:
-        """K-dal-takim: a branch copy's folder is deleted - git's record of its worktree goes,
-        and its branch where its work is merged, or `force` (turned down: `git.drop_branch`).
-        shortcut: on the event loop, as the folder's delete is; a thread if that is felt."""
-        if copy.branch:
-            with contextlib.suppress(git.Refused):
-                git.drop_branch(
-                    copy.project,
-                    copy.root,
-                    copy.branch,
-                    self.settings.runtime_root / "no-hooks",
-                    force,
-                    keep=copy.branch in self._keep_branches,
-                )
-            self._keep_branches.discard(copy.branch)
-
     async def _copy_record(
         self, ctx: Ctx, owner: str, made: copies.Copy | None, left: dict | None
     ) -> dict:
@@ -2638,7 +2628,7 @@ class AgentRunner(
         # happens to hold does not say how it is laid out (`_kept_as`).
         # So does its part, by that tree, None too: the folder says nothing of it
         # (`copies.load`), and a part copy's of before at that place is not this one's.
-        where = (
+        where: dict[str, Any] = (
             {"tree": str(made.root), "parts": {str(made.root): made.part}}
             if made is not None
             else {}
@@ -2663,6 +2653,9 @@ class AgentRunner(
                 self._git_at_start[ctx.run_id] = _git_parts(
                     await asyncio.to_thread(standing_files, str(made.project)), made.project
                 )
+            # (...in every scope: a global one, a worktree's - L-D)
+            mine = await asyncio.to_thread(away_branch.config_digest, made.project)
+            self._git_at_start[ctx.run_id].setdefault("all", mine or "")
         elif left:
             # Its branch not opened again, and still there: a later go-on tries it again
             # (not `on_branch`: the git map would name this copy's agent its team).
@@ -3071,35 +3064,6 @@ class AgentRunner(
                 self.bus.emit(known.cid, known.run_id, "merge.updated", merge_out(merge))
         self._release(owner)
 
-    def _set_aside(
-        self,
-        owner: str,
-        why: str = "one side of a comparison, waiting for your choice",
-        found: tuple[copies.Copy, list] | None = None,
-    ) -> None:
-        """A side of a comparison is over - or a turn whose recipe was not taken in: what it
-        changed stays in its copy, kept as a kept copy is (`_keep_copy`), for the user's
-        choice to take in or throw away (`decide_kept`). A copy that changed nothing goes
-        with its turn. `found`: its changes, from a look made off the event loop
-        (`_look_aside`) - for the copy that look was at."""
-        copy = self._copies.get(owner)
-        if copy is None:
-            return
-        changed = found[1] if found is not None and found[0] is copy else copy.changes()
-        if any(not copy.ignored(one[0]) for one in changed):
-            self._keep_copy(owner, why)  # (B-189: not for a new file git ignores alone)
-
-    async def _look_aside(self, owner: str) -> tuple[copies.Copy, list] | None:
-        """`_set_aside`'s look at an agent's copy, from a coroutine: a walk of every file of
-        it, in a thread - the server goes on meanwhile - to its end (`to_its_end`)."""
-        copy = self._copies.get(owner)
-        if copy is None:
-            return None
-        # (Against its records as they are now: a `refresh` meanwhile is no change of its own.)
-        return copy, await to_its_end(
-            asyncio.to_thread(copy.changes, dict(copy.base), dict(copy.names))
-        )
-
     async def decide_kept(
         self, merge_id: str, decision: str, choices: dict[str, str] | None = None
     ) -> bool:
@@ -3281,24 +3245,6 @@ class AgentRunner(
                 ),
             )
         return True
-
-    def _kept_branch_gone(
-        self, project: Path, held: Path, on_branch: dict | None, decision: str
-    ) -> None:
-        """W-1: a kept branch copy's folder is gone (`_decide_kept`) - git's record of its worktree
-        goes, and its branch (`git.drop_branch`, unlocked first): forced where the user turned it
-        down, or took all of it in and no go-on is on record to open it again (`tip`); else only
-        where git finds it merged. Where git will not, the branch stays, as unmerged work does."""
-        if on_branch is None:
-            return
-        with contextlib.suppress(git.Refused):
-            git.drop_branch(
-                project,
-                held / copies.TREE,
-                on_branch["branch"],
-                self.settings.runtime_root / "no-hooks",
-                force=decision == "reject" or not on_branch["tip"],
-            )
 
     def decide_merge(
         self,
@@ -3667,40 +3613,6 @@ class AgentRunner(
         self._drop_copy(owner.agent_id)
         return left_out
 
-    async def _secret_branch_gone(
-        self, ctx: Ctx, copy: copies.Copy, look: dict | None = None
-    ) -> str:
-        """K-dal-takim: a branch that would sit unmerged with a secret given this turn on it is
-        not kept - dropped whole, its worktree and the branch (`-D`). What its opener is told;
-        "" where it holds none. `look`: `git.branch_look`'s, made already.
-        shortcut: a branch opened again (`_branch_again`: a tip on its record) goes whole, with
-        the work of its earlier turns, and is said so; take this turn's commits off alone if
-        that loss is felt (its reflog holds the secret still)."""
-        look = look or await self._branch_look(copy)
-        if not look["tip"] or not await asyncio.to_thread(
-            git.holding,
-            copy.project,
-            look["tip"],
-            [path for path, letter in look["files"].items() if letter != "D"],
-            _secret_forms(copy),
-        ):
-            return ""
-        with self._factory() as session:
-            record = session.get_one(Agent, ctx.agent_id).copy or {}
-        self._drop_copy(ctx.agent_id, "rejected")
-        return BRANCH_SECRET_GONE.format(
-            name=ctx.name,
-            branch=copy.branch,
-            earlier=(EARLIER_TURNS_TOO if record.get("tip") else ""),
-        )
-
-    async def _said_gone(self, ctx: Ctx, copy: copies.Copy) -> None:
-        """Stop - or the app closing - while a branch's way in is under way (its card, its
-        check, a resolve): `_secret_branch_gone`, said in the chat; else the branch stays."""
-        with contextlib.suppress(Exception):
-            if said := await self._secret_branch_gone(ctx, copy):
-                self._koloni_line(ctx.cid, ctx.run_id, said)
-
     def _way_in(self, project: Path | str) -> asyncio.Lock:
         """The one way into a project's folder: a Take in (`_merge`, `_kept_taken`) and a branch's
         merge (`_merge_branch`) write there in turn, never while another is under way. Held only
@@ -3735,9 +3647,9 @@ class AgentRunner(
                     .order_by(Message.created_at)
                     .limit(1)
                 )
-        first = ((task or "").strip().splitlines() or [branch])[0][:COMMIT_LINE]
-        for one in copy.secrets():  # (a secret given this turn goes into no commit's message)
-            first = first.replace(one, "***") if one else first
+        first = ((task or "").strip().splitlines() or [branch])[0]
+        # (no secret KOLONİ checks, nor a mention, goes into its commit's message or title: R2)
+        first = away_branch.titled(first, copy.every_secret())[:COMMIT_LINE]
         try:
             held = await self._commit_line(ctx, copy, first)
             look = await self._branch_look(copy)
@@ -3789,7 +3701,7 @@ class AgentRunner(
         # (A pull request's branch pushed already, for a `gh pr create` that failed after it; and
         # git's config as the card last showed it.)
         sent: dict[str, str] = {}
-        config_shown = None
+        config_shown = asks_shown = None
         # (One way in, `_way_in`: no Take in writes between git's look and its merge.)
         lock = self._way_in(copy.project)
         while True:
@@ -3810,17 +3722,16 @@ class AgentRunner(
             # A push runs what git's config names (an address, a credential helper, an ssh
             # command): not unasked where it changed during the turn, as Take in's commit asks.
             config = (
-                _git_parts(
-                    await asyncio.to_thread(standing_files, str(copy.project)), copy.project
-                )["config"]
+                await asyncio.to_thread(away_branch.config_digest, copy.project)
                 if way == "pull_request"
                 else None
             )
             config_moved = config is not None and config != (
                 self._git_at_start.get(ctx.run_id) or {}
-            ).get("config")
-            # (A pull request while the user's branches hold commits origin does not: asked.)
-            pr_asks = await self._pr_asks(copy) if way == "pull_request" or ask_way else None
+            ).get("all")
+            # (A pull request while the user's branches hold commits origin does not: asked - once
+            # the way is one: origin is asked nothing at a turn's end that may be a merge.)
+            pr_asks = await self._pr_asks(copy) if way == "pull_request" else None
             async with lock:  # (looked at again right before: two teams finish at once)
                 look = await self._branch_look(copy)
                 # W-1: what is scanned and merged - of a branch that began from the user's folder,
@@ -3905,7 +3816,7 @@ class AgentRunner(
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
                         state["note"] = PR_NAMED_SECRET.format(files=_few(named))
-                    elif pr_asks and merge_id is None:  # (pushed on a click with this said)
+                    elif pr_asks and pr_asks != asks_shown:  # (pushed on a click with it said)
                         state["note"] = pr_asks
                     elif config_moved and (merge_id is None or config != config_shown):
                         state["note"] = PR_CONFIG  # (pushed on a click with this said)
@@ -3948,9 +3859,9 @@ class AgentRunner(
                 self._went_in.add(ctx.run_id)
                 return await to_its_end(
                     self._branch_went_in(
-                        ctx, copy, merge_id, files, check, state, said, look, said_line, sha
+                        ctx, copy, merge_id, files, check, state, said, look, said_line, sha  # pyrefly: ignore[unbound-name]  # (both set where act is "merged")
                     )
-                )
+                )  # fmt: skip
             failed = None
             if act == "pull_request":
                 try:
@@ -3980,6 +3891,7 @@ class AgentRunner(
             else:
                 merge_id = self._record_merge(ctx, merge_id, "pending", files, check, state)
                 config_shown = config if state["note"] == PR_CONFIG else None
+                asks_shown = pr_asks if state["note"] == pr_asks else asks_shown
                 ended()
                 future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
                 self._merge_decisions[merge_id] = future
@@ -4060,9 +3972,9 @@ class AgentRunner(
                 if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)
             }
         )
-        # Not committed: a file holding a secret given this turn, and a new one where the project
+        # Not committed: a file holding a secret KOLONİ checks, and a new one where the project
         # has its own file (git ignores it there - the merge would write over the user's).
-        held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path)} | {
+        held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path, True)} | {
             path: BRANCH_THEIRS
             for path, kind, state in found
             if kind == "new" and state == "conflict"
@@ -4225,20 +4137,11 @@ class AgentRunner(
             if check
             else "the project has no check command"
         )
-        body = PR_BODY.format(
-            task=first,
-            name=ctx.name,
-            branch=branch,
-            files="\n".join(
-                f"- `{path}` ({letter})" for path, letter in list(look["files"].items())[:200]
-            ),
-            check=tested,
-            notes=notes[:PR_NOTES] or "(none)",
+        known = copy.every_secret()  # (MEDIUM-2: its files' names too, MEDIUM-3)
+        body = away_branch.team_pr_body(
+            first, ctx.name, branch, look["files"], tested, notes, known
         )
-        title = first
-        for one in copy.secrets():
-            if one:
-                body, title = body.replace(one, "***"), title.replace(one, "***")
+        title = raw.hide(first, known)
         if sent.get("tip") == look["tip"]:
             sha = sent["sha"]  # (pushed already: only the pull request failed - opened again)
         else:
@@ -4248,9 +4151,7 @@ class AgentRunner(
                 way = session.get_one(
                     Project, session.get_one(Conversation, ctx.cid).project_id
                 ).finish_way
-            config = _git_parts(
-                await asyncio.to_thread(standing_files, str(copy.project)), copy.project
-            )["config"]
+            config = await asyncio.to_thread(away_branch.config_digest, copy.project)
             if config != seen[0] or seen[1] is not None and way != seen[1]:
                 raise git.Refused(
                     "git's config or the project's way changed just now: look at the card again"
@@ -4301,12 +4202,18 @@ class AgentRunner(
         commit) - not the agent's own commits a worktree of theirs holds as they look at its branch
         -, or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where neither."""
         under = copies.folders(self.settings.runtime_root)
+        try:  # (origin asked once, for both)
+            origin = await asyncio.to_thread(git.origin_held, copy.project)
+        except git.Refused as exc:
+            return PR_NO_ORIGIN.format(why=exc)
         try:
             commits, stashes = await asyncio.to_thread(
-                git.unpushed_count, copy.project, under, copy.branch
+                git.unpushed_count, copy.project, under, copy.branch, origin
             )
             places = (
-                await asyncio.to_thread(git.unpushed_places, copy.project, under, copy.branch)
+                await asyncio.to_thread(
+                    git.unpushed_places, copy.project, under, copy.branch, origin
+                )
                 if commits
                 else []
             )
@@ -4323,7 +4230,7 @@ class AgentRunner(
         )
         said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
         if said:
-            return PR_UNPUSHED.format(commits=" and ".join(said))
+            return PR_UNPUSHED.format(commits=" and ".join(said), where=await self._origin_is(copy))
         return PR_SNAPSHOT if copy.snapshot_sha else None
 
     async def _sent(self, copy: copies.Copy, look: dict) -> str:
@@ -4412,32 +4319,6 @@ class AgentRunner(
                     ),
                 )
         return None
-
-    async def _branch_look(self, copy: copies.Copy) -> dict:
-        """`git.branch_look` of a branch copy, with its name - and where git did not say,
-        nothing to merge yet and why (`note`). W-1: measured from the snapshot it began from."""
-        try:
-            found = await asyncio.to_thread(
-                git.branch_look, copy.project, copy.branch or "", copy.start, copy.snapshot_sha
-            )
-        except git.Refused as exc:
-            return {
-                "name": copy.branch,
-                "into": None,
-                "files": {},
-                "conflicts": [],
-                "dirty": [],
-                "special": [],
-                "drift": None,
-                "half": None,
-                "tip": None,
-                "share": None,
-                "yours": [],
-                "since": None,
-                "over": [],
-                "note": str(exc),
-            }
-        return {"name": copy.branch, **found, "note": None}
 
     def _branch_merged(self, ctx: Ctx, copy: copies.Copy) -> None:
         """A branch copy is merged: its line's change records made there went in with it.
@@ -5698,6 +5579,7 @@ class AgentRunner(
                 session.commit()
                 payloads = [("file_change.updated", file_change_out(row)) for row in rows]
             else:
+                before, after = copy.ends_kept(path, before, after, rows)  # (T1: its line ends)
                 failure, payloads = self._apply_text(
                     session, ctx, ws, path, rows, (before, after), (here, there), together
                 )
@@ -6225,6 +6107,14 @@ class AgentRunner(
             if unasked
             else await self._judged(ctx, planned.command, planned.cwd_rel, night)
         )
+        night, judged = await self._risk_judged(  # (Full auto's judge: it only adds a card)
+            ctx,
+            planned.command,
+            planned.cwd_rel,
+            place or ws.root,
+            (night, judged),
+            exempt=unasked or free or bool(in_a_copy),
+        )
         in_a_copy = in_a_copy or night
         self._never_asked(review, planned.command, in_a_copy)
         if not self._watched(run_id) and not unasked:
@@ -6304,6 +6194,7 @@ class AgentRunner(
                     once=once,
                     judgement=judged,
                     disposable=found,
+                    park=self._parker(ctx, in_copy if owner else None),
                 )
             ran = True
         finally:
@@ -6435,6 +6326,8 @@ class AgentRunner(
         """`_tool_call`, its part 4."""
         if request.name == "recall_output":
             status, output = "succeeded", self._recall_output(ctx, args)
+        elif request.name in ("run_checks", "read_status"):  # (0.1.9: the Orchestrator's own)
+            status, output = "succeeded", await self._own_tool(ctx, call_id, request.name)
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:
@@ -7200,17 +7093,6 @@ class AgentRunner(
             )
             is not None
         )
-
-    def _calls_of(self, ctx: Ctx) -> int:
-        with self._factory() as session:
-            return (
-                session.scalar(
-                    select(func.count())
-                    .select_from(ToolCall)
-                    .where(ToolCall.agent_id == ctx.agent_id)
-                )
-                or 0
-            )
 
     def _nudge(self, ctx: Ctx, words: str) -> None:
         """`words` follow the agent's last message in what it sees from its next step on."""

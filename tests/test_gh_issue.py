@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from app import attachments, git, injection, web
+from app import attachments, git, git_issues, injection, web
 from tests.test_attachment_agents import send, step
 from tests.test_attachments import attach
 from tests.test_chat_flow import text
@@ -83,7 +83,7 @@ def issue_calls(log):
     ],
 )
 def test_an_issue_is_its_number_or_its_github_address_written_anew(raw, given):
-    assert git.issue_ref(raw) == given
+    assert git_issues.issue_ref(raw) == given
 
 
 @pytest.mark.parametrize(
@@ -111,7 +111,7 @@ def test_an_issue_is_its_number_or_its_github_address_written_anew(raw, given):
 )
 def test_anything_else_never_reaches_gh(make_client, gh, repo, raw):  # noqa: F811
     with pytest.raises(git.Refused):
-        git.issue_ref(raw)
+        git_issues.issue_ref(raw)
     client, _model, _pid, cid = began(make_client, repo, [])
     answer = client.post(f"/api/conversations/{cid}/attachments/github-issue", params={"ref": raw})
     assert answer.status_code == 422 and "its number (#12)" in answer.json()["detail"]
@@ -220,7 +220,9 @@ def test_a_long_issue_is_cut_and_one_that_reads_like_orders_is_noted(
 
     monkeypatch.setenv("FAKE_GH_BODY", "x" * 30_000)
     long = kept("1")
-    assert len(long) < git.MOST_ISSUE + 300 and "…(cut: the rest is on GitHub)\n[end of" in long
+    assert (
+        len(long) < git_issues.MOST_ISSUE + 300 and "…(cut: the rest is on GitHub)\n[end of" in long
+    )
     monkeypatch.setenv("FAKE_GH_BODY", "line\n" * 1000)
     assert len(kept("2").splitlines()) < 400  # (read_attachment's page: the frame in one read)
     monkeypatch.setenv(
@@ -258,7 +260,7 @@ def test_a_message_with_no_room_asks_github_nothing_and_a_slow_gh_is_named(
 ):  # noqa: F811
     client, _model, _pid, cid = began(make_client, repo, [])
     path = f"/api/conversations/{cid}/attachments/github-issue"
-    monkeypatch.setattr(git, "ISSUE_SECONDS", 1.0)
+    monkeypatch.setattr(git_issues, "ISSUE_SECONDS", 1.0)
     monkeypatch.setenv("FAKE_GH_SLEEP", "5")
     slow = client.post(path, params={"ref": "#7"})
     assert slow.status_code == 422 and slow.json()["detail"] == (

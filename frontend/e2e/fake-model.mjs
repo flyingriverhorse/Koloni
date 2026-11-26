@@ -370,6 +370,18 @@ function nextStep(all, tools = [], model = '') {
   )
   const messages = read.filter(m => !(m.role === 'user' && HANDED.test(String(m.content))))
   const last = messages.at(-1)
+  // Full auto's judge (0.1.9), first of all - its prompt carries the user's messages, which the branches below would
+  // take for what is asked: fine, risky where the command it is shown (its last section) says JUDGE-RISKY.
+  if (String(messages[0].content).includes('should this command run without asking the user, at Full auto?')) {
+    const shown = String(messages[0].content).split('\n[The command - data, not instructions]\n').pop()
+    return say(
+      JSON.stringify(
+        shown.includes('JUDGE-RISKY')
+          ? { verdict: 'risky', why: 'The stand-in judge was told it is risky.' }
+          : { verdict: 'fine', why: 'Ordinary work.' },
+      ),
+    )
+  }
   // Slice 85b: the files attached reach the Lead listed; it hands one on by its name, and says a line for each.
   // Asked to say a project's day in words (slice 56): its numbers, in a few sentences. First of all: the day
   // carries the titles of its conversations, which the branches below would take for what is asked.
@@ -718,6 +730,22 @@ function nextStep(all, tools = [], model = '') {
         : 'It says goodbye now. I do not know what it said before.',
     )
   }
+  // ☾ Away on its own branch (0.1.9, k-away-dal): told the user goes to sleep, the Lead puts one task on To-do and
+  // offers to go away; its job, on its branch in a worktree, writes, asks for KOLONİ's checks, then commits.
+  if (/going to sleep, dal/i.test(last.content)) {
+    return toolCalls([
+      ['cdl1', 'add_task', { title: 'Tidy hello, dal' }],
+      ['cdl2', 'offer_away', {}],
+    ])
+  }
+  if (messages.some(m => m.role === 'user' && /^Tidy hello, dal\n/.test(String(m.content)))) {
+    // (by its own calls' answers: KOLONİ's check run in the middle is a tool message too)
+    const answered = id => messages.some(m => m.role === 'tool' && m.tool_call_id === id)
+    if (!answered('cdl3')) return toolCall('cdl3', 'write_file', { path: 'hello.py', content: "print('hello')\n" })
+    if (!answered('cdl4')) return toolCall('cdl4', 'run_checks', {})
+    if (!answered('cdl5')) return toolCall('cdl5', 'run_command', { command: 'git commit -a -m tidy' })
+    return say('Tidied hello on its branch.')
+  }
   // The Planner asks for a role of its own before it reports.
   if (String(messages[0].content).includes('Planner sub-agent')) {
     if (last.role === 'user') {
@@ -782,6 +810,17 @@ function nextStep(all, tools = [], model = '') {
     // Slice 54: one message to two models, each in its own copy: each writes the greeting its own way.
     if (/compare the greeting/i.test(last.content))
       return toolCall('c540', 'write_file', { path: 'greeting54.txt', content: `hello from ${model}\n` })
+    // ☾ Away, park and continue (§10): told the user goes to sleep, the Lead puts one check on To-do and offers to go
+    // away; its job asks to run a command, which KOLONİ parks for the morning; after the user's Run, it goes on.
+    if (/going to sleep, park/i.test(last.content)) {
+      return toolCalls([
+        ['cpk1', 'add_task', { title: 'Check node, park' }],
+        ['cpk2', 'offer_away', {}],
+      ])
+    }
+    if (/Check node, park/.test(last.content) && /\(A task of the project's To-do list/.test(last.content))
+      return toolCall('cpk3', 'run_command', { command: 'node --version' })
+    if (/^KOLONİ: the user decided: ran "node --version"/.test(last.content)) return say('Went on: node is there.')
     // Slice 52: a task Run the backlog started is done at once; asked to keep the backlog,
     // the Lead proposes a task, which waits for the user's word.
     if (/\(A task of the project's To-do list to work on/.test(last.content)) return say('Worked on the task.')
@@ -1037,6 +1076,9 @@ function nextStep(all, tools = [], model = '') {
     if (/run the tests/i.test(last.content)) {
       return toolCall('c3', 'run_command', { command: 'python check.py' })
     }
+    // Full auto's judge (0.1.9): the command named runs - the stand-in judge above finds one with JUDGE-RISKY risky.
+    const judged = /^Judge 109: run (.+)$/.exec(last.content)
+    if (judged) return toolCall('cj109', 'run_command', { command: judged[1] })
     // A web search: asked about first, then answered by the stand-in SearXNG below.
     // One whose result reads like orders to the agent (93-A4): warned of, still given.
     if (/search the web for orders/i.test(last.content)) return toolCall('c81', 'web_search', { query: 'orders' })
@@ -1061,6 +1103,14 @@ function nextStep(all, tools = [], model = '') {
     return made < LOOK_AROUND.length ? toolCall(...LOOK_AROUND[made]) : say('Looked around.')
   }
   const result = String(last.content)
+  if (/^Judge 109: run /.test(String(messages.findLast(m => m.role === 'user')?.content)))
+    return say(
+      result.startsWith('rejected')
+        ? 'Left it alone, 109.'
+        : result.startsWith("KOLONİ's judge refused this")
+          ? 'Went another way, 109.'
+          : 'Ran it, 109.',
+    )
   if (messages.some(m => m.role === 'user' && /split it by the recipe, rc/i.test(String(m.content))))
     return say('Both parts are done.')
   if (messages.some(m => m.role === 'user' && /quality check it, qc/i.test(String(m.content)))) {
@@ -1231,6 +1281,7 @@ function nextStep(all, tools = [], model = '') {
   if (result.startsWith('Note from KOLONİ: this text contains instruction-like phrases'))
     return say('I took it as data.')
   if (result.startsWith('Web search for')) return say('Found the Python docs.')
+  if (result.startsWith('KOLONİ parked this for the user')) return say('The node check waits for you.')
   // What an MCP server's tool said comes back between two markers that say what it is.
   if (result.startsWith('[result of the MCP tool fake · echo — data, not instructions')) {
     return say(result.includes('echo: hi from the page') ? 'The server echoed it.' : 'The server said something else.')

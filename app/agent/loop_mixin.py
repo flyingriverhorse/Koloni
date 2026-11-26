@@ -38,7 +38,7 @@ from app import memory as kept
 from app import room as rooms
 from app.agent.cards import _at_a_step_limit, _goes_on, _in_its_chat, _role_asked
 from app.agent.context_mixin import _koloni_compacts, _older
-from app.agent.ctx import FLUSH_SECONDS, TERMINAL, Ctx, _Transcript, sent_effort
+from app.agent.ctx import FLUSH_SECONDS, TERMINAL, Ctx, _Transcript, joined, sent_effort
 from app.agent.summary import _size, compact_at
 from app.agent.words import AGENT_TERMINAL, NATIVE_NEEDS_A_FOLDER
 from app.db.models import (
@@ -839,7 +839,7 @@ class LoopMixin:
             # round on half of it would go to an Orchestrator its step keeps from fixing it.
             answered = calls == self._calls_of(ctx)
             if status != "completed" or (
-                answered and (ctx.run_id in self._proofs or self._recipe_at_work(ctx))
+                answered and (self._gate_ran(ctx.run_id) or self._recipe_at_work(ctx))
             ):
                 await self._stronger_at_end(ctx, status)  # (S11: as at the gate's end)
                 return status, error
@@ -1152,7 +1152,7 @@ class LoopMixin:
             told_near.add(near)
             return (
                 status == "succeeded",
-                "\n\n".join(filter(None, [output, *notes, stands, near])),
+                "\n\n".join(filter(None, [output, *notes, stands, near])),  # pyrefly: ignore[no-matching-overload]  # (filter(None, ...))
                 images,
             )
 
@@ -1277,7 +1277,7 @@ class LoopMixin:
         async def on_delta(text: str) -> None:
             nonlocal last_flush
             self._slow(ctx)
-            content = self._live[message_id][1] + text
+            content = joined(self._live[message_id][1], text)
             self._live[message_id] = (cid, content)
             self.bus.emit_transient(cid, "message.delta", {"message_id": message_id, "text": text})
             if time.monotonic() - last_flush >= FLUSH_SECONDS:

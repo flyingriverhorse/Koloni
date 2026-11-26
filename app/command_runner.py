@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
-from app import ledger, project_map, proof, proof_style
+from app import ledger, project_map, proof, proof_style, risk_judge
 from app.cards import card_reason
 from app.commands import (
     _INTERPRETER,
@@ -142,17 +142,24 @@ def refused_by_rule(judgement: dict) -> str:
     """What an agent is told of a command the check of the user's words refused: the sentence
     where it is one of their saved texts, which every agent is given (`REFUSED`); of a message of
     theirs in the chat, only that one forbids it (`REFUSED_BY_A_MESSAGE`) - a sub-agent or a CLI
-    never saw the chat, and a token nothing masks may stand beside the sentence."""
+    never saw the chat, and a token nothing masks may stand beside the sentence. Full auto's
+    judge's own refusal (`kind` "risk"): a general reason, never its sentence (`REFUSED`)."""
+    if judgement.get("kind") == "risk":
+        return risk_judge.REFUSED
     if judgement.get("source") in ("preferences", "rules"):
         return REFUSED.format(quote=judgement["quote"])
     return REFUSED_BY_A_MESSAGE
 
 
-def _gate_open(mode: str, check: str) -> bool:
+def _gate_open(mode: str, check: bool, judgement: dict | None) -> bool:
     """Whether what the check of the user's words said of a command still holds: only while the
-    chat is at Full auto and the project's check is on - a run or a refusal that comes back after
-    either changed is its card, as if never checked (the security review of K-yargic's slice 2)."""
-    return mode == "full_auto" and check == "judge"
+    chat is at Full auto and the project's check is on (`check`: its judge and the judge's box,
+    §8) - a run or a refusal that comes back after either changed is its card, as if never checked
+    (the security review of K-yargic's slice 2). Full auto's judge's own (`kind` "risk") has no
+    gate: it never lets a command run - its "risky" a card (`always`, its call's `why_asked`) or a
+    refusal ("refuse")."""
+    risk = judgement is not None and judgement.get("kind") == "risk"
+    return risk or mode == "full_auto" and check
 
 
 def _refuses(judgement: dict | None, gate: bool) -> bool:
@@ -162,8 +169,8 @@ def _refuses(judgement: dict | None, gate: bool) -> bool:
 
 def _kept(judgement: dict | None, asks: bool, gate: bool) -> dict | None:
     """What of the check goes on a command's record: nothing once its gate closed (`_gate_open`),
-    nor a run asked all the same."""
-    stale = judgement is not None and (not gate or asks and judgement["verdict"] == "run")
+    nor a run (or Full auto's judge's "fine") asked all the same."""
+    stale = judgement is not None and (not gate or asks and judgement["verdict"] in ("run", "fine"))
     return None if stale else judgement
 
 
@@ -348,14 +355,14 @@ def _runner_places(words: list[str], cwd: str) -> _Reach | None:
         )
     python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
     module = _python_module(words[python:]) if python is not None else None
-    led = module is not None and module[0] in _PY_RUNNER_MODULES  # (`python -m uv`, `-m pip`)
-    runner = name if name in _PY_RUNNERS or not led else module[0]
+    ran, flags = (module[0], set(module[1])) if module is not None else (None, set())
+    led = ran in _PY_RUNNER_MODULES  # (`python -m uv`, `-m pip`)
+    runner = name if name in _PY_RUNNERS or not led or ran is None else ran
     if runner not in _PY_RUNNERS and module is None:
         return None
-    flags = set(module[1]) if module else set()
-    skip = ("run", module[0] if led else "run")
+    skip = ("run", ran if led and ran is not None else "run")
     rest = (w for w in words[1:] if w[:1] != "-" and w not in skip)
-    tool = module[0] if module and not led else next(rest, "")
+    tool = ran if ran is not None and not led else next(rest, "")
     safe_path = bool(os.environ.get("PYTHONSAFEPATH")) and "E" not in flags
     tests = _program(tool.split(".")[0]) in _RUNS_THE_PROJECT
     own = _PY_MANIFESTS if runner in _PY_RUNNER_MODULES and not tests else ()
@@ -555,6 +562,15 @@ HELD_BACK = (
     "(secret variables held back from this command: {names} - the user can pass one "
     "in Settings › This project › Commands and secrets)"
 )
+
+
+def _held_note(names: list[str], into: list[str] | None) -> str:
+    """The note of the secrets held back - or none, where they go `into` a list (`run`)."""
+    if into is not None:
+        into.extend(names)
+    return f"\n{HELD_BACK.format(names=', '.join(names))}" if names and into is None else ""
+
+
 # A command that keeps running (a dev server, slice 42b): the tool answers once it printed
 # its address, or its output went quiet for SERVE_QUIET after it began, or SERVE_AT_MOST is up.
 SERVE_QUIET = 1.0
@@ -665,6 +681,8 @@ class CommandRunner:
         judgement: dict | None = None,
         disposable: dict | None = None,
         env: Mapping[str, str] | None = None,
+        park: Callable[[str], Awaitable[str]] | None = None,
+        held_into: list[str] | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
         `ask` is False where the command has its leave already and nobody can be asked
@@ -682,7 +700,9 @@ class CommandRunner:
         `disposable`: what of it KOLONİ found disposable, {"what", "allowed"} (coordination §4):
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
         deletes in this project" where it is asked. `env`: what its environment gets besides
-        (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
+        (KOLONİ's own test runs: their processes, S6) - never an agent's command. `park` (☾ Away):
+        one asked is parked, not waited on - what it returns, the model is told. `held_into` (☾
+        Away's morning): the secrets held back go into it by name, not into the result (F411 P4)."""
         cap = self.longest(cid)
         planned = plan_command(ws, args, cap)
         searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
@@ -695,7 +715,8 @@ class CommandRunner:
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            gate = _gate_open(conversation.permission_mode, project.full_auto_check)
+            check = project.full_auto_judge and project.judge_words
+            gate = _gate_open(conversation.permission_mode, check, judgement)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
                 self._may_serve(
@@ -772,7 +793,11 @@ class CommandRunner:
                 location=project.exec_location,
                 image=project.docker_image if project.exec_location == "docker" else None,
                 timeout_seconds=planned.timeout,
-                status="refused" if forbidden or refused else "proposed" if asks else "approved",
+                status="refused"
+                if forbidden or refused
+                else ("parked" if park else "proposed")
+                if asks
+                else "approved",
                 ended_at=now() if forbidden or refused else None,
                 keep_running=planned.keep_running,
                 web_off=web_off,
@@ -801,8 +826,9 @@ class CommandRunner:
         self.bus.emit(cid, run_id, "command.created", payload)
         if forbidden and judgement:  # K-yargic: a sentence of the user's forbids it - not run
             return "denied", refused_by_rule(judgement)
-        if refused:
-            return "denied", PLANTED_REFUSED.format(why=planted)
+        if refused or asks and park is not None:  # (☾ Away, §10: a card parked, not waited on)
+            by = None if refused else park
+            return "denied", await by(command_id) if by else PLANTED_REFUSED.format(why=planted)
 
         if asks:
             # (`rule` is empty when this command cannot be remembered.)
@@ -856,7 +882,7 @@ class CommandRunner:
             if location == "host"
             else []
         )
-        note = f"\n{HELD_BACK.format(names=', '.join(held))}" if held else ""
+        note = _held_note(held, held_into)
         started = time.monotonic()
         if not planned.keep_running:
             ended = await self._through(cid, command_id, running, ws.root, planned.timeout)
@@ -1165,6 +1191,7 @@ class CommandRunner:
         judgement: dict | None = None,
         disposable: dict | None = None,
         why: str = "",
+        park: Callable[[str], Awaitable[str]] | None = None,
     ) -> tuple[bool, str]:
         """A command a CLI is about to run with a tool of its own: put it on record,
         get it decided the way KOLONİ's own commands are, and say whether it may run.
@@ -1178,17 +1205,21 @@ class CommandRunner:
         screen and the record - the CLI's own model has read it already. `judgement`: as
         `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too.
         `why`: KOLONİ's own reason for its card, for the family it is counted in (`card_reason`)
-        - never the reason the CLI gave in words of its own, shown on its card all the same."""
+        - never the reason the CLI gave in words of its own, shown on its card all the same.
+        `park`: as `run`'s - (False, its id) once it is parked."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
-            tests, check, allows = session.execute(
+            tests, judge, words, allows = session.execute(
                 select(
-                    Project.test_commands, Project.full_auto_check, Project.disposable_deletes
+                    Project.test_commands,
+                    Project.full_auto_judge,
+                    Project.judge_words,
+                    Project.disposable_deletes,
                 ).where(Project.id == conversation.project_id)
             ).one()
-            gate = _gate_open(mode, check)
+            gate = _gate_open(mode, judge and words, judgement)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)
@@ -1217,7 +1248,7 @@ class CommandRunner:
                 timeout_seconds=0,
                 origin="cli",
                 web_off=web_off,
-                status="refused" if forbidden else "proposed",
+                status="refused" if forbidden else "parked" if asks and park else "proposed",
                 ended_at=now() if forbidden else None,
                 # (as `run`'s: what the check said holds only while its gate is open)
                 judged=_kept(judgement, asks, gate),
@@ -1233,6 +1264,9 @@ class CommandRunner:
             command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)
         if forbidden:
+            return False, command_id
+        if asks and park is not None:
+            await park(command_id)
             return False, command_id
         if asks:
             decision = await self._wait_for_decision(

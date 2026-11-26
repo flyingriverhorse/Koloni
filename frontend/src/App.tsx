@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { download, keyRefused } from './api/client'
 import type { Board } from './api/types'
 import { AgentsPage } from './agents/AgentsPage'
@@ -57,12 +57,14 @@ import { continuesFrom } from './topics/topics'
 import { UsagePage } from './usage/UsagePage'
 import { BudgetPill } from './usage/Budget'
 import { TodayView } from './usage/TodayView'
+import { DecidedToday } from './ready/DecidedToday'
+import { OPEN_DECISIONS, readDecisions } from './ready/decisionLog'
 import type { Near } from './usage/limitsText'
 import { PlanUse } from './usage/PlanUse'
 import { ReadyPage, ReadyPanel } from './ready/ReadyViews'
 import { useReady } from './ready/useReady'
 import { READY_PANEL } from './ready/ready'
-import { decidedOf, waitingId } from './chat/waiting'
+import { decidedOf, judgedCommands, waitingId } from './chat/waiting'
 
 const HEALTH_POLL_MS = 15000
 // (A hash has no order: which of the two is newer is not known, so all three steps are said.)
@@ -188,7 +190,8 @@ export function App() {
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
   const waiting = useReady()
   const readyPanel = useApp(s => s.readyPanel)
-  const decided = conv ? decidedOf(conv).length : 0
+  // (and the commands decided on your words, or refused by Full auto's judge: Decided for you is reached by the pill)
+  const decided = conv ? decidedOf(conv).length + judgedCommands(conv).length : 0
   const [view, setView] = useState<View>('canvas')
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [settingsWanted, setSettingsOpen] = useState(false)
@@ -374,6 +377,29 @@ export function App() {
     window.addEventListener(OPEN_TODO, open)
     return () => window.removeEventListener(OPEN_TODO, open)
   }, [])
+  // "Open in Ready for you" (the chat's line, Usage's Today): the Ready for you page, its Decided for you in view - asked
+  // until it is, or the page is left before it could be (then a later visit is as any).
+  // ("unseen": at Not seen - the line or Today counted some that wait for your OK)
+  const [decisionsAsked, setDecisionsAsked] = useState<'unseen' | 'any' | null>(null)
+  useEffect(() => {
+    const open = (event: Event) => {
+      setView('ready')
+      setSettingsOpen(false)
+      setDecisionsAsked((event as CustomEvent<boolean>).detail ? 'unseen' : 'any')
+    }
+    window.addEventListener(OPEN_DECISIONS, open)
+    return () => window.removeEventListener(OPEN_DECISIONS, open)
+  }, [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (view !== 'ready') setDecisionsAsked(null)
+  }, [view])
+  const decisionsOpened = useCallback(() => setDecisionsAsked(null), [])
+  // (One for the project: Decisions reads again only for another period.)
+  const decisionsOf = useCallback(
+    (from: string | null, unseen?: boolean) => readDecisions(projectId ?? '', from, unseen),
+    [projectId],
+  )
   const morning = useRef(false)
   useEffect(() => {
     if (!away || morning.current) return
@@ -780,7 +806,37 @@ export function App() {
       }}
     />
   )
-  const readyPage = () => <ReadyPage items={waiting} openChat={openChat} />
+  const readyPage = () => (
+    <ReadyPage
+      items={waiting}
+      openChat={openChat}
+      // (The night's whole report: its node on the canvas, as its chat's "On the canvas" opens it.)
+      onReport={
+        away?.started_at
+          ? () =>
+              void useApp
+                .getState()
+                .openTurn(away.conversation_id, away.run_id)
+                .then(() => {
+                  useApp.getState().select('away:' + away.id)
+                  show('canvas')
+                })
+          : undefined
+      }
+      // (The open folder's decision log: none for a plain chat's.)
+      decisions={
+        projectId
+          ? {
+              onLoad: decisionsOf,
+              leftAt: away?.started_at ?? null,
+              asked: decisionsAsked,
+              onOpened: decisionsOpened,
+              onOpenChat: id => void openChat(id),
+            }
+          : undefined
+      }
+    />
+  )
   const boardPage = () =>
     !project ? (
       noFolder('Board')
@@ -877,6 +933,7 @@ export function App() {
               await useApp.getState().openTurn(id, runId)
               setView('canvas')
             }}
+            decisions={<DecidedToday onLoad={decisionsOf} />}
           />
         )
       }

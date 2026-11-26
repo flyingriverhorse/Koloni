@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
+import { useJudgeMeasured } from '../../chat/judgeMeasured'
+import { wordsMeasured } from '../../chat/levels'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
 import { part, Row, within } from './part'
@@ -35,13 +37,22 @@ export const OPENING: [value: Project['spawn_approval'], label: string][] = [
 const OPENING_WHY =
   'Ask when it matters: only when you approve everything and the sub-agent could write files or run commands. Always: before every sub-agent. Never: sub-agents open on their own.'
 
-/** K-yargıç: at Full auto a command that deletes, overwrites or sends something off this machine asks you, or is first checked against what you said. */
-export const FULL_AUTO_CHECK: [value: Project['full_auto_check'], label: string][] = [
+/** §8: the judge's box for your words (Check what I said first, K-yargıç) - behind its ⓘ. */
+const WORDS_WHY =
+  'At Full auto a command that deletes, overwrites or sends something off this machine is put to the judge too: your preferences, this project’s rules as saved on the Memory page (not the folder’s .koloni/rules.md) and your own messages in this chat are read, and it runs without a card only when a line of yours names it; one a line of yours forbids is not run. Secret files, .koloni, files that steer later turns and paths outside the folder are always asked; anything that goes wrong opens the card as before. It works once your Judge model’s measurement has passed - none has yet - or in a project where Check what I said first was on before 0.1.9.'
+
+/** Full auto's judge (0.1.9): what it does and costs, in sight under its box; the rest behind ⓘ. */
+const JUDGE_SHOWN =
+  'A small model looks at each command the list does not stop. One request of your Judge model (Settings › The app › Agents) for each such command, on your plan or your bill.'
+const JUDGE_REST =
+  'At Full auto - in a chat you watch, a To-do task’s turn in a chat and a job while you’re away - a command the list does not stop is sent to the model first, with your words: one it finds risky is refused, or waits for you on a card, as you choose below. Reads, ordinary work (tests, compilers and checkers, local git), your own test command (unless it runs a program an agent wrote) and a trigger’s turn are not asked about. One it cannot get an answer for waits for you on a card, whichever you choose; only where there is no model to ask does it stand aside for the turn, and it says so in the chat. Off: Full auto as before.'
+/** What the judge does with a command it finds risky (25 Nov): refused, as Claude Code's auto mode does, or a card. */
+const JUDGE_RISKY: [value: Project['judge_risky'], label: string][] = [
+  ['refuse', 'Refuse and go on'],
   ['ask', 'Ask me'],
-  ['judge', 'Check what I said first'],
 ]
-const CHECK_WHY =
-  'Check what I said first: your preferences, this project’s rules as saved on the Memory page (not the folder’s .koloni/rules.md) and your own messages in this chat are read first, and the command runs without a card only when a line of yours names it. Secret files, .koloni, files that steer later turns and paths outside the folder are always asked; anything that goes wrong opens the card as before.'
+const RISKY_WHY =
+  'Refuse and go on: the command does not run - its agent is told a general reason (never the judge’s sentence, which may quote your messages) and goes on another way, with no card and nothing waiting; the command’s row and Decided for you show you the sentence. After 3 refusals in a turn the next risky one waits for you on a card. Ask me: it waits for you on a card, “KOLONİ’s judge: …”. In a job while you’re away it is always parked for you, and a card the judge could not answer for (no answer in time, none it could read, no room to ask) waits at either.'
 
 /** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
 const OBSERVE_SHOWN =
@@ -152,10 +163,10 @@ export function useAsking(project: Project) {
   const [minutesText, setMinutesText] = useState(String(savedMinutes))
   const awayMinutes = within(minutesText, 0, 1440)
   const [approval, setApproval] = useState(savedApproval)
-  const check = useFullAutoCheck(project)
+  const judge = useFullAutoJudge(project)
   const disposable = useDisposableDeletes(project)
   const patch = {
-    ...check.patch,
+    ...judge.patch,
     ...disposable.patch,
     ...(approval !== savedApproval && { spawn_approval: approval }),
     ...(whenAway !== savedAway && { when_away: whenAway }),
@@ -232,10 +243,68 @@ export function useAsking(project: Project) {
           min
         </span>
       </Row>
-      {check.row}
+      {judge.row}
       {disposable.row}
     </>,
   )
+}
+
+/** `useAsking`'s switch for Full auto's judge (0.1.9), on unless turned off; what it costs in sight, the rest behind ⓘ -
+ *  under it what it does with a command it finds risky (refused unless you say Ask me; not while it is off), and its box
+ *  for your words (§8), which may be ticked only once measured, and always unticked. */
+function useFullAutoJudge(project: Project) {
+  const [on, setOn] = useState(project.full_auto_judge)
+  const [words, setWords] = useState(project.judge_words)
+  const [risky, setRisky] = useState(project.judge_risky)
+  const measured = useJudgeMeasured(!wordsMeasured(project)) || wordsMeasured(project)
+  const locked = !measured && !words
+  return {
+    patch: {
+      ...(on !== project.full_auto_judge && { full_auto_judge: on }),
+      ...(words !== project.judge_words && { judge_words: words }),
+      ...(risky !== project.judge_risky && { judge_risky: risky }),
+    },
+    row: (
+      <>
+        <label className="choice">
+          <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)} />
+          <span>
+            Full auto’s judge
+            <span className="choice-note">
+              {JUDGE_SHOWN} <Hint doc={GUIDE.fullAutoJudge}>{JUDGE_REST}</Hint>
+            </span>
+          </span>
+        </label>
+        <Row
+          label="When the judge finds a command risky"
+          htmlFor="judge-risky"
+          doc={GUIDE.fullAutoJudge}
+          why={RISKY_WHY}
+        >
+          <select
+            id="judge-risky"
+            className="input"
+            value={risky}
+            disabled={!on}
+            onChange={e => setRisky(e.target.value as Project['judge_risky'])}
+          >
+            {JUDGE_RISKY.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <label className={`choice${locked ? ' choice-disabled' : ''}`}>
+          <input type="checkbox" checked={words} disabled={locked} onChange={e => setWords(e.target.checked)} />
+          <span>
+            It also lets a delete or a push run when a line you saved names it
+            {measured ? '' : ' (after its measurement)'} <Hint doc={GUIDE.checkWhatISaid}>{WORDS_WHY}</Hint>
+          </span>
+        </label>
+      </>
+    ),
+  }
 }
 
 /** `useAsking`'s switch for what KOLONİ checks is disposable (coordination §4): such a delete goes without a card where it is on. */
@@ -254,43 +323,6 @@ function useDisposableDeletes(project: Project) {
           </span>
         </span>
       </label>
-    ),
-  }
-}
-
-/** `useAsking`'s row for a harmful-looking command at Full auto (K-yargıç): what it costs in sight once it checks. */
-function useFullAutoCheck(project: Project) {
-  const saved = project.full_auto_check ?? 'ask'
-  const [check, setCheck] = useState(saved)
-  return {
-    patch: check === saved ? {} : { full_auto_check: check },
-    row: (
-      <Row
-        label="A harmful-looking command at Full auto"
-        htmlFor="full-auto-check"
-        doc={GUIDE.settingsAsking}
-        why={CHECK_WHY}
-        warn={
-          check === 'judge' && (
-            <span className="choice-note">
-              Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).
-            </span>
-          )
-        }
-      >
-        <select
-          id="full-auto-check"
-          className="input"
-          value={check}
-          onChange={e => setCheck(e.target.value as Project['full_auto_check'])}
-        >
-          {FULL_AUTO_CHECK.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </Row>
     ),
   }
 }

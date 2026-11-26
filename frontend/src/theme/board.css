@@ -463,3 +463,330 @@
   gap: 4px;
   overflow-wrap: anywhere;
 }
+
+/* The Ready for you page in two columns (karar defteri): what waits for your word, and beside it - under it on a narrow
+   screen - Decided for you. */
+.ready-said {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.ready-columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.ready-main {
+  flex: 3 1 520px;
+  min-width: 0;
+}
+
+.ready-columns > .decisions {
+  flex: 2 1 360px;
+  min-width: 0;
+}
+
+/* The night strip (Part B): a lane per job on one time axis - its bar from its start to its end, the decisions made for
+   you at their times as hexagons in their decider's colour, filled while they wait for your OK. */
+.night-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 16px 18px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.night-head,
+.night-tools,
+.night-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.night-head {
+  justify-content: space-between;
+}
+
+.night-head h2 {
+  margin: 0;
+  font-size: var(--text-heading);
+}
+
+.night-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.night-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 170px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.night-job {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.night-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.night-push {
+  color: var(--accent);
+  font-size: var(--text-meta);
+}
+
+.night-axis {
+  position: relative;
+  height: 16px;
+  color: var(--faint);
+  font-size: var(--text-meta);
+}
+
+.night-axis span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.night-axis span:first-child {
+  transform: none;
+}
+
+.night-axis span:last-child {
+  transform: translateX(-100%);
+}
+
+.night-lane {
+  position: relative;
+  height: 22px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.night-bar {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 8px;
+  height: 8px;
+  border: 1px solid;
+  border-radius: 4px;
+}
+
+.night-lane .night-bar {
+  position: absolute;
+  top: 7px;
+}
+
+.night-key .night-bar {
+  width: 18px;
+}
+
+.night-done {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+}
+
+.night-waits {
+  border-color: var(--accent-fill);
+  background: repeating-linear-gradient(135deg, var(--accent-soft) 0 6px, transparent 6px 10px);
+}
+
+.night-off {
+  border-color: var(--warn);
+  border-style: dashed;
+}
+
+.night-hex {
+  position: absolute;
+  top: 2px;
+}
+
+.night-hex polygon,
+.night-hex-key polygon {
+  fill: var(--surface);
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.night-hex polygon.night-unseen,
+.night-hex-key polygon.night-unseen {
+  fill: currentColor;
+}
+
+.night-hex-key {
+  color: var(--muted);
+}
+
+.night-foot {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.night-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.night-unchecked {
+  margin-left: auto;
+}
+
+.night-unchecked-list {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 18px;
+}
+
+/* On a narrow screen a lane takes the width, its job's title above it. */
+@media (max-width: 640px) {
+  .night-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .night-axis-row > span:first-child {
+    display: none;
+  }
+}
+
+/* A row the night parked, on Ready for you: its line whole, wrapped - never past the card. */
+.ready-item .waiting-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ready-item .waiting-what {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Decided for you: the period's chips; a row a decision - when, then who (in its colour, and in words), where, what,
+   why and what can still be done. */
+.decisions-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.decisions-head h2 {
+  margin: 0;
+  font-size: var(--text-heading);
+}
+
+.decisions .chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.decisions-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.decision {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: 4px 10px;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+
+.decision + .decision {
+  border-top: 1px solid var(--border);
+}
+
+.decision-time {
+  font-size: var(--text-meta);
+}
+
+.decision-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.decision-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-meta);
+}
+
+/* Who decided: a colour of its own, toward the text colour so that it reads at 4.5 - never the only thing that says it. */
+.who-orchestrator {
+  color: color-mix(in srgb, var(--cat-violet) 70%, var(--text));
+}
+
+.who-judge {
+  color: color-mix(in srgb, var(--cat-blue) 70%, var(--text));
+}
+
+.who-your_words {
+  color: color-mix(in srgb, var(--cat-green) 70%, var(--text));
+}
+
+.decision-unseen {
+  margin-left: auto;
+  color: var(--accent);
+}
+
+/* An agent's or a model's words: no direction mark in them turns the rest of the row around. */
+.decision q,
+.decision-why {
+  unicode-bidi: isolate;
+}
+
+.decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.decisions-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The chat's one line of Decided for you: how many, and the way to Ready for you. */
+.decided-line {
+  margin: 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-note);
+}

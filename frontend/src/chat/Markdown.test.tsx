@@ -118,8 +118,9 @@ test('there is no sixth place: Markdown is rendered by the shared component alon
     string,
     string
   >
-  const rendering = Object.keys(sources).filter(path =>
-    /from 'react-markdown'|<img\b|dangerouslySetInnerHTML/.test(sources[path]),
+  // (a test is no place the app renders: Copy as Markdown's test renders with react-markdown to prove it escapes)
+  const rendering = Object.keys(sources).filter(
+    path => !path.endsWith('.test.tsx') && /from 'react-markdown'|<img\b|dangerouslySetInnerHTML/.test(sources[path]),
   )
   // (and the Files window's picture: a file of the project or the conversation, at the app's own address -
   // slices 39, 42c; and coloured code, a diff's or a file's: highlight.js's own output, which escapes the text - 42a;

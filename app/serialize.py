@@ -5,6 +5,7 @@ from pathlib import PurePath
 from sqlalchemy import select
 from sqlalchemy.orm import object_session
 
+from app import risk_judge
 from app.commands import PLANTED_SAYS, SEARCHES_FOLDER, danger, harms, suggest_prefix, with_cwd
 from app.db.models import (
     FOLLOWED,
@@ -139,10 +140,12 @@ def command_out(command: Command, live_output: str | None = None, held: bool = F
             "output": command.output if live_output is None else live_output,
             "output_truncated": command.output_truncated,
             "timeout_seconds": command.timeout_seconds,
-            # (Y2: none where an agent wrote its program - it would not cover it, and runs once)
+            # (Y2: none where an agent wrote its program - it would not cover it, and runs once;
+            # nor on Full auto's judge's card: a rule would not let it by the judge)
             "suggested_prefix": ""
             if command.keep_running
             or command.web_off
+            or command.asked_reason == "judge"
             or _why_asked(command).startswith(PLANTED_SAYS)
             else suggest_prefix(command.command),
             "web_off": command.web_off,
@@ -155,6 +158,8 @@ def command_out(command: Command, live_output: str | None = None, held: bool = F
             "keep_running": command.keep_running,
             "preview_url": command.preview_url,
             "judged": command.judged,
+            # (as `RiskJudgeMixin._risk_approved` keeps one: a record with its line's key)
+            "keeps_line": command.asked_reason == "judge" and risk_judge.kept(command.judged),
             "disposable": command.disposable,
             "created_at": command.created_at,
             "started_at": command.started_at,

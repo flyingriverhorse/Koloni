@@ -233,9 +233,12 @@ class Project(Base):
     # ... and the one read-only look for one by the project's Fast-tier model ({"at", "map",
     # "said"}); None: not yet. Looked again only where the project's marker files changed.
     tests_look: Mapped[dict | None] = mapped_column(JSON, default=None)
-    # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
-    # checked against what they wrote ("judge", `JudgeMixin._judged`). The user's own setting.
+    # K-yargic's old choice, "ask" / "judge" - a carrier only since 0.1.9 §8 (`judge.words_on`).
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
+    # Full auto's judge (`RiskJudgeMixin`), its box for words (§8), its "risky" refused or asked.
+    full_auto_judge: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    judge_words: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    judge_risky: Mapped[str] = mapped_column(String(6), default="refuse", server_default="refuse")
     # Coordination §4: whether agents delete what KOLONİ checked is disposable (a build or cache
     # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
     # watched turn. The user's own setting, off until they allow it.
@@ -1248,6 +1251,9 @@ class UserPreferences(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     text: Mapped[str | None] = mapped_column(Text, default=None)
     changed_at: Mapped[datetime | None] = mapped_column(default=None)
+    # The Judge model KOLONİ's judges ask (`team.judge_pick`); None: the Fast tier's first.
+    judge_provider_id: Mapped[str | None] = mapped_column(String(32), default=None)
+    judge_model_id: Mapped[str | None] = mapped_column(String(200), default=None)
 
 
 class Question(Base):

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app import catalog
 from app.api.usage import over_limit
-from app.db.models import Conversation, Provider, Role
+from app.db.models import Conversation, Provider, Role, UserPreferences
 from app.limits import plan_used
 from app.model_native import CopilotNativeClient
 from app.providers import (
@@ -167,7 +167,7 @@ def guide(providers: Iterable[Provider], copy: dict | None = None) -> list[Entry
         off = [m["name"] for m in provider.models or [] if m not in mine]
         held = (
             (
-                bool(provider.only_listed)
+                bool(provider.only_listed)  # pyrefly: ignore[unnecessary-type-conversion]  # (a row's value, kept as it was)
                 and provider.default_model not in [name for name, _note in models]
             )
             or provider.default_model in off
@@ -745,6 +745,49 @@ def askable(
             client = client.talker()
         if not getattr(client, "native", False):
             yield fast
+
+
+def judge_choices(
+    session: Session, would: Would, clients: Providers
+) -> list[tuple[Entry, str, str]]:
+    """The models KOLONİ's judges - Full auto's, and the check of the user's words - may be asked
+    on: of every tier, in the tiers' order and each tier's, those `askable` now (may be picked for
+    the Lead, not down, answer with every tool off): (entry, model, tier). Whatever the level
+    `would` was read at (`_judges`): Settings' and a Full auto turn's are one."""
+    would = _judges(would)
+    return [
+        (one, name, tier) for tier in TIERS for one, name in askable(session, would, clients, tier)
+    ]
+
+
+def judge_chosen(session: Session) -> tuple[str, str] | None:
+    """The user's Judge model (Settings): its provider's id and the model; None: none chosen."""
+    row = session.get(UserPreferences, 1)
+    if row is None or not row.judge_provider_id or not row.judge_model_id:
+        return None
+    return row.judge_provider_id, row.judge_model_id
+
+
+def judge_pick(
+    session: Session, would: Would, clients: Providers, chosen: tuple[str, str] | None
+) -> tuple[Entry, str] | None:
+    """Whom the judges ask: the user's Judge model (`chosen`: its provider's id and the model)
+    where it is among `judge_choices` now - not where its provider is gone, closed to agents,
+    down or past what may be picked -, else the Fast tier's first that answers with no tools
+    (`asked_how_hard`). None: nobody can be asked."""
+    if chosen is not None:
+        for one, name, _tier in judge_choices(session, would, clients):
+            if (one.provider_id, name) == chosen:
+                return one, name
+    return asked_how_hard(session, _judges(would), clients, "fast")
+
+
+def _judges(would: Would) -> Would:
+    """`would` as a judge is asked on it: what holds a provider back from an agent's pick
+    (`cannot_pick`: a CLI whose tools of its own act unasked short of Full auto) is no matter for
+    an answer with every tool off (`askable` passes over one that keeps them). Codex P2-2:
+    Settings read it at Ask, and hid the Native Copilot a Full auto turn's judge asks."""
+    return replace(would, cannot_pick={})
 
 
 def is_named(provider: Provider, name: str) -> bool:

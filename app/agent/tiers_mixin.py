@@ -403,7 +403,7 @@ class TiersMixin:
             said = AUTO_PICKED.format(
                 asked=picked,
                 model=kept.one_line(model)[:200],
-                why=kept.one_line(str(why)).replace("”", '"')[:MAX_WHY],
+                why=kept.one_line(str(why)).replace("”", '"')[:MAX_WHY],  # pyrefly: ignore[unnecessary-type-conversion]  # (a CLI's word)
             )
             others = _unpicked(note) or ""
             if f"{others} {said}".strip() != note:

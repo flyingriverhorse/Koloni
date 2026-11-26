@@ -28,6 +28,9 @@ class ApproveIn(BaseModel):
     # Coordination §4: also allow such deletes in the project from now on - only on a delete
     # KOLONİ found disposable, and with no rule.
     disposable: bool = False
+    # Full auto's judge: also never ask about this line again in this project ("Don't ask about
+    # this line again here") - only on the judge's own card, and with no rule.
+    remember_line: bool = False
 
 
 class RuleIn(BaseModel):
@@ -35,13 +38,17 @@ class RuleIn(BaseModel):
     prefix: str = Field(max_length=4 * MAX_RULE)
 
 
-async def _decide(command_id: str, decision: str, request: Request, session: Session) -> dict:
+async def _decide(
+    command_id: str, decision: str, request: Request, session: Session, line: bool = False
+) -> dict:
     command = session.get(Command, command_id)
     if command is None:
         raise HTTPException(404, "command not found")
     runner = request.app.state.runner
     if not runner.commands.decide(command_id, decision):
         raise HTTPException(409, "this command is no longer waiting for a decision")
+    if decision != "reject":  # (Full auto's judge: its line, not asked again - `line`: here)
+        runner._risk_approved(command_id, line)
     # (Cards measured: the user's answer from the app's own page - a turn that ends with the card
     # open, or KOLONİ's own no, is none.)
     command.decided_at = now()
@@ -71,8 +78,17 @@ async def approve(
         raise HTTPException(
             422, "only a delete KOLONİ found disposable allows such deletes, and with no rule"
         )
+    if body.remember_line and (
+        body.remember
+        or body.disposable
+        or (command := session.get(Command, command_id)) is None
+        or command.asked_reason != "judge"
+    ):
+        raise HTTPException(
+            422, "only a card of Full auto's judge keeps its line, and with no rule"
+        )
     decision = "disposable" if body.disposable else "always" if body.remember else "once"
-    return await _decide(command_id, decision, request, session)
+    return await _decide(command_id, decision, request, session, body.remember_line)
 
 
 @router.post(

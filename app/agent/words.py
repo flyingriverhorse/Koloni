@@ -30,7 +30,7 @@ GO_ON_AT = "Go on at "
 RECONNECT = "Reconnect"
 
 # A file of a working copy that holds one is left there (`_merge_file`).
-SECRET_IN_COPY = "holds a secret given this turn: written in the copy only"
+SECRET_IN_COPY = "holds a secret KOLONİ knows: written in the copy only, not committed"
 
 NO_TRIGGER_ALLOWS = (
     "{name}: such a file tells later turns what they may do, or runs by itself, which "
@@ -324,6 +324,14 @@ PROOF_LEAD = (
     "then, asks for a test where none changed, and - under Test and review - has a big or "
     "security-touching change read by a Reviewer. Do not run the whole test suite yourself at "
     "the end; its result comes to you."
+)
+# 0.1.9: ...and, where it has run_checks (`ChecksToolMixin._proof_lead`), that a step the user
+# tied to a condition waits for its green.
+RUN_CHECKS_LEAD = (
+    'When the user ties a step to a condition ("if the tests pass / no problems are found / it '
+    'is clean, commit / push / merge"), call run_checks, wait for its answer, and take that step '
+    "only on `CHECKS: green`; otherwise fix the work or tell the user - never assume the "
+    "condition holds."
 )
 # R4: what the agent of a recipe's step with the id "reproduce" (the ready Bugfix's) is told
 # under its task (`AgentRunner._step_says`).

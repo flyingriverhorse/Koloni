@@ -106,7 +106,8 @@ async def put_back_check(run_id: str, request: Request, session: Session = Depen
 def stop(session: Session, request: Request, run: Run) -> None:
     """The user's Stop on a turn that has not ended (also Stop everything's, `app.api.hold`)."""
     runner = request.app.state.runner
-    if run.status != "queued" and runner.cancel(run.id):
+    # (§10: a going-on turn is "queued" while what the user said Run runs - that is cut too)
+    if (run.status != "queued" or away.going_on(session, run)) and runner.cancel(run.id):
         return
     # Never started, or its task is gone (the server restarted): settle it here.
     was_queued = run.status == "queued"

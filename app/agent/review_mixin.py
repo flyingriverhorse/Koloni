@@ -691,16 +691,7 @@ class ReviewMixin:
         `tryout` (S5b): the live try's Tester, on this preview's address - its browser tools too,
         there alone (`_try_calls`, `_try_agents`)."""
         with self._factory() as session:
-            message_id = session.scalar(
-                select(Message.id)
-                .where(
-                    Message.agent_id == ctx.agent_id,
-                    Message.run_id == ctx.run_id,
-                    Message.role == "assistant",
-                )
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-                .limit(1)
-            )
+            message_id = self._proof_message(session, ctx)
         if message_id is None:
             return Look(role, "", None, None, "the Orchestrator's answer is not on record")
         request = ToolCallRequest(

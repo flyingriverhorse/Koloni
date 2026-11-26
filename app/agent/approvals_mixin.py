@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app import copies, disposable, mcp_client
+from app import copies, disposable, mcp_client, parked
 from app.agent.cards import _glob_could_take, _shared
 from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
 from app.agent.merge import _planned_edit
@@ -540,6 +540,16 @@ class ApprovalsMixin:
             or (self._night_asks(ctx, command, None) if claimed else ""),
             asked_anyway=always or claimed or at is None or "run_command" not in ctx.tools,
         )
+        # Full auto's judge: a card, or its refusal (where it runs: its copy, else the project)
+        night, judged = await self._risk_judged(
+            ctx,
+            command,
+            at,
+            copy.root if copy is not None else root,
+            (night, judged),
+            exempt=bool(before or free or always) or "run_command" not in ctx.tools,
+            known=at is not None and not claimed,
+        )
         reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
@@ -607,10 +617,16 @@ class ApprovalsMixin:
             judgement=judged,
             disposable=found,
             why=why or "",
+            park=self._parker(ctx, None),
         )
         if not allowed:
+            with self._factory() as session:  # (☾ Away: parked for the user - §10)
+                row = session.get_one(Command, command_id)
+                was_parked, at = row.status == "parked", row.cwd
             said = (
-                refused_by_rule(judged)
+                parked.said(command, at)
+                if was_parked
+                else refused_by_rule(judged)
                 if judged and judged["verdict"] == "refuse"
                 else rejected(command)
             )

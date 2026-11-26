@@ -24,6 +24,7 @@ from app.db.models import (
     project_of,
 )
 from app.limits import has_room
+from app.masking import masked
 from app.providers import ask_once, mode_of
 from app.roles import LEAD, find_role
 from app.serialize import run_out
@@ -288,7 +289,7 @@ class PoMixin:
                 task = backlog.add(
                     session, project_id, {**fields, "story_id": story and story.id}, "agent"
                 )
-                rules = injection.scan("\n".join(filter(None, [*fields.values(), one["why"]])))
+                rules = injection.scan("\n".join(filter(None, [*fields.values(), one["why"]])))  # pyrefly: ignore[no-matching-overload]  # (filter(None, ...))
                 task.po = {
                     "chat": ctx.cid,
                     "why": one["why"],
@@ -370,7 +371,9 @@ class PoMixin:
                     continue
                 add, why = decided[n]
                 task.status = "todo" if add else task.status
-                task.po = {**(task.po or {}), "lead": "add" if add else "no", "lead_why": why}
+                # (its why masked as it is kept, as the judge's is: Decided for you shows it)
+                lead = {"lead": "add" if add else "no", "lead_why": masked(why)}
+                task.po = {**(task.po or {}), **lead}
                 added += add
             session.commit()
         if decided:

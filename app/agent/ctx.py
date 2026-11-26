@@ -31,6 +31,18 @@ if TYPE_CHECKING:
 
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
 FLUSH_SECONDS = 0.5
+
+
+def joined(content: str, text: str) -> str:
+    """A streamed answer with its next piece (Y1): an emoji's surrogate pair a model split between
+    two pieces (its high half last in one, its low half first in the next) is one character again.
+    A half alone stays until the answer is kept (`RecordMixin._save_message`: U+FFFD there)."""
+    if content and text and "\ud800" <= content[-1] <= "\udbff" and "\udc00" <= text[0] <= "\udfff":
+        pair = (content[-1] + text[0]).encode("utf-16-le", "surrogatepass").decode("utf-16-le")
+        return content[:-1] + pair + text[1:]
+    return content + text
+
+
 NO_FOLDER = (
     "this chat has no folder: nothing in it changes files or runs commands, and a file is "
     "read only by its full path, on the user's word. The user can pick a folder with the "
@@ -252,7 +264,7 @@ class _Transcript:
     async def on_text(self, text: str) -> None:
         runner, ctx = self._runner, self._ctx
         message_id = self._open or self._begin()
-        content = runner._live[message_id][1] + text
+        content = joined(runner._live[message_id][1], text)
         runner._live[message_id] = (ctx.cid, content)
         runner.bus.emit_transient(
             ctx.cid, "message.delta", {"message_id": message_id, "text": text}

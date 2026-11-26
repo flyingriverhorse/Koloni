@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { errorText, overWhat } from '../api/client'
 import type { Day, DayWords } from '../api/types'
 import { Hint } from '../shell/Hint'
@@ -16,6 +16,8 @@ interface Props {
   onWords: (since: string, conversationId: string, overBudget?: boolean) => Promise<DayWords>
   /** Opens a conversation at a turn; rejects with the reason when it cannot be opened. */
   onOpenTurn?: (conversationId: string, runId: string) => Promise<void>
+  /** The project's Decisions (karar defteri), under the day's numbers. */
+  decisions?: ReactNode
 }
 
 /** Whether the day is sent as text each day, and when - or where that is set. */
@@ -32,7 +34,7 @@ const writtenIn = (currentId: string | null, day: Day) =>
  * day since this midnight here - the messages that failed and the files changed (each chat's Workspace lists them) -
  * and the day said in words by a model, once, on the user's word.
  */
-export function TodayView({ currentId, noteAt, onLoad, onWords, onOpenTurn }: Props) {
+export function TodayView({ currentId, noteAt, onLoad, onWords, onOpenTurn, decisions }: Props) {
   const [day, setDay] = useState<Day | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [words, setWords] = useState<DayWords | null>(null)
@@ -126,6 +128,7 @@ export function TodayView({ currentId, noteAt, onLoad, onWords, onOpenTurn }: Pr
           </ul>
         </details>
       )}
+      {decisions}
       <p className="muted memory-hint">
         Since midnight, counted from the record: no model is asked.
         {sentNote(noteAt)}

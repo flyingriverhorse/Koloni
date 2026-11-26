@@ -638,6 +638,9 @@ def test_general_words_are_left_to_the_judge_which_is_told_they_allow_nothing():
         },
     )
     assert (
-        'General words ("clean up", "do whatever it takes", "finish it") allow nothing here.'
+        'General words ("clean up", "do whatever it takes", "finish it") allow nothing here'
         in asked
     )
+    # (nor a line limited in time or uses, and its own folder is no project's: the first live run)
+    assert "limited in time or in how many times it may be used" in asked
+    assert 'Its "where" is relative to the user\'s project' in asked

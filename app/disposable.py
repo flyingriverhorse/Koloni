@@ -15,7 +15,7 @@ import os
 import stat
 from pathlib import Path
 
-from app import commands, git
+from app import commands, git, git_looks
 from app.commands import (
     DISPOSABLE_NAMES,
     POSIX,
@@ -62,7 +62,7 @@ def what(
     if gits and (in_copy or not _the_projects_git(root, here)):
         return None
     seen = git.where(project) if gits else None
-    default = git.default_branch(project) if "branch" in gits else None
+    default = git_looks.default_branch(project) if "branch" in gits else None
     for kind, target, force in targets:
         if not (
             kind == "folder"
@@ -98,7 +98,7 @@ def _the_projects_git(root: Path, here: str) -> bool:
         _real(here) == os.path.normcase(here)
         and ".." not in parts
         and not (_another_repository(top, parts))
-        and git.same_repository(Path(top), Path(here))
+        and git_looks.same_repository(Path(top), Path(here))
     )
 
 
@@ -154,7 +154,7 @@ def _folder(project: Path, root: Path, here: str, rel: str) -> bool:
     return (
         not _holds_more(real)
         and git.ignored(project, [*above, inside + "/"]) == {inside + "/"}
-        and git.kept_under(project, inside) is False
+        and git_looks.kept_under(project, inside) is False
     )
 
 
@@ -206,7 +206,7 @@ def _worktree(project: Path, here: str, path: str, seen: dict, copies_at: list[P
     """A worktree git lists of the project - named with no link on the way, by no end of its
     path another listed one shares; not its main one, nor the project's own or one the project
     is in, not locked (KOLONİ's are while their agents work), not in KOLONİ's copies folders -
-    whose folder holds nothing its commits do not (`git.not_committed`), no link, no secret file
+    whose folder holds nothing its commits do not (`not_committed`), no link, no secret file
     and nothing git ignores but whole build and cache folders: git deletes what it ignores with
     the worktree."""
     spelt = os.path.normpath(os.path.join(here, path))
@@ -232,7 +232,7 @@ def _holds_nothing_else(real: str) -> bool:
     folders git ignores, holding no repository or link of their own: git deletes what it
     ignores with the worktree. No link anywhere in it, no secret file."""
     commands._held.pop(Path(real), None)  # (walked anew: a walk kept for 10 s misses a new one)
-    left = git.left_out(Path(real))
+    left = git_looks.left_out(Path(real))
     return (
         left is not None
         and all(
@@ -241,7 +241,7 @@ def _holds_nothing_else(real: str) -> bool:
             and not _holds_more(os.path.join(real, one))
             for one in left
         )
-        and git.not_committed(Path(real)) == []
+        and git_looks.not_committed(Path(real)) == []
         and not (_holds_link([real]) or secret_files(Path(real)))
     )
 
@@ -282,5 +282,5 @@ def _branch(
         name in seen["names"]
         and name.casefold() not in {one.casefold() for one in standing if one}
         and not name.casefold().startswith(git.BRANCH_PREFIX)
-        and (not force or git.ahead(project, default, name) == 0)
+        and (not force or git_looks.ahead(project, default, name) == 0)
     )

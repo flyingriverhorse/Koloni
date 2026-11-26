@@ -183,6 +183,21 @@ def no_po_where_calls_are_counted(request):
     event.remove(Project, "init", off)
 
 
+# Full auto's judge (0.1.9) is on in a new project: at Full auto every command no read nor ordinary
+# would ask the judge's model - in a test, a scripted one's steps, or its line that none is there. It
+# stands aside (gives back what was found before it) but where a test is marked `judge`.
+@pytest.fixture(autouse=True)
+def judge_only_where_marked(request, monkeypatch):
+    if request.node.get_closest_marker("judge") is not None:
+        return
+    from app.agent.risk_judge_mixin import RiskJudgeMixin
+
+    async def not_judged(_self, _ctx, _command, _cwd, _root, found, **_more):
+        return found
+
+    monkeypatch.setattr(RiskJudgeMixin, "_risk_judged", not_judged)
+
+
 # Kanıtlı bitiş (S1): after a turn that changed code the app runs the project's tests and writes a
 # "checked" message under the answer - on by default, in every module's tests too. Off only where a
 # module counts the messages, commands or model steps of such turns in an order the end check

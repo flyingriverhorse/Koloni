@@ -128,12 +128,139 @@ messages.
   `rsync --delete`, `robocopy /MIR`, `mail`, `ssh host 'command'`.
 - At Full auto, the harm check sees honest commands only; a command written to hide what it does is not
   seen. See [Security model](../security/model.md).
+- [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
+    - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
+      at Full auto before the judge.
+    - Text aimed at the judge inside a command or a program an agent wrote can still sway the model:
+      the judge is told it is an agent's data, and a few known phrases make a card without asking,
+      but other wordings reach it.
+    - Hidden work may not be seen: a tool an agent changed but did not write, a program past its first
+      4 KB, a program that imports another file.
+    - Test runners and build tools load the project's test and settings code by design - a
+      `conftest.py`, test files, an eslint or mypy plugin a setting names, `build.rs`, a cargo runner -
+      so `pytest -q` or `cargo build` runs what an agent wrote there with no judge.
+    - A file an agent made by copying another (`cp x.txt x.py`) is not known as the agent's: the judge
+      is not shown it.
+    - **Don't ask about this line again here** cannot be listed or undone in the app yet; what it keeps
+      goes with the project.
+    - A Run on its card, and **Don't ask about this line again here**, keep only a line whose whole run
+      KOLONİ knows - a project file it runs in a plain form, hashed, or one plain `curl`, `wget` or file
+      command. Any other form - `git`, a wrapper, a shell's code, `npx`, a line sent to another folder,
+      a variable set on make's line, a package's `__main__.py`, a Python line without `-I` or `-E` in a
+      working copy (or with `PYTHONPATH` set), a runner KOLONİ does not know, a file it did not find, a
+      folder it does not know - is asked about every time, and its card has no box: it fails closed, at
+      the cost of more questions.
+    - A command the judge could not look at - too long, orders in it, no room to ask, no answer in time
+      or none it could read, its program changed while it looked - is never kept: a Run on its card
+      runs it once, and its card has no box.
+    - What a kept program imports in turn is not looked at - not even a file in its folder that shadows
+      a standard module (a `json.py` beside `x.py`): a changed import does not make `python x.py`
+      another line.
+    - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
+    - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
+      asked, from that CLI's quota, and each such command waits for the CLI to start.
+    - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
+      git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
+      asked about.
 - Commands cannot be given input while they run.
 - In Docker on Linux and macOS, commands run as your user, not as root. A command that needs root in
   the container, such as `apt-get install`, fails. On Linux, files an older version of KOLONİ made as
   root in the project may no longer be writable; see
   [Troubleshooting](../troubleshooting.md#commands-and-docker). Under rootless Docker, the files a
   command makes belong to another user id on the host.
+
+## Work while you're away
+
+- In the morning **Run** does not look at what the job changed in its copy: you see that at Take in.
+- A line that runs a program an agent wrote is refused after **Run** too. A script given to an
+  interpreter (`python tool.py`, `node x.js`) is not read so: it runs on your **Run** - but only as it
+  was when the line was parked (the list says "Runs a file an agent wrote", of any part of a chained,
+  piped, wrapped or grouped line too - `python hello.py && python q.py`, `cmd /c "python q.py"` - and
+  "maybe" where it cannot read all of the line, or the line runs code no word of it names as a file:
+  a shell or an interpreter handed its code on stdin or on the line (`cat x.sh | sh`, `python -c`),
+  `iex`, `npx`, find's `-exec`, a test runner - the tests an agent wrote).
+- A branch's commit, merge and push look for a secret KOLONİ knows byte for byte, in a file's content
+  and its name: one an agent wrote base64'd, reversed, or split across files or in parts is not
+  found. A saved key made of lowercase words alone (a provider's `not-needed`, `correct-horse`) is
+  not looked for, nor a file's path given under a secret's name (`GOOGLE_APPLICATION_CREDENTIALS`,
+  `*_FILE`); of an MCP server's variables, and the environment's (what a project passes to its
+  commands among them), only those a secret's name or a secret's shape holds (`..._TOKEN`,
+  `..._KEY`, a password; `ghp_…`, `sk-…`, a password in an address) - and the token or the
+  address's password such a value holds alone, unless it reads as a word
+  (`postgres://postgres:postgres@…` makes no secret of `postgres`). A key whose shape KOLONİ does
+  not know - it knows GitHub's, `sk-…`, Slack's, AWS's, a JWT, GitLab's `glpat-…`, Google's
+  `AIza…`, Hugging Face's `hf_…`, npm's `npm_…` and Stripe's `sk_live_…` - is looked for only by
+  its variable's name. A word under a secret's name is a secret all the same
+  (`POSTGRES_PASSWORD=postgres`): a file holding it (`psycopg2  # postgresql driver`) is left out
+  of KOLONİ's commit and stays in the branch's worktree - never deleted - and KOLONİ says which.
+- If anything in the job's copy changed after a line was parked, **Run** does not run it - so a test
+  line parked early in a job is usually closed by the work after it: run it yourself. What stays out
+  of that look: the dependency folders a copy links to the project's own (`node_modules`, `.venv`,
+  `venv`), files outside the project, and the caches that hold no code (`.pytest_cache`,
+  `.ruff_cache`, `.mypy_cache`, `.git`). A command that runs none of the project's code is not closed
+  by changes at all.
+- KOLONİ looks at the whole copy for this, each time a line is parked and just before each runs: about
+  a second on a copy of 2,000 files (measured on Windows), the first look longer. A large `build` or
+  `dist` folder in the copy (or a big scratch) makes each look slower: every file in it is read.
+- Between that last look and the line's start there is a moment - under a second - in which a process
+  an earlier **Run** left behind (on Linux or macOS), or another task's going-on turn, could still
+  change a file: that gap is not closed.
+- A line a CLI ran in its own shell is not run in the morning (**Reject** it, or run it yourself), nor
+  is a server line.
+- KOLONİ hard-stopped (killed, not closed) while the morning's lines run, or in the turn that went on
+  after them: at the next start the task is stopped, and says which; what had not run is not run again.
+- A line whose folder its CLI did not say does not run: **Reject** it, or run it yourself.
+- Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
+  said **Run** run in the project itself.
+- A job tried twice parked its lines in two copies: each line runs in its own, the going-on turn in the
+  newest.
+- KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
+  again - **Try again** works it in its chat.
+- **Usage › Cards** counts a parked card as not answered.
+- `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
+  there is no git.
+
+### Away on a branch
+
+- A job on its branch works in a worktree of your own repository: its `.git` is shared. A script or a
+  test that runs git there can reach your branches, tags, stash and config - KOLONİ reads only the
+  git lines the agent itself writes. Your branches, stash, tags, remotes and git's config are compared
+  as the job starts and ends, and what changed is on its row; nothing is undone.
+- A plain push from a script fails there because KOLONİ sets git's `pushInsteadOf` for the job's
+  commands. Measured with git 2.53: `git push` to the remote's name, a path or a `file://` address
+  fails, a fetch works. It is no wall, and the job's own script can get past it: `git send-pack`, its
+  own `-c url.<x>.pushInsteadOf=...`, a `remote.origin.pushurl` it sets first, or git's environment
+  replaced (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`) all push - and so does a `pushurl` or a longer
+  `pushInsteadOf` of your own. Each of these the agent types itself is refused or asked on a card;
+  what a script it runs does is not read.
+- Before any branch's push - ☾ Away's in the morning, a team's pull request - KOLONİ asks origin
+  itself what its branches hold, and never reads your remote-tracking branches (`origin/*`) for it: a
+  ref written in your repository (a script's `git update-ref`, a symbolic ref) cannot make your own
+  unpushed commits look pushed - a commit only such a ref says is pushed counts as yours. Stale ones
+  (a branch deleted on origin, a teammate's push you have not fetched, a force-pushed branch) do not
+  matter. Where origin's branch the push goes into holds commits you have not fetched, it asks you to
+  fetch first; where git's config rewrites the address the push goes to (an `insteadOf` or
+  `pushInsteadOf` rule that matches it - what origin is asked and where the push goes could be two
+  repositories), or origin has more than one push address, nothing is pushed. No KOLONİ git call reads
+  an object through `git replace` or a graft of `info/grafts`, and the push's ancestry is read without
+  the commit-graph file. Origin is asked only once a branch's way is a pull request, never at the end
+  of a turn that may still be a merge. Between that look and the push itself there is a moment in which
+  another process could still change your repository: that gap is not closed.
+- ☾ Away compares every job's push with the repository as you went away (its refs, git's config in
+  every scope, its hooks, where a push goes): what an earlier job of the night changed is noted on a
+  later one's push too. The branches of that night's own jobs are not counted.
+- **Try again** on a job a day later still compares its push with the night's repository: what you
+  changed since is noted on it too, to be seen and Run anyway.
+- The worktree holds what git tracks; what it ignores (`.env`, data, build output) is not there, and a
+  test that reads such a file may fail. A project with a git submodule or Git LFS works in a copy.
+- The commits of a branch that was deleted, or of a job's first try, stay in git's objects until git
+  cleans them up (`git gc`).
+- Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
+- KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
+  apart from one holding a secret KOLONİ knows (left out, and its push row says so) or a new file your
+  project already has.
+- The branch's name is told to the job before its worktree is made: where a branch of that name was
+  there already, the worktree is on the next free name, and its row says which.
 
 ## Recipes
 

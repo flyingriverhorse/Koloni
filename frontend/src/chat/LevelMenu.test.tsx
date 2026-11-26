@@ -1,7 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
+import { api } from '../api/client'
+import type { JudgeOut, Project } from '../api/types'
 import { LevelMenu } from './LevelMenu'
+import { judgeWordsOf } from './levels'
 
 test('the level is three comb cells and its name; a click opens each level with a line on what it does, and Plan first', async () => {
   const onMode = vi.fn()
@@ -64,30 +67,45 @@ test('the arrows move between the levels only; a level is chosen by a click, Ent
   expect(onMode).toHaveBeenCalledWith('full_auto')
 })
 
-test('Check what I said first: a switch under the levels that saves the project’s check; none without a project', async () => {
-  const onCheckFirst = vi.fn()
-  const { unmount } = render(
-    <LevelMenu
-      mode="full_auto"
-      onMode={vi.fn()}
-      planFirst={false}
-      onPlanFirst={vi.fn()}
-      checkFirst={false}
-      onCheckFirst={onCheckFirst}
-    />,
-  )
+test('Full auto’s judge: the project’s one switch under the levels, on as it comes, its line on your words by its box; none without a project', async () => {
+  const onJudge = vi.fn()
+  // (as the project says: Refuse and go on unless you chose Ask me - while you're away it is always parked)
+  const risk =
+    'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop is refused if it looks risky (while you’re away, it is parked for you)'
+  const words = '; a harmful-looking one runs without a card only where a line of yours names it'
+  const { unmount } = render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge onJudge={onJudge} />)
   await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
-  const check = screen.getByRole('switch', { name: 'Check what I said first' })
-  expect(check).not.toBeChecked()
-  expect(check).toHaveAccessibleDescription(
-    /your own words are read first; it runs without a card only where a line of yours names it/,
-  )
-  await userEvent.click(check)
-  expect(onCheckFirst).toHaveBeenCalledWith(true)
-  unmount()
-  render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} checkFirst />)
-  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  const judge = screen.getByRole('switch', { name: 'Full auto’s judge' })
+  expect(judge).toBeChecked()
+  // (§8: Check what I said first is the judge's question - no switch of its own; its box off, nothing of your words)
+  expect(judge).toHaveAccessibleDescription(`${risk}.`)
+  expect(screen.getAllByRole('switch')).toHaveLength(1)
   expect(screen.queryByRole('switch', { name: 'Check what I said first' })).toBeNull()
+  await userEvent.click(judge)
+  expect(onJudge).toHaveBeenCalledWith(false)
+  unmount()
+  for (const [state, says] of [
+    ['unmeasured', `${risk}${words} (after its measurement).`],
+    ['on', `${risk}${words}.`],
+  ] as const) {
+    const { unmount: gone } = render(
+      <LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge onJudge={vi.fn()} judgeWords={state} />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+    expect(screen.getByRole('switch', { name: 'Full auto’s judge' })).toHaveAccessibleDescription(says)
+    gone()
+  }
+  const { unmount: asks } = render(
+    <LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge onJudge={vi.fn()} judgeRisky="ask" />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  expect(screen.getByRole('switch', { name: 'Full auto’s judge' })).toHaveAccessibleDescription(
+    'Before a command runs at Full auto or while you’re away, a small model looks at it first: one the list doesn’t stop waits for you if it looks risky.',
+  )
+  asks()
+  render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge={false} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  expect(screen.queryByRole('switch', { name: 'Full auto’s judge' })).toBeNull()
 })
 
 test('Test and review changes: a switch beside Plan first that saves the chat’s choice against the project’s', async () => {
@@ -231,4 +249,29 @@ test('the switch’s line: Tests only runs with no review, Nothing as the projec
     'href',
     expect.stringContaining('use/checked/'),
   )
+})
+
+test('§8: the judge’s words by the project - off with its box off, on where the old choice was judge, else not until measured', () => {
+  const of = (judge_words: boolean, full_auto_check: 'ask' | 'judge') =>
+    judgeWordsOf({ judge_words, full_auto_check } as Project)
+  expect([of(false, 'judge'), of(true, 'judge'), of(true, 'ask'), judgeWordsOf(undefined)]).toEqual([
+    'off',
+    'on',
+    'unmeasured',
+    'off',
+  ])
+})
+
+test('§8: the box on, the judge’s words work without "(after its measurement)" where the Judge model was measured', async () => {
+  const measured = { now: { measured: true } } as JudgeOut
+  const get = vi.spyOn(api, 'get').mockResolvedValue(measured)
+  render(
+    <LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} judge onJudge={vi.fn()} judgeWords="unmeasured" />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  const judge = screen.getByRole('switch', { name: 'Full auto’s judge' })
+  await vi.waitFor(() => expect(judge.getAttribute('aria-describedby')).toBeTruthy())
+  await vi.waitFor(() => expect(judge).toHaveAccessibleDescription(/names it\.$/))
+  expect(get).toHaveBeenCalledWith('/judge')
+  get.mockRestore()
 })

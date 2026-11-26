@@ -4,9 +4,12 @@ project; deleting a goal or a story keeps what was under it, deleting the projec
 
 from datetime import datetime
 
-from app.db.models import BacklogTask, Story
+import pytest
+
+from app import backlog, stories
+from app.db.models import BacklogTask, Goal, Story
 from app.stories import goal_progress, story_state
-from tests.test_backlog import ORIGIN, setup
+from tests.test_backlog import ORIGIN, agent, setup
 
 
 def story(closed: bool = False) -> Story:
@@ -188,3 +191,135 @@ def test_a_storys_name_is_one_in_its_project_whatever_its_case(client, project_d
         client.post(f"/api/projects/{theirs}/stories", json={"title": "Login"}).status_code == 201
     )
     assert [s["title"] for s in tree(client, pid)["stories"]] == ["LOGIN", "Reset"]
+
+
+def test_a_name_with_the_turkish_dotted_i_is_the_same_name(client, project_dir):
+    """T2b: casefold makes İ an i with a dot of its own - LOGİN, LOGIN, login and logın are one."""
+    pid, _ = setup(client, project_dir)
+    first = client.post(f"/api/projects/{pid}/stories", json={"title": "zz135 Login"})
+    assert first.status_code == 201, first.text
+    for title in ("ZZ135 LOGİN", "ZZ135 LOGIN", "zz135 login", "zz135 logın"):
+        again = client.post(f"/api/projects/{pid}/stories", json={"title": title})
+        assert again.status_code == 422 and "“zz135 Login”" in again.json()["detail"], title
+    twins = {
+        "stories": [
+            {"title": "Giriş İşi", "tasks": [{"title": "a"}]},
+            {"title": "giriş işi", "tasks": [{"title": "b"}]},
+        ],
+        "tasks": [],
+    }
+    assert client.post(f"/api/projects/{pid}/backlog/tree", json=twins).status_code == 422
+    goal = client.post(f"/api/projects/{pid}/goals", json={"title": "İlk Sürüm"}).json()["id"]
+    with client.app.state.session_factory() as session:
+        for title in ("ZZ135 LOGİN", "zz135 logın", "ZZ135 LOGIN"):
+            assert stories.story_named(session, pid, title).id == first.json()["id"], title
+        assert stories.goal_named(session, pid, "ilk sürüm").id == goal
+
+
+def test_a_name_in_another_unicode_form_or_with_what_nobody_sees_is_the_same_name(
+    client, project_dir
+):
+    """L6: NFKC, what nobody sees left out - a decomposed é, a zero width, a fullwidth letter."""
+    pid, _ = setup(client, project_dir)
+    for first, again in (
+        ("Caf\u00e9", "Cafe\u0301"),
+        ("Login", "Login\u200b"),
+        ("\uff32eport", "report"),
+        # (K1: an i with a dot above of its own - 'LOG\u0130N'.lower() in Python, toLowerCase() in JS)
+        ("zz147 login", "zz147 logi\u0307n"),
+        # (K2: two spaces or a tab show as one)
+        ("zz148 login", "zz148  login"),
+        ("zz149 login", "zz149\t\u200b LOGIN"),
+    ):
+        made = client.post(f"/api/projects/{pid}/stories", json={"title": first})
+        assert made.status_code == 201, made.text
+        twin = client.post(f"/api/projects/{pid}/stories", json={"title": again})
+        assert twin.status_code == 422, (first, again)
+    assert stories.name_key("LOGI\u0307N") == stories.name_key("login")  # (İ decomposed)
+    assert stories.name_key("log\u0131\u0307n") == "login"
+
+
+def test_a_name_nobody_can_see_is_refused(client, project_dir):
+    """K3: a name of what nobody sees alone - a zero width, a braille blank - is a story nobody
+    sees on the page nor can name; refused wherever a story is named."""
+    pid, _ = setup(client, project_dir)
+    for title in ("\u200b", "\u2800\u200b", " \ufe0f "):
+        made = client.post(f"/api/projects/{pid}/stories", json={"title": title})
+        assert made.status_code == 422 and made.json()["detail"] == stories.NO_NAME, title
+    sid = client.post(f"/api/projects/{pid}/stories", json={"title": "Seen"}).json()["id"]
+    assert client.patch(f"/api/stories/{sid}", json={"title": "\u200b"}).status_code == 422
+    drawn = {"stories": [{"title": "\u200b", "tasks": [{"title": "t"}]}], "tasks": []}
+    added = client.post(f"/api/projects/{pid}/backlog/tree", json=drawn)
+    assert added.status_code == 422 and added.json()["detail"] == stories.NO_NAME
+    with pytest.raises(backlog.Refused, match=stories.NO_NAME):
+        agent(client, pid, "add_task", title="t", story="\u200b")
+    assert [s["title"] for s in tree(client, pid)["stories"]] == ["Seen"]
+    assert client.get(f"/api/projects/{pid}/backlog").json() == []
+
+
+def test_a_blank_looking_character_in_a_name_is_a_blank():
+    # (review of k-story-kucuk2: a braille blank shows as a space, so it is one)
+    assert (
+        stories.name_key("Login\u2800Page")
+        == stories.name_key("Login Page")
+        != stories.name_key("LoginPage")
+    )
+    assert stories.name_key("\u2800\u3164") == ""
+
+
+def test_a_name_two_stories_of_an_older_store_share_is_the_exact_ones_or_refused(
+    client, project_dir
+):
+    """Codex P2-1: two open stories made before 0.1.9, their names apart only by a run of blanks
+    or a case, are one name now - an agent's task goes to the one of exactly its title; where
+    neither is, which one is meant is the agent's to say, never the first's by chance."""
+    pid, _ = setup(client, project_dir)
+    with client.app.state.session_factory() as session:
+        first = stories.add_story(session, pid, "Batch  Alpha", None, "user")
+        second = stories.add_story(session, pid, "Batch Alpha", None, "user")
+        session.commit()
+        ids = first.id, second.id
+    agent(client, pid, "add_task", title="t1", story="Batch Alpha")
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert task["story_id"] == ids[1]
+    with client.app.state.session_factory() as session:
+        assert stories.story_named(session, pid, "Batch  Alpha").id == ids[0]
+        assert stories.story_named(session, pid, "Batch Alpha").id == ids[1]
+    with pytest.raises(backlog.Refused, match='"Batch  Alpha", "Batch Alpha" - give the exact'):
+        agent(client, pid, "add_task", title="t2", story="BATCH ALPHA")
+    assert [task["title"] for task in client.get(f"/api/projects/{pid}/backlog").json()] == ["t1"]
+    # (two goals of one name are no such dead end: the first of them, by their order)
+    for title in ("Release", "Release", "release"):
+        client.post(f"/api/projects/{pid}/goals", json={"title": title})
+    goals = [goal["id"] for goal in tree(client, pid)["goals"]]
+    with client.app.state.session_factory() as session:
+        assert stories.goal_named(session, pid, "Release").id == goals[0]
+        assert stories.goal_named(session, pid, "release").id == goals[2]
+        with pytest.raises(backlog.Refused, match="3 goals match this name"):
+            stories.goal_named(session, pid, "RELEASE")
+
+
+def test_a_goal_name_nobody_can_see_is_refused(client, project_dir):
+    """S1: as a story's (K3) - wherever a goal is named: added, renamed, drafted, an agent's."""
+    pid, _ = setup(client, project_dir)
+    for title in ("\u200b", "\u2800\u200b", " \ufe0f "):
+        made = client.post(f"/api/projects/{pid}/goals", json={"title": title})
+        assert made.status_code == 422 and made.json()["detail"] == stories.NO_GOAL_NAME, title
+    gid = client.post(f"/api/projects/{pid}/goals", json={"title": "Seen"}).json()["id"]
+    renamed = client.patch(f"/api/goals/{gid}", json={"title": "\u200b"})
+    assert renamed.status_code == 422 and renamed.json()["detail"] == stories.NO_GOAL_NAME
+    drawn = {"goal": "\u200b", "stories": [{"title": "S", "tasks": [{"title": "t"}]}], "tasks": []}
+    added = client.post(f"/api/projects/{pid}/backlog/tree", json=drawn)
+    assert added.status_code == 422 and added.json()["detail"] == stories.NO_GOAL_NAME
+    with pytest.raises(backlog.Refused, match=stories.NO_GOAL_NAME):
+        agent(client, pid, "add_task", title="t", story="New", goal="\u2800")
+    assert [goal["title"] for goal in tree(client, pid)["goals"]] == ["Seen"]
+    assert tree(client, pid)["stories"] == []
+    assert client.get(f"/api/projects/{pid}/backlog").json() == []
+    # (nor is it one such goal an older store held: the agent's new story goes under none)
+    with client.app.state.session_factory() as session:
+        session.add(Goal(project_id=pid, title="​", position=1, created_by="user"))
+        session.commit()
+    with pytest.raises(backlog.Refused, match=stories.NO_GOAL_NAME):
+        agent(client, pid, "add_task", title="t", story="New", goal="⠀")
+    assert tree(client, pid)["stories"] == []

@@ -127,7 +127,7 @@ def docker_argv(
     # rootless Docker (container root is the user there) its files go to a subuid instead; give
     # the project an "as root" switch if a user asks for one, or asks Docker which it is.
     user = (
-        ["--user", f"{os.getuid()}:{os.getgid()}", "--env", "HOME=/tmp"]
+        ["--user", f"{os.getuid()}:{os.getgid()}", "--env", "HOME=/tmp"]  # pyrefly: ignore[missing-attribute]  # (POSIX: `hasattr` below)
         if hasattr(os, "getuid")
         else []
     )
@@ -168,7 +168,7 @@ class DockerCommand(ProcessCommand):
         # Ending the client alone would leave the container running: stop the container.
         try:
             code, _ = await _exec(["docker", "kill", self._name], 15.0)
-        except (OSError, TimeoutError):
+        except OSError:  # (a TimeoutError is one too)
             code = 1
         if code != 0:
             # Not running yet, or the kill did not take: make sure it cannot go on.
@@ -217,7 +217,7 @@ class DockerExecutor:
             raise StartError(f"Docker is not available: {status.error}")
         try:
             code, _ = await _exec(["docker", "image", "inspect", self._image], 15.0)
-        except (OSError, TimeoutError) as exc:
+        except OSError as exc:  # (a TimeoutError is one too)
             raise StartError(f"Docker is not available: {exc}") from None
         if code != 0:
             # "No such image" and "the daemon just went away" both land here: ask again
@@ -271,5 +271,5 @@ async def kill_containers(command_ids: list[str]) -> None:
     for command_id in command_ids:
         try:
             await _exec(["docker", "kill", container_name(command_id)], 15.0)
-        except (OSError, TimeoutError):
+        except OSError:  # (a TimeoutError is one too)
             return

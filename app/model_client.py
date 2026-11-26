@@ -480,7 +480,7 @@ class OpenAICompatClient:
         from then on (`effort_instead`); a service that refuses the level otherwise
         (whatever its catalogue said) is asked again once without it, and never sent one
         again by this client (`refused_effort`)."""
-        effort = None if self.refused_effort else self.effort_instead.get(effort, effort)
+        effort = None if self.refused_effort else self.effort_instead.get(effort, effort)  # pyrefly: ignore[no-matching-overload]  # (a None key finds none)
         payload: dict = {
             "model": model_id,
             "messages": with_files(messages),

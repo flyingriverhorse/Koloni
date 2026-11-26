@@ -41,6 +41,7 @@ export function CommandRow({
         <StopCommand command={command} />
       </div>
       <OnYourWords judged={command.judged} />
+      <JudgedRisky command={command} />
       <RanDisposable command={command} />
       {open && <CommandOutput command={command} />}
     </div>
@@ -56,6 +57,20 @@ function OnYourWords({ judged }: { judged: Command['judged'] }) {
     <div className="tool-row-note muted">
       {judged.verdict === 'run' ? 'Ran without asking' : 'Not run'} · your rule: “{judged.quote}” (
       {JUDGED_FROM[judged.source]})
+    </div>
+  )
+}
+
+/** Full auto's judge (0.1.9): once its card is answered, the sentence it was asked on stays under the row, as the card
+ *  said it - not while the card is open, nor for a "fine", which ran as Full auto runs any; one it refused (Refuse and go
+ *  on), with its sentence. */
+function JudgedRisky({ command }: { command: Command }) {
+  const judged = command.judged
+  if (judged?.kind !== 'risk' || command.status === 'proposed') return null
+  if (judged.verdict !== 'risky' && judged.verdict !== 'refuse') return null
+  return (
+    <div className="tool-row-note muted" title={judged.model || undefined}>
+      {`KOLONİ's judge${judged.verdict === 'refuse' ? ' refused' : ''}: ${judged.why || 'it gave no reason'}`}
     </div>
   )
 }

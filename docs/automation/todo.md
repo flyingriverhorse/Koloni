@@ -96,7 +96,8 @@ out". A turn where it was not asked has no such box.
 
 At **Full auto**, in a turn you started, you are not asked. The Orchestrator's model decides each
 suggestion, add or reject, with one more request, and says why in one sentence. You see its word under
-**Decided for you** in the chat. **OK** keeps it; **Change** undoes it while the task is still todo. A
+**Decided for you** on the [Ready for you](../use/decisions.md) page. **OK** keeps it; **Change** undoes
+it while the task is still todo. A
 task it added cannot be given to a chat until you press **OK**, there or
 under **Waiting for you** on the To-do page. One it rejected stays on the To-do page, folded under
 **Rejected by the Orchestrator**, with **Add**. It is not
@@ -127,8 +128,15 @@ plain list with no story has no such heading.
   A goal's **⋯** has **Rename** and **Delete**. Deleting a goal or a story keeps what was under it: its
   stories lose their goal, its tasks their story.
 - A story's name is one in its project, whatever its case: agents name a story by it, so "Login" and
-  "LOGIN" would leave which one they mean to chance. A name another story has, open or closed, is
-  refused; an agent naming a closed story is told so.
+  "LOGIN" would leave which one they mean to chance. The Turkish İ and ı count as an i: "LOGİN" and
+  "logın" are "login" too, and so is the "logi̇n" that lowercasing "LOGİN" gives (an i with a dot
+  above of its own); so does a name in another Unicode form, with a character nobody sees in it, or
+  with two spaces or a tab where the page shows one space. A name another story has, open or closed,
+  is refused; an agent naming a closed story is told so. A name of what nobody sees alone - a
+  zero-width space, a braille blank - is refused too: "a story needs a name you can see", and a
+  goal's: "a goal needs a name you can see". Two open stories made before 0.1.9 whose names are now
+  one ("Batch  Alpha" and "Batch Alpha") both stay: an agent naming one gets the story of exactly that
+  name, and where neither is, it is told both names and asked for the exact one.
 
 The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is **Running** (at work, or
 done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed
@@ -147,7 +155,13 @@ line - a **decision**, a **file**, a **result** or a **question** - with who wro
 - **KOLONİ** notes how each turn of the story's tasks ended - *“Add the reset mail” — done?*, *— stuck: …*
   or *— not finished: …* - and the files that turn changed in the project, five at most.
 - The task's **Orchestrator** is asked to end its answer with up to three lines
-  `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer.
+  `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer. A note
+  is a line that starts so, at the very start of the line: before it only up to three spaces, a list's
+  `- `, `* ` or `+ `, bold, or backticks round `Story note:` alone; a numbered list's item
+  (`1. Story note: …`) is not one. One in a code block, a quote, a table, a heading, inline code, an
+  HTML comment or an HTML block (`<pre>`, `<script>`… to its closing tag; `<div>`, `<table>`… to a
+  blank line) is not, nor is a line right after a quote's with no blank line between: Markdown reads
+  it as the quote's too.
 - The **Hive keeper** adds its notes as it drafts a story.
 
 ![A chat working through a story: the strip over it reads "Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · notes", and its notebook is open - the Hive keeper's decision and KOLONİ's result line for the first task](../images/story-notebook.png)
@@ -162,9 +176,15 @@ buried in a long log): the notebook is what is not lost. Long content - a file, 
 again when it is needed.
 
 What agents write there goes to models at every turn, so KOLONİ holds it to a few rules: the secrets
-KOLONİ knows, and the variables the project passes to its commands, are masked; a line that reads like
-orders is left out (in `runtime/logs/koloni.log`); each note is one line of at most 200 characters, and
-the newest 20 are kept. Notes kept before these rules are checked again as they are given.
+KOLONİ knows, and the variables the project passes to its commands, are masked, and a word next to a
+character nobody sees - a zero-width space, a joiner, a braille blank - is hidden whole (`***`), so a
+secret split by one is not kept in parts (an emoji family, an emoji with a hidden variant mark such as
+⚠️, or a Persian word joined by one shows as `***` too, and so does a word another mask already cut
+into); a line that reads like orders is left out (in `runtime/logs/koloni.log`) - and so is a line
+with a zero-width character between two plain letters (a-z, A-Z), whole: it reads like orders
+hidden from the eye; each note is one line of at most 200 characters, and the newest 20 are kept. Notes kept before these rules are checked again as they are
+given. Masking knows a secret by its own characters: one split by a space or a line's end, or written
+with look-alike letters, is not found.
 
 ## Your tasks
 

@@ -151,8 +151,13 @@ export type AwayJob = Schemas['AwayJobOut']
 export type AwayAsk = Schemas['AwayAsk']
 /** Your Go away: the To-do tasks ticked, the panel's order, the places kept out and the limits. */
 export type AwayGo = Schemas['AwayGoIn']
+/** ☾ Away (§10): a row of Waiting for you - what a job parked for you, and your word on it. */
+export type Waiting = Schemas['WaitingOut']
 export type Day = Schemas['DayOut']
 export type DayWords = Schemas['DayWordsOut']
+/** The decision log (karar defteri): what was decided for you in a project, by whom and why, newest first. */
+export type DecisionLog = Schemas['DecisionLog']
+export type Decision = Schemas['Decision']
 export type PendingRole = Schemas['PendingRoleOut']
 /** Text from outside that read like orders to an agent (93-A4): the rule and where, never the text. */
 export type InjectionWarning = Schemas['WarningOut']
@@ -189,6 +194,8 @@ export type Compaction = Schemas['Compaction']
 /** K-cevap-dili: the language every agent writes in, in every project; null: Auto. */
 export type AnswerLanguage = Schemas['AnswerLanguage']
 export type ExperimentalClis = Schemas['ExperimentalClis']
+/** 0.1.9: whom KOLONİ's judges ask - the user's Judge model, else the Fast tier's first - and what may be chosen. */
+export type JudgeOut = Schemas['JudgeOut']
 export type Storage = Schemas['StorageOut']
 export type ProjectFile = Schemas['ProjectFileOut']
 export type OthersInstructions = Schemas['OthersInstructionsOut']

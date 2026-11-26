@@ -254,6 +254,7 @@ test('a CLI’s own command whose call failed reads as failed, not "exit code no
 // K-yargıç: at Full auto a harmful-looking command is first checked against what the user wrote.
 const RULE = 'You may delete build/ and dist/.'
 const judged = (over: Partial<NonNullable<Command['judged']>>) => ({
+  kind: '' as const,
   verdict: 'run' as const,
   quote: '',
   source: '' as const,
@@ -346,6 +347,74 @@ test('Allow such deletes is sent as the approval’s own word, and the projects 
   expect(post).toHaveBeenLastCalledWith('/commands/k/approve', { remember: false, disposable: false })
   post.mockRestore()
   get.mockRestore()
+})
+
+/** A card of Full auto's judge (0.1.9), as the server sends it: its sentence the card's reason, no rule offered. */
+const judgeCard = (over: Partial<Command> = {}) =>
+  command('k', 'r', {
+    status: 'proposed',
+    command: 'python gen.py',
+    suggested_prefix: '',
+    danger: "KOLONİ's judge: It sends .env away.",
+    judged: judged({ kind: 'risk', verdict: 'risky', why: 'It sends .env away.', model: 'Local · quick' }),
+    keeps_line: true,
+    ...over,
+  })
+
+test('a card of Full auto’s judge says its sentence, offers no Always run, and its box keeps the line here', async () => {
+  const onDecide = vi.fn().mockResolvedValue(undefined)
+  const { unmount } = render(<CommandApproval command={judgeCard()} onDecide={onDecide} />)
+  expect(screen.getByText("KOLONİ's judge: It sends .env away.")).toHaveAttribute('role', 'note')
+  expect(screen.queryByRole('button', { name: /^Always run/ })).toBeNull()
+  expect(screen.getByText('No rule lets a command past Full auto’s judge, so none is offered.')).toBeInTheDocument()
+  expect(screen.queryByText('This command is asked every time.')).toBeNull()
+  const keep = screen.getByRole('checkbox', { name: 'Don’t ask about this line again here' })
+  expect(keep).not.toBeChecked()
+  await userEvent.click(screen.getByRole('button', { name: 'Run once' }))
+  expect(onDecide).toHaveBeenLastCalledWith('once')
+  await userEvent.click(keep)
+  await userEvent.click(screen.getByRole('button', { name: 'Run once' }))
+  expect(onDecide).toHaveBeenLastCalledWith('line')
+  unmount()
+  // (no box where the server keeps nothing for the line: the judge did not look, or KOLONİ does not know all the
+  // line runs)
+  render(<CommandApproval command={judgeCard({ keeps_line: false, judged: null })} onDecide={onDecide} />)
+  expect(screen.queryByRole('checkbox', { name: /Don’t ask about this line/ })).toBeNull()
+  expect(screen.getByText('No rule lets a command past Full auto’s judge, so none is offered.')).toBeInTheDocument()
+})
+
+test('Don’t ask about this line again here is sent as the approval’s own word', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+  await useApp.getState().decideCommand('k', 'line')
+  expect(post).toHaveBeenCalledWith('/commands/k/approve', { remember: false, disposable: false, remember_line: true })
+  post.mockRestore()
+})
+
+test('once its card is answered, the judge’s sentence stays under the row - not while it waits, nor for a fine', () => {
+  const line = "KOLONİ's judge: It sends .env away."
+  const { rerender } = render(<CommandRow command={judgeCard()} />)
+  expect(screen.queryByText(line)).toBeNull()
+  rerender(<CommandRow command={judgeCard({ status: 'exited', exit_code: 0 })} />)
+  expect(screen.getByText(line)).toHaveAttribute('title', 'Local · quick')
+  rerender(<CommandRow command={judgeCard({ status: 'rejected' })} />)
+  expect(screen.getByText(line)).toBeInTheDocument()
+  rerender(
+    <CommandRow
+      command={judgeCard({ status: 'exited', exit_code: 0, judged: judged({ kind: 'risk', verdict: 'fine' }) })}
+    />,
+  )
+  expect(screen.queryByText(/KOLONİ's judge/)).toBeNull()
+})
+
+test('a command Full auto’s judge refused says so under its row, with its sentence', () => {
+  const refused = judgeCard({ status: 'refused', danger: '', judged: judged({ kind: 'risk', verdict: 'refuse' }) })
+  const { rerender } = render(
+    <CommandRow command={{ ...refused, judged: { ...refused.judged!, why: 'It sends .env away.' } }} />,
+  )
+  expect(screen.getByText("KOLONİ's judge refused: It sends .env away.")).toBeInTheDocument()
+  expect(screen.getByText('refused')).toBeInTheDocument()
+  rerender(<CommandRow command={refused} />)
+  expect(screen.getByText("KOLONİ's judge refused: it gave no reason")).toBeInTheDocument()
 })
 
 test('a delete that ran with no card as disposable says so on its row', () => {
