@@ -974,7 +974,8 @@ class OutsideMixin:
             ways = [self._way(session, row, ctx.root) for row in rows]
         self.bus.emit(ctx.cid, None, "conversation.updated", payload)
         return (
-            f"picked {', '.join(said)}: spawn_agent opens only their roles now - with a "
-            "recipe, only its step's, one step after another: KOLONİ moves it on as the "
-            "step's agents finish." + "".join(f"\n{way}" for way in ways if way)
+            f"picked {', '.join(said)}: spawn_agent opens their roles now, and a built-in role "
+            "beside them where the work needs one - with a recipe, only its step's, one step "
+            "after another: KOLONİ moves it on as the step's agents finish."
+            + "".join(f"\n{way}" for way in ways if way)
         )

@@ -13,7 +13,9 @@ Contract:
   keeps the Lead's picks, to be changed.
 - With rows (Manual, or what the Lead picked), `spawn_agent` opens only the roles of those
   teams, refused with the teams named; the Lead, the Planner and a role the user names always
-  may. No rows, or "No teams": any role, as before.
+  may. No rows, or "No teams": any role, as before. Where the Lead picked them (the user, 26
+  Nov), a built-in role opens beside them too - not one of the user's own, nor one only in
+  teams the Lead may not pick.
 - Lead decides: the Lead is offered `pick_teams` ({"teams": [{"team", "recipe"?, "why"}]}),
   listing only the teams it may pick (`lead_may_pick`); its picks are the rows, "lead", with
   their reason. Elsewhere it is not offered, and refused if called.
@@ -323,6 +325,51 @@ def test_before_the_lead_picks_a_team_it_may_not_pick_stays_shut(
     (translator, coder) = spawned(snap)
     assert translator[0] == "failed" and "Docs" in translator[1], translator
     assert coder[0] == "succeeded"
+
+
+def test_the_leads_picks_are_no_fence_for_a_built_in_role(make_client, wait_run, project_dir):
+    """The user, 26 Nov: Web app picked, the Orchestrator still opens an Architect (in no ready
+    team since 0.1.10) - not a role of the user's own in a team it did not pick, nor one only in a
+    team it may not pick."""
+    client, _model = make_client(
+        {
+            "Lead": [
+                pick({"team": "Web app", "why": "a page"}),
+                step(
+                    call("spawn_agent", {"role": "Architect", "task": "design it"}, "s1"),
+                    call("spawn_agent", {"role": "Forager", "task": "look around"}, "s2"),
+                    call("spawn_agent", {"role": "Translator", "task": "translate it"}, "s3"),
+                ),
+                # (told the picked Web app has to work and did not, twice at most)
+                *[text("done")] * 4,
+            ],
+            "Architect": [text("designed")],
+        }
+    )
+    teams = no_recipe(client, "Web app")  # (its Feature recipe would hold it to its steps)
+    docs, quality = teams["Docs"], teams["Quality"]
+    assert (
+        client.patch(
+            f"/api/teams/{docs['id']}", json={"lead_may_pick": False}, headers=OWN
+        ).status_code
+        == 200
+    )
+    made = client.post(
+        "/api/roles",
+        json={"name": "Forager", "tools": ["read_file"], "teams": [quality["id"]]},
+        headers=OWN,
+    )
+    assert made.status_code == 201, made.text
+    cid, run_id = begin(
+        client, project_dir, mode="full_auto", spawn_approval="never", teams_mode="lead"
+    )
+    snap = wait_run(client, cid, run_id)
+    by = {t["provider_call_id"]: (t["status"], t["result"]) for t in snap["tool_calls"]}
+    architect, forager, translator = by["s1"], by["s2"], by["s3"]
+    assert architect[0] == "succeeded", architect
+    assert forager[0] == "failed" and "none of this chat's teams (Web app)" in forager[1], forager
+    assert translator[0] == "failed" and "may not pick (Docs)" in translator[1], translator
+    assert [a["role_name"] for a in snap["agents"]] == ["Lead", "Architect"]
 
 
 def test_plan_first_still_plans_and_the_lead_may_pick_while_planning(

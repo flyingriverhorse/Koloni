@@ -476,6 +476,45 @@ def test_a_users_role_is_never_locked(client):
     )
 
 
+def test_where_the_lead_decides_its_picks_are_no_fence_for_a_built_in_role():
+    """The user, 26 Nov: in a chat the Orchestrator picks the teams of, any built-in role opens
+    beside them; a role of the user's own keeps to them, none opens only in teams it may not
+    pick, and Manual keeps to the teams as before."""
+    from app.db.models import Role, Team
+    from app.roles import Door, closed
+
+    web, quality = (
+        Team(name="Web app", lead_may_pick=True),
+        Team(name="Quality", lead_may_pick=True),
+    )
+    docs = Team(name="Docs", lead_may_pick=False)
+
+    def role(name, builtin, *teams):
+        return Role(name=name, builtin=builtin, enabled=True, teams=list(teams))
+
+    def why(one, door):
+        said = closed(one, door, frozenset())
+        return said and said.split(" (")[0].split(" role ")[1]
+
+    picked, unpicked, manual = Door([web], lead=True), Door([], lead=True), Door([web])
+    only = "is only in teams the Orchestrator may not pick"
+    outside = "is in none of this chat's teams"
+    cases = [  # (picked, before the pick, Manual)
+        (role("Coder", True, web, quality), [None, None, None]),
+        (role("Architect", True), [None, None, outside]),
+        (role("Security reviewer", True, quality), [None, None, outside]),
+        (role("Translator", True, docs), [only, only, outside]),
+        (role("Forager", False, quality), [outside, None, outside]),
+        (role("Helper", False), [outside, None, outside]),
+        (role("Scribe", False, docs), [only, only, outside]),
+        (role("Pair", False, web), [None, None, None]),
+    ]
+    for one, wanted in cases:
+        assert [why(one, door) for door in (picked, unpicked, manual)] == wanted, one.name
+    # Named in the user's message, any role opens - whatever its teams.
+    assert closed(role("Scribe", False, docs), picked, frozenset({"scribe"})) is None
+
+
 def test_title_of_names_the_lead_and_a_teams_lead_for_people_only():
     # K-isimler: the role's own name stays "Lead"; a team's lead reads by its team.
     assert title_of("Lead") == "Orchestrator"

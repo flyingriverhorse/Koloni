@@ -1,4 +1,5 @@
-"""Teams of roles (slice 62): a chat's teams limit which roles its agents may open (84b).
+"""Teams of roles (slice 62): a chat's teams limit which roles its agents may open (84b; where
+the Lead decides, not KOLONİ's built-in ones: `app.roles.closed`).
 Made, renamed and deleted only from the app's own page; deleting one never deletes a role.
 Slice 63a: a team's own stages in order, the stage each of its roles sits in, and its lead."""
 

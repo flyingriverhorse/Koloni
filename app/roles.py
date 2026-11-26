@@ -762,11 +762,12 @@ def names_said(names: Iterable[str], said: str | None) -> frozenset[str]:
 
 class Door(NamedTuple):
     """The teams a chat's agents keep to (slice 84b): its rows, the user's or the Lead's; none:
-    any role. `unpicked`: Lead decides before the Lead picks - any role but one only in teams
-    the Lead may not pick."""
+    any role. `lead`: Lead decides - its picks are where it starts, not a fence: any built-in
+    role opens beside them (the user, 26 Nov), and before it picks any role; never one only in
+    teams the Lead may not pick."""
 
     teams: list[Team]
-    unpicked: bool = False
+    lead: bool = False
     # Slice 84b-2: while a row's recipe runs, the roles (casefolded) its opener may open now in
     # place of the teams', and where the recipe is, as its opener is told.
     step: tuple[frozenset[str], str] | None = None
@@ -777,7 +778,7 @@ def chat_teams(session: Session, conversation) -> Door:
     if conversation.teams_mode == "none":
         return Door([])
     rows = [session.get_one(Team, row.team_id) for row in conversation.teams]
-    return Door(rows, unpicked=conversation.teams_mode == "lead" and not rows)
+    return Door(rows, lead=conversation.teams_mode == "lead")
 
 
 def pickable(session: Session) -> list[Team]:
@@ -834,6 +835,8 @@ def closed(role: Role, door: Door, named: frozenset[str]) -> str | None:
     be. It is off, or outside the chat's teams (`chat_teams`) - unless the user names it in
     the turn's own message (`named`: `names_said`). The Lead and the Planner always may. While
     a recipe runs, its step's roles are the door (`Door.step`), whatever team they are in.
+    Where the Lead decides, a built-in role outside its picks opens too (a role of the user's
+    own keeps to them: its teams are the user's), and none only in teams it may not pick.
     shortcut: a CLI working with its own tools (Claude Code's Agent/Task) opens sub-agents of
     its own that never pass here: the chat's teams do not hold them; keep such a CLI from them
     while a chat has teams if that is met."""
@@ -858,13 +861,21 @@ def closed(role: Role, door: Door, named: frozenset[str]) -> str | None:
                 "named there now, with spawn_agent; do not ask the user which"
             )
         )
-    if door.unpicked and role.teams and not any(team.lead_may_pick for team in role.teams):
+    if (
+        door.lead
+        and role.teams
+        and not any(team.lead_may_pick or team in door.teams for team in role.teams)
+    ):
         return (
             f"the {role.name} role is only in teams the Orchestrator may not pick "
             f"({', '.join(team.name for team in role.teams)}): the user picks those in "
             "Teams for this chat (Manual)"
         )
-    if door.teams and not any(team in role.teams for team in door.teams):
+    if (
+        door.teams
+        and not (door.lead and role.builtin)
+        and not any(team in role.teams for team in door.teams)
+    ):
         return (
             f"the {role.name} role is in none of this chat's teams "
             f"({', '.join(team.name for team in door.teams)}): open one of their roles. The "

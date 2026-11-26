@@ -59,6 +59,21 @@ test("a role that is off, or in none of the chat's teams, is not opened: its pro
   expect(ids(docs, rows, known(roles, { teams }))).toEqual(['p-copilot', 'p-claude'])
 })
 
+test("where the Orchestrator decides, a built-in role beside its picks is opened; one of the user's own is not, nor in Manual", () => {
+  const roles = [lead, role('Architect', { builtin: true }), role('Writer', { teams: ['t-docs'] })]
+  const rows = [row('Lead', 'Copilot'), row('Architect', 'Claude Code'), row('Writer', 'Local')]
+  const teams = [
+    { id: 't-docs', lead: { name: 'Docs lead' }, lead_on: true },
+    { id: 't-web', lead: { name: 'Web lead' }, lead_on: true },
+  ] as Team[]
+  const web = [{ team_id: 't-web' }] as Conversation['teams']
+  expect(ids(chat({ teams_mode: 'lead', teams: web }), rows, known(roles, { teams }))).toEqual([
+    'p-copilot',
+    'p-claude',
+  ])
+  expect(ids(chat({ teams_mode: 'manual', teams: web }), rows, known(roles, { teams }))).toEqual(['p-copilot'])
+})
+
 test("a team's lead runs only beside another team, and only on: as the server opens one", () => {
   const roles = [lead, role('Web lead', { kind: 'lead' }), role('Docs lead', { kind: 'lead', enabled: false })]
   const rows = [row('Lead', 'Copilot'), row('Web lead', 'Local'), row('Docs lead', 'Claude Code')]

@@ -592,14 +592,17 @@ test('B-101: a chat whose teams have no recipe has its agents framed by their te
       sub('h', 'Explorer', 'c'),
       sub('t', 'Tester'),
       sub('x', 'Planner'),
+      // (a built-in role in none of the chat's teams, the Orchestrator's beside them: in no frame)
+      sub('a', 'Architect'),
     ],
   })
   const g = deriveGraph(state, teams)
   const frame = (id: string) => g.nodes.find(n => n.id === id)?.team
-  expect([frame('agent:c'), frame('agent:h'), frame('agent:t'), frame('agent:x')]).toEqual([
+  expect([frame('agent:c'), frame('agent:h'), frame('agent:t'), frame('agent:x'), frame('agent:a')]).toEqual([
     'team:r:web',
     'team:r:web',
     'team:r:api',
+    undefined,
     undefined,
   ])
   const web = g.nodes.find(n => n.id === 'team:r:web')!.data as TeamData
