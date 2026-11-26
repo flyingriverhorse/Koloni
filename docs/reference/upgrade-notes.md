@@ -20,6 +20,10 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+- **Native is experimental.** Claude Code, Codex and Copilot offer **Native** under **Experimental**
+  in **How it runs** only with **Show experimental features** on (Settings › The app › Agents; the switch
+  that was **Show experimental CLIs**, kept as you had it). A provider you already run Native keeps working
+  as before, its card tagged **Experimental**. Nothing in the database changes.
 - **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
   Workspace's files and opens there as any other file that is not a page or a picture: its text where
   it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."

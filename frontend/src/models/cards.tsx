@@ -267,7 +267,7 @@ export function ProviderCard({
         <span className="provider-card-kind">
           {paid}
           {isDefault && ' · default'}
-          {/* 0.1.8: offered only with experimental CLIs shown; one in use runs as before, tagged. */}
+          {/* Offered only with experimental features shown; one in use runs as before, tagged. */}
           {isExperimental(provider.kind, provider.mode) && <span className="tag">Experimental</span>}
         </span>
         <span className={look === 'bad' && !off ? 'provider-card-state' : 'provider-card-status'}>

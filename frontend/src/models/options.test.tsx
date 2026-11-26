@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Provider } from '../api/types'
+import { showExperimental } from '../test-fixtures'
 import { ModelsPage } from './ModelsPage'
 
 const base: Provider = {
@@ -161,6 +162,7 @@ test('your own Claude Code setup is saved when it is switched on or off, and lef
 })
 
 test('a new native Claude Code provider is added with your own setup only when it was ticked', async () => {
+  showExperimental() // (Native is offered under Experimental since 0.1.10)
   for (const ticked of [false, true]) {
     const h = handlers()
     const { unmount } = render(<ModelsPage providers={[base]} {...h} />)

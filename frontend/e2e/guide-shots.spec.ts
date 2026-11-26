@@ -586,7 +586,7 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
-    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental CLIs and the
+    // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental features and the
     // Judge model (0.1.9) under Save (read once shown) - the fake model the Fast tier's first, as on a machine set up.
     type Local = { id: string; models: { name: string }[] }
     const local: Local = (await (await page.request.get('/api/providers')).json()).find(
@@ -600,7 +600,7 @@ test.describe('proven finish (0.1.6)', () => {
     await models(tiered)
     try {
       const app = await appSettings(page, 'Agents')
-      const experimental = app.getByRole('checkbox', { name: /Show experimental CLIs/ })
+      const experimental = app.getByRole('checkbox', { name: /Show experimental features/ })
       await expect(experimental).toBeEnabled()
       const judge = app.getByLabel('Judge model')
       await expect(judge).toHaveValue('')

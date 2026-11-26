@@ -150,14 +150,14 @@ test('Settings lists its levels in their order, This project › The app, each w
   expect(screen.getByRole('region', { name: 'Your data' })).toBeVisible()
 })
 
-test('Show experimental CLIs, ticked in The app › Agents, offers Let agy search too in This project at once', async () => {
+test('Show experimental features, ticked in The app › Agents, offers Let agy search too in This project at once', async () => {
   server()
   const put = vi.spyOn(api, 'put').mockImplementation(async (_path: string, body: unknown) => body as never)
   render(<Settings {...base} project={project} onSave={vi.fn()} />)
   await userEvent.click(levels().getByRole('button', { name: /^Memory and web/ }))
   expect(screen.queryByLabelText(/^Let agy search too/)).toBeNull()
   await userEvent.click(level('The app'))
-  const box = screen.getByRole('checkbox', { name: /^Show experimental CLIs/ })
+  const box = screen.getByRole('checkbox', { name: /^Show experimental features/ })
   await waitFor(() => expect(box).toBeEnabled())
   expect(box).not.toBeChecked()
   await userEvent.click(box)

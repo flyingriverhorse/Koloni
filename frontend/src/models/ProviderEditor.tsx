@@ -178,7 +178,7 @@ export function ProviderEditor({
   const start = startOf(provider)
   const [name, setName] = useState(start.name)
   const [kind, setKind] = useState<ProviderKind>(start.kind)
-  // 0.1.8: agy and Codex run one step at a time are offered only with experimental CLIs shown (or where in use).
+  // agy, Native and Codex run one step at a time are offered only with experimental features shown (or where in use).
   const experimental = useExperimentalClis()
   const [usualKinds, experimentalKinds] = kindsShown(KINDS, kind, experimental)
   const [address, setAddress] = useState(start.address)

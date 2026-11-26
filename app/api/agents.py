@@ -325,8 +325,8 @@ def experimental_clis(session: Session = Depends(get_session)):
     dependencies=[Depends(require_own_origin)],
 )
 def set_experimental_clis(body: ExperimentalClis, session: Session = Depends(get_session)):
-    """0.1.8: Show experimental CLIs (Settings › The app › Agents) - the user's, from the app's
-    own page."""
+    """Show experimental features (Settings › The app › Agents; 0.1.8's Show experimental CLIs)
+    - the user's, from the app's own page."""
     session.execute(delete(Flag).where(Flag.name == EXPERIMENTAL_FLAG))
     if body.show:
         session.add(Flag(name=EXPERIMENTAL_FLAG, value="1"))

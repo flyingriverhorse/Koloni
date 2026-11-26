@@ -98,7 +98,7 @@ interface CliProps extends CopilotProps {
   ownServer: boolean
   copilot: boolean
   agy: boolean
-  /** Settings › The app › Agents, Show experimental CLIs: Codex's One run per model step is offered only then, or in use. */
+  /** Settings › The app › Agents, Show experimental features: Native and Codex's One run per model step are offered only then, or in use. */
   experimental: boolean
 }
 
