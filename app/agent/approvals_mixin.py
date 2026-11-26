@@ -147,6 +147,7 @@ class ApprovalsMixin:
         ):
             return False
         root, copy, cwd = watch.view.root.resolve(), watch.copy, given.get("cwd")
+        judged_in(copy.root if copy is not None else None)  # (K-koloni-alan: its own tree)
         folder = root / cwd if isinstance(cwd, str) and cwd else root  # (a whole path stays one)
         try:
             where = folder.resolve().relative_to(root).as_posix()

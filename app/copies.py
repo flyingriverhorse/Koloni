@@ -1010,8 +1010,8 @@ def make(
         raise OSError(NO_PLACE)
     if held == in_project(project, runtime_root, FOLDER):  # (git-less: ignored once git comes)
         held.mkdir(parents=True, exist_ok=True)
-        with contextlib.suppress(FileExistsError), open(held.parent / ".gitignore", "xb") as out:
-            out.write(b"*\n")  # (all of the area, itself too; never through one already there)
+        with contextlib.suppress(OSError), open(held.parent / ".gitignore", "xb") as out:
+            out.write(b"*\n")  # (all of the area, itself; never through one there - a folder too)
     project, root = Path(project).resolve(), held / _plain(name) / TREE
     listed, left = None, []
     # A project that holds the copies folder does not copy the copies into themselves.

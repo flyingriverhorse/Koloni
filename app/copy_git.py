@@ -138,6 +138,8 @@ def drop_project(project: Path, runtime_root: Path) -> None:
             with contextlib.suppress(OSError, ValueError):
                 if not copies.unread_worktree(Path(entry.path)):
                     copies._remove(Path(entry.path))
+                elif not copies._is_link(Path(entry.path)):  # (kept: its links go, as `clear`'s)
+                    copies._unlink_links(Path(entry.path))
         for empty in (held, held.parent, held.parent.parent):
             with contextlib.suppress(OSError):
                 ignore = (

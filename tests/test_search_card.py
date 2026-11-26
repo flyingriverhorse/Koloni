@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from app import commands
+from app import commands, workspace
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import approve, cmd
 from tests.test_chat_flow import start, start_in_mode, text
@@ -203,9 +203,9 @@ def test_a_secret_installed_in_node_modules_or_venv_or_in_git_is_not_counted(tmp
     for kept in ("node_modules/pkg/.env", ".venv/lib/x.pem", ".git/config", "src/.env.example"):
         (tmp_path / kept).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / kept).write_text("x", encoding="utf-8")
-    assert commands.secret_held(tmp_path.resolve()) is None
+    assert workspace.secret_held(tmp_path.resolve()) is None
     assert commands.search_reason("rg KEY", tmp_path.resolve()) == ""
     (tmp_path / "config").mkdir()
     (tmp_path / "config" / ".env").write_text("x", encoding="utf-8")
-    commands._held.clear()  # (the answer is kept a few seconds)
+    workspace._held.clear()  # (the answer is kept a few seconds)
     assert ".env" in commands.search_reason("rg KEY", tmp_path.resolve())

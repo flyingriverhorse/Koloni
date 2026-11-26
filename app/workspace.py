@@ -1269,20 +1269,24 @@ def judged_in(root: object) -> None:
 @functools.lru_cache(maxsize=32)
 def _spelt(tree: str) -> re.Pattern:
     """A tree's full path as a command may spell it: either slash, Git Bash's `/c/...` for a
-    drive, as given and as it really is - not a longer name it begins."""
+    drive, as given and as it really is - not a longer name it begins, nor one with a `..` later
+    in its word (review: `<own>/x/../../base.json` keeps `.koloni`'s card, and `copy_reason`'s)."""
     forms = []
     for one in dict.fromkeys((os.path.abspath(tree), os.path.realpath(tree))):
         drive, rest = os.path.splitdrive(one)
         parts = [re.escape(part) for part in re.split(r"[\\/]+", rest) if part]
         start = f"(?:{re.escape(drive)}|/{re.escape(drive[:1])})" if drive else ""
         forms.append(start + "".join(rf"[\\/]+{part}" for part in parts))
-    return re.compile("(?:" + "|".join(forms) + r")(?![\w.-])", re.I if os.name == "nt" else 0)
+    up = r"(?![\w.-])(?![^\s;|&<>]*?[\\/][\"'`^]*\.[\"'`^]*\.)"
+    return re.compile("(?:" + "|".join(forms) + ")" + up, re.I if os.name == "nt" else 0)
 
 
 def as_own(command: str) -> str:
-    """`command` with the full path of the tree it is judged in (`OWN_TREE`) as `.`."""
+    """`command` with the full path of the tree it is judged in (`OWN_TREE`) as `.` - not in a line
+    that climbs with `..` anywhere (`cd <own>; echo x > ../base.json`): judged as it is spelt."""
     tree = OWN_TREE.get()
-    return command if tree is None else _spelt(tree).sub(".", command)
+    climbs = ".." in re.sub(r"[`^'\"]", "", command)
+    return command if tree is None or climbs else _spelt(tree).sub(".", command)
 
 
 def in_tree(parts: Sequence[str]) -> bool:

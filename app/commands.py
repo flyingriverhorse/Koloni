@@ -28,11 +28,9 @@ from app.workspace import (
     as_own,
     is_secret,
     secret_files,
+    secret_held,
     secret_in_project,
 )
-from app.workspace import HELD_SECONDS as HELD_SECONDS
-from app.workspace import _held as _held
-from app.workspace import secret_held as secret_held
 
 MAX_STORED_OUTPUT = 1024 * 1024
 MODEL_HEAD, MODEL_TAIL = 2000, 6000
@@ -1721,7 +1719,7 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
         )
     ):
         return "Makes a link, which can point anywhere."
-    if program == "find" and "-delete" in rest:
+    if program == "find" and "-delete" in map(_as_word, rest):  # (`-de""lete`: one to the shell)
         return "Deletes files (find -delete)."
     if program in ("docker", "docker-compose"):
         # `docker volume rm x`, `docker --context x rm web`: the task is in the first two words
@@ -2866,7 +2864,7 @@ def _through_links(words: list[str], own: re.Pattern | None = None) -> str:
         return REBUILDS_THROUGH_LINKS
     if (
         program == "find"
-        and "-delete" in rest
+        and "-delete" in map(_as_word, rest)
         or program == "robocopy"
         and any(w.casefold() in ("/mir", "/purge") for w in rest)
         or program == "git"
@@ -3495,8 +3493,7 @@ def _path_parts(command: str) -> list[str]:
     # (Live: `ls .koloni/tmp; git status --short` asked. A git that only reads - `_git_looks`,
     # by its bare name - is no such line; but one run inside the scratch, `_ENTERS`: a
     # repository shaped there could set what git runs, as `reads_here` has it.)
-    # K-koloni-alan: so are KOLONİ's worktrees and copies there (`TREES`) - to a line that only
-    # reads them (`_looks_only`): from outside, another agent's tree is no place to write.
+    # K-koloni-alan: so are KOLONİ's trees (`TREES`), to a line that only reads (`_looks_only`).
     entered = bool(_ENTERS.match(command))
     free = ("tmp", *TREES) if _looks_only(command) else ("tmp",)
     scratch = not _climbs(command) and not any(
@@ -3527,8 +3524,7 @@ _CLIMBS = re.compile(
 # One change of folder into the scratch at the line's start, plainly spelt (no quote, variable,
 # wildcard, `..` or dot-name), then `;`, `&&` or a newline: run_command's `cwd` there
 # (`with_cwd`) and an agent's own `cd .koloni/tmp/work; pytest` - no climb by itself.
-# K-koloni-alan: or into another of `.koloni`'s free folders (`FREE`): what follows is read as
-# ever (`_looks_only`). An agent's own tree by its full path is `.` there (`as_own`).
+# K-koloni-alan: or into another of `.koloni`'s free folders (`FREE`; its trees: `_looks_only`).
 _ENTERS = re.compile(
     r"\s*(?:cd|chdir|pushd|sl|set-location|push-location)[ \t]+(?:\./)?\.koloni[/\\]"
     + _FREE
@@ -3538,18 +3534,22 @@ _ENTERS = re.compile(
 
 
 def _looks_only(command: str) -> bool:
-    """K-koloni-alan: whether a line - past one leading change of folder into a free folder
-    (`_ENTERS`) - only reads, lists or searches (`_LOOKERS`, a search writing nothing), with no
-    redirection: what may name KOLONİ's worktrees and copies from outside them (`TREES`)."""
+    """K-koloni-alan: whether a line, past one `_ENTERS`, only reads, lists or searches (a search
+    writing nothing) and redirects nothing: what may name KOLONİ's trees from outside (`TREES`)."""
     entered = _ENTERS.match(command)
     rest = command[entered.end() :] if entered else command
     lines = [words for words in _parts(rest) if words]
     looks = _LOOKERS | _SEARCHERS | {"find"}
     return (
-        bool(lines)
-        and not ("<" in rest or ">" in rest or _SEARCH_DOES.search(rest))
+        bool(lines)  # (an option as the shell joins it too: `-fpr""intf`, `-de\lete` - review)
+        and not ("<" in rest or ">" in rest or _SEARCH_DOES.search(_as_word(rest) + " " + rest))
         and all(_program(words[0]) in looks for words in lines)
     )
+
+
+def _as_word(text: str) -> str:
+    """Text as the shell joins a word: `_as_read`, and with no backslash (sh's `-de\\lete`)."""
+    return _as_read(text).replace("\\", "")
 
 
 # ...but from inside it `.koloni` is the folder above, reached with no `..` by a line that
@@ -3787,10 +3787,10 @@ _RENAMES = re.compile(
     r"(?i)(?<![\w-])(?:set-alias|new-alias|sal|nal|function|filter|alias)(?![\w-])"
 )
 # What a search may be told that writes or runs something: find's actions, rg's preprocessor and
-# its replace (`-r` is rg's and ag's replace, grep's recursion).
+# its replace and hostname program, ag's/ack's pager (`-r` is rg's and ag's replace, grep's not).
 _SEARCH_DOES = re.compile(
     r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fprintf|-fls"
-    r"|--pre(?:=.*)?|--replace(?:=.*)?"
+    r"|--pre(?:=.*)?|--replace(?:=.*)?|--pager(?:=.*)?|--hostname-bin(?:=.*)?"
 )
 
 
@@ -3804,9 +3804,9 @@ def only_searches(part: str) -> bool:
     if not words or re.search(r"[|<>`$(){}]", part) or re.search(r"[\\/]", words[0]):
         return False
     program = _program(words[0])
+    replaces = program in ("rg", "ripgrep", "ag")  # (as the shell joins a word: `-de""lete`)
     return program in _SEARCHERS | _GREPS | {"find"} and not any(
-        _SEARCH_DOES.fullmatch(word) or program in ("rg", "ripgrep", "ag") and word == "-r"
-        for word in words
+        _SEARCH_DOES.fullmatch(_as_word(word)) or replaces and word == "-r" for word in words
     )
 
 
@@ -4470,8 +4470,7 @@ def _deletes_basetemp(command: str) -> bool:
     )
 
 
-# K-koloni-alan: `.koloni/tmp/` or another of `.koloni`'s free folders (`FREE`), climbed out of;
-# but a place to empty, delete in or tee into is the scratch alone (review: another agent's tree).
+# K-koloni-alan: any free folder climbed out of; but empty, delete in, tee into: the scratch alone.
 _SCRATCH = re.compile(r"\.koloni[\\/]" + _FREE + r"\b", re.IGNORECASE)
 _IN_SCRATCH = re.compile(r"(?:\./)?\.koloni[/\\]tmp(?:[/\\][\w-][\w.-]*)+", re.IGNORECASE)
 

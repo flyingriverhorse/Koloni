@@ -142,7 +142,8 @@ messages.
 - `git clean -fdx` in the project removes KOLONİ's records of its worktrees under `.koloni/` (what
   each was made from, its hooks folder); `-ffdx` removes the worktrees themselves. A worktree whose
   record is gone is left as it is at the next start - with its uncommitted work, and git's record
-  of it - for you to look at and delete.
+  of it - for you to look at and delete. An agent that deletes that record of its own worktree
+  (a command in it can reach the folder beside it) keeps it there the same way.
 - A command row that names an agent's own tree by its full path may still say "Names .koloni…" on
   the page, though it ran with no card: the page reads the line again without knowing whose tree it
   is.

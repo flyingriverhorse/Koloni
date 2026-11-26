@@ -19,6 +19,7 @@ import pytest
 from app import commands, copies, copy_git, git, koloni, project_files, scratch_delete
 from app.project_view import ProjectView, standing
 from app.workspace import (
+    OWN_TREE,
     Workspace,
     in_scratch,
     judged_in,
@@ -83,6 +84,48 @@ def test_pytests_basetemp_in_a_tree_is_asked_as_any_but_the_scratchs():
     assert not commands.harms("pytest --basetemp=.koloni/tmp/pt")
 
 
+HOOK = ".koloni/worktrees/abc/n/no-hooks/pre-commit"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # (re-check of the review: a search's option split by quotes or a backslash is one word to
+        # the shell - `-fpr""intf` wrote a real hook in Git Bash)
+        f"find .koloni/worktrees -fpr\"\"intf {HOOK} '#!/bin/sh\\necho pwned\\n'",
+        f"find .koloni/worktrees -fprintf {HOOK} x",
+        "find .koloni/worktrees -fpr''int .koloni/worktrees/abc/n/base.json",
+        "find .koloni/worktrees -fpr\\int .koloni/worktrees/abc/n/base.json",
+        'find .koloni/worktrees/abc/n/tree -de""lete',
+        'find .koloni/worktrees -ex""ec cp .koloni/tmp/evil {} ;',
+        'rg --p""re=.koloni/tmp/evil.sh x .koloni/worktrees',
+        f"ag --pager 'cp .koloni/tmp/evil {HOOK}' x .koloni/worktrees",
+        "rg --hostname-bin=.koloni/tmp/evil.sh x .koloni/worktrees",
+        "cd .koloni/worktrees; find . -fpr\"\"intf abc/n/no-hooks/pre-commit 'x'",
+        'find src -de""lete',  # (outside the trees too: a delete)
+    ],
+)
+def test_a_search_told_to_write_run_or_delete_is_no_look_however_its_option_is_split(line):
+    assert commands.harms(line), line
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cat .koloni/worktrees/abc/n/base.json",
+        "Get-Content .koloni/worktrees/abc/n/tree/x",
+        "grep -r TODO .koloni/worktrees",
+        "ls .koloni/worktrees",
+        "dir .koloni\\worktrees /s /b",
+        "findstr /s TODO .koloni\\worktrees\\*",
+        "Select-String -Path .koloni/worktrees/* -Pattern x",
+        "Test-Path .koloni/worktrees",
+    ],
+)
+def test_a_plain_read_of_a_tree_stays_free(line):
+    assert commands.harms(line) == "", line
+
+
 @pytest.mark.parametrize("area", ["tmp", "worktrees", "copies"])
 def test_climbing_out_of_a_free_folder_by_a_change_of_folder_says_so(area):
     said = commands.harms(f"cd .koloni/{area}; echo x > ../rules.md")
@@ -144,6 +187,7 @@ def test_an_agent_names_its_own_tree_in_koloni_by_its_full_path_as_its_own(tmp_p
         for spelt in forms
         for line in (f"cd {spelt}; pytest -q", f"python {spelt}/x.py", f"echo x > {spelt}/x.py")
     ]
+    before = OWN_TREE.set(None)  # (put back as it was, whatever this test leaves set)
     try:
         judged_in(tree)
         for line in lines:
@@ -152,10 +196,13 @@ def test_an_agent_names_its_own_tree_in_koloni_by_its_full_path_as_its_own(tmp_p
         climbs = f"cd {tree}; echo x > ../../../../rules.md"
         assert commands.copy_reason(climbs, True, str(project), run_root, tree)
         assert commands.copy_reason(f"cat {project}/hello.py", True, str(project), run_root, tree)
+        # (review: not where `..` climbs out of it - `.koloni`'s own card stays, beside the copy's)
+        for up in (f"echo x > {tree}/../base.json", f'echo x > "{tree}"/../base.json'):
+            assert commands.harms(up), up
         judged_in(project)  # (the project: no tree of its own)
         assert all(commands.harms(line) for line in lines), lines
     finally:
-        judged_in(None)
+        OWN_TREE.reset(before)
 
 
 def test_an_agents_file_tool_writes_its_own_tree_by_its_full_path(tmp_path):
@@ -342,6 +389,35 @@ def test_a_koloni_folder_that_is_a_link_holds_no_copy(tmp_path, project_dir):
     copies._link(project_dir / ".koloni", tmp_path / "elsewhere")
     copy = copies.make(project_dir, tmp_path / "runtime", "a1")
     assert ".koloni" not in copy.root.parts and not list((tmp_path / "elsewhere").iterdir())
+
+
+def test_a_folder_or_link_named_as_the_areas_gitignore_keeps_no_copy_from_being_made(
+    tmp_path, project_dir
+):
+    """Re-check of the review: a folder (or a junction) at `.koloni/copies/.gitignore` made every
+    git-less copy fail; it is passed by, never written through."""
+    (tmp_path / "elsewhere").mkdir()
+    (project_dir / ".koloni" / "copies").mkdir(parents=True)
+    copies._link(project_dir / ".koloni" / "copies" / ".gitignore", tmp_path / "elsewhere")
+    copy = copies.make(project_dir, tmp_path / "runtime", "a1")
+    assert copy.root.is_dir() and not list((tmp_path / "elsewhere").iterdir())
+
+
+def test_a_projects_delete_unlinks_a_worktree_it_leaves(tmp_path, project_dir):
+    """Re-check of the review: a worktree whose note is gone stays on a project's delete - its
+    links into the project go all the same (a hand's delete of it must not reach `.venv`)."""
+    run_root = tmp_path / "runtime"
+    held = copies.in_project(project_dir, run_root, copies.WORKTREES)
+    assert held is not None
+    tree = held / "n" / copies.TREE
+    tree.mkdir(parents=True)
+    (tree / ".git").write_text("gitdir: elsewhere")
+    (project_dir / ".venv").mkdir()
+    (project_dir / ".venv" / "marker").write_text("the project's own")
+    copies._link(tree / ".venv", project_dir / ".venv")
+    copy_git.drop_project(project_dir, run_root)
+    assert (tree / ".git").is_file() and not os.path.lexists(tree / ".venv")
+    assert (project_dir / ".venv" / "marker").read_text() == "the project's own"
 
 
 def test_two_runtimes_on_one_folder_never_clear_each_others_copies(tmp_path, project_dir):
