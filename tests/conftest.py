@@ -357,6 +357,13 @@ def end_check_where_it_fits(request, monkeypatch):
             off(monkeypatch)
     if module in END_CHECK_OFF:
         _no_gate(monkeypatch)
+    # 0.1.10: Pages and A test for the change are off unless ticked - where they are tested, on as
+    # before (their own tests tick nothing: `test_checked_defaults` says what a project has).
+    if kept := [kind for kind, on in (("ui", PAGES_ON), ("test", ASK_ON)) if module in on]:
+        from app import proof
+
+        unticked = tuple(kind for kind in proof.OFF_UNLESS_TICKED if kind not in kept)
+        monkeypatch.setattr(proof, "OFF_UNLESS_TICKED", unticked)
     if module not in NOTHING_AFTER:
         yield
         return

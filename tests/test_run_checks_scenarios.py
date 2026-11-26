@@ -181,7 +181,10 @@ def test_green_then_commit_and_the_end_still_runs_its_own_pass(
 ):
     monkeypatch.setattr(TestAskMixin, "_proof_test_ask", ASK_FOR_A_TEST[0])
     monkeypatch.setattr(TestAskMixin, "_test_rows", ASK_FOR_A_TEST[1])
-    project = checked_repo(repo)
+    project = {
+        **checked_repo(repo),
+        "check_kinds": {"test": True},
+    }  # (0.1.10: off unless ticked)
     client, model = make_client(
         [
             write("a.py", "OK = True\n"),

@@ -22,16 +22,16 @@ checked again:
    ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
 2. **What it wrote besides code** - documents, diagrams, data, slides, config files and scripts,
    and the changed code by the project's own ruff, eslint, tsc and mypy
-   ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and a changed
-   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width - its
-   console, its width and its accessibility ([Pages](#pages)).
+   ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and, where you
+   ticked **Pages**, a changed page opened in KOLONİ's own browser at a phone's, a tablet's and a
+   desktop's width - its console, its width and its accessibility ([Pages](#pages)).
 3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)); long
    documents are read once against your request
    ([Documents read against your request](#documents-read-against-your-request)).
 4. **The live try**, once a turn: a changed command-line tool is asked for its `--help`, and a big
    change of screens is tried by a Tester on the chat's preview ([The live try](#the-live-try)).
-5. **A test for the change**, asked once where code changed and no test did
-   ([A test for the change](#a-test-for-the-change)).
+5. **A test for the change**, where you ticked it: asked once where code changed and no test
+   did ([A test for the change](#a-test-for-the-change)).
 
 A failure goes back to the Orchestrator until it passes - while each round makes progress - or
 as many times as **Fix rounds** says ([When the tests fail](#when-the-tests-fail)); then a stronger
@@ -567,7 +567,10 @@ PowerShell, its scripts are said as not checked.
 
 ### Pages
 
-A changed web page (`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
+Off unless you tick **Pages** in **Settings › This project › Checks and git › Check by kind of
+work** (since 0.1.10; a project where you had ticked it keeps it). Unticked, a turn that wrote a
+page says "Not checked: pages switched off for this project". Ticked, a changed web page
+(`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
 agents' browser tools use, on this machine, never out on the internet - at 375, 768 and 1280 px
 (a phone, a tablet, a desktop). Console errors and a page wider than the screen (it scrolls
 sideways) are failed, and go back as a fix round with the first error: "index.html: 2 console
@@ -661,7 +664,9 @@ out. A text's opacity (its own or a parent's), its shadow, an outline drawn by a
 
 ## A test for the change
 
-A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
+Off unless you tick **A test for the change** in **Settings › This project › Checks and git ›
+Check by kind of work** (since 0.1.10). Ticked, it is asked under **Test and review** and **Tests
+only** alike. A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
 is asked, once, for a test: "Not the end yet: `a.py` changed and no test did." The Orchestrator
 has one written - by an agent that writes code, or itself; for a bug fix, first a test that fails
 without the fix - and KOLONİ runs the tests again on it. Where no test fits (documents, settings, a

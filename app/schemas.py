@@ -90,8 +90,8 @@ JudgeRisky = Literal["refuse", "ask"]
 AfterChange = Literal["check", "tests", "nothing"]
 # S10: Test and review changes, for one chat; None (not sent as such) the project's.
 ChatAfterChange = Literal["off", "on"]
-# S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`).
-CheckKind = Literal["docs", "slides", "diagram", "data", "ui", "config", "scripts", "style"]
+# S5a: the kinds of work KOLONİ checks after it wrote them (`proof_kinds.KINDS`); "test" asks one.
+CheckKind = Literal["docs", "slides", "diagram", "data", "ui", "config", "scripts", "style", "test"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -271,7 +271,7 @@ class ProjectOut(Out):
     fix_rounds: int | None
     # S11: then a stronger model tries, the rounds spent.
     stronger_model: bool
-    # S5a: Check by kind of work - {kind: on}; a kind left out is on.
+    # S5a: Check by kind of work - {kind: on}; left out: on, but `proof.OFF_UNLESS_TICKED`.
     check_kinds: dict[str, bool] = {}
     # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
     # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this

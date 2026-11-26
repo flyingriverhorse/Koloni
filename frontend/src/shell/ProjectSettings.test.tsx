@@ -1232,7 +1232,7 @@ test('k-canli-016: Fix rounds Until it passes - a project’s null - is chosen a
   expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 'until' })
 })
 
-test('Check by kind of work: all on by default; unticking Slides saves check_kinds.slides false (S5a)', async () => {
+test('Check by kind of work: on by default but Pages and A test for the change; unticking Slides saves check_kinds.slides false (S5a, 0.1.10)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   vi.spyOn(api, 'get').mockImplementation(
     async path =>
@@ -1251,19 +1251,29 @@ test('Check by kind of work: all on by default; unticking Slides saves check_kin
     within(group)
       .getAllByRole('checkbox')
       .map(box => (box as HTMLInputElement).checked),
-  ).toEqual([true, true, true, true, true, true, true, true])
+  ).toEqual([true, true, true, true, false, true, true, true, false])
   expect(
     within(group)
       .getAllByRole('checkbox')
       .map(box => box.closest('label')?.textContent?.trim()),
-  ).toEqual(['Documents', 'Slides', 'Diagrams', 'Data', 'Pages', 'Config', 'Scripts', 'Code style and types'])
+  ).toEqual([
+    'Documents',
+    'Slides',
+    'Diagrams',
+    'Data',
+    'Pages',
+    'Config',
+    'Scripts',
+    'Code style and types',
+    'A test for the change',
+  ])
   expect(group).toHaveAccessibleDescription(/without a model/)
   await userEvent.click(within(group).getByRole('checkbox', { name: 'Slides' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { slides: false } })
 })
 
-test('Check by kind of work: unticking Pages saves check_kinds.ui false (S5b)', async () => {
+test('Check by kind of work: Pages and A test for the change, off unless ticked, save true; ticked, they show so (S5b, 0.1.10)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   vi.spyOn(api, 'get').mockImplementation(
     async path =>
@@ -1275,13 +1285,21 @@ test('Check by kind of work: unticking Pages saves check_kinds.ui false (S5b)', 
             ? { why_not: null }
             : { paths: [], more: 0, partial: false }) as never,
   )
-  render(<ProjectSettings {...base} onSave={onSave} />)
+  const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(group).toHaveAccessibleDescription(/375, 768 and 1280 px/)
+  expect(group).toHaveAccessibleDescription(/under Tests only too/)
   await userEvent.click(within(group).getByRole('checkbox', { name: 'Pages' }))
+  await userEvent.click(within(group).getByRole('checkbox', { name: 'A test for the change' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { ui: false } })
+  expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { ui: true, test: true } })
+  unmount()
+  render(<ProjectSettings {...base} project={{ ...project, check_kinds: { ui: true, test: true } }} onSave={onSave} />)
+  await choose(/^Checks/)
+  const again = screen.getByRole('group', { name: 'Check by kind of work' })
+  expect(within(again).getByRole('checkbox', { name: 'Pages' })).toBeChecked()
+  expect(within(again).getByRole('checkbox', { name: 'A test for the change' })).toBeChecked()
 })
 
 test('Check by kind of work: Config is on, said, and unticking it saves check_kinds.config false (0.1.7)', async () => {

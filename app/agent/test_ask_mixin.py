@@ -32,10 +32,12 @@ class TestAskMixin:
     async def _proof_test_ask(self: "AgentRunner", ctx: Ctx, held: "Proof") -> str | None:
         """Where the turn changed source in the project and no test (`proof.untested`), the
         Orchestrator is asked once a turn (`asked_test`) - model-side, so the last step; it
-        spends no fix round. Its rows are made with the Checked section (`_test_rows`)."""
+        spends no fix round - where the project ticked A test for the change (0.1.10: off
+        unless ticked; `Checks.ask_test`). Its rows are made with the Checked section
+        (`_test_rows`)."""
         if (
             held.asked_test
-            or "tests" not in held.checks.on
+            or not held.checks.ask_test
             or not (missing := proof.untested(held.changes))
         ):
             return None

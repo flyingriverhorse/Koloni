@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings**: Checked's **Pages** (a changed page in KOLONİ's browser at three widths) and **A test for the change** (the Orchestrator asked for a test where code changed and no test did) are off unless you tick them in Settings › This project › Checks and git › **Check by kind of work**; **A test for the change** is a new box there, and ticked it asks under Tests only too. A project that never changed Pages has it off from now on, and a turn that wrote a page says “Not checked: pages switched off for this project”; one where you ticked it on keeps it. The tests and code style stay on ([docs](use/checked.md#a-test-for-the-change)).
+
 ### Removed
 
 - **Workspace**: the Word, Excel and PowerPoint previews and the 3D model preview (STL, OBJ, glTF, GLB, 3MF) are gone. Such a file opens in the Workspace as any other file that is not a page or a picture: its text where it is text of 256 KB at most (an OBJ, a text STL, a glTF), else a line that says why not ("Not text: there is no code to show.", "Too large to show: over 256 KB."), and one only in an agent's working copy so far is read once its work is taken in ("It could not be read." till then); open it in its own program. A Word, Excel or PowerPoint file an agent made is still listed among its outputs and still checked; a 3D model is no longer an output, and an agent can no longer `show` one ([docs](reference/upgrade-notes.md#0110)).
