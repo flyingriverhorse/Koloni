@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app import observer
-from app.db.models import OwnRequest, Role
+from app.db.models import Flag, OwnRequest, Role
 from app.model_client import ModelUnavailable
 from app.room import member_model
 from tests.conftest import Gate
@@ -222,7 +222,10 @@ def test_what_the_agent_wrote_is_quoted_with_its_secrets_masked_and_the_diff_has
             text("Good."),
         ]
     )
-    pid = project(client, project_dir, observe_reports=True, notify_url=SECRET)
+    with client.app.state.session_factory() as session:  # (a secret KOLONİ keeps: a voice key)
+        session.add(Flag(name="gemini_key", value=SECRET))
+        session.commit()
+    pid = project(client, project_dir, observe_reports=True)
     cid, run_id = turn(client, pid)
     wait_run(client, cid, run_id, timeout=20)
     seen = model.calls[3][-1]["content"]

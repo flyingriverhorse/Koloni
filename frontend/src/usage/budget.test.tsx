@@ -100,8 +100,6 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       search_url: null,
       search_order: 'builtin',
       search_agy: false,
-      has_notify_url: false,
-      notify_format: 'slack',
       notify_desktop: false,
     },
     ...{

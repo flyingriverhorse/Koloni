@@ -18,10 +18,15 @@ from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_usage_scenarios import ORIGIN, began, turn
 
-HOOK = "https://hooks.example.com/day"
 # Once for the file: what is counted from it may only be of later (a run over midnight
 # counts more, never less); a test that needs the turn's own day takes that (`midnight_of`).
 MIDNIGHT = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+@pytest.fixture(autouse=True)
+def a_desktop(monkeypatch):
+    """0.1.10: the summary goes to the desktop only - one this test machine is said to have."""
+    monkeypatch.setattr(web, "has_desktop", lambda: True)
 
 
 @pytest.fixture(autouse=True)
@@ -68,41 +73,41 @@ def test_the_time_is_the_users_own_and_needs_a_way_to_send(make_client, project_
     client, _model, pid, _cid = began(make_client, project_dir, [])
     # nowhere to send it yet: said, not kept
     assert client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"}).status_code == 422
-    assert client.patch(f"/api/projects/{pid}", json={"notify_url": HOOK}).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json={"notify_desktop": True}).status_code == 200
     assert client.patch(f"/api/projects/{pid}", json={"day_note_at": "25:00"}).status_code == 422
     del client.headers["Origin"]  # an agent's command against the app's address
     assert client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"}).status_code == 403
     client.headers["Origin"] = ORIGIN
     saved = client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"}).json()
     assert saved["day_note_at"] == "18:00"
-    # the address taken away while the time stays: nowhere to send it again, so not kept
-    gone = client.patch(f"/api/projects/{pid}", json={"notify_url": ""})
+    # the desktop switched off while the time stays: nowhere to send it again, so not kept
+    gone = client.patch(f"/api/projects/{pid}", json={"notify_desktop": False})
     assert gone.status_code == 422 and "empty the summary's time" in gone.json()["detail"]
-    assert client.get(f"/api/projects/{pid}").json()["has_notify_url"]
-    both = client.patch(f"/api/projects/{pid}", json={"notify_url": "", "day_note_at": None})
+    assert client.get(f"/api/projects/{pid}").json()["notify_desktop"]
+    both = client.patch(f"/api/projects/{pid}", json={"notify_desktop": False, "day_note_at": None})
     assert both.status_code == 200 and both.json()["day_note_at"] is None
 
 
 def test_the_note_goes_once_a_day_after_its_time(make_client, wait_run, project_dir, monkeypatch):
     client, _model, pid, cid = began(
-        make_client, project_dir, [text("hi", 3, 1)], notify_url=HOOK, notify_format="text"
+        make_client, project_dir, [text("hi", 3, 1)], notify_desktop=True
     )
     client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"})
     midnight = midnight_of(turn(client, wait_run, cid))  # the turn's day, whenever it ran
-    sent: list[tuple[str, str, str]] = []
+    sent: list[tuple[str, str]] = []
 
-    async def post(url, message, form="slack"):
-        sent.append((url, message, form))
-        return "sent"
+    async def post(title, message):
+        sent.append((title, message))
+        return "shown"
 
-    monkeypatch.setattr(web, "notify", post)
+    monkeypatch.setattr(web, "show", post)
     look = looker(client)
     today = 0
     look(at(today, 17, 59, midnight))
     assert sent == []
     look(at(today, 18, 1, midnight))
-    ((url, message, form),) = sent
-    assert (url, form) == (HOOK, "text")
+    ((title, message),) = sent
+    assert "KOLON" in title
     assert "1 turn" in message and "0 failed" in message and "cost –" in message
     look(at(today, 23, 0, midnight))  # once a day
     assert len(sent) == 1
@@ -119,8 +124,7 @@ def test_a_day_the_app_was_closed_all_evening_is_sent_late_once_and_counts_only_
         make_client,
         project_dir,
         [text("hi", 3, 1), text("on", 3, 1)],
-        notify_url=HOOK,
-        notify_format="text",
+        notify_desktop=True,
     )
     client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"})
     midnight = midnight_of(turn(client, wait_run, cid))
@@ -132,10 +136,10 @@ def test_a_day_the_app_was_closed_all_evening_is_sent_late_once_and_counts_only_
         session.commit()
     sent: list[str] = []
 
-    async def post(url, message, form="slack"):
+    async def post(title, message):
         sent.append(message)
 
-    monkeypatch.setattr(web, "notify", post)
+    monkeypatch.setattr(web, "show", post)
     look = looker(client)
     look(at(1, 8, 0, midnight))
     (late,) = sent
@@ -151,7 +155,7 @@ def test_notes_switched_on_again_send_no_late_note_of_a_day_they_were_off(
 ):
     from app.db.models import Project
 
-    client, _model, pid, _cid = began(make_client, project_dir, [], notify_url=HOOK)
+    client, _model, pid, _cid = began(make_client, project_dir, [], notify_desktop=True)
     look = looker(client)  # (by a UTC clock, as the switch counts its day)
     client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"})
     with client.app.state.session_factory() as session:  # last sent days ago, then off
@@ -161,10 +165,10 @@ def test_notes_switched_on_again_send_no_late_note_of_a_day_they_were_off(
     assert client.patch(f"/api/projects/{pid}", json={"day_note_at": "18:00"}).status_code == 200
     sent: list[str] = []
 
-    async def post(url, message, form="slack"):
+    async def post(title, message):
         sent.append(message)
 
-    monkeypatch.setattr(web, "notify", post)
+    monkeypatch.setattr(web, "show", post)
     look(at(0, 8))
     assert sent == []
     look(at(0, 18, 1))  # today's own goes, at its time
@@ -172,15 +176,15 @@ def test_notes_switched_on_again_send_no_late_note_of_a_day_they_were_off(
 
 
 def test_a_failed_send_is_not_tried_again_every_few_seconds(make_client, project_dir, monkeypatch):
-    client, _model, pid, _cid = began(make_client, project_dir, [], notify_url=HOOK)
+    client, _model, pid, _cid = began(make_client, project_dir, [], notify_desktop=True)
     client.patch(f"/api/projects/{pid}", json={"day_note_at": "08:00"})
     tries = []
 
-    async def down(url, message, form="slack"):
+    async def down(title, message):
         tries.append(message)
         raise web.WebError("the notification was not sent (ConnectError)")
 
-    monkeypatch.setattr(web, "notify", down)
+    monkeypatch.setattr(web, "show", down)
     look = looker(client)
     look(at(0, 9))
     look(at(0, 9, 1))
@@ -188,16 +192,16 @@ def test_a_failed_send_is_not_tried_again_every_few_seconds(make_client, project
 
 
 def test_a_slow_address_never_holds_the_clock(make_client, project_dir, monkeypatch):
-    client, _model, pid, _cid = began(make_client, project_dir, [], notify_url=HOOK)
+    client, _model, pid, _cid = began(make_client, project_dir, [], notify_desktop=True)
     client.patch(f"/api/projects/{pid}", json={"day_note_at": "08:00"})
     held = asyncio.Event()  # bound to the app's loop where it is first waited on
     reached = []
 
-    async def slow(url, message, form="slack"):
+    async def slow(title, message):
         reached.append(message)
         await held.wait()
 
-    monkeypatch.setattr(web, "notify", slow)
+    monkeypatch.setattr(web, "show", slow)
     triggers = client.app.state.triggers
     triggers.zone = UTC
     # back at once, while the address has not answered - and marked sent already
@@ -220,13 +224,13 @@ def test_one_project_that_cannot_be_counted_keeps_no_other_from_its_note(
     for project in (pid, second):
         assert (
             client.patch(
-                f"/api/projects/{project}", json={"notify_url": HOOK, "day_note_at": "08:00"}
+                f"/api/projects/{project}", json={"notify_desktop": True, "day_note_at": "08:00"}
             ).status_code
             == 200
         )
     sent = []
 
-    async def post(url, message, form="slack"):
+    async def post(title, message):
         sent.append(message)
 
     def note(session, project, since, runner, until):
@@ -234,7 +238,7 @@ def test_one_project_that_cannot_be_counted_keeps_no_other_from_its_note(
             raise RuntimeError("the record could not be read")
         return day_api.day_note(session, project, since, runner, until)
 
-    monkeypatch.setattr(web, "notify", post)
+    monkeypatch.setattr(web, "show", post)
     monkeypatch.setattr(client.app.state.triggers, "_day_note", note)
     look = looker(client)
     look(at(0, 9))

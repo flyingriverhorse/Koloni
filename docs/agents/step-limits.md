@@ -99,7 +99,7 @@ turn's work is already in the project, it ends **completed**, not red, with KOLO
 it ended; otherwise it fails with the reason.
 
 The card waits for you at every level, **Full auto** too. As it goes up, KOLONİ tells you on the
-desktop and at the project's notification address, where you set them (Settings › This project):
+desktop, where you switched that on (Settings › This project › Notifications):
 "The Orchestrator seems stuck: it repeated list_dir with the same result…".
 
 In a turn nobody watches (a trigger's, a job while you're away) there is no card: the Orchestrator

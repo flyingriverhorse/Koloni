@@ -1064,12 +1064,7 @@ class Triggers:
                 name, note = project.name, None
                 try:
                     text = self._day_note(session, project, midnight(of), self.runner, until)
-                    note = (
-                        project.notify_url,
-                        project.notify_format,
-                        project.notify_desktop,
-                        text[: web.MAX_NOTE],
-                    )
+                    note = text[: web.MAX_NOTE] if project.notify_desktop else None
                 except Exception as exc:
                     session.rollback()
                     log.warning(
@@ -1078,26 +1073,19 @@ class Triggers:
                 project.day_note_sent = of
                 session.commit()
                 if note:
-                    sending = asyncio.create_task(self._send_note(name, *note))
+                    sending = asyncio.create_task(self._send_note(name, note))
                     self._sending.add(sending)
                     sending.add_done_callback(self._sending.discard)
 
-    async def _send_note(
-        self, name: str, url: str | None, form: str, on_desktop: bool, text: str
-    ) -> None:
-        ways = ([("desktop", web.show(f"KOLONİ — {name}", text))] if on_desktop else []) + (
-            [("address", web.notify(url, text, form))] if url else []
-        )
-        for way, sending in ways:
-            try:
-                await sending
-            except Exception as exc:
-                log.warning(
-                    "the day's summary of %s was not sent to the %s: %s",
-                    name,
-                    way,
-                    exc if isinstance(exc, web.WebError) else type(exc).__name__,
-                )
+    async def _send_note(self, name: str, text: str) -> None:
+        try:
+            await web.show(f"KOLONİ — {name}", text)
+        except Exception as exc:
+            log.warning(
+                "the day's summary of %s was not sent to the desktop: %s",
+                name,
+                exc if isinstance(exc, web.WebError) else type(exc).__name__,
+            )
 
     # --- what the user's page asks for ----------------------------------------------------
 

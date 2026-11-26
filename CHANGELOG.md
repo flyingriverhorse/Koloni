@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Removed
+
+- **Settings**: the notification address is gone (Settings › This project › Notifications: **Notification address**, **Post it as**, **Remove the notification address**): KOLONİ no longer posts to a Slack, Discord or other web hook. Agents' notifications, a stuck Orchestrator, a night's end and the day's summary go to the desktop notification alone, where it is on; with it off agents have no notify tool. A saved address is deleted when KOLONİ upgrades the database, and a day's summary that only the address carried loses its time ([docs](docs/settings.md#notifications)).
+
 ## [0.1.9] - 2026-11-26
 
 ### Added

@@ -108,8 +108,8 @@ export function WebLeave({ conversationId, web, hosts, notify, onChange, onHosts
         <span>
           May send you notifications
           <span id="trigger-notify-note" className="choice-note">
-            Where the project’s settings say - your desktop, your notification address - and nowhere else. With neither
-            set there is no such tool.
+            On your desktop, where the project’s settings show them - and nowhere else. With that off there is no such
+            tool.
           </span>
         </span>
       </label>

@@ -77,7 +77,7 @@ CIRCLING_GO_ON = "Go on"
 # the night goes on. shortcut: a fixed 10 minutes, not a setting; make it one if users ask.
 CIRCLING_WAIT = 600.0
 CIRCLING_NO_ANSWER = "No answer in 10 minutes"
-# Said on the desktop and to the project's notification address as the card goes up.
+# Said on the desktop as the card goes up.
 CIRCLING_TOLD = (
     "The Orchestrator seems stuck: it repeated {tool} with the same result. Go on "
     "or Stop here in the chat; with no answer in 10 minutes its turn ends, its work "
@@ -524,7 +524,7 @@ class LimitsMixin:
     ) -> bool | str:
         """`_circled` in a turn the user can be asked in: the first time, the Orchestrator is
         told to try another way or end (CIRCLING_NUDGE) and goes on; then the user is asked on a
-        card, told on the desktop and at the project's address (`_tell_stuck`). True: it goes
+        card, told on the desktop (`_tell_stuck`). True: it goes
         on; else KOLONİ's report where nobody answered in CIRCLING_WAIT, or "".
         shortcut: a native CLI hears the nudge only on a run again (as `steer`)."""
         with self._factory() as session:
@@ -588,23 +588,14 @@ class LimitsMixin:
 
     def _tell_stuck(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
         """B-413: the Orchestrator's card that it seems stuck, told as a night's end is
-        (`away.send`): on the desktop where the project has notices on (within `_toasts`), and
-        at its notification address. Never fails the turn."""
+        (`away.send`): on the desktop where the project has notices on (within `_toasts`).
+        Never fails the turn."""
         with contextlib.suppress(Exception):
             with self._factory() as session:
                 project = self._project(session, ctx.cid)
-                if project is None:
+                if project is None or not (project.notify_desktop and self._toasts.take(ctx.cid)):
                     return
-                desktop = project.notify_desktop and self._toasts.take(ctx.cid)
-                if not (desktop or project.notify_url):
-                    return
-                note = (
-                    project.name,
-                    project.notify_url,
-                    project.notify_format,
-                    desktop,
-                    CIRCLING_TOLD.format(tool=tool),
-                )
+                note = (project.name, CIRCLING_TOLD.format(tool=tool))
             away.send(note)
 
     def _arm_todo_deadline(self: "AgentRunner", run_id: str) -> None:

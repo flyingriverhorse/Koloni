@@ -96,12 +96,6 @@ def _without_secrets(db: Path) -> list[str]:
                 "SELECT name FROM providers WHERE api_key IS NOT NULL AND api_key != ''"
             )
         ]
-        need += [
-            f"project {name}'s notification address"
-            for (name,) in conn.execute(
-                "SELECT name FROM projects WHERE notify_url IS NOT NULL AND notify_url != ''"
-            )
-        ]
         for server_id, name, command, env in conn.execute(
             "SELECT id, name, command, env FROM mcp_servers"
         ).fetchall():
@@ -121,7 +115,6 @@ def _without_secrets(db: Path) -> list[str]:
             if conn.execute("SELECT 1 FROM flags WHERE name = ?", (flag,)).fetchone():
                 need.append(what)
         conn.execute("UPDATE providers SET api_key = NULL")
-        conn.execute("UPDATE projects SET notify_url = NULL")
         conn.execute(
             f"DELETE FROM flags WHERE name IN ({','.join('?' * len(SECRET_FLAGS))})", SECRET_FLAGS
         )

@@ -289,11 +289,10 @@ def test_a_turn_nobody_watches_searches_and_asks_only_what_its_trigger_allows(
     assert not [w for w in snap["web_requests"] if w["status"] == "proposed"]
 
 
-def test_where_a_notification_goes_is_the_users_and_is_in_no_record(
-    make_client, wait_run, project_dir, monkeypatch
-):
-    hook = "https://hooks.example.com/services/T000/B000/XYZ-PRIVATE"
-    net = Net(monkeypatch, {"hooks.example.com": (200, "text/plain", "ok")})
+def test_where_a_notification_goes_is_the_users(make_client, wait_run, project_dir, monkeypatch):
+    net, shown = Net(monkeypatch), []
+    monkeypatch.setattr(app.web, "has_desktop", lambda: True)
+    monkeypatch.setattr(app.web, "desktop", lambda title, said: shown.append(said))
     client, model, pid, cid = setup(
         make_client,
         project_dir,
@@ -307,17 +306,14 @@ def test_where_a_notification_goes_is_the_users_and_is_in_no_record(
             ),
             text("done"),
         ],
-        project={"notify_url": hook},
+        project={"notify_desktop": True},
     )
-    shown = client.get("/api/projects").json()[0]
-    assert shown["has_notify_url"] is True and "notify_url" not in shown
     snap = wait_run(client, cid, go(client, cid)["id"])
     assert results(snap, "notify")[0][0] == "succeeded"
-    assert [url for _method, url, _ip in net.asked] == [hook]  # not where the agent said
-    assert "XYZ-PRIVATE" not in json.dumps(snap)
+    assert shown == ["the tests pass"] and net.asked == []  # not where the agent said
 
 
-def test_without_an_address_of_the_users_there_is_no_notify_tool(
+def test_without_the_desktop_on_there_is_no_notify_tool(
     make_client, wait_run, project_dir, monkeypatch
 ):
     Net(monkeypatch)

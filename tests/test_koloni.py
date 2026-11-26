@@ -54,7 +54,6 @@ def test_opening_a_folder_writes_nothing_and_the_page_writes_only_what_it_change
         headers=OWN,
         json={
             "docker_image": " python:3.12 ",
-            "notify_url": "https://hooks.example.com/x",
             "search_url": "http://localhost:8888",
             "pass_env": "NPM_TOKEN",
             "measure_command": "python measure.py",
@@ -113,7 +112,7 @@ def test_settings_from_another_machine_wait_for_the_users_word(client, project_d
         True,
     )
     assert used["koloni"]["asks"] == {} and used["koloni"]["settings_kept"] is True
-    assert (used["has_notify_url"], used["hide_secrets"], used["pass_env"]) == (False, True, None)
+    assert (used["hide_secrets"], used["pass_env"]) == (True, None)
     assert used["measure_command"] is None
 
 

@@ -2579,7 +2579,9 @@ export interface paths {
         };
         /**
          * Read Night
-         * @description The project's night that runs, else its last one; null: it never had one.
+         * @description The project's night that runs, else its last one; null: it never had one. With its strip
+         *     on Ready for you (Part B, `away_night`): read here alone - every decision of the night is
+         *     built, and a chat's snapshot, on the event loop, reads every night it had.
          */
         get: operations["read_night_api_projects__project_id__away_get"];
         put?: never;
@@ -9728,8 +9730,6 @@ export interface components {
             full_auto_judge: boolean;
             /** Git Commit */
             git_commit: boolean;
-            /** Has Notify Url */
-            has_notify_url: boolean;
             /**
              * Held Env
              * @description The secret variables of KOLONİ's environment its commands are not given: the
@@ -9768,11 +9768,6 @@ export interface components {
             name: string;
             /** Notify Desktop */
             notify_desktop: boolean;
-            /**
-             * Notify Format
-             * @enum {string}
-             */
-            notify_format: "slack" | "discord" | "text";
             /** Observe Reports */
             observe_reports: boolean;
             /** Pass Env */
@@ -9943,10 +9938,6 @@ export interface components {
             monthly_budget?: number | null;
             /** Notify Desktop */
             notify_desktop?: boolean | null;
-            /** Notify Format */
-            notify_format?: ("slack" | "discord" | "text") | null;
-            /** Notify Url */
-            notify_url?: string | null;
             /** Observe Reports */
             observe_reports?: boolean | null;
             /** Pass Env */

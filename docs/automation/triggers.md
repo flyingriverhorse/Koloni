@@ -45,7 +45,7 @@ do:
 | **May open sub-agents** | 0 to 4 per run. |
 | **May search the web** | Web searches. |
 | **May make requests to these hosts** | Plain GET and HEAD requests, to hosts ticked from the chat's allowed list. |
-| **May send you notifications** | Notifications, where you set an address. |
+| **May send you notifications** | Desktop notifications, where the project has them on. |
 
 A test command you set for a part on the project map (Settings › This project › This folder) also
 runs without being ticked, exactly as written, in that part's folder.

@@ -37,8 +37,6 @@ export interface ProjectSettingsValues {
   search_url?: string
   search_order?: Project['search_order']
   search_agy?: boolean
-  notify_url?: string
-  notify_format?: Project['notify_format']
   notify_desktop?: boolean
   /** "HH:MM": when the day's summary is sent; null: it is not. Sent only when changed. */
   day_note_at?: string | null
@@ -257,7 +255,6 @@ export function ProjectSettings({
     setKeptBefore(koloni?.settings_kept ?? true)
     try {
       await onSave(shown.patch)
-      shown.saved?.()
       setSaved(saving)
     } catch (err) {
       setError({ section: saving, text: errorText(err) })

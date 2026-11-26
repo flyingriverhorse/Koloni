@@ -1063,9 +1063,8 @@ WEB_SCHEMAS = {
     ),
     "notify": _fn(
         "notify",
-        "Send the user a short notification, where they have set it to go - their desktop, "
-        "an address of theirs, or both (you do not choose where). Use it for what they "
-        "would want to hear while away: the work is done, or it is stuck.",
+        "Send the user a short notification on their desktop. Use it for what they would "
+        "want to hear while away: the work is done, or it is stuck.",
         {"message": {"type": "string", "description": "The text, at most 2000 characters."}},
         ["message"],
     ),
