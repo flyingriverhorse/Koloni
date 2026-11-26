@@ -66,6 +66,15 @@ def without_rooms(graph: object) -> object:
         for one in [*graph["steps"], *groups, *(graph.get("ends") or [])]
         if isinstance(one, dict)
     }
+    # The roles that do the recipe's work at a step of their own (no review).
+    writers = {
+        str(who.get("role") or who.get("candidates")).casefold()
+        for one in graph["steps"]
+        if isinstance(one, dict)
+        and isinstance(who := one.get("who"), dict)
+        and (who.get("role") or who.get("candidates"))
+        and one.get("done_when") != "no_findings"
+    }
     for step in graph["steps"]:
         who = step.get("who") if isinstance(step, dict) else None
         if not (isinstance(who, dict) and isinstance(who.get("room"), list)):
@@ -85,10 +94,21 @@ def without_rooms(graph: object) -> object:
         if rest.get("pos") is not None:
             group["pos"] = rest["pos"]
         groups.append(group)
+        # A room ran as a whole, and so did its condition and its review: a step in a group runs
+        # on no condition of its own, and a role that does the work elsewhere would check its own
+        # there - it works in the group, the others review.
         rest = {**rest, "group": step.get("id")}
         rest.pop("pos", None)
+        rest.pop("when", None)
+        review = rest.get("done_when") == "no_findings"
         steps += [
-            {**rest, "id": _fresh(step.get("id"), taken), "name": one, "who": {"role": one}}
+            {
+                **rest,
+                "id": _fresh(step.get("id"), taken),
+                "name": one,
+                "who": {"role": one},
+                **({"done_when": "done"} if review and one.casefold() in writers else {}),
+            }
             for one in roles
         ]
     return {**graph, "steps": steps, "groups": groups} if steps != graph["steps"] else graph

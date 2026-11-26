@@ -41,7 +41,8 @@ fails goes back to the Coder. Cheaper than Feature: two agents, no spec and no r
 **"The backend and frontend teams must agree the API first."**
 Two teams. Ask the Orchestrator for both: each team's coordinator writes the contract into the shared
 folder (`contracts/`) and asks the other team for its part with `request_work`. To have the
-coordinators talk it over first, ask for a [discussion](discussions.md) once they are at work. (Rooms,
+coordinators talk it over, ask for a [discussion](discussions.md) between them: it takes a coordinator
+in once it waits (its part done, or waiting for the other team). (Rooms,
 where 2 to 6 agents wrote in one copy at once, are gone since 0.1.10.)
 
 **"Should we keep SQLite or move to Postgres?"**

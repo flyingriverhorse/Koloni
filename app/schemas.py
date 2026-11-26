@@ -2872,7 +2872,10 @@ def without_rooms(graph: object) -> object:
     before - saved, a folder's file, a run's state - read as an "All at once" group in its place
     (its id, name and spot, so its arrows and loops still meet it) with a step of each role, each
     keeping the step's other choices. One role, or none, is a plain step of it (none: "" - no role
-    here, which the board says). Anything else is left as it is, for the schema to judge."""
+    here, which the board says). Anything else is left as it is, for the schema to judge.
+    shortcut: a room that ran only if a problem was found (`when`) becomes a group that always runs
+    - a group runs on no condition; draw a review before it and the condition by hand if one is
+    seen to cost too much."""
     if not isinstance(graph, dict) or not isinstance(graph.get("steps"), list):
         return graph
     steps, groups = [], list(graph.get("groups") or [])
@@ -2880,6 +2883,15 @@ def without_rooms(graph: object) -> object:
         one.get("id")
         for one in [*graph["steps"], *groups, *(graph.get("ends") or [])]
         if isinstance(one, dict)
+    }
+    # The roles that do the recipe's work at a step of their own (no review).
+    writers = {
+        str(who.get("role") or who.get("candidates")).casefold()
+        for one in graph["steps"]
+        if isinstance(one, dict)
+        and isinstance(who := one.get("who"), dict)
+        and (who.get("role") or who.get("candidates"))
+        and one.get("done_when") != "no_findings"
     }
     for step in graph["steps"]:
         who = step.get("who") if isinstance(step, dict) else None
@@ -2901,10 +2913,21 @@ def without_rooms(graph: object) -> object:
         if rest.get("pos") is not None:
             group["pos"] = rest["pos"]
         groups.append(group)
+        # A room ran as a whole, and so did its condition and its review: a step in a group runs
+        # on no condition of its own, and a role that does the work elsewhere would check its own
+        # there - it works in the group, the others review.
         rest = {**rest, "group": step.get("id")}
         rest.pop("pos", None)
+        rest.pop("when", None)
+        review = rest.get("done_when") == "no_findings"
         steps += [
-            {**rest, "id": _fresh(step.get("id"), taken), "name": one, "who": {"role": one}}
+            {
+                **rest,
+                "id": _fresh(step.get("id"), taken),
+                "name": one,
+                "who": {"role": one},
+                **({"done_when": "done"} if review and one.casefold() in writers else {}),
+            }
             for one in roles
         ]
     return {**graph, "steps": steps, "groups": groups} if steps != graph["steps"] else graph

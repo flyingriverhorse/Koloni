@@ -47,9 +47,9 @@ Only what needs your attention after an update; everything else is in the [Chang
   running is ended; and each chat that had a room gets one line where it was, "A room was opened here.
   Rooms were removed in 0.1.10 …". The rooms themselves and what was said in them stay in the database,
   untouched. A recipe file in a folder's `.koloni/recipes/` is read the same way as it loads, and is
-  written in the new form the next time you save it. A Room step that reviewed with the role that did
-  the work before it among its roles now says that role "would check its own work": take it out of the
-  group. For agents talking a question through, ask for a [discussion](../agents/discussions.md); for
+  written in the new form the next time you save it. In a Room step that reviewed, a role that does the
+  recipe's work at a step of its own works in the group and the others review; a Room step that ran only
+  if a problem was found now always runs. For agents talking a question through, ask for a [discussion](../agents/discussions.md); for
   work at the same time, sub-agents or a recipe's **All at once** step. To go back to 0.1.9, stop
   KOLONİ, return to 0.1.9 and put that copy back in place of `runtime/data/koloni.db`.
 

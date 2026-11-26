@@ -140,7 +140,7 @@ export async function steps(chat: Locator) {
 
 /**
  * Opens More under the message box, where it is not open (slice 38b): the
- * sub-agents, what runs without asking and Work together are in it.
+ * sub-agents and what runs without asking are in it.
  */
 /** Settings › This project, opened from ⚙ on the rail, at a section (tek-ev); ⚙ again closes it. */
 export async function projectSettings(page: Page, section?: RegExp) {

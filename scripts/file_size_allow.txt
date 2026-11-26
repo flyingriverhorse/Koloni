@@ -17,10 +17,10 @@
 2038 app/memory.py
 5734 app/model_native.py
 1984 app/proof_kinds.py
-4867 app/schemas.py
+4890 app/schemas.py
 1661 app/tools.py
 1520 frontend/src/agents/RecipesTab.tsx
-2548 frontend/src/chat/MessageList.test.tsx
+2579 frontend/src/chat/MessageList.test.tsx
 1679 frontend/src/chat/MessageList.tsx
 2220 frontend/src/state/store.ts
 
@@ -38,6 +38,6 @@
 1615 tests/test_places.py
 1602 tests/test_proof_pages.py
 2010 tests/test_proof_style.py
-2709 tests/test_recipe_checks_scenarios.py
+2701 tests/test_recipe_checks_scenarios.py
 2018 tests/test_recipe_run_scenarios.py
 1538 tests/test_take_in.py

@@ -866,8 +866,8 @@ def test_a_team_with_no_recipe_beside_one_stops_alone(make_client, wait_run, pro
 
 
 def test_a_review_by_the_role_that_did_the_work_before_it_is_marked_as_it_is_saved(make_client):
-    # (Who did the work does not pass its check.) Only a step before it on the way did the work - and
-    # a Room step that reviewed (0.1.10: a group, a review of each of its roles) is held to it too.
+    # (Who did the work does not pass its check.) Only a step before it on the way did the work; a
+    # Room step that reviewed (0.1.10: a group) has its builder work in it, the others review.
     from tests.test_chat_teams_scenarios import OWN
 
     def saved(name, steps, arrows):
@@ -906,15 +906,7 @@ def test_a_review_by_the_role_that_did_the_work_before_it_is_marked_as_it_is_sav
         ],
         [("start", "build"), ("build", "meet"), ("meet", "end")],
     )
-    assert later.status_code == 201, later.text
-    assert room.status_code == 422 and room.json()["detail"] == [
-        {
-            "loc": ["body", "graph"],
-            "msg": "Coder: Coder would check its own work (Build it)",
-            "type": "recipe",
-            "at": "meet-1",
-        }
-    ]
+    assert (later.status_code, room.status_code) == (201, 201), (later.text, room.text)
 
 
 # --- the rules as recipe_run holds them (batch-16's review) ---------------------------------------

@@ -397,9 +397,8 @@ def test_a_room_step_drawn_before_is_an_all_at_once_group_of_its_roles(
             [("start", "meet"), ("meet", "end")],
         ),
     )
-    assert saved["agents"] == {"least": 2, "most": 2}, (
-        saved
-    )  # (saved: nothing keeps it from running)
+    # (saved: nothing keeps it from running)
+    assert saved["agents"] == {"least": 2, "most": 2}, saved
     assert saved["graph"]["groups"] == [{"id": "meet", "name": "Design meeting"}]
     assert [(s["id"], s["who"], s["group"], s["ask_me"]) for s in saved["graph"]["steps"]] == [
         ("meet-1", {"role": "Coder"}, "meet", True),
@@ -415,6 +414,74 @@ def test_a_room_step_drawn_before_is_an_all_at_once_group_of_its_roles(
         t["function"] for t in model.tool_args[0] if t["function"]["name"] == "spawn_agent"
     )
     assert "for Coder, Reviewer: it draws 2 agents, 2 in all for the run" in offered["description"]
+
+
+def test_a_room_step_that_ran_in_0_1_9_still_runs(make_client):
+    # Whatever a Room step could carry - a condition, a review with the builder among its roles,
+    # a loop to it or from it - its recipe is still saved, as one that runs.
+    client, _model = make_client({})
+    build = part("build", "Build it", {"role": "Coder"})
+    looked = part("look", "Code review", {"role": "Reviewer"}, done_when="no_findings")
+    cases = {
+        # (A group runs on no condition: the room's own is dropped, and the group always runs.)
+        "on a problem": (
+            [build, looked, part("meet", "Talk", {"room": ["Coder", "Tester"]}, when="problem")],
+            [("start", "build"), ("build", "look"), ("look", "meet"), ("meet", "end")],
+            [],
+        ),
+        # (A role that built works in the group; the others review.)
+        "a review with its builder": (
+            [
+                build,
+                part(
+                    "meet", "Look at it", {"room": ["Coder", "Reviewer"]}, done_when="no_findings"
+                ),
+            ],
+            [("start", "build"), ("build", "meet"), ("meet", "end")],
+            [{"from": "meet", "to": "build", "rounds": 2}],
+        ),
+        "a loop back to it": (
+            [part("meet", "Build together", {"room": ["Coder", "Tester"]}), looked],
+            [("start", "meet"), ("meet", "look"), ("look", "end")],
+            [{"from": "look", "to": "meet", "rounds": 2}],
+        ),
+    }
+    for name, (steps, arrows, loops) in cases.items():
+        saved = client.post(
+            "/api/recipes",
+            headers=OWN,
+            json={"name": name, "graph": graph(steps, arrows, loops=loops)},
+        )
+        assert saved.status_code == 201, (name, saved.text)
+        meet = [s for s in saved.json()["graph"]["steps"] if s["group"] == "meet"]
+        assert all(s.get("when") is None for s in meet), name
+        if name == "a review with its builder":
+            assert [(s["who"]["role"], s["done_when"]) for s in meet] == [
+                ("Coder", "done"),
+                ("Reviewer", "no_findings"),
+            ]
+
+
+def test_a_folders_recipe_file_with_a_room_step_is_read_as_a_group(project_dir):
+    from app.recipes import folder_recipes
+
+    folder = project_dir / ".koloni" / "recipes"
+    folder.mkdir(parents=True)
+    drawn = graph(
+        [part("meet", "Design meeting", {"room": ["Coder", "Reviewer"]})],
+        [("start", "meet"), ("meet", "end")],
+    )
+    (folder / "meet.json").write_text(
+        json.dumps({"name": "Meet", "graph": drawn}), encoding="utf-8"
+    )
+    found, broken = folder_recipes(str(project_dir))
+    assert broken == []
+    ((file, recipe),) = found
+    assert file == "meet" and [g.id for g in recipe.graph.groups] == ["meet"]
+    assert [(s.who.role, s.group) for s in recipe.graph.steps] == [
+        ("Coder", "meet"),
+        ("Reviewer", "meet"),
+    ]
 
 
 # --- review round (84e): the Take-in guarantee on every way --------------------------------------

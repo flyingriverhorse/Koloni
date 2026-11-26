@@ -86,9 +86,10 @@ agent's CLI keeps its own commands off KOLONİ's record, its report is taken as 
 
 A **Room** step of a recipe drawn before 0.1.10 (rooms are gone) opens as an **All at once** group in
 its place, with a step for each of its roles: they run side by side, as sub-agents, in the recipe's
-copy. Its arrows and loops are kept. A Room step that reviewed (**no finding is left**) becomes a
-review by each of its roles, so the role that did the work before it is held to "would check its own
-work" as any review is: take that role out of the group.
+copy. Its arrows and loops are kept. A Room step that reviewed (**no finding is left**) becomes a review
+by each of its roles but one that does the recipe's work at a step of its own: that one works in the
+group (a role does not check its own work). A Room step that ran only if the step before found a
+problem now always runs: a group runs on no condition.
 
 **Ask me** is an end: **Ask me, then in**, or **Tell me what was found**. Every recipe needs an end.
 

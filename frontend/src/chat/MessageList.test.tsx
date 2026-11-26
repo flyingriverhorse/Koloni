@@ -2546,3 +2546,34 @@ test('an older turn that ends with its answer’s words lets its hidden foot sta
   expect(older()).not.toHaveClass('turn-words-end')
   expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
 })
+
+test('0.1.10, rooms are gone: an old chat that held one still draws - its calls as plain rows, its line as KOLONİ’s', () => {
+  const said = (id: string, role: Message['role'], content: string, over: Partial<Message> = {}): Message => ({
+    ...assistantMessage(id, 'r', content),
+    role,
+    agent_id: null,
+    ...over,
+  })
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: '2026-10-05T10:00:30Z' })],
+    agents: [
+      agent('r', 'completed'),
+      agent('r', 'completed', { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Coder', depth: 1 }),
+    ],
+    messages: [
+      userMessage('r', 'Fix the greeting together'),
+      assistantMessage('m', 'r', ''),
+      said('k', 'koloni', 'A room was opened here. Rooms were removed in 0.1.10.'),
+      said('p', 'agent', 'Done: hi there.', { agent_id: 'kid', room_post_id: 'post' }),
+      assistantMessage('m2', 'r', 'The room is over: hello.py says hi there.'),
+    ],
+    toolCalls: [
+      toolCall('1', 'r', 'open_room', 'succeeded', '{"goal":"Fix it","with":["Coder","Reviewer"]}'),
+      toolCall('2', 'r', 'open_room', 'failed', '{"goal":"again"}'),
+      toolCall('3', 'kid', 'post_to_room', 'succeeded', '{"type":"result","text":"Done"}', { agent_id: 'kid' }),
+    ],
+  })
+  render(<MessageList {...handlers} state={state} />)
+  expect(screen.getByText('A room was opened here. Rooms were removed in 0.1.10.')).toBeInTheDocument()
+  expect(screen.getByText('The room is over: hello.py says hi there.')).toBeInTheDocument()
+})
