@@ -9,7 +9,7 @@ smallest that fits: every extra agent is more model calls, so more tokens, money
 |---|---|---|---|
 | a small, clear job done | **just ask**, in a chat | the Orchestrator does small jobs itself, or opens one sub-agent | the fewest calls |
 | to see the plan before anything changes | **Plan first** | each message first gets a plan to approve | one planning pass more |
-| a bigger piece of work, built, reviewed and tested | **a team** with a **recipe** | the recipe runs the steps in order, loops back on findings, and asks you where the recipe says (Feature: the spec, and the work at the end) | one agent per step, more for each loop |
+| a bigger piece of work, built, reviewed and tested | **a team** with a **recipe** | the recipe runs the steps in order, loops back on findings, and asks you where the recipe says (Feature: the spec, and the work at the end) | one agent per step, more for each loop (Feature: 3 to 7) |
 | two or more agents to build one thing at the same time | **sub-agents**, or a recipe step **All at once** | each works on its own part, then the work is taken in | each agent's calls |
 | agents to think a question through, with nothing changed | **a discussion** | agents talk in rounds and nobody writes anything | each speaker's whole work so far is sent again at each step, so tokens grow faster than the talk |
 | the best of several attempts | **Evolve**, or another recipe with **Candidates** | 2 to 5 agents try the same job, each is scored by your measure command, and the best goes on | each candidate in each round, plus the measure runs |
@@ -28,9 +28,10 @@ in one line, and KOLONİ's checks run at the end all the same. With **Teams for 
 **"Add a password reset page, with review and tests."**
 A team with the **Feature** recipe: in **Teams for this chat** choose **Manual**, then the **Web app**
 team, whose default recipe is Feature. A Spec writer writes the spec for you to approve, a Coder builds
-it, then a Reviewer, a Security reviewer, a UI designer and a Tester check it at once; findings go back
-to the Coder, at most twice. You take the work in on the **Teams' work is ready** card. See
-[A web app with a team](../examples/team-web-app.md).
+it, then a UI designer looks at its screens; findings go back to the Coder, at most twice. Then KOLONİ
+runs the tests, and has a big or security-touching change looked at by its own Reviewer and Security
+reviewer: 3 to 7 agents in all, as its recipe counts them. You take the work in on the **Teams' work is
+ready** card. See [A web app with a team](../examples/team-web-app.md).
 
 **"Fix this crash, and make sure it stays fixed."**
 The **Bugfix** recipe: in **Teams for this chat** choose **Manual**, then a team - the **Web app** team,
