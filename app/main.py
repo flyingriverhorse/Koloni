@@ -36,7 +36,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import backup as backups
-from app import earlier, mcp_client, models_dev, raw, web
+from app import earlier, mcp_client, models_dev, raw, secret_set, web
 from app.agent import (
     AgentRunner,
     recover_copies,
@@ -316,6 +316,22 @@ def known_secrets(factory, settings: Settings) -> list[str | None]:
         ]
 
 
+def loose_values(factory) -> list[str]:
+    """HIGH-1: what KOLONİ keeps that is masked where text is shown, but no secret a branch's look
+    stops on, nor one a kept reason is masked of (`raw.known`): an MCP server's value neither a
+    secret's name nor a secret's shape holds (`secret_set.values`: `NODE_ENV=production`, `HOME`, a
+    credentials file's path - not `GH=ghp_…`) - and a saved value that reads as a word
+    (`raw.WORDISH`: a provider's key or `OPENAI_API_KEY` of `not-needed`)."""
+    with factory() as session:
+        envs = [server.env for server in session.scalars(select(McpServer))]
+        keys = [one for one in session.scalars(select(Provider.api_key)) if one]
+    named = [*(value for env in envs for value in secret_set.values(env)), *keys]
+    return [
+        *(value for env in envs for value in env.values() if value not in named),
+        *(value for value in named if raw.WORDISH.fullmatch(value)),
+    ]
+
+
 def create_app(
     settings: Settings,
     model: ModelClient | None = None,
@@ -456,7 +472,8 @@ def create_app(
             *known_secrets(factory, settings),
             *app.state.runner.given_spellings(),
             app.state.page_key,
-        ]
+        ],
+        lambda: loose_values(factory),
     )
     app.state.bus = EventBus(factory)
     # Set by the server's exit signal (`ClosingServer`): the page's open streams end on it.

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from sqlalchemy import and_, case, literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import copies, earlier, observer, raw, stories, topics
+from app import copies, earlier, observer, stories, topics
 from app.api.usage import over_budget
 from app.db.models import (
     Agent,
@@ -33,8 +33,8 @@ from app.db.models import (
     new_chat,
     now,
 )
-from app.judge import whole
 from app.likeness import alike as alike
+from app.masking import masked
 from app.roles import HIVE_KEEPER
 from app.serialize import conversation_out, message_out, run_out, topic_out
 from app.team import quoted
@@ -1223,8 +1223,8 @@ def lead_decided(said: str, count: int) -> dict[int, tuple[bool, str]]:
         if not isinstance(one, dict):
             continue
         # (masked before the cut: a secret cut in half would no longer be known to hide)
-        said = one.get("why")
-        shown = raw.hidden(whole(" ".join(said.split()))) if isinstance(said, str) else None
+        given = one.get("why")
+        shown = masked(given) if isinstance(given, str) else None
         why = _cut(shown, MAX_WHY)
         n, add = one.get("task"), one.get("add")
         if type(n) is int and 1 <= n <= count and isinstance(add, bool) and why:

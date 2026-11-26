@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Literal
 
-from sqlalchemy import ColumnElement, case, exists, func, select
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app import injection
@@ -116,13 +116,37 @@ WAITS_TAKE_IN = "its work waits for your Take in in its chat"
 
 
 def work(session: Session, question: Question) -> tuple[str | None, str | None]:
-    """The work of the turn a card was answered in, as it stands: the newest Merge of its chat
-    from that turn on (a Take in or a Discard keeps its Merge: `parked.where`'s by-turn record) -
-    its id, and why Change and redo cannot go on with it, None where it can (a kept copy none of
-    which was taken in). None, None where none is on record: the turn changed nothing, or worked in
-    the project itself - a fresh turn goes on there. Its state alone is read, never its files'
-    diffs: whether one of them was taken in is asked of the database."""
+    """The work of the turn a card was answered in, as it stands: the newest Merge of the copy the
+    agent that asked worked in, in that turn - its own, or, where it worked in the copy of the
+    agent it works for, that one's, up the line (`merge._line_on_record`'s way, upward; never a
+    sibling's copy, nor an agent's above it with a copy of its own) - or of a turn that went on
+    with that work since, as its record says (`Parked.went_on`: the morning's going-on turn, Change
+    and redo's in a job's chat), in its topic; never another topic's, a message of the user's, a
+    To-do story's next task, a plan's work, a rerun, a comparison's side or a room's (a Take in or
+    a Discard keeps its Merge: `parked.where`'s by-turn record) - its id, and why Change and redo
+    cannot go on with it, None where it can (a kept copy none of which was taken in). None, None
+    where none is on record: the turn changed nothing, or worked in the project itself - a fresh
+    turn goes on there. Its state alone is read, never its files' diffs: whether one of them was
+    taken in is asked of the database.
+    shortcut: a turn that went on with a kept copy is known by its record alone - Fix it's, and
+    Change and redo's outside a job's chat, leave none: the card's own copy, given to it, reads as
+    discarded (refused, never another's work); so does a morning's going-on turn put in another
+    topic (`parked.begin`: the chat's last turn's). Keep the copy a turn went on in on its record if
+    that is seen.
+    shortcut: an agent's own card is its own copy's alone - a Lead that works in the project, its
+    sub-agents each in a copy of their own, has none: a fresh turn, none of theirs taken for its
+    work; read the line down too if a Lead's own card is seen to want one of them."""
     turn = session.get_one(Run, question.run_id)
+    agents = {
+        one: (parent, (copy or {}).get("state"))
+        for one, parent, copy in session.execute(
+            select(Agent.id, Agent.parent_agent_id, Agent.copy).where(Agent.run_id == turn.id)
+        )
+    }
+    owner, seen = question.agent_id, set()  # (up the line while it worked in its parent's copy)
+    while owner not in seen and (found := agents.get(owner)) and found[1] == "parent" and found[0]:
+        seen.add(owner)
+        owner = found[0]
     each = func.json_each(Merge.files).table_valued("value", "type")
     # (an object's state alone: a bare string among the files would make json_extract raise)
     state = case((each.c.type == "object", func.json_extract(each.c.value, "$.state")))
@@ -132,7 +156,12 @@ def work(session: Session, question: Question) -> tuple[str | None, str | None]:
         .join(Run, Run.id == Merge.run_id)
         .where(
             Run.conversation_id == turn.conversation_id,
+            Run.topic_id == turn.topic_id,  # (none: IS NULL - a turn on record with no topic)
             Run.created_at >= utc(turn.created_at).replace(tzinfo=None),
+            or_(
+                and_(Run.id == turn.id, Merge.agent_id == owner),
+                and_(Run.id != turn.id, exists().where(Parked.went_on == Run.id)),
+            ),
         )
         .order_by(Merge.created_at.desc())
         .limit(1)
@@ -451,12 +480,13 @@ def of(
     until: datetime | None = None,
     unseen: bool = False,
     undo: bool = True,
+    every: bool = False,
 ) -> DecisionLog:
     """What was decided for the user in project `project_id` at or after `since` and before
-    `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`,
-    `more` where there were more. `unseen`: only those that wait for your OK. `undo` False: what
-    still undoes an answer is not asked - "none", no reason (the night's report, which shows no
-    undo: `decisions.work` reads each chat's work)."""
+    `until` (each where given; a time with no zone is UTC's), newest first - the newest `MOST`
+    (`every`: all), `more` where there were more. `unseen`: only those that wait for your OK. `undo`
+    False: what still undoes an answer is not asked - "none", no reason (the night's report, which
+    shows no undo: `decisions.work` reads each chat's work)."""
 
     def window(at: When) -> list[ColumnElement[bool]]:
         return [
@@ -470,9 +500,10 @@ def of(
     if unseen:  # (only what waits for your OK - before the cut: one of any age is found)
         rows = [row for row in rows if row[1] is False]
     rows.sort(key=lambda row: row[0], reverse=True)
+    shown = rows if every else rows[:MOST]
     return DecisionLog(
-        rows=[build() for _at, _seen, build in rows[:MOST]],
+        rows=[build() for _at, _seen, build in shown],
         # (Not seen has no period: the judge's "fine" of all time is no count of it - nor waits.)
         judge_fine=0 if unseen else fine,
-        more=len(rows) > MOST,
+        more=len(shown) < len(rows),
     )

@@ -9,20 +9,18 @@ H1 (`copies.no_push`), H2 (`away_branch.refs`), H3 (the push held to what was ch
 import asyncio
 import hashlib
 import logging
-import os
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import away, away_branch, checks_now, copies, git, parked, raw, web
+from app import away, away_branch, checks_now, copies, git, parked, raw, secret_set, web
 from app.agent.context_mixin import git_prompt
 from app.agent.ctx import Ctx
 from app.agent.merge import _as_branch, _few, _git_parts, _kept_as, _kept_branch, _secret_forms
 from app.agent.story_branch_mixin import branch_there
-from app.commands import secret_values, spellings_of
+from app.agent.words import SECRET_IN_COPY
 from app.db.away_models import Parked
 from app.db.models import Agent, AwayRun, BacklogTask, Merge, Project, Run, now
 from app.project_view import standing as standing_files
@@ -43,6 +41,14 @@ NOT_NOW = "{why}: nothing was pushed"
 TAKEN = "its work was taken in or discarded: nothing to push"
 UNDER_WAY = "its push or its Take in is under way"
 PUSH_SECRET = "{files} on the branch holds a secret KOLONİ knows - take it off the branch first"
+# A file of a job's branch KOLONİ's commit left out (HIGH-1): it stays in the job's worktree.
+LEFT_OUT = (
+    "KOLONİ: {files} left out of the branch's commit - it holds a secret KOLONİ knows. It stays in "
+    "the job's worktree only; the rest of the work is on the branch."
+)
+# (D1: a branch of that name made on origin between its look and the push - git's own words name
+# this machine's folders)
+ON_ORIGIN = "origin already has a branch named {name}: nothing was pushed"
 # ...and what it asks a second Run for.
 PUSH_CONFIG = (
     "git's config changed since the job began - a push runs what it names (an address, a "
@@ -60,20 +66,14 @@ INTO_MOVED = (
     "the project is on {now} now, not on {into} as when the job ended: switch back to {into}, "
     "then Run again - nothing was pushed"
 )
-# A pull request's body: what an agent wrote (its notes, the files' names) in a code block, so
-# that no @mention, closing keyword or link of it is read by GitHub (`_fenced`).
+# A pull request's body: what an agent wrote (its notes, the files' names, its name) in code, so
+# that no @mention, closing keyword or link of it is read by GitHub (`away_branch.fenced`).
 PUSH_BODY = (
     "{task}\n\nMade by KOLONİ's agents ({name}) while you were away, on the branch `{branch}`, "
     "pushed as one commit.\n\n### Changed files\n{files}\n\n### KOLONİ's checks\n{checks}\n\n"
     "### {name}'s notes\n{notes}\n"
 )
-
-
-def _fenced(text: str) -> str:
-    """`text` as a code block whose fence is longer than any run of backticks in it."""
-    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
-    fence = "`" * max(3, longest + 1)
-    return f"{fence}\n{text}\n{fence}"
+_fenced = away_branch.fenced
 
 
 # What of the repository a night's jobs are compared with: taken once, at Go away (`night_base`).
@@ -250,11 +250,11 @@ class AwayBranchMixin:
         held = record.get("away")
         if copy is None or not copy.branch or copy.start is None or not isinstance(held, dict):
             return
-        first = ((task.title if task else "").strip().splitlines() or [copy.branch])[0][:72]
-        for one in copy.secrets():  # (a secret given this turn goes into no commit's message)
-            first = first.replace(one, "***") if one else first
+        first = ((task.title if task else "").strip().splitlines() or [copy.branch])[0]
+        # (no secret KOLONİ checks, nor a mention, goes into a commit's message - masked, then cut)
+        first = away_branch.titled(first, copy.every_secret())[:72]
         try:
-            await self._commit_line(ctx, copy, first)
+            left = await self._commit_line(ctx, copy, first)
         except git.Refused as exc:  # (its worktree on another branch now: a plain copy)
             copy.branch = None
             self._set_agent(
@@ -262,6 +262,11 @@ class AwayBranchMixin:
             )
             self._koloni_line(ctx.cid, ctx.run_id, NOT_ON_BRANCH_END.format(why=exc))
             return
+        if secret := [path for path, why in left.items() if why == SECRET_IN_COPY]:
+            # (HIGH-1: kept out of git - its name masked too, MEDIUM-3 -, said; the rest goes on)
+            named = [raw.hide(path, copy.every_secret()) for path in secret]
+            held = {**held, "left_out": named}
+            self._koloni_line(ctx.cid, ctx.run_id, LEFT_OUT.format(files=_few(named)))
         look = await self._branch_look(copy)
         if gone := await self._secret_branch_gone(ctx, copy, look):
             self._koloni_line(ctx.cid, ctx.run_id, gone)
@@ -340,6 +345,10 @@ class AwayBranchMixin:
                 parked.park(session, task, "push", None, what, data)
             session.commit()
 
+    async def _origin_is(self: "AgentRunner", copy: copies.Copy) -> str:
+        """`away_branch.origin_name`, off the event loop."""
+        return await asyncio.to_thread(away_branch.origin_name, copy.project)
+
     async def push_away_branch(
         self: "AgentRunner", away_id: str, task_id: str, decision: str, seen: list[str]
     ) -> dict:
@@ -377,29 +386,24 @@ class AwayBranchMixin:
                 "root": project.root_path,
                 "way": project.finish_way,
                 # (its first line: nothing past it - a trailer - goes into the commit or the PR)
-                "title": (task.title.strip().splitlines() or ["?"])[0][:72],
+                "title": (task.title.strip().splitlines() or ["?"])[0],
                 "name": agent.name or agent.role_name,
                 "notes": (agent.report or "").strip(),
             }
-            passed = [
-                os.environ[key.strip()]
-                for key in (project.pass_env or "").split(",")
-                if len(os.environ.get(key.strip(), "")) >= raw.MIN_SECRET
-            ]
             merge_id = merge.id
         if on_branch is None:
             return {"state": "refused", "why": TAKEN}
-        known = spellings_of([*secret_values(os.environ), *passed])
-        for one in known:  # (no secret KOLONİ knows goes up in a commit's message or a PR's words)
-            what["title"], what["notes"] = (
-                what[key].replace(one, "***") for key in ("title", "notes")
-            )
+        # (S1, MEDIUM-2: the set a branch's merge and push look for)
+        known = secret_set.checked()
+        # (no secret KOLONİ knows, nor a mention, goes up in a commit's message or a PR's words: R2)
+        what["title"] = away_branch.titled(what["title"], known)[:72]
+        for one in known:
+            what["notes"] = what["notes"].replace(one, "***")
         self._deciding.add(merge_id)
         try:
             copy = _as_branch(
                 copies.kept(Path(what["root"]), runtime, name, tree, recorded, part), on_branch
             )
-            copy.secrets = lambda: known
             done = await self._push_held(copy, held, night, what, seen)
         except (OSError, ValueError) as exc:
             done = {"state": "refused", "why": NOT_NOW.format(why=exc)}
@@ -458,7 +462,12 @@ class AwayBranchMixin:
                 under=copies.folders(self.settings.runtime_root),
             )
         except git.Refused as exc:
-            return {"state": "refused", "why": _nothing(exc)}
+            said = str(exc)
+            rejected = said.startswith("git push failed") and "[rejected]" in said
+            return {
+                "state": "refused",
+                "why": ON_ORIGIN.format(name=name) if rejected else _nothing(said),
+            }
         if what["way"] != "pull_request":
             return {"state": "pushed", "sha": sha}
         return await self._push_pr(copy, look, held, what, sha)
@@ -470,7 +479,7 @@ class AwayBranchMixin:
         repo, off = await asyncio.to_thread(git.pr_ready, copy.project)
         body = PUSH_BODY.format(
             task=_fenced(what["title"]),
-            name=what["name"],
+            name=_fenced(what["name"], inline=True),
             branch=copy.branch,
             files=_fenced(
                 "\n".join(
@@ -480,6 +489,8 @@ class AwayBranchMixin:
             checks=held.get("checks") or checks_now.NOT_COMPLETE,
             notes=_fenced(what["notes"][:4000] or "(none)"),
         )
+        for one in copy.every_secret():  # (MEDIUM-3: a file's name holding one, too)
+            body = body.replace(one, "***")
         try:
             if repo is None:
                 raise git.Refused(off or "no repository on GitHub")

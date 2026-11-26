@@ -7,14 +7,15 @@ close the row. Every repository here is made by the test, in its folder - origin
 
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
 
-from app import git, parked
+from app import away_branch, git, parked, raw
 from app.agent.away_branch_mixin import PUSH_CONFIG
 from app.away_branch import HOOKS_MOVED
-from app.db.models import Agent
+from app.db.models import Agent, McpServer, Provider
 from app.model_client import ModelUnavailable
 from tests.test_agent_writes import edit, write
 from tests.test_away_branch_scenarios import (
@@ -129,6 +130,10 @@ def name_on_origin(repo, name):
     git_run(repo, "push", "-q", "origin", f"{other}:refs/heads/{name}")
 
 
+def name_on_origin_at_main(repo, name):  # (D1: a push on top of it would be a fast-forward)
+    git_run(repo, "push", "-q", "origin", f"main:refs/heads/{name}")
+
+
 def main_unpushed(repo):
     (repo / "local.txt").write_text("not pushed\n")
     git_run(repo, "add", "local.txt")
@@ -140,10 +145,11 @@ def main_unpushed(repo):
     [
         (None, tip_moved, "moved since the job ended"),
         (None, branch_deleted, "is gone: nothing was pushed"),
-        (None, name_on_origin, "git push failed"),
+        (None, name_on_origin, "origin already has a branch named koloni/"),
+        (None, name_on_origin_at_main, "origin already has a branch named koloni/"),
         (main_unpushed, None, "push main first"),
     ],
-    ids=["tip_moved", "branch_deleted", "name_on_origin", "main_unpushed"],
+    ids=["tip_moved", "branch_deleted", "name_on_origin", "name_at_main", "main_unpushed"],
 )
 def test_h3_refuses_and_pushes_nothing(make_client, wait_run, repo, before, after, want):
     client, done, job, row, origin = night_with_origin(make_client, wait_run, repo, before=before)
@@ -170,6 +176,54 @@ def test_a_secret_koloni_knows_in_what_goes_up_is_refused(make_client, wait_run,
     row = row_now(client, done)
     assert row["decision"] is None and "holds a secret KOLONİ knows" in row["result"]
     assert on_origin(origin, name_of(job)) == ""
+
+
+def kept_as_a_provider_key(client, value):
+    with client.app.state.session_factory() as session:
+        session.add(
+            Provider(name="Keyed", kind="openai_compat", base_url="http://x/v1", api_key=value)
+        )
+        session.commit()
+
+
+def kept_as_an_mcp_value(client, value):
+    with client.app.state.session_factory() as session:
+        session.add(McpServer(name="gh", command=["gh-mcp"], env={"GITHUB_TOKEN": value}))
+        session.commit()
+
+
+def kept_as_the_page_key(client, value):
+    client.app.state.page_key = client.headers["X-KOLONI-Key"] = value
+
+
+@pytest.mark.parametrize(
+    "kept", [kept_as_a_provider_key, kept_as_an_mcp_value, kept_as_the_page_key]
+)
+def test_a_secret_koloni_keeps_in_what_goes_up_is_refused(make_client, wait_run, repo, kept):  # S1
+    # (live: a job committed a saved provider key, and the morning's Run pushed it - only the
+    # environment's secrets were looked for)
+    secret = "tok-0123456789abcdef-kept-by-koloni"
+    steps = [write("prov.txt", f"key = {secret}\n", "w2"), text("one done")]
+    client, done, job, row, origin = night_with_origin(make_client, wait_run, repo, steps=steps)
+    kept(client, secret)  # (known in the morning: the night committed it before)
+    raw.read_again()
+    assert push(client, done, row).status_code == 200
+    row = row_now(client, done)
+    assert row["decision"] is None, row
+    assert "take it off the branch first: nothing was pushed" in row["result"]
+    assert on_origin(origin, name_of(job)) == ""
+
+
+def test_origin_is_named_github_only_where_a_push_goes_to_github(monkeypatch):  # D2
+    for url, named in [
+        ("https://github.com/o/r.git", "GitHub"),
+        ("git@github.com:o/r", "GitHub"),
+        ("C:/x/origin.git", "origin"),
+        ("https://evilgithub.com/o/r", "origin"),
+        ("https://gitlab.com/github.com/r", "origin"),
+    ]:
+        monkeypatch.setattr(git, "push_address", lambda _project, url=url: url)
+        assert away_branch.origin_name(Path(".")) == named, url
 
 
 def test_config_changed_asks_a_second_click(make_client, wait_run, repo):
@@ -297,7 +351,7 @@ def test_a_forged_remote_tracking_branch_never_sends_your_unpushed_commit(
         forge_origin_main(repo, name_of(job))
     first = push(client, done, row)
     assert first.status_code == 409  # (your unpushed commit, noted first - whatever the refs say)
-    assert first.json()["detail"]["notes"][0].startswith("you have 1 commit not on GitHub")
+    assert first.json()["detail"]["notes"][0].startswith("you have 1 commit not on origin")
     answered = push_through(client, done, row)
     assert answered.status_code == 200, answered.text
     now = row_now(client, done)
@@ -522,6 +576,7 @@ def test_what_goes_up_carries_no_trailer_and_github_reads_no_mention_of_the_agen
     message = git_run(origin, "log", "-1", "--format=%B", f"refs/heads/{name_of(job)}")
     assert message.splitlines()[0] == "one" and "Signed-off-by: Someone" not in message
     (body,) = bodies
+    assert "\n### ` " in body and " `'s notes\n" in body  # (the role's name: code, as L-3's)
     fenced = body.split("'s notes\n")[1]
     assert fenced.startswith("````\n" + notes + "\n````")
 

@@ -32,6 +32,7 @@ from app.db.models import (
     WebRequest,
     now,
 )
+from app.judge import whole
 from app.roles import LEAD, shown_name
 from app.serialize import (
     board_post_out,
@@ -61,7 +62,7 @@ class RecordMixin:
     ) -> dict:
         with self._factory() as session:
             message = session.get(Message, message_id)
-            message.content = content
+            message.content = whole(content)  # (Y1: a half of a pair alone, as it is kept)
             message.status = status
             message.blocks = blocks or message.blocks
             session.commit()

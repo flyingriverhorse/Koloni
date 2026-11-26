@@ -197,7 +197,7 @@ def without_memory(tools):
         "offer_away",
         "recall_output",
         *SERVING_TOOLS,
-        "run_checks",  # (0.1.9)
+        *("run_checks", "read_status"),  # (0.1.9)
     )
     if tools and isinstance(tools[0], str):
         return [name for name in tools if name not in later]

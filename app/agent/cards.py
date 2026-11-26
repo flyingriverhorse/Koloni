@@ -15,13 +15,14 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from app import copies, raw
+from app import copies
 from app.agent.ctx import Ctx
 from app.agent.words import GO_ON_AT, RECONNECT, RUN_THERE
 from app.claims import place
 from app.commands import holds_a_key, secret_files
 from app.db.models import Agent, Conversation, Message, Project, Provider
 from app.judge import whole
+from app.masking import masked
 from app.model_client import ToolCallRequest
 from app.model_native import ClaudeNativeClient
 from app.roles import can_change_things, shown_name
@@ -66,7 +67,7 @@ def lead_pick(said: str, options: list[str]) -> tuple[str, str] | None:
     if not isinstance(answer, str) or not isinstance(why, str) or not why.strip():
         return None
     # (masked before the cut: a secret cut in half would no longer be known to hide)
-    answer, why = whole(answer.strip()), raw.hidden(whole(" ".join(why.split())))[:LEAD_WHY_CHARS]
+    answer, why = whole(answer.strip()), masked(why)[:LEAD_WHY_CHARS]
     if options:
         answer = next((one for one in options if one.casefold() == answer.casefold()), "")
     elif len(answer) > LEAD_ANSWER_CHARS or "\n" in answer:

@@ -1,7 +1,7 @@
 import { CaretRight } from '@phosphor-icons/react'
 import { type ReactNode, useLayoutEffect, useRef } from 'react'
 import type { Command, FileChange, Run, ToolCall } from '../api/types'
-import { TOOL_STATUS } from './ToolRow'
+import { RUN_MARKS } from './ToolRow'
 import { runHead } from './toolRuns'
 
 interface Props {
@@ -50,7 +50,7 @@ export function TurnSteps({ refocus, ended, count, took, calls, state, children 
           </span>
           {marks.map(([end, n]) => (
             <span key={end} className={`tag ${end === 'failed' ? 'tag-del' : 'tag-warn'}`}>
-              {`${n} ${TOOL_STATUS[end][0]}`}
+              {`${n} ${RUN_MARKS[end][0]}`}
             </span>
           ))}
           <CaretRight size={12} className="turn-steps-caret" aria-hidden />

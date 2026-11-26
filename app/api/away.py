@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import away, away_branch, backlog, parked
+from app import away, away_branch, away_night, backlog, parked
 from app.agent import announce
 from app.agent.away_branch_mixin import night_base
 from app.api.deps import get_session, require_own_origin
@@ -80,7 +80,9 @@ def _told(request: Request, project_id: str) -> None:
 # decisions - in a worker thread, not on the event loop; the chat's reads every night it had.)
 @router.get("/projects/{project_id}/away", response_model=AwayOut | None)
 def read_night(project_id: str, session: Session = Depends(get_session)):
-    """The project's night that runs, else its last one; null: it never had one."""
+    """The project's night that runs, else its last one; null: it never had one. With its strip
+    on Ready for you (Part B, `away_night`): read here alone - every decision of the night is
+    built, and a chat's snapshot, on the event loop, reads every night it had."""
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
     night = away.running(session, project_id) or session.scalar(
@@ -89,7 +91,11 @@ def read_night(project_id: str, session: Session = Depends(get_session)):
         .order_by(AwayRun.started_at.desc())
         .limit(1)
     )
-    return away.report(session, night) if night else None
+    if night is None:
+        return None
+    said = away.report(session, night)
+    away_night.add(session, night, said["jobs"], {t.id: t for t in away.tasks_of(session, night)})
+    return said
 
 
 @router.get("/conversations/{cid}/away", response_model=list[AwayOut])

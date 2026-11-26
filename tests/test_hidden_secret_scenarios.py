@@ -286,7 +286,7 @@ def test_a_file_in_a_working_copy_that_holds_it_is_not_taken_into_the_project(
     (merge,) = snap["merges"]
     (held,) = [f for f in merge["files"] if f["path"] == "env91.txt"]
     assert held["state"] == "refused" and held["diff"] is None
-    assert "secret given this turn" in held["note"]
+    assert "secret KOLONİ knows" in held["note"]
     assert not (project_dir / "env91.txt").exists()
     assert SECRET not in json.dumps(snap)
     client.__exit__(None, None, None)

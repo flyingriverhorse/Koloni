@@ -785,7 +785,7 @@ def _worktrees(listed: str) -> list[dict]:
     none; locked whoever locked it (KOLONİ's: `LOCK_REASON`)."""
     found: list[dict] = []
     for block in listed.replace("\r\n", "\n").split("\n\n"):
-        lines = dict(line.partition(" ")[::2] for line in block.splitlines() if line)
+        lines = {key: value for key, _, value in (one.partition(" ") for one in block.splitlines())}
         if "worktree" in lines and "bare" not in lines:
             branch = lines.get("branch", "")
             found.append(
@@ -815,7 +815,7 @@ def _where(project: Path, git: str, until: float) -> dict | None:
         return None
     # (Nothing of the commit is read: a signature on it is never checked here.)
     head = _said(project, git, until, "rev-parse", "--verify", "-q", "HEAD")  # None: no commit
-    dates = dict(row.partition("\t")[::2] for row in rows.splitlines() if row)
+    dates = {key: value for key, _, value in (row.partition("\t") for row in rows.splitlines())}
     return {
         "branch": branch.strip(),
         "head": (head or "").strip() or None,
@@ -2756,10 +2756,10 @@ def branch_look(
 
 def holding(project: Path, tip: str, paths: Iterable[str], needles: Sequence[bytes]) -> list[str]:
     """Of these files at the commit `tip` (`branch_look`'s), those whose content there - what a
-    merge of it brings in - holds any of `needles` (bytes): read from git's objects, as stored,
-    no filter. Fails closed: a file that cannot be read counts as holding one - but a submodule,
-    which has no content here. `paths`: files the branch did not delete. Refused as
-    `repository`."""
+    merge of it brings in - or whose path holds any of `needles` (bytes; MEDIUM-3): read from git's
+    objects, as stored, no filter. Fails closed: a file that cannot be read counts as holding one -
+    but a submodule, which has no content here. `paths`: files the branch did not delete. Refused
+    as `repository`."""
     git, _folder = repository(project)
     found = []
     for path in paths if needles else ():
@@ -2786,7 +2786,7 @@ def holding(project: Path, tip: str, paths: Iterable[str], needles: Sequence[byt
             )[1].strip()
             if kind != b"commit":
                 found.append(path)
-        elif any(needle in out for needle in needles):
+        elif any(needle in out or needle in path.encode() for needle in needles):
             found.append(path)
     return found
 
@@ -3861,12 +3861,11 @@ def push_one(
     from (a local branch of theirs it left since) - nor what the branch took in that origin does not
     hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1,
     `snapshot` the commit it began from):
-    once the user rewrote or dropped such a commit, where the branch left theirs is its start,
-    and the commit's content would go up under it. Never forced: a branch of that name there
-    already refuses it. No hook, tag, push option or signing of the repository's; git's own
-    receive-pack; to the one address origin was asked at (`push_address`), never rewritten.
-    `under`: KOLONİ's copies folders - its worktrees there are not the user's (`_users_unpushed`).
-    Returns the commit pushed. Refused, with why."""
+    once the user rewrote or dropped such a commit, where the branch left theirs is its start, and
+    the commit's content would go up under it. Never where origin has a branch of that name (D1:
+    not on top of it either). No hook, tag, push option or signing; git's own receive-pack; to the
+    one address origin was asked at (`push_address`), never rewritten. `under`: KOLONİ's copies
+    folders, not the user's (`_users_unpushed`). Returns the commit pushed. Refused, with why."""
     if not branch.startswith(BRANCH_PREFIX):
         raise Refused(f"{branch} is not a branch KOLONİ made")
     git, _folder = repository(project)
@@ -3874,6 +3873,8 @@ def push_one(
         raise Refused(NO_ADDRESS)
     # (what origin holds, as origin says it - never a remote-tracking ref of the repository's)
     listed, origin = _origin_holds(project, git, url)
+    if branch in listed:
+        raise Refused(f"origin already has a branch named {branch}: nothing was pushed")
     if into in listed and listed[into] not in origin:
         raise Refused(FETCH_FIRST.format(into=into))
     code, out, said = _in(
@@ -3895,8 +3896,7 @@ def push_one(
         for one in (base, start)
     ):
         raise Refused(
-            f"push {into} first: commits of yours not on origin yet would go up with "
-            "the pull request"
+            f"push {into} first: commits of yours not on origin yet would go up with the push"
         )
     if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot, origin):
         # (Named as the user's only those their own refs hold - what they can push; a reflog of

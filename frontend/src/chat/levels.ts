@@ -59,10 +59,8 @@ export const checksValue = (on: boolean, project: Project['after_change']): Conv
 /** Decision 17: Full auto does not lock the switch - with it off, the menu says what that leaves. */
 export const NO_CHECKS_AT_FULL_AUTO = 'Full auto with no checks: nothing checks this chat’s changes'
 
-/** §8: whether the judge's box for your words may take effect - its model measured, or the project's old choice
- *  (Check what I said first on before 0.1.9).
- *  shortcut: no judge model is measured yet (`judge.MEASURED_MODELS` is empty), so only the old choice counts; once
- *  one passes, read it from the server with the Judge model (`/api/judge`). */
+/** §8: whether the judge's box for your words takes effect by the project's old choice (Check what I said first on
+ *  before 0.1.9) - else only where the Judge model was measured (`useJudgeMeasured`, `/api/judge`). */
 export const wordsMeasured = (project: Pick<Project, 'full_auto_check'>) => project.full_auto_check === 'judge'
 
 /** §8: the judge's box for your words as the level menu says it - "unmeasured": on, but not until its measurement. */
