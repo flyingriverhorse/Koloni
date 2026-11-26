@@ -22,9 +22,10 @@ Some settings make one more model request each time. Each says so where you swit
 - Give models tiers, and let roles ask for a tier, so easy jobs go to a fast model. See
   [Tiers](../models/tiers.md).
 - Turn off **Agents may use** for an expensive model you want to pick only by hand.
-- Set a **Monthly budget** and a token limit per message (Settings › This project › Limits and money), and dollar limits
-  on API keys (a provider's **Limits** tab).
-- Keep **Agents at the same time** and **Sub-agents per request** low (Settings › This project › Limits and money).
+- Set a **Monthly budget** and a job's budget, **Stop the work on a message over this many tokens** (Settings › This
+  project › Limits and money), and dollar limits on API keys (a provider's **Limits** tab).
+- Keep **Agents at the same time** and **Sub-agents per request** low (Settings › This project › Limits and money ›
+  More limits).
 - Give an MCP server only to the roles that need it, and switch off tools you do not use: every tool's
   description is sent at every model step.
 - Use a model server on your own machine for work that does not need a large model: it spends no money.

@@ -38,6 +38,8 @@ test('two conversations of one project: the limit, and the file both want', asyn
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
   await settings.getByRole('button', { name: /^Limits and money/ }).click()
+  // (Under More limits since 0.1.10, closed until opened.)
+  await settings.getByText(/^More limits/).click()
   await settings.getByLabel('At most this many agents at work in this project').fill('1')
   await settings.getByRole('button', { name: 'Save' }).click()
   // (Saved, the page stays and says so. ⚙ closes it.)
