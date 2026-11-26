@@ -66,7 +66,7 @@ def _all(conn):
 def test_a_fresh_database_up_down_and_up_again(tmp_path):
     db = tmp_path / "fresh.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
+    command.upgrade(cfg, "0192")  # (0194 then takes eight ready teams away)
     with sqlite3.connect(db) as conn:
         first = _all(conn)
         assert [key for key, _name, _at in _categories(conn)] == [
@@ -122,7 +122,7 @@ def test_a_fresh_database_up_down_and_up_again(tmp_path):
             == []
         )
 
-    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
+    command.upgrade(cfg, "0192")  # (0194 then takes eight ready teams away)
     with sqlite3.connect(db) as conn:
         assert _all(conn) == first
 
@@ -165,7 +165,7 @@ def test_an_old_database_keeps_what_the_user_changed(tmp_path):
         )
         conn.execute("UPDATE teams SET default_recipe_id = 'mine' WHERE name = 'Research'")
 
-    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
+    command.upgrade(cfg, "0192")  # (0194 then takes eight ready teams away)
     with sqlite3.connect(db) as conn:
         assert [(key, name) for key, name, _at in _categories(conn)] == [
             ("plan", "Plan"),
@@ -244,7 +244,7 @@ def test_a_users_own_ml_team_is_given_no_role_and_an_expert_they_changed_stays(t
         )
         conn.execute("INSERT INTO role_teams (role_id, team_id) VALUES ('Mine', 'u')")
 
-    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
+    command.upgrade(cfg, "0192")  # (0194 then takes eight ready teams away)
     for _start in range(2):  # (each start seeds: a built-in role joins only a ready team)
         with make_session_factory(make_engine(db))() as session:
             roles.seed_builtin_roles(session)

@@ -22,7 +22,7 @@ Going back, the eight do not come back: put back the copy KOLONİ made of the da
 this upgrade (runtime/data/backups/).
 
 Revision ID: 0194
-Revises: 0190
+Revises: 0192
 """
 
 import json
@@ -32,8 +32,8 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0194"
-# (Written on 0190, 0.1.10's head; the main session chains it at merge.)
-down_revision = "0190"
+# (Written on 0190; chained after 0.1.10's 0192 at merge.)
+down_revision = "0192"
 branch_labels = None
 depends_on = None
 

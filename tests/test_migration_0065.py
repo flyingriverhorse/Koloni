@@ -29,7 +29,7 @@ def test_built_in_tiers_go_unless_the_user_gave_one_and_the_ready_teams_come(tmp
                 (rid, name, builtin, tier, AT, AT),
             )
 
-    command.upgrade(cfg, "0190")  # (0194 then takes eight ready teams away)
+    command.upgrade(cfg, "0192")  # (0194 then takes eight ready teams away)
 
     with sqlite3.connect(db) as conn:
         roles = {
