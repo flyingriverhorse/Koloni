@@ -81,9 +81,9 @@ messages.
   the version it runs. Only Windows was measured.
 - A sub-agent on Claude Code run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
-  script) changes the project directly. So do those of GitHub Copilot CLI run **Native** in a working copy
-  (as a sub-agent in a To-do task's branch, a ☾ Away job, a side of a comparison, or Fix it) where its session has no sandbox - this machine cannot give it
-  one, or the project does not hide its secret files. KOLONİ looks at the project after each of its commands and
+  script) changes the project directly. So do those of GitHub Copilot CLI run **Native** where it works
+  in a working copy and its session has no sandbox - this machine cannot give it one, or the project
+  does not hide its secret files. KOLONİ looks at the project after each of its commands and
   records such a change as made in the project by an unknown maker - one look over the project's files
   each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows). With several such
   agents at work at once, a change is recorded once, under the agent whose look found it first -
