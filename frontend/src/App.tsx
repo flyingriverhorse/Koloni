@@ -836,6 +836,8 @@ export function App() {
         key={project.id}
         asked={todoAsked}
         pushes={pushes}
+        // (The settings over it: a narrow window's story leaves the rail and the top bar within reach.)
+        covered={settingsOpen}
         backlog={backlog}
         error={backlogError}
         drafter={drafter}

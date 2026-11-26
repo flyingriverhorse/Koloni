@@ -287,24 +287,34 @@ function useNarrow(): boolean {
 
 /**
  * While the panel is open, what it lies over cannot be reached: the rest of To-do (its cards to its dock) is inert -
- * and, `modal` (a narrow window, the panel the window's), everything else on the page too. Put back as it closes.
+ * and, `modal` (a narrow window, the panel the window's), everything else on the page too. What comes in after it
+ * opened - a draft's tree, the tasks the Orchestrator turned down - is made inert as it comes. As it closes only what
+ * it made inert is put back.
  */
 function useInertAround(box: RefObject<HTMLElement | null>, modal: boolean) {
   useEffect(() => {
     const panel = box.current
     if (!panel) return
-    const made: Element[] = []
-    const shut = (parent: Element | null, keep: Element) => {
-      for (const one of Array.from(parent?.children ?? []))
-        if (one !== keep && !one.hasAttribute('inert')) {
-          one.setAttribute('inert', '')
-          made.push(one)
-        }
-    }
-    shut(panel.parentElement, panel)
+    // Each parent whose children but one are shut, and that one: the panel, then (modal) each of its ancestors.
+    const around: [Element | null, Element][] = [[panel.parentElement, panel]]
     for (let at = panel.parentElement; modal && at && at !== document.body; at = at.parentElement)
-      shut(at.parentElement, at)
-    return () => made.forEach(one => one.removeAttribute('inert'))
+      around.push([at.parentElement, at])
+    const made = new Set<Element>()
+    const shut = () => {
+      for (const [parent, keep] of around)
+        for (const one of Array.from(parent?.children ?? []))
+          if (one !== keep && !one.hasAttribute('inert')) {
+            one.setAttribute('inert', '')
+            made.add(one)
+          }
+    }
+    shut()
+    const watch = new MutationObserver(shut)
+    for (const [parent] of around) if (parent) watch.observe(parent, { childList: true })
+    return () => {
+      watch.disconnect()
+      made.forEach(one => one.removeAttribute('inert'))
+    }
   }, [box, modal])
 }
 
@@ -312,7 +322,7 @@ function useInertAround(box: RefObject<HTMLElement | null>, modal: boolean) {
 const tabbable = (box: HTMLElement) =>
   Array.from(
     box.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-  ).filter(one => !one.matches(':disabled') && !one.closest('[inert]'))
+  ).filter(one => !one.matches(':disabled') && !one.closest('[inert], [hidden]'))
 
 /** A modal's Tab goes round within it: from its last element to its first, and back with Shift+Tab. */
 function keepTab(event: KeyboardEvent, box: HTMLElement) {
@@ -345,6 +355,8 @@ interface PanelProps {
   onSelect: (taskIds: string[], on: boolean) => void
   onOpenChat: (conversationId: string) => void
   onClose: () => void
+  /** Something open over it must be reached - the settings: the page around it is not shut, modal or not. */
+  covered?: boolean
   /** Its tasks' rows, as To-do draws them, and the dock under them. */
   children: ReactNode
 }
@@ -368,12 +380,13 @@ export function StoryPanel({
   onSelect,
   onOpenChat,
   onClose,
+  covered = false,
   children,
 }: PanelProps) {
   const id = useId()
   const box = useRef<HTMLElement>(null)
   const modal = useNarrow()
-  useInertAround(box, modal)
+  useInertAround(box, modal && !covered)
   useEffect(() => {
     const row = at ? document.getElementById(`task-${at}-title`)?.closest('button') : null
     ;(row ?? box.current)?.focus()
