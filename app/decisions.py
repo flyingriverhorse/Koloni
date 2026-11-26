@@ -128,11 +128,12 @@ def work(session: Session, question: Question) -> tuple[str | None, str | None]:
     where none is on record: the turn changed nothing, or worked in the project itself - a fresh
     turn goes on there. Its state alone is read, never its files' diffs: whether one of them was
     taken in is asked of the database.
-    shortcut: a turn that went on with a kept copy is known by its record alone - Fix it's, and
-    Change and redo's outside a job's chat, leave none: the card's own copy, given to it, reads as
-    discarded (refused, never another's work); so does a morning's going-on turn put in another
-    topic (`parked.begin`: the chat's last turn's). Keep the copy a turn went on in on its record if
-    that is seen.
+    shortcut: a turn that went on with a kept copy is known by its record alone - Fix it's, Change
+    and redo's outside a job's chat, a job's second try (`away.TRIES`) and its Try again leave none
+    (a `Parked.went_on` row would make them going-on turns, `away.going_on`): the card's own copy,
+    given to it, reads as discarded (refused, never another's work); so does a morning's going-on
+    turn put in another topic (`parked.begin`: the chat's last turn's). Keep the copy a turn went on
+    in on its record if that is seen.
     shortcut: an agent's own card is its own copy's alone - a Lead that works in the project, its
     sub-agents each in a copy of their own, has none: a fresh turn, none of theirs taken for its
     work; read the line down too if a Lead's own card is seen to want one of them."""
@@ -143,8 +144,17 @@ def work(session: Session, question: Question) -> tuple[str | None, str | None]:
             select(Agent.id, Agent.parent_agent_id, Agent.copy).where(Agent.run_id == turn.id)
         )
     }
-    owner, seen = question.agent_id, set()  # (up the line while it worked in its parent's copy)
-    while owner not in seen and (found := agents.get(owner)) and found[1] == "parent" and found[0]:
+    kept = set(session.scalars(select(Merge.agent_id).where(Merge.run_id == turn.id)))
+    # (Up the line while it worked in its parent's copy - or never had one of its own: no copy on
+    # its record and no work of its own, a Reviewer that only read. Not past one too big to copy, or
+    # whose copying failed: it worked in the project.)
+    owner, seen = question.agent_id, set()
+    while (
+        owner not in seen
+        and (found := agents.get(owner))
+        and found[0]
+        and (found[1] == "parent" or found[1] is None and owner not in kept)
+    ):
         seen.add(owner)
         owner = found[0]
     each = func.json_each(Merge.files).table_valued("value", "type")
