@@ -1343,43 +1343,6 @@ a.view-run {
   padding: 16px;
 }
 
-/* A 3D model (slice 58): its buttons, the view on the theme's ground, its sizes in words. */
-.model-view {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-}
-
-.model-tools {
-  display: flex;
-  gap: 4px;
-  padding: 6px 8px;
-}
-
-.model-tools [aria-pressed='true'] {
-  background: var(--accent-soft);
-}
-
-.model-canvas {
-  flex: 1;
-  min-height: 0;
-  background: var(--bg);
-}
-
-.model-canvas canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.model-view figcaption {
-  padding: 4px 12px;
-  font-size: var(--text-mono);
-  border-top: 1px solid var(--border);
-}
-
 /* --- two panes, as VS Code has them: the files on the left, what is opened on the right (slice 42a) --- */
 .two-pane {
   flex: 1;

@@ -334,8 +334,8 @@ def test_a_pdf_is_shown_and_served_for_the_browsers_viewer_by_both_ways(
 def test_a_document_is_shown_and_served_as_its_own_type_under_a_views_policy(
     make_client, wait_run, project_dir
 ):
-    """K-belge-ciktilari: a docx, an xlsx or a pptx is read by the app and drawn in a frame of no
-    origin (`frontend/public/office/`): served as what it is, sandboxed as any view."""
+    """K-belge-ciktilari: a docx, an xlsx or a pptx is an output, not previewed: served as what
+    it is, sandboxed as any view, and only with the page's key."""
     (project_dir / "plan.docx").write_bytes(b"PK\x03\x04 a docx")
     client, _model = make_client([step(call("show", {"path": "plan.docx"}, "v1")), text("ok")])
     cid, run_id = start_in_mode(client, project_dir, "ask")
@@ -348,7 +348,7 @@ def test_a_document_is_shown_and_served_as_its_own_type_under_a_views_policy(
     assert answer.headers["content-security-policy"] == views.POLICY
     assert answer.headers["cross-origin-resource-policy"] == "same-origin"
     assert [views.kind_of(f"a.{end}") for end in ("XLSX", "pptx")] == ["xlsx", "pptx"]
-    # The app reads it itself, with its key: on these keyless doors, none is served without.
+    # No frame loads it: on these keyless doors, none is served without the key.
     pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
     for url in (line["url"], f"/api/projects/{pid}/raw/plan.docx"):
         assert client.get(url, headers={"X-KOLONI-Key": ""}).status_code == 401

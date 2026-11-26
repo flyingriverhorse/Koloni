@@ -7,17 +7,7 @@ import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 import type { SharedData, SharedRow } from './sharedColumn'
 
 /** K-belge-ciktilari: the kinds of view that read as something an agent made - not a note (.md), written all the time. */
-const MADE: ReadonlySet<View['kind']> = new Set([
-  'html',
-  'svg',
-  'image',
-  'pdf',
-  'docx',
-  'xlsx',
-  'pptx',
-  'model',
-  'drawio',
-])
+const MADE: ReadonlySet<View['kind']> = new Set(['html', 'svg', 'image', 'pdf', 'docx', 'xlsx', 'pptx', 'drawio'])
 /** An output card shows so many, folded; the rest behind "+N more". */
 export const FOLDED = 3
 

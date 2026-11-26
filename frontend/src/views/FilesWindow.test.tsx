@@ -894,18 +894,24 @@ test('K-belge-ciktilari: an output asked for from the canvas opens on its previe
   expect(screen.getByText('The PDF tried to go elsewhere; it was stopped.')).toBeInTheDocument()
 })
 
-test('K-belge-ciktilari: a Word document, a workbook or a deck is drawn in the document viewer’s frame of no origin', () => {
+test('a Word document, a workbook, a deck or a 3D model has no preview: it opens as any file not text, from its output too', async () => {
   for (const [name, kind] of [
     ['plan.docx', 'docx'],
     ['sums.xlsx', 'xlsx'],
     ['deck.pptx', 'pptx'],
   ] as const) {
+    texts[name] = { binary: true }
     const { unmount } = panel({ views: [view(name, name, { kind, status: 'shown' })] }, `preview-of:${name}`)
-    const frame = screen.getByTitle(`Document ${name}`)
-    expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
-    expect(frame).toHaveAttribute('src', '/office/viewer.html')
+    expect(await screen.findByText('Not text: there is no code to show.')).toBeInTheDocument()
+    expect(document.querySelector('iframe')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull()
     unmount()
   }
+  texts['part.stl'] = { binary: true }
+  disk[''].push(entry('part.stl'))
+  panel({}, 'part.stl')
+  expect(await screen.findByText('Not text: there is no code to show.')).toBeInTheDocument()
+  expect(document.querySelector('iframe, canvas')).toBeNull()
 })
 
 // --- the Changes tab (K-degisenler)---------------------------------------------------------------

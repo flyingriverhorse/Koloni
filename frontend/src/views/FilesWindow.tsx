@@ -1,5 +1,5 @@
 import { ArrowsIn, ArrowsOut, Columns, DotsSixVertical, X } from '@phosphor-icons/react'
-import { type CSSProperties, type KeyboardEvent, Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { api, errorText } from '../api/client'
 import type { Agent, FileChange, FileHistory, GitChange, ProjectEntry, ProjectFile, View } from '../api/types'
 import { ChangeActions, type ChangeAction } from '../changes/ChangeActions'
@@ -14,7 +14,6 @@ import { commandStatus } from '../commands/commandStatus'
 import { useMove } from '../shell/move'
 import { useApp } from '../state/store'
 import { DrawioView } from './DrawioView'
-import { OfficeView } from './OfficeView'
 import { Preview } from './Preview'
 import { CLOSED, LIVE, changeRows, changeTree, changesCount, changesSaid, standsOn } from './changeGroups'
 import { TwoPane, type TreeFile, keep, stored, useWidth } from './TwoPane'
@@ -74,12 +73,6 @@ const SPLIT_KEY = 'koloni-diff-split'
  * is wider (577-620 px) once its files are hidden.
  */
 const SIDE_BY_SIDE = 560
-// three.js comes with it, only once a model opens (slice 58): the app's own bundle stays as it was.
-const ModelView = lazy(() =>
-  import('./ModelView').catch(() => ({
-    default: () => <p className="view-empty muted">The 3D view could not be loaded.</p>,
-  })),
-)
 const outside = (key: string) => /^([a-z]:)?\//i.test(key)
 const at = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 // K-dallar: what a question about the project's files adds to read a branch instead.
@@ -758,21 +751,20 @@ function openedOf({
   change,
   inGit,
   asChanged,
-  view,
   branch,
-}: Pick<OpenedProps, 'path' | 'change' | 'inGit' | 'asChanged' | 'view' | 'branch'>) {
-  // (a preview is drawn from the project's files, not the branch's)
-  const kind = branch ? null : (view?.kind ?? kindOf(path))
+}: Pick<OpenedProps, 'path' | 'change' | 'inGit' | 'asChanged' | 'branch'>) {
+  // (a preview is drawn from the project's files, not the branch's; by its name: a document the server lists has none)
+  const kind = branch ? null : kindOf(path)
   const gone = change?.kind === 'delete' || inGit === 'D'
   // (a change of this conversation shows its own diff; from the Changes tab, what git says changed shows its own)
   const diffed = change !== undefined || (asChanged && inGit !== undefined)
-  const toggles = !gone && (kind === 'html' || kind === 'svg' || kind === 'md' || kind === 'model' || kind === 'drawio')
+  const toggles = !gone && (kind === 'html' || kind === 'svg' || kind === 'md' || kind === 'drawio')
   return { kind, gone, diffed, toggles }
 }
 
-// (a changed model opens on the model: its diff is numbers; a document's is no text at all)
+// (a changed pdf opens on its preview: its diff is no text at all)
 const firstAsCode = (diffed: boolean, kind: string | null, shown: boolean) =>
-  (diffed && !DRAWN.has(kind ?? '') && !shown) || !kind
+  (diffed && kind !== 'pdf' && !shown) || !kind
 
 /** Where its preview is loaded from: the view's address (it has the text not on disk yet), else the project's. */
 const previewSrc = (view: View | undefined, path: string, projectId: string) =>
@@ -808,7 +800,7 @@ function Opened({
       .setPageScripts(on)
       .catch(() => setError('It could not be saved. Try again.'))
   }
-  const { kind, gone, diffed, toggles } = openedOf({ path, change, inGit, asChanged, view, branch })
+  const { kind, gone, diffed, toggles } = openedOf({ path, change, inGit, asChanged, branch })
   const [asCode, setAsCode] = useState(firstAsCode(diffed, kind, shown))
   const body = useWidth()
   const wide = (body.width ?? Infinity) >= SIDE_BY_SIDE
@@ -954,14 +946,8 @@ function Opened({
       <img className="view-image" src={src} alt={path} />
     ) : kind === 'md' ? (
       <Note src={src} />
-    ) : kind === 'model' ? (
-      <Suspense fallback={<p className="view-empty muted">Loading the 3D view…</p>}>
-        <ModelView src={src} name={fileName(path)} />
-      </Suspense>
     ) : kind === 'pdf' ? (
       <PdfView key={src} src={src} path={path} />
-    ) : kind === 'docx' || kind === 'xlsx' || kind === 'pptx' ? (
-      <OfficeView key={src} src={src} path={path} kind={kind} />
     ) : kind === 'drawio' ? (
       // (by its path: written again, its text is posted to the same frame)
       <DrawioView key={path} src={src} path={path} projectId={projectId} />
@@ -973,7 +959,7 @@ function Opened({
   /** Its preview: drawn, or why it is not. */
   const preview = () =>
     view?.too_large ? (
-      <p className="view-empty muted">Too large to show: over {kind === 'model' ? 50 : 5} MB.</p>
+      <p className="view-empty muted">Too large to show: over 5 MB.</p>
     ) : !src ? (
       <p className="view-empty muted">Outside the project: not previewed here.</p>
     ) : (
@@ -1147,9 +1133,6 @@ function Frame({ src, title, live }: { src: string; title: string; live: boolean
     />
   )
 }
-
-/** Kinds whose diff is no text to read: a changed one opens on what it draws. */
-const DRAWN: ReadonlySet<string> = new Set(['model', 'pdf', 'docx', 'xlsx', 'pptx'])
 
 /**
  * K-belge-ciktilari: a PDF in the browser's own viewer, which draws nothing in a sandbox - so in KOLONİ's own origin, under

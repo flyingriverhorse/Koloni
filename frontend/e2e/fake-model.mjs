@@ -4,7 +4,6 @@
 import http from 'node:http'
 import path from 'node:path'
 import { OUTSIDE_DIR, SKILL_DIR } from './paths.mjs'
-import { boxStl } from './models58.mjs'
 
 const PORT = Number(process.env.FAKE_MODEL_PORT || 8081)
 
@@ -899,12 +898,6 @@ function nextStep(all, tools = [], model = '') {
     if (/show the game/i.test(last.content)) return toolCall('c423', 'show', { path: 'game42/index.html' })
     if (/start the site/i.test(last.content))
       return toolCall('c421', 'run_command', { command: 'python -u serve42.py', keep_running: true })
-    // Slice 58: a 3D part written, and one a command made shown.
-    if (/make the part/i.test(last.content))
-      return toolCall('c581', 'write_file', { path: 'part58.stl', content: boxStl(10, 20, 30) })
-    if (/show the glb/i.test(last.content))
-      return toolCall('c582', 'show', { path: 'part58.glb', note: 'the part, as glTF' })
-    if (/show the big stl/i.test(last.content)) return toolCall('c583', 'show', { path: 'big341.stl' })
     if (/make a moving page/i.test(last.content))
       return toolCall('c394', 'write_file', { path: 'move39.html', content: movingPage })
     // One Coder on a file the user changes meanwhile, on the same line.

@@ -2491,7 +2491,7 @@ class ViewOut(BaseModel):
 
     id: str
     path: str
-    kind: Literal["html", "svg", "md", "image", "model", "drawio", "pdf", "docx", "xlsx", "pptx"]
+    kind: Literal["html", "svg", "md", "image", "drawio", "pdf", "docx", "xlsx", "pptx"]
     agent_id: str | None
     # The change's own state, or "shown": a file of the project as it now is.
     status: Literal["proposed", "approved", "in_copy", "applied", "shown"]

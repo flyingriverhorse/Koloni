@@ -655,13 +655,10 @@ def _serve_frontend(app: FastAPI, dist: Path) -> None:
         if path.startswith("api/") or path == "api":
             raise HTTPException(404, "not found")
         found = asset_path(root, path)
-        # K-drawio: the diagram viewer's page is framed by the app, under a policy of its own - and
-        # K-belge-ciktilari's document viewer (`frontend/public/office/`) the same.
+        # K-drawio: the diagram viewer's page is framed by the app, under a policy of its own.
         return FileResponse(
             found or index,
-            headers=VIEWER_HEADERS
-            if found and path.lower().startswith(("drawio/", "office/"))
-            else None,
+            headers=VIEWER_HEADERS if found and path.lower().startswith("drawio/") else None,
         )
 
 
@@ -670,7 +667,7 @@ def asset_path(root: Path, requested: str) -> Path | None:
 
     The path is vetted as text before the file system is touched: on Windows a
     UNC or drive path would otherwise be opened (and a UNC path dialled out to) - and a part
-    ending in a dot or a space is opened without it, so `office./viewer.html` would be the
+    ending in a dot or a space is opened without it, so `drawio./viewer.html` would be the
     viewer's page served without its policy (K-belge-ciktilari review).
     """
     parts = requested.split("/")

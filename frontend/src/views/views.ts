@@ -37,13 +37,12 @@ export function keyOf(path: string) {
   return /Windows/.test(globalThis.navigator?.userAgent ?? '') ? key.toLowerCase() : key
 }
 
-/** How a file is previewed, by its name (as the server's `views.KINDS`); null: it is not. */
+/** How a file is previewed, by its name (as the server's `views.KINDS`, but a document it lists unpreviewed); null: it is not. */
 export function kindOf(path: string): View['kind'] | null {
   if (/\.(drawio\.xml|drawio|dio)$/i.test(path)) return 'drawio'
   const ending = path.split('.').at(-1)?.toLowerCase() ?? ''
   if (['html', 'htm', 'svg', 'md'].includes(ending)) return ending === 'htm' ? 'html' : (ending as View['kind'])
-  if (['stl', 'obj', 'gltf', 'glb', '3mf'].includes(ending)) return 'model'
-  if (['pdf', 'docx', 'xlsx', 'pptx'].includes(ending)) return ending as View['kind']
+  if (ending === 'pdf') return 'pdf'
   return ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ending) ? 'image' : null
 }
 
