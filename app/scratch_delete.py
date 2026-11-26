@@ -1,5 +1,5 @@
-"""B-336: the one delete with no card at Full auto - of files in `.koloni`'s free folders
-(`workspace.FREE`), split from `app.commands` (K-koloni-alan). Judged where the card is decided
+"""B-336: the one delete with no card at Full auto - of files in the agents' scratch,
+`.koloni/tmp/`; split from `app.commands` (K-koloni-alan). Judged where the card is decided
 (`AgentRunner._night_asks`); `commands.danger` stays as strict as ever.
 """
 
@@ -40,9 +40,8 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
     (python's `_winapi.CreateJunction`: a `mklink` line is a card, a script that makes a link is
     not) is not seen, and Windows PowerShell 5.1's `Remove-Item -Recurse` follows it. Not given
     to Copilot's new shell for that (`_approve_command`); check again as it runs if it is.
-    K-koloni-alan: so is one in KOLONİ's worktrees and copies there (`FREE`), but only inside a
-    tree (`.koloni/worktrees/<runtime>/<name>/tree/...`): the folders around it, and what is kept
-    beside it (what the copy was made from), are KOLONİ's own (`_own_part`)."""
+    K-koloni-alan, after its review: the scratch alone - KOLONİ's worktrees and copies in
+    `.koloni/` are each another agent's work, and a delete there is asked as any."""
     command = _QUOTED_SCRATCH.sub(r"\2", command)
     if root is None or _NOT_PLAIN.search(command) or _CLIMBS.search(_as_read(command)):
         return False
@@ -57,33 +56,22 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
         or not all(_IN_SCRATCH.fullmatch(path) for path in paths)
     ):
         return False
-    recursive = any(flag.casefold() in _RECURSES for flag in flags)
-    areas = []
-    for path in paths:
-        # (`browser.`: Windows opens a name without its last dots.)
-        parts = [
-            part.rstrip(".").casefold() for part in re.split(r"[/\\]", path.removeprefix("./"))
-        ]
-        where = os.path.normcase(os.path.join(os.path.realpath(root), ".koloni", parts[1]))
-        # (the area, or .koloni, a link itself: where it leads is not it)
-        if os.path.normcase(os.path.realpath(where)) != where or _own_part(parts, recursive):
-            return False
-        areas.append(where)
+    where = os.path.normcase(os.path.join(os.path.realpath(root), ".koloni", "tmp"))
+    scratch = os.path.normcase(os.path.realpath(where))
+    if scratch != where:  # (the scratch, or .koloni, a link itself: where it leads is not it)
+        return False
     real = [os.path.realpath(os.path.join(root, path)) for path in paths]
-    return all(
-        os.path.normcase(path).startswith(area + os.sep)
-        for path, area in zip(real, areas, strict=True)
-    ) and not (names_secret(command) or recursive and _holds_link(real))
+    recursive = any(flag.casefold() in _RECURSES for flag in flags)
+    # (What KOLONİ itself keeps there - the browser's profile, the user's screenshots, the
+    # images shown - is not an agent's to empty unasked: `_KOLONIS_OWN`.)
+    # (`browser.`: Windows opens a name without its last dots.)
+    own = recursive and any(
+        re.split(r"[/\\]", path.removeprefix("./"))[2].rstrip(".").casefold() in _KOLONIS_OWN
+        for path in paths
+    )
+    return all(os.path.normcase(path).startswith(scratch + os.sep) for path in real) and not (
+        own or names_secret(command) or recursive and _holds_link(real)
+    )
 
 
 _KOLONIS_OWN = frozenset({"browser", "images"})  # (`AgentRunner._scratch_folder`'s)
-
-
-def _own_part(parts: list[str], recursive: bool) -> bool:
-    """For `scratch_delete_only`: whether a delete of a path in one of `.koloni`'s free folders
-    (by its parts, as Windows opens them) empties what KOLONİ itself keeps there - in the
-    scratch, a folder of `_KOLONIS_OWN` (the browser's profile, the user's screenshots, the
-    images shown); in its worktrees and copies, anything but what is inside a tree."""
-    if parts[1] == "tmp":
-        return recursive and parts[2] in _KOLONIS_OWN
-    return len(parts) < 6 or parts[4] != "tree"

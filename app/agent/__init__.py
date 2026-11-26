@@ -444,6 +444,7 @@ from app.workspace import (
     WorkspaceError,
     home_of,
     is_kept_code,
+    judged_in,
     listed_folder,
     secret_in_push,
     secret_named,
@@ -5837,7 +5838,7 @@ class AgentRunner(
         # Where it runs in a working copy, why it is asked at every level there
         # (`_in_copy_asks`) - for one this command makes, with the links it will have.
         owner = None if review else self._works_in(ctx)
-        made = self._copies.get(owner) if owner else None
+        judged_in((made := self._copies.get(owner) if owner else None) and made.root)  # (its tree)
         linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args, self.commands.longest(cid))
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"

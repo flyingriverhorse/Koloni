@@ -19,6 +19,7 @@ is never walked into.
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import stat
 from collections.abc import Callable, Iterable, Sequence
@@ -1007,6 +1008,10 @@ def make(
     held = folder(runtime_root, project)
     if held is None:
         raise OSError(NO_PLACE)
+    if held == in_project(project, runtime_root, FOLDER):  # (git-less: ignored once git comes)
+        from app import koloni  # (here: koloni reads project files, which import this)
+
+        koloni.ignored(str(project))
     project, root = Path(project).resolve(), held / _plain(name) / TREE
     listed, left = None, []
     # A project that holds the copies folder does not copy the copies into themselves.
@@ -1227,7 +1232,9 @@ def make_branch(
     return copy
 
 
-def load(project: Path, runtime_root: Path, name: str, part: str | None = None) -> Copy:
+def load(
+    project: Path, runtime_root: Path, name: str, part: str | None = None, at: object = None
+) -> Copy:
     """A copy a process that is gone left on disk, as it was made - without its links,
     which a kept copy has lost. `project`: where its files go, as the caller's own
     records have it; nothing in the copy's folder says where anything is written.
@@ -1242,9 +1249,12 @@ def load(project: Path, runtime_root: Path, name: str, part: str | None = None) 
     is put on record when it is taken, and only while the file has that digest.
     `part`: the part the copy was made for, as the caller's records have it (K-buyuk-proje): the
     file says nothing of it - what an agent can rewrite would hide its own work, or another
-    part's files would be "deleted"."""
+    part's files would be "deleted". `at`: where the records say it is (`Merge.kept_in`) - a
+    folder of that name anywhere else is no copy of theirs (K-koloni-alan's review)."""
     held = place(runtime_root, name)
     said = f"{held / BASE_FILE} does not say what the copy was made from"
+    if at is not None and Path(str(at)) not in (held, held / TREE):
+        raise ValueError(f"{held} is not where the copy is on record")
     if _is_link(held / TREE) or _is_link(held / BASE_FILE) or not (held / TREE).is_dir():
         raise ValueError(said)
     if (held / BASE_FILE).stat().st_size > MAX_BASE_BYTES:
@@ -1312,7 +1322,7 @@ def kept(
     for one that is not read at all: no record says where its files are, or its
     folder, or its tree, is a link."""
     try:
-        return load(project, runtime_root, name, part)
+        return load(project, runtime_root, name, part, tree)
     except (OSError, ValueError):
         held = place(runtime_root, name)
         if (
@@ -1352,9 +1362,13 @@ def _plain(name: str) -> str:
 def place(runtime_root: Path, name: str) -> Path:
     """Where the copy of that name is: a folder directly inside one of the copies
     folders (`folders`: the one that has it, else where copies are made), and nothing
-    else - ValueError for a name that would lead anywhere else."""
+    else - ValueError for a name that would lead anywhere else, and (K-koloni-alan's review) for
+    one more than one of them holds: an agent's folder of that name in `.koloni/` is no copy's."""
     held = folders(runtime_root)
-    return next((one for one in held if os.path.lexists(one / _plain(name))), held[0]) / name
+    found = [one for one in held if os.path.lexists(one / _plain(name))]
+    if len(found) > 1:
+        raise ValueError(f"{name!r} is in more than one copies folder: none of them is taken")
+    return (found or held)[0] / name
 
 
 def named(runtime_root: Path, kept_in: str) -> str:
@@ -1468,31 +1482,18 @@ def clear(runtime_root: Path, keep: Callable[[str], bool] = lambda name: False) 
             continue
         for entry in _entries(held):
             with contextlib.suppress(OSError, ValueError):
-                if _is_link(Path(entry.path)) or not keep(entry.name):
-                    _remove(Path(entry.path))
+                path = Path(entry.path)
+                if _is_link(path) or not keep(entry.name) and not unread_worktree(path):
+                    _remove(path)
                 else:
-                    _unlink_links(Path(entry.path))
+                    _unlink_links(path)
 
 
-def drop_project(project: Path, runtime_root: Path) -> None:
-    """K-koloni-alan: a project's record is gone (its delete waited for no work of it to be
-    left): this runtime root's worktrees and copies in its `.koloni/` go with it - each as
-    `remove` deletes one, its links as links - and git's records of those worktrees; their
-    folders too where nothing else is left in them, and it is no longer looked in (`folders`).
-    What cannot be deleted stays. The branches stay: they are the repository's."""
-    from app import git  # (here: git's executors import commands, which imports this)
-
-    for area in (WORKTREES, FOLDER):
-        held = in_project(project, runtime_root, area)
-        if held is None or not held.is_dir():
-            continue
-        for entry in _entries(held):
-            with contextlib.suppress(OSError, ValueError):
-                _remove(Path(entry.path))
-        for empty in (held, held.parent, held.parent.parent):
-            with contextlib.suppress(OSError):
-                empty.rmdir()
-        if area == WORKTREES:
-            with contextlib.suppress(git.Refused, OSError):
-                git.forget_worktrees(Path(project), [held], Path(runtime_root) / "no-hooks")
-    _PROJECTS.get(_runtime_key(runtime_root), set()).discard(os.path.realpath(project))
+def unread_worktree(folder: Path) -> bool:
+    """K-koloni-alan's review: a worktree whose note of what it was made from is gone - the
+    project's `git clean -fdx` takes it, not the tree with its `.git` (but `-ffdx`). What it holds
+    is not known: never deleted, uncommitted work and all (`clear`, `copy_git.drop_project`)."""
+    unread = not os.path.lexists(folder / BASE_FILE) and os.path.lexists(folder / TREE / ".git")
+    if unread:
+        logging.getLogger(__name__).warning("%s: its note is gone - left as it is", folder)
+    return unread

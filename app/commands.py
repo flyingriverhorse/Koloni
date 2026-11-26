@@ -1,6 +1,5 @@
 """Rules about shell commands: allow-list matching and what the model gets to see."""
 
-import contextlib
 import fnmatch
 import glob
 import itertools
@@ -10,7 +9,6 @@ import posixpath
 import re
 import shlex
 import sys
-import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path, PureWindowsPath
 from typing import Literal
@@ -25,12 +23,16 @@ from app.workspace import (
     FREE,
     INSTRUCTION_FILES,
     NOT_WRITTEN_UNATTENDED,
-    SECRET_FOLDERS,
-    Workspace,
+    TREES,
     _name,
+    as_own,
     is_secret,
+    secret_files,
     secret_in_project,
 )
+from app.workspace import HELD_SECONDS as HELD_SECONDS
+from app.workspace import _held as _held
+from app.workspace import secret_held as secret_held
 
 MAX_STORED_OUTPUT = 1024 * 1024
 MODEL_HEAD, MODEL_TAIL = 2000, 6000
@@ -3479,6 +3481,7 @@ def _path_names(command: str) -> set[str]:
 
 def _path_parts(command: str) -> list[str]:
     """`_path_names` in the order they are written."""
+    command = as_own(command)  # (K-koloni-alan: an agent's own tree by its full path is its own)
     # Quotes and escapes taken out first: `.ko`loni`, `.ko""loni` and `.k^oloni` are the name
     # to PowerShell and cmd. (Split at `:` too: `-Path:.koloni\x`, `.koloni::$DATA`.)
     kept = " ".join(map(_passed_by, _PARTS.split(command)))
@@ -3492,9 +3495,10 @@ def _path_parts(command: str) -> list[str]:
     # (Live: `ls .koloni/tmp; git status --short` asked. A git that only reads - `_git_looks`,
     # by its bare name - is no such line; but one run inside the scratch, `_ENTERS`: a
     # repository shaped there could set what git runs, as `reads_here` has it.)
-    # K-koloni-alan: so are KOLONİ's worktrees and copies there (`FREE`) - an agent's own tree is
-    # in one.
+    # K-koloni-alan: so are KOLONİ's worktrees and copies there (`TREES`) - to a line that only
+    # reads them (`_looks_only`): from outside, another agent's tree is no place to write.
     entered = bool(_ENTERS.match(command))
+    free = ("tmp", *TREES) if _looks_only(command) else ("tmp",)
     scratch = not _climbs(command) and not any(
         _git_sub(words)[0]
         and (entered or re.search(r"[\\/]", words[0]) or not _git_looks(words[1:]))
@@ -3507,7 +3511,7 @@ def _path_parts(command: str) -> list[str]:
             pieces = [
                 piece
                 for at, piece in enumerate(pieces)
-                if not (piece == ".koloni" and (pieces[at + 1 : at + 2] or [""])[0] in FREE)
+                if not (piece == ".koloni" and (pieces[at + 1 : at + 2] or [""])[0] in free)
             ]
         parts += pieces
     return parts
@@ -3523,17 +3527,31 @@ _CLIMBS = re.compile(
 # One change of folder into the scratch at the line's start, plainly spelt (no quote, variable,
 # wildcard, `..` or dot-name), then `;`, `&&` or a newline: run_command's `cwd` there
 # (`with_cwd`) and an agent's own `cd .koloni/tmp/work; pytest` - no climb by itself.
-# K-koloni-alan: or into another of `.koloni`'s free folders (`FREE`) - and, by its full path
-# plainly spelt, into a tree of KOLONİ's worktrees or copies there (`copies.in_project`: an
-# agent's own, `cd C:/p/.koloni/worktrees/<12 hex>/<name>/tree; pytest`) - never the scratch.
+# K-koloni-alan: or into another of `.koloni`'s free folders (`FREE`): what follows is read as
+# ever (`_looks_only`). An agent's own tree by its full path is `.` there (`as_own`).
 _ENTERS = re.compile(
-    r"\s*(?:cd|chdir|pushd|sl|set-location|push-location)[ \t]+(?:(?:\./)?\.koloni[/\\]"
+    r"\s*(?:cd|chdir|pushd|sl|set-location|push-location)[ \t]+(?:\./)?\.koloni[/\\]"
     + _FREE
-    + r"|(?:[A-Za-z]:)?(?:[/\\][\w-][\w.-]*)*[/\\]\.koloni[/\\](?:worktrees|copies)[/\\]"
-    r"[0-9a-f]{12}[/\\][\w-][\w.-]*[/\\]tree)(?![\w.-])(?:[/\\][\w-][\w.-]*)*[/\\]?[ \t]*"
-    r"(?:;|&&|\r?\n)",
+    + r"(?![\w.-])(?:[/\\][\w-][\w.-]*)*[/\\]?[ \t]*(?:;|&&|\r?\n)",
     re.IGNORECASE,
 )
+
+
+def _looks_only(command: str) -> bool:
+    """K-koloni-alan: whether a line - past one leading change of folder into a free folder
+    (`_ENTERS`) - only reads, lists or searches (`_LOOKERS`, a search writing nothing), with no
+    redirection: what may name KOLONİ's worktrees and copies from outside them (`TREES`)."""
+    entered = _ENTERS.match(command)
+    rest = command[entered.end() :] if entered else command
+    lines = [words for words in _parts(rest) if words]
+    looks = _LOOKERS | _SEARCHERS | {"find"}
+    return (
+        bool(lines)
+        and not ("<" in rest or ">" in rest or _SEARCH_DOES.search(rest))
+        and all(_program(words[0]) in looks for words in lines)
+    )
+
+
 # ...but from inside it `.koloni` is the folder above, reached with no `..` by a line that
 # learns where it is or hands a path on: `$(dirname "$PWD")`, `(gi .).Parent`, `%cd%`, `.?/x`.
 # shortcut: by these words, each a word of its own (`test_parent.py`, `--parents` are none), as
@@ -4452,11 +4470,10 @@ def _deletes_basetemp(command: str) -> bool:
     )
 
 
-# K-koloni-alan: `.koloni/tmp/` or another of `.koloni`'s free folders (`FREE`).
+# K-koloni-alan: `.koloni/tmp/` or another of `.koloni`'s free folders (`FREE`), climbed out of;
+# but a place to empty, delete in or tee into is the scratch alone (review: another agent's tree).
 _SCRATCH = re.compile(r"\.koloni[\\/]" + _FREE + r"\b", re.IGNORECASE)
-_IN_SCRATCH = re.compile(
-    r"(?:\./)?\.koloni[/\\]" + _FREE + r"(?:[/\\][\w-][\w.-]*)+", re.IGNORECASE
-)
+_IN_SCRATCH = re.compile(r"(?:\./)?\.koloni[/\\]tmp(?:[/\\][\w-][\w.-]*)+", re.IGNORECASE)
 
 
 def _holds_link(tops: list[str], left: int = 10_000) -> bool:
@@ -5469,50 +5486,6 @@ def _lands_here(path: Path, top: Path) -> bool:
     if not (real == top or real.is_relative_to(top)):
         return False
     return real == top or not secret_in_project(real.relative_to(top).as_posix())
-
-
-# How long a folder's answer is kept: the commands of one turn do not each walk it.
-HELD_SECONDS = 10.0
-_held: dict[Path, tuple[float, list[str]]] = {}
-
-
-def secret_files(root: Path) -> list[str]:
-    """The secret files (`secret_in_project`) in a folder, by their paths in it - a secret
-    folder (.ssh) as itself - walked as KOLONİ's own search walks one: not into .git, .venv
-    or node_modules, nor through a link. shortcut: `grep -r` reads `.git/config` too, whose
-    remote may hold a token; counting it would card every search in every repository -
-    count it if a token turns up there. shortcut: a folder it may not open stops the walk,
-    and what was not reached counts as no secret (fails open) - walk on past it if that is
-    met. shortcut: one made after the walk (kept HELD_SECONDS) is not among them; walk again
-    for each command if that matters. Blocking: call it off the event loop."""
-    at, found = _held.get(root, (float("-inf"), []))
-    if time.monotonic() - at >= HELD_SECONDS:
-        folder, found = Workspace(root), []
-        with contextlib.suppress(OSError):  # a folder it may not open: what it holds is not known
-            # (KOLONİ's worktrees and copies in `.koloni/` too: a search of the whole folder
-            # reads them, and a secret an agent made in its copy is there alone)
-            for path in folder._walk(folder.root, trees=True):
-                if secret_in_project(rel := folder.rel(path)):
-                    parts = rel.split("/")
-                    inside = next(
-                        (
-                            n
-                            for n, part in enumerate(parts[:-1])
-                            if part.casefold() in SECRET_FOLDERS
-                        ),
-                        None,
-                    )
-                    found.append(rel if inside is None else "/".join(parts[: inside + 1]))
-        # KOLONİ's own checkout or record in the folder: not walked, but a search of the
-        # whole folder reads its .env and its CLIs' logins - a secret folder of its own.
-        found = list(dict.fromkeys([*found, *folder.koloni_places()]))
-        _held[root] = (time.monotonic(), found)
-    return found
-
-
-def secret_held(root: Path) -> str | None:
-    """The first of `secret_files`, or None."""
-    return next(iter(secret_files(root)), None)
 
 
 def search_reason(command: str, root: Path, cwd: str = ".") -> str:

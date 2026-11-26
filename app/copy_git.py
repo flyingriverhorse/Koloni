@@ -3,6 +3,7 @@
 Away job's worktree that pushes nothing (H1). `copies` gives each name on as its own.
 """
 
+import contextlib
 import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -98,6 +99,11 @@ def exclude(project: Path, lines: Sequence[str]) -> None:
     said = git._said_or_refused(project, exe, None, "rev-parse", "--git-path", "info/exclude")
     path = Path(project, said.decode("utf-8", "surrogateescape").strip())
     try:
+        # (review: nor where `info/`, or git's folder, is a link or a junction to elsewhere)
+        for folder in (path.parent, path.parent.parent):
+            real = os.path.join(os.path.realpath(folder.parent), folder.name)
+            if os.path.normcase(os.path.realpath(folder)) != os.path.normcase(real):
+                raise OSError(f"{folder} is a link, or a junction")
         there = os.path.lexists(path)
         if there and (path.is_symlink() or has_other_names(path)):
             raise OSError("it is a link, or another name of a file elsewhere")
@@ -113,3 +119,31 @@ def exclude(project: Path, lines: Sequence[str]) -> None:
         os.replace(temp, path)
     except OSError as exc:
         raise git.Refused(f"{path} could not be written: {exc}") from None
+
+
+def drop_project(project: Path, runtime_root: Path) -> None:
+    """K-koloni-alan: a project's record is gone (its delete waited for no work of it to be
+    left): this runtime root's worktrees and copies in its `.koloni/` go with it - each as
+    `copies.remove` deletes one, its links as links - but a worktree whose note is gone
+    (`copies.unread_worktree`) - and git's records of those worktrees; their
+    folders too where nothing else is left in them, and it is no longer looked in (`folders`).
+    What cannot be deleted stays. The branches stay: they are the repository's."""
+    from app import copies, git  # (here: copies imports this; git's executors import commands)
+
+    for area in (copies.WORKTREES, copies.FOLDER):
+        held = copies.in_project(project, runtime_root, area)
+        if held is None or not held.is_dir():
+            continue
+        for entry in copies._entries(held):
+            with contextlib.suppress(OSError, ValueError):
+                if not copies.unread_worktree(Path(entry.path)):
+                    copies._remove(Path(entry.path))
+        for empty in (held, held.parent, held.parent.parent):
+            with contextlib.suppress(OSError):
+                empty.rmdir()
+        if area == copies.WORKTREES:
+            with contextlib.suppress(git.Refused, OSError):
+                git.forget_worktrees(Path(project), [held], Path(runtime_root) / "no-hooks")
+    copies._PROJECTS.get(copies._runtime_key(runtime_root), set()).discard(
+        os.path.realpath(project)
+    )

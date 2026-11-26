@@ -47,6 +47,7 @@ from app.workspace import (
     WorkspaceError,
     has_other_names,
     home_of,
+    judged_in,
     not_written_as_named,
     opened,
     secret_in_project,
@@ -415,6 +416,7 @@ class ApprovalsMixin:
         inside: Callable[[str], tuple[Path, str | None]],
     ) -> dict:
         """`_approve`'s answer to a command of the CLI's own (`CLAUDE_RUNS`)."""
+        judged_in(copy.root if copy is not None else None)  # (K-koloni-alan: its own tree)
         if not isinstance(given.get("command"), str) or not given["command"]:
             # (Its Monitor can watch other things than a command: those are not judged.)
             return deny(

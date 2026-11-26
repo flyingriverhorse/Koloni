@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, literal_column, select, text, update
 from sqlalchemy.orm import Session
 
 from app import (
-    copies,
+    copy_git,
     diagram,
     git,
     git_issues,
@@ -137,7 +137,7 @@ async def delete_project(
     of their turns, its memory, knowledge, To-do, nights and usage. Not
     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
     are never touched - but KOLONİ's own worktrees and copies in .koloni/ (K-koloni-alan,
-    `copies.drop_project`); KOLONİ's own files of its chats go as a chat's delete takes them
+    `copy_git.drop_project`); KOLONİ's own files of its chats go as a chat's delete takes them
     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
     app's clock is.
     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
@@ -185,7 +185,7 @@ async def delete_project(
     _remove(session, Project.__table__, Project.id == project_id)
     session.commit()
     _forget_files(request, session, chats, kept)
-    await asyncio.to_thread(copies.drop_project, root, request.app.state.settings.runtime_root)
+    await asyncio.to_thread(copy_git.drop_project, root, request.app.state.settings.runtime_root)
     return Response(status_code=204)
 
 

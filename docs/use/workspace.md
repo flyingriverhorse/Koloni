@@ -70,10 +70,16 @@ KOLONİ reads the command as written: a path built in a script is not seen.
   `git init`, the next copy is made outside.
 - The first time a worktree is made, KOLONİ adds `/.koloni/worktrees/` and `/.koloni/copies/` to your
   repository's own `.git/info/exclude` (in a linked worktree of yours, the main repository's), so
-  `git status` stays clean. Your `.gitignore` is not touched.
+  `git status` stays clean. Your `.gitignore` is not touched. KOLONİ's own `.koloni/.gitignore` lists
+  them too (a line it lacks is added after yours), so a git-less project's copies stay out of the git
+  it gets later.
+- Each is one agent's work: that agent works in it as its own folder; any other agent, or a command
+  at the project's root, may look in but not write, delete or run anything there
+  ([permissions](permissions.md#the-folders-koloni)).
 - Neither is copied into another copy, shown in the Files window, searched by an agent's search, nor
   listed as a change of your project. When you delete the project from KOLONİ, they go with it (your
-  branches stay).
+  branches stay). A worktree whose records your `git clean -fdx` removed is left as it is, with its
+  uncommitted work, for you to delete.
 - A CLI started in a copy or worktree in `.koloni/` reads your project's `AGENTS.md` / `CLAUDE.md`
   from the folders above it, and the copy's own as well: the same words, read twice.
 - Copies and worktrees made before 0.1.10 stay where they were made, and are found and decided there.
