@@ -144,7 +144,7 @@ A failed turn shows **"Run failed: {Provider}: {reason}."** with a next step und
 
 **"Stopped at its step limit."**
 : An agent used all its steps for this job. A sub-agent's limit is Settings › The app ›
-  Agents › **Steps an agent may take**, with more for a coordinator's recipe. The Orchestrator has none unless
+  Agents › More limits › **Steps an agent may take**, with more for a coordinator's recipe. The Orchestrator has none unless
   you set one on the **Lead** role. Send a message to go on, or split big work into smaller
   messages. See [Step limits](agents/step-limits.md).
 
@@ -161,8 +161,8 @@ A failed turn shows **"Run failed: {Provider}: {reason}."** with a next step und
 
 **"stopped at its role's limit of {limit} steps"**
 : A sub-agent reached the step limit set on its role. While the turn still runs, its kept work's card
-  offers **Continue (+{n} steps)**; {n} is Settings › This project › Limits and money › **Continue gives this many more
-  steps**. Without kept work there is no card. Only you give more past a role's limit: the
+  offers **Continue (+{n} steps)**; {n} is Settings › This project › Limits and money › More limits › **Continue gives this
+  many more steps**. Without kept work there is no card. Only you give more past a role's limit: the
   Orchestrator's go on is refused there, at **Full auto** and while you're away too. The role's limit counts the agent's earlier steps, in
   later turns too: after the turn, raise **At most this many steps** under **Safety stops for one
   agent** in the role's form (Agents page), then ask the Orchestrator to go on. A CLI working with its

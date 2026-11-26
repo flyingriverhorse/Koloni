@@ -1,5 +1,5 @@
-"""A job while the user is away (slice 106, `app.away`) and a turn nobody watches: what waits
-for the morning and what is asked, and its deadline - `AwayMixin`.
+"""A job while the user is away (slice 106, `app.away`): what waits for the morning and what is
+asked, and its deadline - `AwayMixin`.
 """
 
 import asyncio
@@ -208,7 +208,7 @@ class AwayMixin(AwayBranchMixin):
     ) -> Callable[[str], Awaitable[str]] | None:
         """☾ Away (§10): how a command's card of a job is parked while its night runs - read at each
         card, so I'm back, Stop all or the night's end make the next card the user's again. None
-        elsewhere: a turn they watch, a trigger's, a To-do task's, KOLONİ's own commands. Parking
+        elsewhere: a turn they watch, a To-do task's, KOLONİ's own commands. Parking
         makes the job's copy first (`make`: the command's own `where`; a CLI's is made), which is
         kept for the morning (`_set_aside`), writes the record (`parked.park`) and says what the
         agent is told."""
@@ -486,8 +486,8 @@ class AwayMixin(AwayBranchMixin):
         are away those and, as nothing of a turn nobody watches goes unasked that cannot be
         taken back, one that runs what is not seen through a shell or a wrapper
         (`runs_another`), or - in a copy with the project's dependency folders linked in -
-        installs into the project's own (`installs`); "" for one that does none of these, or
-        in a turn nobody watches (its trigger's leave decides). In a side of a comparison harm
+        installs into the project's own (`installs`); "" for one that does none of these. In a
+        side of a comparison harm
         (a side is thrown away, a push is not) and such an install alone: it stays in the
         project whichever side is chosen (K-54). (A To-do task's turn is its chat's, 0.1.8.)
         `plain` runs in `cwd` (run_command's), as `with_cwd` judges it. `scratch_of`: the
@@ -501,7 +501,7 @@ class AwayMixin(AwayBranchMixin):
             return harms(command) or (installs(command) if copy is not None and copy.links else "")
         if ctx.run_id not in self._away_jobs:
             # (K-fullauto-sorma: at Full auto an instruction file alone is no harm.)
-            if not self._watched(ctx.run_id) or scratch_delete_only(command, scratch_of):
+            if scratch_delete_only(command, scratch_of):
                 return ""
             return harms(command, not self._full_auto(ctx))
         copy = self._copies.get(self._away_jobs[ctx.run_id])
@@ -575,7 +575,7 @@ class AwayMixin(AwayBranchMixin):
     def _no_away(self: "AgentRunner", session, ctx: Ctx) -> str | None:
         """Why this agent may not offer the user to go away (☾ Away); None: it may. Only the
         Lead whose role keeps the To-do list, at the user's own turn of a chat with a folder:
-        never a trigger's turn, a plan, a side of a comparison or a job while they are away."""
+        never a plan, a side of a comparison or a job while they are away."""
         if (
             ctx.role != LEAD
             or ctx.depth
@@ -583,13 +583,12 @@ class AwayMixin(AwayBranchMixin):
             or ctx.discussion
             or ctx.root is None
             or "add_task" not in ctx.tools
-            or not self._watched(ctx.run_id)
             or ctx.run_id in self._sides
             or ctx.run_id in self._away_jobs
         ):
             return "offer_away is the Orchestrator's, at a turn of the user's own"
         run = session.get_one(Run, ctx.run_id)
-        return "offer_away is not for a plan turn" if run.plan_turn or run.unattended else None
+        return "offer_away is not for a plan turn" if run.plan_turn else None
 
     def _offer_away(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
         with self._factory() as session:

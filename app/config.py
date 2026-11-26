@@ -37,7 +37,7 @@ class Settings:
     detect_cli: bool = True
     # Look at the clock by itself, every few seconds: the nights while the user is away
     # go on, and the day's summary is sent. Off in tests, which hand the clock the time.
-    trigger_clock: bool = True
+    clock: bool = True
     # At the start, download the catalogue again where it is older than a week, unless the
     # user turned that off (`models_dev.refresh`). Off in tests: they reach no network.
     catalogue_refresh: bool = True
@@ -116,7 +116,9 @@ def load_settings(env: Mapping[str, str] | None = None, repo_root: Path | None =
         guide_site=root / "runtime" / "site",
         host=env.get("KOLONI_HOST") or "127.0.0.1",
         detect_cli=(env.get("KOLONI_DETECT_CLI") or "1") != "0",
-        trigger_clock=(env.get("KOLONI_TRIGGER_CLOCK") or "1") != "0",
+        # shortcut: KOLONI_TRIGGER_CLOCK, the clock's name while it ran triggers, is read too for
+        # one release, so a .env that sets it keeps working; drop it in the release after.
+        clock=(env.get("KOLONI_CLOCK") or env.get("KOLONI_TRIGGER_CLOCK") or "1") != "0",
         catalogue_refresh=(env.get("KOLONI_CATALOGUE_REFRESH") or "1") != "0",
         search_seconds=_seconds(env.get("KOLONI_SEARCH_SECONDS"), 20.0),
         page_key=page_key,

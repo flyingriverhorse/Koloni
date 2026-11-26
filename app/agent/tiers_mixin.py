@@ -99,16 +99,13 @@ class TiersMixin:
         request fails, its answer cannot be read, or no model has the tier: the lead
         runs where it would have. The request holds a place like any model step, on the
         provider it goes to; what it spent is on a record of its own, under the model
-        that was asked (`_asked`); Stop ends it. Not in a turn nobody watches: such a
-        turn runs where its trigger's conversation says, and one moved to a CLI that
-        works with its own tools would not start there."""
+        that was asked (`_asked`); Stop ends it."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             # (A plan turn's model is the strongest one, chosen as it opened; a side of a
             # comparison's, the one the user chose for it.)
             if (
                 not conversation.lead_auto
-                or not self._watched(ctx.run_id)
                 or session.get_one(Run, ctx.run_id).plan_turn
                 or ctx.run_id in self._sides
             ):
@@ -521,10 +518,10 @@ class TiersMixin:
         """What the opener of a sub-agent that could not finish is told after that: the
         first model of the tier above the one it ran on, where its role's rule lets the
         opener give that tier and one may be picked for it now. Advice: nothing is
-        switched. Nothing in a turn nobody watches: no model is picked there.
+        switched.
         `after_check` (K-model-puan 3): after a check failed for the last time that goes
         to the Lead, how to open one there - and, at the top tier, that there is none."""
-        if not self._watched(child.run_id) or child.provider_id is None:
+        if child.provider_id is None:
             return ""
         with self._factory() as session:
             role = find_role(session, child.role)

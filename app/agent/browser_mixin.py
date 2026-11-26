@@ -40,7 +40,7 @@ UNDER_STEP = " (the user sees it under the step: "  # (+ its copy's path and ")"
 LOOK_PATHS = ("path", "file_path", "AbsolutePath")
 
 SITE_UNWATCHED = (
-    "{host} is not opened: nobody is watching this turn (a trigger's, a job while the user is "
+    "{host} is not opened: nobody is watching this turn (a job while the user is "
     "away or a backlog task's), and sites out on the internet are opened only while the user "
     "watches. "
     "That is the user's standing decision, not a tool error: do not try it another way. Go on "
@@ -227,8 +227,8 @@ class BrowserMixin:
         level; at Full auto unasked too, and not put on the list; a site marked Ask first on
         the web card at every level, Full auto too; any other below Full auto on the card.
         True: it is held for this browser alone (`Browser.once`) - This time, any yes for a
-        marked site, or Full auto's. Never in a turn nobody watches - a trigger's, a night's
-        job, a backlog task's: refused there, not asked."""
+        marked site, or Full auto's. Never in a turn nobody watches - a night's job, a backlog
+        task's: refused there, not asked."""
         with self._factory() as session:
             project = self._project(session, ctx.cid)
         # (As `_web`: the user took the network from this project - no tool is a way round.)
@@ -278,11 +278,11 @@ class BrowserMixin:
             one.posting = time.monotonic() + browser.LOAD_WAIT
 
     def _site_unwatched(self: "AgentRunner", ctx: Ctx) -> bool:
-        """Whether nobody watches this turn as far as sites go: a trigger's, a night's job's,
-        or a backlog task's chat (K-tarayici-disari).
+        """Whether nobody watches this turn as far as sites go: a night's job's, or a backlog
+        task's chat (K-tarayici-disari).
         shortcut: a backlog task's chat is told by its task, so a turn the user starts there
         by hand counts too; mark the turns the backlog starts if that is missed."""
-        if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
+        if ctx.run_id in self._away_jobs:
             return True
         with self._factory() as session:
             return (

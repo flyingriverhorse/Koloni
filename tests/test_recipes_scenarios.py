@@ -114,9 +114,9 @@ def test_three_ready_recipes_come_first_and_hold(make_client):
     assert [r["name"] for r in recipes[:3]] == ["Feature", "Bugfix", "Review only"]
     assert all(r["ready"] and r["project_id"] is None for r in recipes[:3])
     feature = recipes[0]["graph"]
-    # The user's flow: spec, build, four reviews at once, at most two rounds of fixes, ask me.
-    (reviews,) = feature["groups"]
-    assert len([s for s in feature["steps"] if s["group"] == reviews["id"]]) == 4
+    # The spec, the build, its UI review - at most two rounds of fixes - and ask me (T3, 0195: its
+    # other three reviews at once were KOLONİ's Checks' work again).
+    assert [s["id"] for s in feature["steps"]] == ["spec", "build", "ui"] and not feature["groups"]
     assert [(loop["to"], loop["rounds"]) for loop in feature["loops"]] == [("build", 2)]
     assert [end["then"] for end in feature["ends"]] == ["in"]
     review_only = recipes[2]["graph"]

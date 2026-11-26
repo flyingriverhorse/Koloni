@@ -26,7 +26,8 @@ def test_the_ready_feature_recipe_has_no_approve_step_and_gets_it_back_going_bac
 
     after = feature(db)
     assert "approve" not in [step["id"] for step in after["steps"]]
-    assert {"from": "reviews", "to": "end"} in after["arrows"]
+    # (Its reviews', then - 0195 - its UI review's.)
+    assert [arrow["from"] for arrow in after["arrows"] if arrow["to"] == "end"] == ["ui"]
     assert not [arrow for arrow in after["arrows"] if "approve" in arrow.values()]
 
     command.downgrade(cfg, "0083")

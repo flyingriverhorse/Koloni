@@ -1,6 +1,6 @@
 """A project's day, counted from the record - no model is asked (slice 56): its turns, the
 agents that worked, the files that changed, what waits, what failed and what was spent.
-Read by the Today view, and sent as a text at the time the user set (`Triggers.day_notes`).
+Read by the Today view, and sent as a text at the time the user set (`Clock.day_notes`).
 Only "Say it in words" asks a model: on the user's click, once."""
 
 import json
@@ -167,7 +167,7 @@ def note_text(project: Project, day: dict, when: str = "today") -> str:
 def day_note(
     session: Session, project: Project, since: datetime, runner, until: datetime | None = None
 ) -> str:
-    """The evening's text of a project's day (`Triggers.day_notes` sends it); with `until`,
+    """The evening's text of a project's day (`Clock.day_notes` sends it); with `until`,
     of a day that is over, sent late."""
     return note_text(
         project,

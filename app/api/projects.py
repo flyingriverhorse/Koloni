@@ -26,6 +26,7 @@ from app import (
 from app.agent import announce, branch_held
 from app.api.deps import get_session, keyed_if_read_by_the_app, require_origin, require_own_origin
 from app.api.teams import chat_rows
+from app.clock import local_day
 from app.db.models import (
     FOLLOWED,
     SPAWN,
@@ -67,7 +68,6 @@ from app.schemas import (
     SharedPathIn,
 )
 from app.serialize import allowed_command_out, allowed_web_out, tell_chats
-from app.triggers import local_day
 from app.workspace import Workspace, WorkspaceError, far_or_device, listed_folder, not_a_project
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -728,8 +728,8 @@ def _change_addresses_and_day_note(
         project.search_url = address or None
     if noted:
         if body.day_note_at and not project.day_note_at:
-            # Switched on: a day it was off is no day to send late (`Triggers.day_notes`).
-            yesterday = local_day(now(), request.app.state.triggers.zone) - timedelta(days=1)
+            # Switched on: a day it was off is no day to send late (`Clock.day_notes`).
+            yesterday = local_day(now(), request.app.state.clock.zone) - timedelta(days=1)
             project.day_note_sent = max(project.day_note_sent or yesterday, yesterday)
         project.day_note_at = body.day_note_at
     # As the project is after this change: a time with nowhere to send it is never kept.

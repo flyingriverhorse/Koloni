@@ -361,18 +361,13 @@ def named(found: dict | None, text: str, part: str | None = None) -> str | None:
     return found_in[0] if len(found_in) == 1 else None
 
 
-def told(part: str, found: dict | None, watched: bool = True) -> str:
+def told(part: str, found: dict | None) -> str:
     """What an agent working in a part is told of where it works, by the map (with `edited`;
     None: not made yet). File paths stay from the project root, as for every agent: what it may
-    read and write is judged by them, and nothing of that changes in a part. Not `watched` (a
-    trigger's turn), run_command stays at the root: a trigger allows its commands there."""
+    read and write is judged by them, and nothing of that changes in a part."""
     known = next((one for one in (found or {}).get("parts", ()) if one["path"] == part), None)
     # (git runs unasked only at the root: `commands.reads_here`)
-    runs = (
-        f'runs in {_quoted(part)} (for git, give cwd ".")'
-        if watched
-        else "runs at the project root in this turn"
-    )
+    runs = f'runs in {_quoted(part)} (for git, give cwd ".")'
     unasked = (
         " (the user's own: run_command runs it there without a card, as it is)"
         if known and known["edited"] and known["test"]

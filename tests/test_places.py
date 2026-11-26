@@ -6,8 +6,7 @@ and on a few hundred small turns with random decisions and Stops, under a limit 
 and of two: at the end nothing runs, nothing waits and nobody holds a place.
 
 Beside it: what else the review found - the line is advanced on the event loop and
-never stops on an error, an unattended turn's minutes do not run while it stands in
-line, the user's word is on record at once though its agent waits for a place, ending a
+never stops on an error, the user's word is on record at once though its agent waits for a place, ending a
 discussion needs no place, and a wait that is stopped is told to the other conversation.
 """
 
@@ -987,9 +986,6 @@ def test_a_place_another_call_of_the_agent_gave_up_is_not_given_back_a_second_ti
     on_loop(client, lambda: asyncio.ensure_future(stopped_as_it_is_let_in()))
     until_true(lambda: done, "the call that stood in line is over")
     assert done == [(True, 2, False)]
-
-
-# --- an unattended turn's minutes ----------------------------------------------------------
 
 
 # --- the user's word is on record at once ---------------------------------------------------

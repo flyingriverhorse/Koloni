@@ -114,6 +114,8 @@ interface Props {
   levels?: (sections: ReactNode) => ReactNode
   /** The app's step limit, from Limits and money. */
   toApp?: () => void
+  /** Limits and money's More limits open: it was asked for from the app's link to Continue's steps. */
+  moreLimits?: boolean
   /** Under This folder, after the form: Delete project (it has a form of its own). */
   children?: ReactNode
 }
@@ -200,6 +202,7 @@ export function ProjectSettings({
   chat,
   levels = alone,
   toApp,
+  moreLimits = false,
   children,
 }: Props) {
   const [section, setSection] = useState<Section>(picked?.section ?? 'agents')
@@ -213,7 +216,7 @@ export function ProjectSettings({
     agents: useAgents(project),
     asking: useAsking(project),
     'new-chats': useNewChats(project),
-    limits: useLimits(project, spend, toApp),
+    limits: useLimits(project, spend, toApp, moreLimits),
     commands: useCommands(project, { dockerAvailable, dockerError, shell, shellNote }),
     rules: own(<Rules projectId={project.id} chat={chat} />),
     checks: useChecks(project, section === 'checks'),

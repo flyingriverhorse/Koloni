@@ -460,8 +460,6 @@ async def request_work(
                 "request_work is for an agent of a team, at its own work: the "
                 "Orchestrator opens a team's coordinator with spawn_agent"
             )
-        if not runner._watched(ctx.run_id):
-            raise ToolError("teams ask each other for work only in a turn the user watches")
         if " ".join(to.split()).casefold() == mine[1].casefold():
             raise ToolError(f"{mine[1]} is your own team: open its roles, or message them")
         others = _others(runner, session, ctx, mine)

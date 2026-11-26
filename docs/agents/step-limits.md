@@ -21,9 +21,9 @@ write its report: what it did and what is left.
 
 | Where | What it sets |
 |---|---|
-| Settings › The app › Agents › **Steps an agent may take** | The most steps one sub-agent takes on a job: its task, or one later message it works on. 25 unless you change it, a whole number from 5 to 200. It holds in every project. It does not hold the Orchestrator. |
+| Settings › The app › Agents › More limits › **Steps an agent may take** | The most steps one sub-agent takes on a job: its task, or one later message it works on. 25 unless you change it, a whole number from 5 to 200. It holds in every project. It does not hold the Orchestrator. |
 | The role's form (Agents page) → **Safety stops for one agent** → **At most this many steps** | A limit of the role's own. Where it is lower than the app's, it holds. It counts the steps an agent of the role takes on its work in the turn, and in the earlier turns it goes on from. Empty: only the app's limit. On the **Lead** role it is the Orchestrator's step limit; empty, it has none. |
-| Settings › This project › Limits and money › **Continue gives this many more steps** | How many more steps **Continue** gives. 25 unless you change it, 1 to 200. |
+| Settings › This project › Limits and money › More limits › **Continue gives this many more steps** | How many more steps **Continue** gives. 25 unless you change it, 1 to 200. |
 
 ### More steps for coordinators
 
@@ -42,7 +42,7 @@ the project, so it has none. What stops it:
 - it goes round in circles (below);
 - a limit you set: the **Lead** role's **At most this many steps**;
 - in a To-do task's turn, and in a job while you're away: nothing has moved
-  for Settings › The app › **Stuck after this many minutes with no progress** (30 unless you change
+  for Settings › The app › More limits › **Stuck after this many minutes with no progress** (30 unless you change
   it) - no file of the turn changed, no agent finished its work, no failing command passed. Each of
   those starts the minutes again, so honest work runs as long as it needs. They do not run out while
   a card waits for you, a command or a model step of the turn is under way, or an agent below the
@@ -230,7 +230,8 @@ To give it more:
 - an agent that stopped at its role's own limit counts the steps it took before, in later turns too:
   raise the role's **At most this many steps** first, then ask the Orchestrator to go on. A raised
   limit holds from its next job;
-- for work that is always big, raise **Steps an agent may take**: it holds every sub-agent.
+- for work that is always big, raise **Steps an agent may take** (The app › Agents › More limits): it holds every
+  sub-agent.
 
 ## One job, three ways
 

@@ -89,6 +89,7 @@ from app.api import (
 )
 from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
+from app.clock import Clock
 from app.config import Settings, load_settings
 from app.db.models import Agent, Flag, McpServer, Provider, now
 from app.db.session import (
@@ -106,11 +107,10 @@ from app.model_client import ModelClient
 from app.model_native import sweep_codex_threads, sweep_copilot_homes
 from app.providers import Providers, search_apis, search_clients, seed_providers
 from app.roles import seed_builtin_roles
-from app.triggers import Triggers
 from app.views import VIEWER_HEADERS
 
 
-class NoWebhookKeys(logging.Filter):
+class NoPageKeys(logging.Filter):
     """The server writes the address of every request into its access log: there, and in
     anything else the server logs, the page's key, where an address carries it (`?key=`,
     slice 94), is replaced by "[key]" before the line is written anywhere."""
@@ -214,13 +214,13 @@ SERVER_LOGS = ("uvicorn", "uvicorn.access", "uvicorn.error")
 OPEN_SECONDS = 120
 
 
-def hide_webhook_keys() -> None:
+def hide_page_keys() -> None:
     """Put the filter on the server's loggers, once. A filter on a logger sees only what
     is logged to that very logger, so each of them gets it. (And the access log gets the
     one that spares it the raw stream views' asking.)"""
     for name in SERVER_LOGS:
         logger = logging.getLogger(name)
-        kinds = (NoWebhookKeys, NoRawStreamReads) if name.endswith("access") else (NoWebhookKeys,)
+        kinds = (NoPageKeys, NoRawStreamReads) if name.endswith("access") else (NoPageKeys,)
         for kind in kinds:
             if not any(isinstance(known, kind) for known in logger.filters):
                 logger.addFilter(kind())
@@ -346,21 +346,21 @@ def create_app(
         if stale_containers:
             await kill_containers(stale_containers)
         # Again here: by now the server has set its logging up, whatever it did to it.
-        hide_webhook_keys()
-        triggers = app.state.triggers
-        triggers.attach(asyncio.get_running_loop())
+        hide_page_keys()
+        clock = app.state.clock
+        clock.attach(asyncio.get_running_loop())
         for note in closed_nights:
             send_night(note)
         # MCP servers' start folders a KOLONİ that did not end well left (97): off the loop,
         # and before any server of this one's starts.
         await asyncio.to_thread(mcp_client.sweep, settings.mcp_home)
 
-        clock = None
-        if settings.trigger_clock:
+        ticking = None
+        if settings.clock:
             # Looked at once as the app comes up; from here on every few seconds.
             with contextlib.suppress(Exception):
-                await triggers.look(now())
-            clock = asyncio.create_task(triggers.run_forever(), name="triggers")
+                await clock.look(now())
+            ticking = asyncio.create_task(clock.run_forever(), name="clock")
         # The turns that are over and not in the index of what was said: indexed beside
         # everything else, so that neither the start nor a request waits for them.
         indexing = asyncio.create_task(earlier.index_what_is_there(factory), name="earlier")
@@ -386,15 +386,15 @@ def create_app(
             if refreshing is not None:
                 refreshing.cancel()
                 await asyncio.gather(refreshing, return_exceptions=True)
-            if clock is not None:
-                clock.cancel()
-                await asyncio.gather(clock, return_exceptions=True)
+            if ticking is not None:
+                ticking.cancel()
+                await asyncio.gather(ticking, return_exceptions=True)
             await app.state.runner.shutdown()
             # The model server the user started here ends with KOLONİ: none is left on the card.
             await app.state.local_server.stop()
-            triggers.attach(None)
+            clock.attach(None)
 
-    hide_webhook_keys()
+    hide_page_keys()
     # A restore the user staged replaces the data before anything opens it (K-disa-aktar).
     backups.apply_staged(settings.runtime_root, lambda: upgrade_db(settings.db_path))
     upgrade_db(settings.db_path)
@@ -476,7 +476,7 @@ def create_app(
     # Set by the server's exit signal (`ClosingServer`): the page's open streams end on it.
     app.state.closing = asyncio.Event()
     app.state.runner = AgentRunner(settings, factory, app.state.bus, app.state.providers, executors)
-    app.state.triggers = Triggers(factory, app.state.bus, app.state.runner, day.day_note)
+    app.state.clock = Clock(factory, app.state.bus, app.state.runner, day.day_note)
     app.state.local_server = LocalServer(
         settings.runtime_root, settings.local_server, settings.nvidia_smi
     )

@@ -62,7 +62,7 @@ log = logging.getLogger(__name__)
 PROOF_CALL = proof.PROOF_CALL
 # S1, until a run can go on in the background (S6): a turn the user watches waits at most this
 # long for the tests at its end - all its test commands, and another turn's run before them; past
-# it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn
+# it they are stopped and said not waited for. An Away job's and a To-do task's turn
 # wait to the commands' own limit (the project's longest command), each command.
 END_WAIT_SECONDS = 120
 # CL-329: how long Put back's kept folder of a run stays, unclicked (or its chat deleted).
@@ -607,9 +607,11 @@ class ProofMixin:
 
     def _recipe_spent(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether a recipe of this turn ran a test-to-fix loop of its own to its last round (S4's
-        Bugfix: its checking step runs the tests - a test step, or the Tester): its fix rounds were
-        the turn's, and the end check sends nothing back on top of them. A review's loop or a
-        candidates' `again` that ran out leaves the end check's own rounds."""
+        Bugfix: its checking step runs the tests - a test step, or the Tester - or, as Quality
+        check's and Upkeep's, its fixer loops back to one): its fix rounds were the turn's, and the
+        end check sends nothing back on top of them - a fix round, which keeps the rounds spent
+        (T3a), would only run the test step again. A review's loop or a candidates' `again` that
+        ran out leaves the end check's own rounds."""
         from app.agent import TEST_STEPS  # (where S4 keeps them; this module is imported first)
 
         with self._factory() as session:
@@ -627,7 +629,7 @@ class ProofMixin:
             }
             if any(
                 loop.rounds
-                and loop.from_ in tests
+                and (loop.from_ in tests or loop.to in tests)
                 and state.get("rounds", {}).get(recipe_run.part_of(graph, loop.from_), 0)
                 >= loop.rounds
                 for loop in graph.loops
@@ -859,11 +861,7 @@ class ProofMixin:
         """Whether somebody is there waiting for the answer: a turn the user watches - not an Away
         job, nor a To-do task's turn: its end needs what its checks found (a fix round is due
         where one failed, `backlog.not_finished`), so it waits for them."""
-        return (
-            self._watched(ctx.run_id)
-            and ctx.run_id not in self._away_jobs
-            and ctx.run_id not in self._todo_turns
-        )
+        return ctx.run_id not in self._away_jobs and ctx.run_id not in self._todo_turns
 
     def _away_now(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user is away from this turn: an Away job. (A chat's queue of To-do tasks
@@ -873,21 +871,15 @@ class ProofMixin:
         return ctx.run_id in self._away_jobs
 
     def _may_run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun) -> Literal["run", "ask"] | str:
-        """As the Lead's own run_command would be: in a watched turn "ask" - the user's own
-        command, an Always run rule, the part's own test and Full auto pass unasked, a guess - or
-        a command KOLONİ saved that no Always rule covers (option A) - at Ask or Auto-edit gets
-        one card a turn, and is not run while the user is away; in a trigger's turn "run" only on
-        its leave for this very command; else why not."""
+        """As the Lead's own run_command would be: "ask" - the user's own command, an Always run
+        rule, the part's own test and Full auto pass unasked, a guess - or a command KOLONİ saved
+        that no Always rule covers (option A) - at Ask or Auto-edit gets one card a turn, and is
+        not run while the user is away; else why not."""
         if off := web_off_reason(run.command, self._off()):
             return off
         if not run.yours and self._away_now(ctx):
             return AWAY_SAVED if run.saved else AWAY_GUESS
-        if self._watched(ctx.run_id):
-            return "ask"
-        refused = self._nobody_to_ask(
-            ctx, "command", f"run {quoted(run.command)}", command=run.command, cwd=run.cwd
-        )
-        return "run" if refused == "" else refused or "nobody is there to ask"
+        return "ask"
 
     async def _run_tests(
         self: "AgentRunner",

@@ -68,10 +68,8 @@ from app.agent.words import (
     OUTRUN_TOLD,
     PAID_NO,
     PAID_SWITCH,
-    PAID_UNATTENDED,
     TEAM_STOPPED,
     TURN_ANSWERED,
-    UNATTENDED_NOT_THIS,
     UNCHECKED,
 )
 from app.api.usage import over_month, past_its_limit
@@ -598,11 +596,6 @@ class SpawnMixin:
         """A sub-agent's whole life, on its own model. Its failure is a result for its
         parent, not the end of the turn; only Stop (a cancellation) passes through."""
         try:
-            refused = self._not_unattended(ctx)
-            if refused:
-                # Not opened that way (`_spawn` refuses first); and never run that way.
-                self._stopped_by_koloni(ctx)
-                return "failed", refused
             self._still_allowed(ctx)
             if self._on_branch.get(ctx.agent_id, "").startswith(git.BRANCH_PREFIX):
                 # K-dal-takim: its branch opened again before its first step - what it reads is
@@ -742,7 +735,7 @@ class SpawnMixin:
     def _named(session, run_id: str) -> frozenset[str]:
         """The roles the user's own message of a turn names, which are opened though they
         are off or out of the team (slice 62): only where that message came from the app's
-        own page (`Run.by_user`) - not a trigger's, a plan's or a task's, nor one an agent
+        own page (`Run.by_user`) - not a plan's or a task's, nor one an agent
         posted with a command."""
         if not session.get_one(Run, run_id).by_user:
             return frozenset()
@@ -850,12 +843,13 @@ class SpawnMixin:
         or the user's goes. Each is put on `watch`, where `_approve` holds it to its tools.
         shortcut: of two roles offered by one name (`inside_name`) only the first is; the other
         is opened as an agent of KOLONİ's only. None where a spawn_agent of this agent's would
-        be asked about every time, or could not go a level deeper, nor in a turn nobody watches
-        or a job done while the user is away (whose cost nothing here would hold).
+        be asked about every time, or could not go a level deeper, nor in a job done while the
+        user is away (whose cost nothing here would hold).
         shortcut: its sub-agents count toward no limit of the turn's (`spawn_max_agents`, a
         role's steps and tokens): they are its Lead's turn; count them if that is seen to matter."""
-        if "spawn_agent" not in {tool["function"]["name"] for tool in offered} or (
-            not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs
+        if (
+            "spawn_agent" not in {tool["function"]["name"] for tool in offered}
+            or ctx.run_id in self._away_jobs
         ):
             return {}
         given: dict[str, dict] = {}
@@ -1255,7 +1249,7 @@ class SpawnMixin:
         shared): Take it in and go on (its kept copies go into the project, and the recipe
         starts from there), Start again, or Stop. A row stopped - or whose work could not all
         be taken in - is refused only to an opening that would start it (`_kept_held`)."""
-        if ctx.depth or not self._watched(ctx.run_id):
+        if ctx.depth:
             return
         asked = self._kept_word.get(ctx.run_id)
         if asked is None:
@@ -1393,7 +1387,7 @@ class SpawnMixin:
         beside another is not opened again while it is being opened or at work, nor once
         its work is done (a recipe's that did not get to its end may be)."""
         wanted = " ".join(str(args.get("role") or "").split()).casefold()
-        if ctx.depth or not wanted or not self._watched(ctx.run_id):
+        if ctx.depth or not wanted:
             return []
         beside = self._beside.setdefault(ctx.agent_id, {})
         with self._factory() as session:
@@ -1476,10 +1470,7 @@ class SpawnMixin:
         the same message, nor of one being opened beside another call. None: not such a call."""
         wanted = " ".join(str(args.get("role") or "").split()).casefold()
         if (
-            not wanted
-            or not self._gives_slots(ctx)
-            or not self._watched(ctx.run_id)
-            or (call_id in self._chained)
+            not wanted or not self._gives_slots(ctx) or (call_id in self._chained)
         ):  # (KOLONİ's own, next in a branch: `_spawn_on`)
             return None
         beside = self._beside.setdefault(ctx.agent_id, {})
@@ -1551,7 +1542,7 @@ class SpawnMixin:
         shortcut: a CLI's spawn_agent calls come one at a time: its first is topped up and a later
         one of its own finds no place left; count a CLI's calls by its session if that is felt."""
         wanted = " ".join(str(args.get("role") or "").split()).casefold()
-        if not wanted or not self._gives_slots(ctx) or not self._watched(ctx.run_id):
+        if not wanted or not self._gives_slots(ctx):
             return None
         with self._factory() as session:
             found = self._candidates_at(session, ctx, call_id, wanted)
@@ -1980,7 +1971,6 @@ class SpawnMixin:
                 session,
                 role,
                 conversation,
-                unattended=self._unwatched_like(ctx.run_id),
                 tools=effective_tools(role.tools, self._caps(ctx)) if role else None,
                 tier=None if shut else tier,
                 # B-301: as a recipe's step (`_propose`), past a provider it could not be one on.
@@ -2367,8 +2357,7 @@ class SpawnMixin:
         "Add to Project notes?" offer (`project_notes.offer`), on a card under this turn where
         somebody watches it - answered whenever the user likes, on the app's own page: it never
         holds the turn, at any level (it adds to the project's knowledge: the user's call, never
-        the Lead's). A turn nobody watches - a trigger's - only adds to it."""
-        watched = self._watched(ctx.run_id)
+        the Lead's)."""
         made = project_id = None
         for last in (False, True):  # (once more where another turn made the waiting one first)
             with self._factory() as session:
@@ -2378,7 +2367,7 @@ class SpawnMixin:
                 project_id = project.id
                 try:
                     made = project_notes.offer(
-                        session, project_id, ctx.run_id, ctx.cid, project.root_path, watched
+                        session, project_id, ctx.run_id, ctx.cid, project.root_path, True
                     )
                     session.commit()
                     break
@@ -2477,11 +2466,7 @@ class SpawnMixin:
             if shut:
                 raise ToolError(f"{earlier.name} cannot be gone on with: {shut}")
             would = would_run(
-                session,
-                role,
-                conversation,
-                unattended=self._unwatched_like(ctx.run_id),
-                tools=effective_tools(role.tools, self._caps(ctx)),
+                session, role, conversation, tools=effective_tools(role.tools, self._caps(ctx))
             )
             provider, model_name = would.provider, would.model_id
             chosen, not_to_be_had = False, None
@@ -2586,11 +2571,10 @@ class SpawnMixin:
         it has to be in the team guide as that stands now and among what its role lets be
         picked (`may_pick`), its provider has to be allowed
         to run it, and a CLI working with tools of its own has to be able to work here.
-        In a turn nobody is watching no model is picked at all. The earlier agent is
-        known by its provider's name, which is all that is on record: a provider that
-        was renamed since is not found, and one that took its name is taken for it.
+        The earlier agent is known by its provider's name, which is all that is on record: a
+        provider that was renamed since is not found, and one that took its name is taken for it.
         """
-        if not self._watched(ctx.run_id) or not earlier.provider:
+        if not earlier.provider:
             return None
         same = earlier.provider.casefold() in (
             today.name.casefold(),
@@ -2667,7 +2651,6 @@ class SpawnMixin:
         """
         if ctx.run_id in self._answered:  # (B-376: Reviewer 4 opened after the last answer)
             raise ToolError(TURN_ANSWERED)
-        what = f"go on with {earlier.name}" if earlier else f"open a {role.name} sub-agent"
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             own = settings_of(session, conversation)
@@ -2705,15 +2688,7 @@ class SpawnMixin:
             raise ToolError(PAID_NO.format(to=shown_name(provider.name)))
         if step is not None and only_in_project(model, tools):
             raise ToolError(ONLY_IN_THE_PROJECT.format(provider=shown_name(provider.name)))
-        self._propose_unwatched(ctx, provider, model, chosen, paid)
         self._propose_within(ctx, role, tools, max_depth, opened, most, over, not_to_be_had)
-        refused = None
-        if not self._watched(ctx.run_id):
-            # No await from this count to the agent's opening: two asked for at once
-            # cannot both be the last one allowed.
-            refused = self._nobody_to_ask(ctx, "agent", what)
-            if refused:
-                raise _NobodyToAsk(refused)
         # Before anyone is asked: the user is not shown an agent that could not open. (By
         # the same rule as the table of who uses what says a pick cannot be had now.)
         cannot = chosen and cannot_pick(
@@ -2769,39 +2744,11 @@ class SpawnMixin:
         other = _asked_about(approval, mode, () if call_id in self._read_only_calls else tools) or (
             chosen and not users and approval != "never"
         )
-        asks = refused is None and not yes and (other or said is None and approval != "never")
+        asks = not yes and (other or said is None and approval != "never")
         if asks and said is None:
             # (Its word is kept for the turn - a no only where nothing else asked the card.)
             self._paid_asked[child.agent_id] = ((ctx.run_id, provider.id), not other)
         return child, asks
-
-    def _propose_unwatched(
-        self: "AgentRunner",
-        ctx: Ctx,
-        provider: Provider,
-        model: ModelClient,
-        chosen: bool,
-        paid: str | None,
-    ) -> None:
-        """`_propose`: what is not had in a turn nobody watches, nor in a backlog task's."""
-        if not self._watched(ctx.run_id):
-            # Before any of the limits a turn the user is watching has ("set the level
-            # to Full auto"): nobody is there to do that. A model of the agent's own
-            # choosing can cost money, and is asked about: here it is not had. Nor is a
-            # CLI that works with tools of its own.
-            if chosen:
-                raise _NobodyToAsk(
-                    self._nobody_to_ask(
-                        ctx,
-                        "model",
-                        f"give a sub-agent another model ({provider.name}); "
-                        "leave provider and model out",
-                    )
-                )
-            if paid:  # (nor a move onto a provider paid per token: nobody is there to say yes)
-                raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
-            if self._cannot_be_held(model, provider):
-                raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
 
     def _opened_this_turn(self: "AgentRunner", session, run_id: str) -> int:
         """The sub-agents a turn's allowance (`spawn_max_agents`) counts: not one the user
@@ -3113,11 +3060,7 @@ class SpawnMixin:
             # `past_its_limit` in `_spawn_one`.)
             conversation = session.get_one(Conversation, ctx.cid)
             own = would_run(
-                session,
-                find_role(session, child.role),
-                conversation,
-                unattended=self._unwatched_like(ctx.run_id),
-                tools=child.tools,
+                session, find_role(session, child.role), conversation, tools=child.tools
             )
             kind = (
                 None
@@ -3197,8 +3140,7 @@ class SpawnMixin:
     ) -> str | None:
         """PAID_SWITCH's words where an agent of `role` opened on `provider` is KOLONİ's move
         off the role's first model: of its list, else of its tier's ladder (`tier`: the one its
-        opener gave) - also one a turn nobody watches passed over, a CLI that works with tools
-        of its own. None: it is no such move.
+        opener gave). None: it is no such move.
         shortcut: not a move off the conversation's provider (B-301's "the next provider", a
         role with no list and no tier); add it if a paid one is seen landing so."""
         first = (
@@ -3209,14 +3151,7 @@ class SpawnMixin:
         if first is None and role.provider_id and tier is None:
             return None  # (its own model: the user's, never a move)
         if first is None:  # (also a list whose first provider is gone: the ladder's first)
-            would = would_run(
-                session,
-                role,
-                conversation,
-                tools=tools,
-                tier=tier,
-                unattended=self._unwatched_like(ctx.run_id),
-            )
+            would = would_run(session, role, conversation, tools=tools, tier=tier)
             found = would.tried(would.tier, blocked_too=True) if would.tier else []
             first = session.get(Provider, found[0][0].provider_id) if found else None
         return self._paid_switch(role, first, provider)
@@ -3240,8 +3175,8 @@ class SpawnMixin:
         the next model of its tier in the user's order (`Would.tried`), one not past its
         limit; its opener is told (`MOVED_ON`), and its record keeps both (`chosen_why`).
         Returns its context on the new model, and what the opener is told; None where it
-        stays as it failed, told which providers have room (`_room`): a turn nobody watches
-        (no model is picked there), a role with a provider of its own or an opener's pick
+        stays as it failed, told which providers have room (`_room`): a role with a provider
+        of its own or an opener's pick
         (the user's rule, the opener's reason), no tier, nobody after it on the tier's
         ladder. Money: the move may cost, so it is asked about as a pick is (`_propose`:
         unless nothing ever is) on the same card - a no leaves it as it failed.
@@ -3250,10 +3185,8 @@ class SpawnMixin:
         or, where the role has a model of its own, onto that model instead of a ladder (held
         to the same limit and down checks as the rest). Each model once: a list entry that is
         on the ladder too is not moved onto itself."""
-        if (
-            not self._watched(child.run_id)
-            or child.agent_id not in self._failed
-            or (self._calls_of(child) or self._last_text(child.agent_id, final_only=False))
+        if child.agent_id not in self._failed or (
+            self._calls_of(child) or self._last_text(child.agent_id, final_only=False)
         ):
             return None
         with self._factory() as session:

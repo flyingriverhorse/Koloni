@@ -36,7 +36,6 @@ from app.db.models import (
 from app.executors.host import NO_COPY_PATH
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row
-from app.team import quoted
 from app.tools import ToolError
 from app.workspace import Workspace
 
@@ -224,7 +223,7 @@ class KindsMixin:
         unasked at Full auto or where a rule of the user's covers the line (the card offers that
         very line as its Always rule, never the bare program), at Ask and Auto-edit on a card - a
         yes covers that exact line in that folder for the turn (`held.yes`, as the test command's),
-        a no the tool in that folder -, in a turn nobody watches only on its trigger's leave. Never
+        a no the tool in that folder -; not while the user is away. Never
         a program the turn planted (`proof_style.planted`). In the app-wide slot of KOLONİ's test
         runs; in a copy, in its one window, what one writes there (a cache) is put back. A problem
         on a line the turn wrote fails (a fix round, its words as data); the others are said.
@@ -269,14 +268,8 @@ class KindsMixin:
 
     def _style_may(self: "AgentRunner", ctx: Ctx, run: "proof_style.Run") -> str:
         """As the project's test command (`ProofMixin._may_run_tests`): "ask" in a turn the user
-        watches and is not away from - the level decides there, an Always rule covers it - else
-        "run" only on its trigger's leave for this very line; else why not."""
-        if self._watched(ctx.run_id) and not self._away_now(ctx):
-            return "ask"
-        refused = self._nobody_to_ask(
-            ctx, "command", f"run {quoted(run.command)}", command=run.command, cwd=run.cwd
-        )
-        return "run" if refused == "" else refused or "nobody is there to ask"
+        is not away from - the level decides there, an Always rule covers it; else why not."""
+        return "nobody is there to ask" if self._away_now(ctx) else "ask"
 
     async def _style_how(
         self: "AgentRunner", ctx: Ctx, ws: Workspace, run: "proof_style.Run", held: "Proof"

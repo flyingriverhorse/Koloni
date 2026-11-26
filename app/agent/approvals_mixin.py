@@ -1,5 +1,5 @@
-"""A CLI asking leave for a tool of its own: the card that asks the user, or the rule, trigger
-or Lead that answers instead (`_approve`, moved whole), and a question asked in words
+"""A CLI asking leave for a tool of its own: the card that asks the user, or the rule or Lead
+that answers instead (`_approve`, moved whole), and a question asked in words
 (`_ask_leave`) - `ApprovalsMixin`.
 """
 
@@ -130,11 +130,10 @@ class ApprovalsMixin:
         """R175 (review): whether a patch Codex (or Copilot, B-389) runs as a command
         (`model_native._heredoc_patch`) is asked about as that patch, file by file. Its shell
         still starts, so only where every rule of a command that is not the user's word lets it
-        run, as `_approve` judges one: its
-        role runs commands, 101's key is not in it, a turn nobody watches allows this very
-        command, and nothing makes it a card at every level (Codex's own reason, a folder out of
-        the one it works in, the search, web, copy, branch and night reasons). Else it is asked
-        about as the command it is."""
+        run, as `_approve` judges one: its role runs commands, 101's key is not in it, and
+        nothing makes it a card at every level (Codex's own reason, a folder out of the one it
+        works in, the search, web, copy, branch and night reasons). Else it is asked about as the
+        command it is."""
         try:
             given = json.loads(arguments or "{}")
         except ValueError:
@@ -152,10 +151,6 @@ class ApprovalsMixin:
             where = folder.resolve().relative_to(root).as_posix()
         except (ValueError, OSError):
             return False
-        if self._nobody_to_ask(
-            ctx, "command", f"run {quoted(command)}", command=command, cwd=where or "."
-        ) not in (None, ""):
-            return False
         searched = await asyncio.to_thread(search_reason, command, root, str(folder))
         return not (
             web_off_reason(command, self._off())
@@ -172,10 +167,6 @@ class ApprovalsMixin:
     ) -> dict:
         """Answer a permission prompt of a CLI working with its own tools: the role's
         limits first, then the conversation's permission level, the user where it says so.
-        In a turn nobody is watching the level counts for nothing and nobody is asked:
-        after the role's limits it is the trigger's own leave (`_nobody_to_ask`), as for
-        KOLONİ's own tools - a change inside the project, a command it names word for
-        word, a tool that only looks; everything else is refused.
 
         What is allowed goes back exactly as it came: what was approved is what runs.
         """
@@ -382,15 +373,13 @@ class ApprovalsMixin:
             )
         ) is not None:
             return refused
-        # Full auto is the conversation's level: in a turn nobody is watching it gives
-        # nothing, and a tool KOLONİ cannot tell from a write or a command is one no
-        # trigger allows. Why it asks (native agy: a tool KOLONİ does not know) makes it a
-        # card at every level - a read too (Copilot's, to go outside its sandbox). So does
-        # one of a Lead that hands code on (slice 48): it may write, and that Lead may not.
+        # Full auto is the conversation's level. Why it asks (native agy: a tool KOLONİ does not
+        # know) makes it a card at every level - a read too (Copilot's, to go outside its
+        # sandbox). So does one of a Lead that hands code on (slice 48): it may write, and that
+        # Lead may not.
         if not given.get("reason") and (
             tool in CLAUDE_READS
             or level == "full_auto"
-            and self._watched(ctx.run_id)
             and ctx.run_id not in self._away_jobs  # (nor at night: the job waits for it)
             and not self._hands_code(ctx)
         ):
@@ -406,7 +395,6 @@ class ApprovalsMixin:
             allow,
             deny,
             f"{who} wants to use its own tool {tool}: {shown}",
-            f"let {who} use its own tool {quoted(tool)}",
         )
 
     async def _approve_command(
@@ -434,9 +422,9 @@ class ApprovalsMixin:
             )
         command = given["command"]
         # Why it asks (Codex: to leave its sandbox, say) and where it says the command
-        # runs are shown with it; either makes it a card at every level, and nothing a
-        # trigger allows. (Out of a working copy is out of the folder it works in.) Its
-        # words are shown, never read for the family its card is counted in (`cards`).
+        # runs are shown with it; either makes it a card at every level. (Out of a working copy
+        # is out of the folder it works in.) Its words are shown, never read for the family its
+        # card is counted in (`cards`).
         asked, cwd = given.get("reason"), given.get("cwd")
         reason = None
         # What it says the command touches (Copilot: possiblePaths, slice 89c): each path
@@ -576,19 +564,6 @@ class ApprovalsMixin:
                 + (READ_ONLY_READS if reads_only(ctx.model, ctx.tools) else NO_COMMANDS),
                 fixed=True,
             )
-        refused = self._nobody_to_ask(
-            ctx,
-            "command",
-            f"run {quoted(command)}",
-            command=command,
-            cwd="." if where in ("", ".") else where or str(cwd),
-        )
-        if refused == "" and reason:
-            refused = self._nobody_to_ask(ctx, "words", f"run {quoted(command)}: {reason}")
-        if refused:
-            # Not put on record as a command at all: it is not one that waits.
-            self._note(ctx, transcript, "run_command", noted, "denied", refused, parent=under)
-            return deny(refused)
         call_id = self._note(ctx, transcript, "run_command", noted, None, None, parent=under)
         if reason:  # (on its card)
             self._set_call(ctx.cid, call_id, why_asked=reason)
@@ -598,7 +573,6 @@ class ApprovalsMixin:
             ctx.agent_id,
             call_id,
             command,
-            ask=refused is None,
             always=always or bool(reason),
             held=bool(searched),
             web_off=bool(web_off),
@@ -762,27 +736,11 @@ class ApprovalsMixin:
                     deny,
                     f"{who} wants to change {whose} settings ({relative}), which decide "
                     f"what it may do without asking: {json.dumps(given, ensure_ascii=False)}",
-                    f"let {who} change {whose} settings ({quoted(relative)})",
                 )
             )
         # Why it asks (Codex: for more than its sandbox gives, say): shown with it, and
-        # it makes the change one to ask about at every level, and one no trigger allows.
+        # it makes the change one to ask about at every level.
         reason = given.get("reason")
-        refused = self._nobody_to_ask(ctx, "write", "change files")
-        if refused == "" and standing:
-            refused = self._nobody_to_ask(
-                ctx,
-                "standing file",
-                f"change {quoted(relative)}: such a file tells later turns what they may "
-                "do, or runs by itself, which no trigger allows",
-            )
-        if refused == "" and reason:
-            refused = self._nobody_to_ask(ctx, "words", f"change {quoted(relative)}: {reason}")
-        if refused:
-            self._note(
-                ctx, transcript, "edit_file", {"path": relative}, "denied", refused, parent=under
-            )
-            return deny(refused)
         # The file is this agent's from here on, as for KOLONİ's own write tools:
         # held by another agent, the request waits - and is refused afterwards if the
         # file is no longer what it was when the CLI asked.
@@ -793,10 +751,8 @@ class ApprovalsMixin:
         ) is not None:
             return no
         asks = (
-            (level == "ask" or self._standing_asks(ctx.run_id, standing, level) or bool(reason))
-            and refused is None
-            and (copy is None or bool(reason))
-        )
+            level == "ask" or self._standing_asks(ctx.run_id, standing, level) or bool(reason)
+        ) and (copy is None or bool(reason))
         if not asks and not outside:
             # Written by the CLI; recorded when it reports it done. In a working copy
             # at every level: the user is asked once, when the copy is taken in.
@@ -826,7 +782,6 @@ class ApprovalsMixin:
                     deny,
                     f"{who} wants to use its {tool} tool on {relative} (KOLONİ cannot "
                     f"show this one as a diff): {shown}",
-                    f"use {who}'s {tool} tool on {quoted(relative)}",
                 )
             )
         before, after = planned
@@ -1164,22 +1119,17 @@ class ApprovalsMixin:
         allow: dict,
         deny,
         question: str,
-        wanted: str,
     ) -> dict:
         """Ask the user in words about a tool KOLONİ cannot show as a diff or a command.
-        `wanted` says the same for a turn nobody is watching, where it is refused before
-        any question is put on record: no trigger allows what would be asked in words.
         The question is shown whole; one too long for a card is refused, never cut short:
         what is after the cut would be allowed unseen."""
         cli = getattr(ctx.model, "command", "claude")
         name = re.sub(r"[^A-Za-z0-9_-]", "_", f"{cli}__{tool}")[:64]
-        refused = self._nobody_to_ask(ctx, "words", wanted)
-        if refused is None and len(question) > CARD_CHARS:
+        if len(question) > CARD_CHARS:
             refused = (
                 f"too long to show on a card whole ({len(question)} characters): make "
                 "it in smaller parts"
             )
-        if refused is not None:
             self._note(ctx, transcript, name, given, "denied", refused, parent=watch.under(use_id))
             return deny(refused)
         call_id = self._note(ctx, transcript, name, given, None, None, parent=watch.under(use_id))

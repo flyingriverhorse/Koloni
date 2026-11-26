@@ -1,7 +1,7 @@
 """The app's own clock: every few seconds each night that runs while its user is away (slice
 106) is looked at, and each project's day is sent where its notifications go.
 
-The clock is never read in here: `Triggers.tick(now)` is handed the time, by the app's own
+The clock is never read in here: `Clock.tick(now)` is handed the time, by the app's own
 loop every few seconds and by tests directly. Everything that touches the runner or the
 event bus happens on the app's event loop, whichever thread asks.
 """
@@ -29,7 +29,7 @@ def local_day(moment: datetime, zone: tzinfo | None = None):
     return moment.astimezone(zone).date()
 
 
-class Triggers:
+class Clock:
     """The app's clock: the nights while the user is away, and the day's summary."""
 
     def __init__(

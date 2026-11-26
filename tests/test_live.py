@@ -1535,7 +1535,7 @@ def _topic_turns(tmp_path, provider=None):
             "KOLONI_RUNTIME_ROOT": str(tmp_path / "rt"),
             "KOLONI_MODEL_BASE_URL": MODEL_URL,
             "KOLONI_DETECT_CLI": "0",
-            "KOLONI_TRIGGER_CLOCK": "0",
+            "KOLONI_CLOCK": "0",
         }
     )
     with TestClient(create_app(settings), base_url="http://127.0.0.1:8790") as client:

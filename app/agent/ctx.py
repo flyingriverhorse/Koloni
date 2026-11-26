@@ -4,7 +4,7 @@
 (`_Transcript`), the watch over a copy (`_Watch`, `_Hold`), `TERMINAL`, `announce` /
 `announce_memory`, which tell the page what changed, and `sent_effort` (the thinking level a
 step's model is sent).
-A leaf: at run time it imports nothing else of `app.agent` (`app.triggers` takes `TERMINAL` and
+A leaf: at run time it imports nothing else of `app.agent` (`app.clock` takes `TERMINAL` and
 `announce` at its top).
 """
 
@@ -123,24 +123,8 @@ class _GateRefused(ToolError):
 
 
 class _NobodyToAsk(ToolError):
-    """Refused in a turn nobody is watching - or by the user's no to a path outside the
-    project; on record as denied, not as failed."""
-
-
-@dataclass
-class _Unwatched:
-    """An unattended turn: the trigger that started it and the budget it runs on."""
-
-    trigger_id: str | None
-    trigger_name: str
-    steps: int  # model steps, all its agents together
-    minutes: int
-    taken: int = 0
-    # The clock its minutes run on: not set while the turn is only kept waiting for
-    # room. `left`: the seconds it still has; `since`: when the clock was last set.
-    timer: asyncio.TimerHandle | None = None
-    left: float = 0.0
-    since: float = 0.0
+    """Refused where nobody can be asked - a night's job - or by the user's no to a path outside
+    the project; on record as denied, not as failed."""
 
 
 @dataclass
@@ -205,7 +189,7 @@ class _Transcript:
                     runner._hold_to_role(ctx, self.opened)
                 except OwnStop as stop:
                     raise SessionStop(str(stop)) from None
-            runner._count_step(ctx)
+            runner._hold_to_limit(ctx)
             self.opened += 1
             if self._held:
                 # B-382: what it has left after this one, by the nearer limit, as `_steps` keeps

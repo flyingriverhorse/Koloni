@@ -169,9 +169,7 @@ def not_watched(kind: str, docker: bool) -> dict[str, list[str]] | None:
 
 
 # The ways of running in which a CLI works with tools of its own, not KOLONİ's. KOLONİ
-# sees of such a CLI's tools only what it asks about (`AgentRunner._cannot_be_held`):
-# with nobody watching it cannot be held to what a trigger allows, so no trigger's turn
-# is started on it.
+# sees of such a CLI's tools only what it asks about (`AgentRunner._cannot_be_held`).
 OWN_TOOLS = frozenset(NOT_WATCHED)
 
 

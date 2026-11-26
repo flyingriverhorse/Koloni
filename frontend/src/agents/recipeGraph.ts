@@ -269,7 +269,7 @@ export function gets(graph: RecipeGraph, id: string): string {
   return looped.length ? `${first}, and the findings of ${looped.join(' and ')} when looped back` : first
 }
 
-/** One line of what the recipe does, in the order it does it: "Write the spec → Build it → 4 at once (≤2 rounds) → Ask me, then in";
+/** One line of what the recipe does, in the order it does it: "Write the spec → Build it → UI review (≤2 rounds) → Ask me, then in";
  * a fork's ways side by side (B-375): "(3 at once ∥ 2 at once) → Ask me, then in". */
 export function summary(graph: RecipeGraph): string {
   const word = (id: string) => {
@@ -316,7 +316,7 @@ export function summary(graph: RecipeGraph): string {
   return words.join(' → ') || 'nothing drawn yet'
 }
 
-/** How many agents a run of it opens, as the server counts its drawing: " · 6–16 agents" - the fewest where no review finds a problem, the most
+/** How many agents a run of it opens, as the server counts its drawing: " · 3–7 agents" - the fewest where no review finds a problem, the most
  * where every loop goes back all its rounds; " · 2 agents" where they are the same; nothing where it could not count (a folder's that leads nowhere). */
 export function agentsLine(recipe: Recipe): string {
   if (!recipe.agents) return ''

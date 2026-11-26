@@ -698,6 +698,9 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   const described = async () =>
     (await readOut(page, /^At most this many agents at work in this project$/))[0].description
   await settings.getByRole('button', { name: /^Limits and money/ }).click()
+  // (Under More limits since 0.1.10: closed, it is hidden; its description is read all the same.)
+  await expect(settings.getByLabel('At most this many agents at work in this project')).toBeHidden()
+  await settings.getByText(/^More limits/).click()
   await expect(settings.getByLabel('At most this many agents at work in this project')).toBeVisible()
   await expect(settings.locator('.hint-bubble', { hasText: /waits for a slot/ })).toBeHidden()
   expect(await described()).toMatch(

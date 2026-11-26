@@ -5,8 +5,8 @@ import { OWN, contrasts, openFreshConversation, settled, setProject } from './he
 
 // K-takim-duzen: the roles in seven categories on the Agents page - Data, ML and Ops after Build - and the ready recipe
 // Model change (the ML team's default until 0.1.10; a team's recipe in Manual now), run with the fake model: the Data
-// scientist plans, the experts' step is skipped (none has learned - the strip says so), the ML engineer builds, the Tester
-// and the Model evaluator check at once, the Reviewer reviews.
+// scientist plans, the experts' step is skipped (none has learned - the strip says so), the ML engineer builds, the Model
+// evaluator compares the metrics (T3, 0195: no Tester or Reviewer step of its own - KOLONİ's Checks run the tests).
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'td-shots')
 const shot = (target: Page | Locator, name: string) => target.screenshot({ path: path.join(SHOTS, `${name}.png`) })
 const lowContrast = async (target: Locator) => (await target.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
@@ -41,8 +41,7 @@ for (const theme of ['light', 'dark'] as const) {
         'Plan the experiment ✓',
         'Experts review the plan · skipped: no expert has learned yet',
         'Build it ✓',
-        'All at once, wait for all ✓',
-        'Review it ✓',
+        'Compare the metrics ✓',
         /^You/,
       ],
       { timeout: 30_000 },

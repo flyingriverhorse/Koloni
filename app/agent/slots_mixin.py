@@ -46,7 +46,6 @@ class SlotsMixin:
         self._line_up.append((ctx, came))
         try:
             self.let_in()
-            self._clock(ctx.run_id)
             if not came.done():
                 if shown:
                     self._set_agent(
@@ -67,7 +66,6 @@ class SlotsMixin:
             if not came.done() or came.cancelled() or ctx.agent_id in self._placed:
                 self._placed.discard(ctx.agent_id)
                 self._free_slot(ctx)
-            self._clock(ctx.run_id)
             self.let_in()
             raise
 
@@ -75,7 +73,6 @@ class SlotsMixin:
         if ctx.agent_id in self._placed:
             self._placed.discard(ctx.agent_id)
             self._free_slot(ctx)
-            self._clock(ctx.run_id)
             self.let_in()
 
     def _free_slot(self: "AgentRunner", ctx: Ctx) -> None:
@@ -241,7 +238,6 @@ class SlotsMixin:
                 ctx, came = one
                 self._line_up.remove(one)
                 self._placed.add(ctx.agent_id)
-                self._clock(ctx.run_id)  # before it is woken: its minutes count from here
                 came.set_result(None)
 
     def _let_in_again(self: "AgentRunner") -> None:

@@ -67,15 +67,26 @@ USD). It covers this calendar month, by this machine's clock.
 
 The Usage page shows **This month's budget**, how much is used, and **Change in Settings →**.
 
-## A limit per message
+## A job's budget
 
-Settings › This project › Limits and money › **Stop the work on a message over this many tokens**. KOLONİ checks it
-before each model step and stops the work once a message's work goes over it.
+Settings › This project › Limits and money › **Stop the work on a message over this many tokens**, in sight next to the
+monthly budget. A job is the work on one message: yours, a To-do task's, or a job's while you're away. KOLONİ checks
+it before each model step (and as a CLI session's messages arrive) and stops the job once all its agents together
+have gone over it: "this turn used N tokens, over the project's limit of M". It counts tokens, not money, so it holds a
+CLI on a plan too, where the CLI reports them. A job tried again, or a message that goes on with it, starts from zero.
+
+The limits few change - how many agents work at once, Continue's steps, a discussion's tokens - are under **More
+limits** in the same section.
 
 ## Providers' own limits
 
-Each provider can have a limit in dollars a day or a month, or step down a tier when a plan runs low.
-See [Limits](../models/limits.md).
+Each provider can have a limit in dollars a day or a month, or step down a tier when a plan runs low: its **Limits**
+tab on the Models page. See [Limits](../models/limits.md).
+
+## A night's limits
+
+On the **Go away** card: **Until** a time, and **spend at most** an amount. A night with a monthly budget is held to
+what the month has left too. See [Work while you're away](../automation/overnight.md#going-away).
 
 ## Plan meters
 

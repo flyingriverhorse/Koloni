@@ -14,7 +14,7 @@ import './theme/canvas.css'
 import './theme/changes.css'
 import './theme/commands.css'
 import './theme/memory.css'
-import './theme/triggers.css'
+import './theme/hold.css'
 import './theme/usage.css'
 import './theme/board.css'
 

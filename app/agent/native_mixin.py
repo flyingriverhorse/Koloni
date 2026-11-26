@@ -247,10 +247,6 @@ class NativeMixin:
         # (One that asks does so over its own protocol: `call_tool("approve", ...)` below.)
         if not asks and (needs := needs_full_auto(ctx.model, level)):
             return "failed", needs.format(provider=who)
-        # In a turn nobody is watching the trigger is one more limit: such a CLI does not
-        # ask about what its own settings already allow, so what the trigger does not
-        # allow at all is not among its tools, where no setting of its own gives it back.
-        leave = None if self._watched(ctx.run_id) else self._leave(ctx.run_id)
         off = self._off()
         withheld = tuple(
             what
@@ -264,16 +260,9 @@ class NativeMixin:
                 # start it so if such writes are seen often.
                 (
                     "write",
-                    any(tool in ctx.tools for tool in WRITE_TOOLS)
-                    and (leave is None or leave.get("write") is True)
-                    and not self._hands_code(told),
+                    any(tool in ctx.tools for tool in WRITE_TOOLS) and not self._hands_code(told),
                 ),
-                (
-                    "run",
-                    "run_command" in ctx.tools and (leave is None or bool(leave.get("commands"))),
-                ),
-                # and what could only be asked about in words is not there to be used
-                ("unasked", leave is None),
+                ("run", "run_command" in ctx.tools),
                 # Slice 61: its own web tools, where KOLONİ's are switched off on the Tools page.
                 ("search", "web_search" not in off),
                 ("fetch", "http_request" not in off),
@@ -371,7 +360,7 @@ class NativeMixin:
                 # its keys): in it only KOLONİ's own tools work, each path judged.
                 # Nor one that holds a folder to read in only: it would be open there too.
                 also=()
-                if copy or ro or not (asks or level == "full_auto" and self._watched(ctx.run_id))
+                if copy or ro or not (asks or level == "full_auto")
                 else self._add_dirs(ctx),
                 git_env=partial(copies.git_env, copy.root) if copy else None,
                 pass_env=pass_env,
@@ -496,10 +485,9 @@ class NativeMixin:
         """0.1.8: Copilot's sessions and Codex's threads kept in the chat's other topics gone -
         their homes or rollout files, and their agents' word of them - as a turn the user started
         works in this one: a session goes on only within its topic (`topics.previous_lead`), and
-        none is left to pile up once the user moved on (New topic, or back in an older one). Not a
-        trigger's topic's: its turns are its own. Claude Code's stay, as before (in its sign-in
-        folder, gone with the chat)."""
-        if run.unattended or run.topic_id is None:
+        none is left to pile up once the user moved on (New topic, or back in an older one).
+        Claude Code's stay, as before (in its sign-in folder, gone with the chat)."""
+        if run.topic_id is None:
             return
         homes = self.settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS
         gone = []

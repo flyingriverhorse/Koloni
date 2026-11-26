@@ -41,7 +41,7 @@ WHERE = "a To-do proposal of the Scout"
 @dataclass(frozen=True)
 class PoTurn:
     """What `_propose_tasks` needs of a turn that is over: its Lead as it ended, whether the
-    Lead may decide at Full auto (a watched turn of the user's, not a night's nor a trigger's),
+    Lead may decide at Full auto (a watched turn of the user's, not a night's),
     and the providers whose pay-per-token use the user refused in it."""
 
     lead: Ctx

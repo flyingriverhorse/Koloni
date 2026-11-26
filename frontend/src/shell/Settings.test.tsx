@@ -68,6 +68,10 @@ const project: Project = {
 }
 const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true, onClose: vi.fn() }
 
+/** The More limits of the level shown (the other level's is in a hidden panel). */
+const shownMore = () => screen.getAllByText(/^More limits/).find(one => !one.closest('[hidden]'))!
+const openMore = () => userEvent.click(shownMore())
+
 /** The Judge model as a server with two fast models (one a CLI) and a strongest one has it, none chosen. */
 const LOCAL = { provider_id: 'p1', provider_name: 'Local', cli: false, measured: false }
 const JUDGE: JudgeOut = {
@@ -298,6 +302,7 @@ test('App: Steps an agent may take (B-398) is read, held to 5-200 and sent only 
   render(<Settings {...base} project={null} onSave={vi.fn()} />)
   const steps = await screen.findByLabelText('Steps an agent may take')
   await vi.waitFor(() => expect(steps).toHaveValue('25'))
+  await openMore()
   const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(steps)
   await userEvent.type(steps, '4')
@@ -318,6 +323,7 @@ test('App: when work nobody watches is stuck, and its ceiling (B-413), are read,
   const ceiling = screen.getByLabelText('An unattended turn runs at most (hours)')
   await vi.waitFor(() => expect(stuck).toHaveValue('30'))
   expect(ceiling).toHaveValue('8')
+  await openMore()
   const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(stuck)
   await userEvent.type(stuck, '2')
@@ -340,6 +346,7 @@ test('App: KOLONİ’s test runs at once and the test processes each may start s
   const workers = screen.getByLabelText('Test processes per run')
   await vi.waitFor(() => expect(runs).toHaveValue('1'))
   expect(workers).toHaveValue('2')
+  await openMore()
   const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(runs)
   await userEvent.type(runs, '5')
@@ -360,6 +367,7 @@ test('App: what knowledge from a repository or a folder reads at most is read, h
   const mb = screen.getByLabelText('Knowledge reads at most (MB)')
   await vi.waitFor(() => expect(files).toHaveValue('50000'))
   expect(mb).toHaveValue('300')
+  await openMore()
   const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(mb)
   await userEvent.type(mb, '0')
@@ -388,6 +396,7 @@ test('This project › Asking and away, and Limits and money: every chat’s sub
   await userEvent.click(save())
   expect(onSave).toHaveBeenLastCalledWith({ spawn_approval: 'always' })
   await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
+  await openMore()
   const depth = screen.getByLabelText('Sub-agent levels')
   expect(screen.getByText('Orchestrator → sub-agent → its own sub-agent')).toBeVisible()
   await userEvent.clear(depth)
@@ -422,6 +431,58 @@ test('This project › Asking and away, and Limits and money: every chat’s sub
     spawn_max_agents: 4,
     discussion_budget: null,
   })
+})
+
+test('This project › Limits and money: the monthly budget and a job’s budget up front, every other limit under More limits - closed, and “set” on it where one is not its default (the user, 26 Nov)', async () => {
+  server()
+  const { unmount } = render(<Settings {...base} project={project} onSave={vi.fn()} />)
+  await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
+  const more = shownMore().closest('details')!
+  expect(more).not.toHaveAttribute('open')
+  expect(shownMore()).toHaveTextContent(/^More limits$/)
+  for (const label of ['Monthly budget', 'Stop the work on a message over this many tokens'])
+    expect(screen.getByLabelText(label).closest('details'), label).toBeNull()
+  for (const label of [
+    'At most this many agents at work in this project',
+    'Agents at the same time',
+    'Sub-agent levels',
+    'Sub-agents per request',
+    'Continue gives this many more steps',
+    'A discussion’s tokens, at most',
+  ])
+    expect(screen.getByLabelText(label).closest('details'), label).toBe(more)
+  expect(screen.getByLabelText('Monthly budget')).toBeVisible()
+  expect(screen.getByLabelText('Agents at the same time')).not.toBeVisible()
+  unmount()
+  render(<Settings {...base} project={{ ...project, spawn_max_parallel: 4 }} onSave={vi.fn()} />)
+  await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
+  expect(shownMore()).toHaveTextContent('More limits · set')
+})
+
+test('The app › Agents: the step limit, the unattended limits, and what knowledge and KOLONİ’s tests may take are under More limits, closed; the language and when a context is summarised stay in sight', async () => {
+  server()
+  render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  const steps = await screen.findByLabelText('Steps an agent may take')
+  await vi.waitFor(() => expect(steps).toHaveValue('25'))
+  const more = shownMore().closest('details')!
+  expect(more).not.toHaveAttribute('open')
+  expect(shownMore()).toHaveTextContent(/^More limits$/)
+  for (const label of ['Answer in', 'Summarise a long context at (%)'])
+    expect(screen.getByLabelText(label).closest('details'), label).toBeNull()
+  for (const label of [
+    'Steps an agent may take',
+    'Stuck after this many minutes with no progress',
+    'An unattended turn runs at most (hours)',
+    'Knowledge reads at most (files)',
+    'Knowledge reads at most (MB)',
+    'KOLONİ’s test runs at once',
+    'Test processes per run',
+  ])
+    expect(screen.getByLabelText(label).closest('details'), label).toBe(more)
+  // A limit typed away from its default says so on it.
+  await userEvent.clear(steps)
+  await userEvent.type(steps, '40')
+  expect(shownMore()).toHaveTextContent('More limits · set')
 })
 
 test('This project › New chats start with: the teams and other folders a new chat starts with (rooms and their limits are gone, 0.1.10)', async () => {

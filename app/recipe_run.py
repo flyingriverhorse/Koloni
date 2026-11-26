@@ -791,7 +791,9 @@ def opened(state: dict, agent_id: str, role: str) -> dict:
     # The canvas draws its work line by these: each time the run came to a part, who it opened -
     # a round of a loop to itself (K-evrim's candidates) a pass of its own, to fold (B-391).
     # shortcut: a part run again right after itself (Ask for changes) adds to its last pass - but
-    # after a loop went round (`back_to` resets `rounds`) it opens a new one, drawn as a round.
+    # after a loop went round (`back_to` resets `rounds`) it opens a new one, drawn as a round;
+    # KOLONİ's fix round keeps them, so a loop to itself run again adds to its last pass - give
+    # `back_to` a pass mark if Evolve's canvas is seen to fold two rounds into one.
     passes, round_ = state.setdefault("passes", []), state["rounds"].get(state["at"], 0)
     if not passes or passes[-1]["part"] != state["at"] or passes[-1].get("round", 0) != round_:
         passes.append({"part": state["at"], "agents": [], "round": round_})
@@ -981,16 +983,17 @@ def advance(state: dict) -> str:
         else None
     )
     fixes = found and _if_found(graph, to) and spent is None
+    stop, by = (spent, to) if spent else (loop, at)
+    left_why = (
+        f"findings are left after {stop.rounds} round"
+        f"{'' if stop.rounds == 1 else 's'} of {name_of(graph, by)}"
+        if stop
+        else f"findings are left after {name_of(graph, at)}"
+    )
     if found and end is None and not fixes:
         # G1.2: no round left (or no loop) with findings left - the work does not go on.
-        stop, by = (spent, to) if spent else (loop, at)
         state["status"] = READY
-        state["why"] = (
-            f"findings are left after {stop.rounds} round"
-            f"{'' if stop.rounds == 1 else 's'} of {name_of(graph, by)}"
-            if stop
-            else f"findings are left after {name_of(graph, at)}"
-        )
+        state["why"] = left_why
         return (
             f"The recipe stops here: {state['why']}. The user is asked what to do with "
             "the work (Ready for you)."
@@ -1052,6 +1055,10 @@ def advance(state: dict) -> str:
         or any(roles and _if_found(graph, part) for part, roles in wrote.items())
     )
     state["status"] = READY if ready else DONE
+    if ready and found:
+        # (T3: a last review's findings with no round left are said as G1.2's are - its card names
+        # them and offers Fix the findings.)
+        state["why"] = left_why
     return (
         "The recipe is at its end: the user is asked to take the work in."
         if ready
@@ -1059,14 +1066,16 @@ def advance(state: dict) -> str:
     ) + left
 
 
-def back_to(state: dict) -> str:
+def back_to(state: dict, anew: bool = True) -> str:
     """Where Ask for changes sends a run back to: the step its last loop goes back to, else
     its first - but past a first step with the id "reproduce" that is done (T1: the ready
     Bugfix's; its failing test showed the bug and stays - the fix is what goes again), unless
-    only its end is after it; its name. Its loops have their rounds again: the user's word is
-    a new start - and K-evrim's kept best too (B-370): work changed as asked is not measured
-    against work the user asked changes to. How many times it was sent back is kept (`asked`):
-    its runner's steps grow with it. KOLONİ's own fix round sends a run back this way too."""
+    only its end is after it; its name. Its loops have their rounds again (`anew`): the user's
+    word is a new start - and K-evrim's kept best goes either way (B-370): work changed as asked
+    is not measured against work the user asked changes to. How many times it was sent back is
+    kept (`asked`): its runner's steps grow with it. KOLONİ's own fix round sends a run back this
+    way too, not `anew` (T3a): its loops keep the rounds they spent - a loop run out leaves its
+    findings to the user, not one more round of its reviews."""
     graph, slots = graph_of(state), state["slots"]
     if graph.loops:
         back = part_of(graph, graph.loops[-1].to)
@@ -1083,10 +1092,14 @@ def back_to(state: dict) -> str:
         here=[],
         skipped=[],
         why=None,
-        rounds={},
         kept_best={},
         asked=state.get("asked", 0) + 1,
     )
+    if anew:
+        state["rounds"] = {}
+    # (Sent back by a word, not along a loop: a turn that ends before the round says no loop's
+    # findings are left - `found_left`.)
+    state.pop("sent_back", None)
     _reached(state)
     return name_of(graph, back)
 

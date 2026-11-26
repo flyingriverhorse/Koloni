@@ -10,6 +10,7 @@ from tests.test_backlog import setup
 from tests.test_backlog_auto import auto, run_todo, tasks, until, worked
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
+from tests.test_usage_scenarios import looks
 
 
 def run(client, pid):
@@ -186,3 +187,22 @@ def test_a_marker_with_nothing_after_it_is_no_reason():
     task = SimpleNamespace(flow=None)
     backlog.set_flow(task, fix="")  # (a fix due for nothing would never come)
     assert task.flow is None
+
+
+def test_a_todo_tasks_turn_over_the_jobs_budget_stops_with_its_words(
+    make_client, wait_run, project_dir
+):
+    # k-butce (the user, 26 Nov: "hepsini kontrol edelim"): a job's budget - the project's limit on
+    # a turn's tokens - holds a To-do task's turn as it holds a message's, in the same words.
+    client, model = make_client([looks(1, 5, 2), looks(2, 9, 1), text("never said")])
+    pid, _ = setup(client, project_dir, "one")
+    assert client.patch(f"/api/projects/{pid}", json={"turn_token_limit": 10}).status_code == 200
+    run(client, pid)
+    task = worked(client, wait_run, pid, "one")
+    runs = client.get(f"/api/conversations/{task['conversation_id']}").json()["runs"]
+    first = next(r for r in runs if r["task_id"] == task["id"])
+    # 7 after the first step, 17 after the second: no third step of it is asked for.
+    assert (first["status"], first["error"]) == (
+        "failed",
+        "this turn used 17 tokens, over the project's limit of 10",
+    ), runs

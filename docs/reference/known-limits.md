@@ -50,8 +50,7 @@ messages.
 - Claude Code and agy run **Native** (and Copilot where it cannot sandbox its commands) have no
   sandbox of KOLONİ's: it can stop what they do only at their hook. A write with their own file tools
   outside the project and the folders it also works in (or that you allowed) is asked about on a card at
-  every level, Full auto too, and refused in a turn nobody watches (in a working copy, refused: it may
-  write only in the copy); one into a CLI's own folder (`.claude`, `.gemini`, `.codex` or `.copilot` in
+  every level, Full auto too (in a working copy, refused: it may write only in the copy); one into a CLI's own folder (`.claude`, `.gemini`, `.codex` or `.copilot` in
   your home folder) or another place KOLONİ never opens (`.ssh`, browser profiles) is refused. Their
   commands are judged by what they name: a command that writes outside the project, for example to the
   Startup folder or a PowerShell profile, runs without a card at Full auto, and at any level where an

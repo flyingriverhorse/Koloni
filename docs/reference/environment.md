@@ -51,7 +51,7 @@ these does nothing to providers that already exist.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `KOLONI_TRIGGER_CLOCK` | `1` | `0`: the app's clock does not run: a night while you're away does not go on by itself, and the day's summary is not sent. |
+| `KOLONI_CLOCK` | `1` | `0`: the app's clock does not run: a night while you're away does not go on by itself, and the day's summary is not sent. Its old name, `KOLONI_TRIGGER_CLOCK`, is still read for one release. |
 | `KOLONI_CATALOGUE_REFRESH` | `1` | `0`: never download the model catalogue at the start. Otherwise it is downloaded again once it is a week old, unless **Keep the catalogue fresh** is off on the Models page. |
 
 ## The local model server and MCP servers
