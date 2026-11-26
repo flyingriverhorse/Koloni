@@ -78,7 +78,7 @@ it with **Look again**. You see the lines as they read now, and you can choose:
 
 **Look at the sources again**, at the top of the page, checks every source again.
 
-A record written in a turn nobody watched (a trigger's turn) is tagged "written with nobody
+A record written in a turn nobody watched (a trigger's turn, before 0.1.10) is tagged "written with nobody
 watching".
 
 ## Who writes what
@@ -166,7 +166,7 @@ the turns before is its **topic**: the turns that go on with one piece of work.
 - **New topic**, under the message box, makes your next message start a new one; press it again to go
   on instead. Its tooltip says which topic the next message goes on with. In the chat a line marks
   where the topic changes: "New topic: …", or "Continuing: …" back in one seen before.
-- A trigger's turns are a topic of their own. A message you send while one of them is on screen still
+- A trigger's turns (triggers were removed in 0.1.10) are a topic of their own. A message you send while one of them is on screen still
   goes on with your own topic; **Write into … instead** sends it into the trigger's.
 
 What each agent is given:

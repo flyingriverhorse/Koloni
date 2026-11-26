@@ -18,6 +18,15 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.10
+
+- **Triggers are gone.** At the first start the database is upgraded (migration 0189), after KOLONİ
+  copies it to `runtime/data/backups/`: your triggers, their runs, their record and the triggers agents
+  proposed are deleted, and **Propose triggers** is taken off every role, your own too. The turns triggers
+  started stay in their chats as they were. What still starts by itself: ☾ Away's jobs, a chat's queue of
+  To-do tasks and the day's summary. To go back, stop KOLONİ and put that copy back in place of
+  `runtime/data/koloni.db`; your triggers come back with it.
+
 ### 0.1.8
 
 - **The database** is upgraded at the first start (migrations 0176 to 0182), after KOLONİ copies it to

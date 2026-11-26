@@ -39,7 +39,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Removed
 
-- **CLIs**: an agent run **Native** on a CLI (Claude Code, Codex, Copilot, agy) - the Orchestrator or a sub-agent - no longer proposes triggers: for an Orchestrator there, its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](automation/triggers.md#triggers-proposed-by-agents)).
+- **CLIs**: an agent run **Native** on a CLI (Claude Code, Codex, Copilot, agy) - the Orchestrator or a sub-agent - no longer proposes triggers: for an Orchestrator there, its **Make this trigger?** card's **Approve** was always refused in that chat, since a trigger's turn never starts a CLI that works with its own tools. **Notify you** stays. A card left from 0.1.8 is still refused at Approve, saying why ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/automation/triggers.md#triggers-proposed-by-agents)).
+- **Triggers**: **Breaking:** triggers are gone: the Triggers page, the turns that started by themselves by the clock, when files changed or on a request from outside (webhooks), **Pause all** in the top bar, and the agents' **Propose triggers** with its **Make this trigger?** card. KOLONİ is about agents working together, and triggers were scheduled automation nobody used. When the database is upgraded your triggers and their records are deleted; the turns they started stay in their chats. ☾ Away, To-do in a chat and the day's summary work as before ([docs](reference/upgrade-notes.md#0110)).
 
 ## [0.1.8] - 2026-11-25
 
@@ -433,8 +434,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **To-do**: a project's tasks in your order, each run in a chat of its own, by hand or one after another with **Run the backlog**; you decide when a task is done ([docs](automation/todo.md)).
 - **To-do**: **Write it with the Product owner** turns a rough note into draft tasks, saved only when you add them.
 - **To-do**: after a turn that did something, the Assistant PO suggests at most three follow-up tasks to **Add**, **Edit** or **Reject**; a task added for you never runs without your OK ([docs](automation/todo.md#follow-up-tasks)).
-- **Triggers**: start work by the clock, when files change, or from a webhook, each with its own permissions and budget ([docs](automation/triggers.md)).
-- **Triggers**: a trigger is not saved on a chat whose Orchestrator would run on a CLI working with its own tools, and the form says why ([docs](automation/triggers.md#what-a-triggers-run-never-does)).
+- **Triggers**: start work by the clock, when files change, or from a webhook, each with its own permissions and budget ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/automation/triggers.md)).
+- **Triggers**: a trigger is not saved on a chat whose Orchestrator would run on a CLI working with its own tools, and the form says why ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/automation/triggers.md#what-a-triggers-run-never-does)).
 - **Memory**: facts that rest on lines of files and are checked again each time, proposals you approve, your preferences, and search by meaning ([docs](memory.md)).
 - **Knowledge**: experts that learn a source, such as docs or the project's code, and that agents ask; learning again reads only what changed ([docs](knowledge.md)).
 - **Knowledge**: a role is Full in one knowledge of a project; choosing another turns the first to Map, and an expert asked about a topic it does not use looks in all its knowledge instead ([docs](knowledge.md#giving-knowledge-to-a-role)).
@@ -473,7 +474,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Settings**: secret files open only on your **Allow once** and searches skip them (at Full auto a command that doesn't name the file can still read it); keys in command output show as `***`; variables with secret names are kept from commands and CLIs unless you name them ([docs](security/model.md#secrets)).
 - **Settings**: a planted test key stops a command, web request, browser or MCP call that would send it out.
 - **Chat**: an agent asks for a key on a **Give a secret to its commands?** card; the value never reaches the model or the record, and never leaves on a branch ([docs](security/model.md#a-secret-you-give-on-a-card)).
-- **Triggers**: turns nobody watches may do only what the trigger allows, and never start a CLI that works with its own tools ([docs](use/permissions.md#turns-nobody-watches)).
+- **Triggers**: turns nobody watches may do only what the trigger allows, and never start a CLI that works with its own tools ([docs](https://github.com/flyingriverhorse/Koloni/blob/v0.1.7/docs/use/permissions.md#turns-nobody-watches)).
 - **Tools**: commands can run in a fresh Docker container, with the network off unless you allow it ([docs](security/model.md#other-walls)).
 - **Tools**: MCP servers get only their own variables and what programs need to run, none of KOLONİ's or a CLI's sign-in; one you have not trusted asks before every call ([docs](tools/mcp.md)).
 - **Tools**: web searches and requests reach only public addresses; the agents' browser opens only previews and the sites you allow.

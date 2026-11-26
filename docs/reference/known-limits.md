@@ -95,7 +95,6 @@ messages.
   or runs commands might not run on such a provider until this is measured on a newer Codex. Codex has
   also been seen to answer while one of KOLONİ's tools it called still ran; why is not known. KOLONİ
   waits for that call. See [Codex](../models/setup-cli.md#codex).
-- Triggers do not start a turn on a CLI that works with its own tools (Native, or agy).
 - GitHub Copilot CLI's tokens and AI credits run as a session are counted from its usage checkpoint, as
   in **Native**; measured with `copilot -p` (CLI 1.0.103), not yet seen in a live session.
 - Copilot's thinking levels on a model server of your own are not measured.
@@ -245,7 +244,6 @@ messages.
 
 ## Recipes
 
-- Recipes do not run in triggers' turns.
 - A chat cannot open a room while a recipe runs.
 - A team as a step's "Who" runs its stages as slots of one step, not one after another.
 

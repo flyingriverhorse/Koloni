@@ -16,7 +16,7 @@ use, and the models you choose, in one place on your own machine, and shows you 
   runs without asking.
 - **Memory with sources.** Facts rest on lines of files and are checked again each time; a fact whose
   source changed is not used until you look.
-- **Work that goes on.** Teams follow recipes, triggers start work by themselves, and with **☾ Away**
+- **Work that goes on.** Teams follow recipes, and with **☾ Away**
   your To-do tasks are worked through in copies while you are away.
 - **Local.** KOLONİ listens on `127.0.0.1` only, keeps its data in a folder on your machine, and sends no
   telemetry.

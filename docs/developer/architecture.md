@@ -35,7 +35,7 @@ SQLite, and runs agents as asyncio tasks.
   Scout's follow-up tasks. **`stories.py`**: goals and stories, a story's topic and its notebook.
 - **`away.py`**: ☾ Away, the To-do tasks worked through while you are away.
 - **`cli_surface.py`**: the version and protocol of each CLI KOLONİ runs, and whether it was measured.
-- **`triggers.py`**: clock, file-change and webhook turns.
+- **`triggers.py`**: the app's clock: it looks at each night while you are away, and sends the day's summary.
 - **`mcp_client.py`**: the client for the user's MCP servers. **`mcp_bridge.py`**: the small program a CLI
   starts as its MCP server, which relays to KOLONİ's own tools.
 
@@ -73,10 +73,10 @@ The same turn, step by step: where it waits for you, and how the page hears of e
 
 The database is SQLite, its tables in `app/db/models.py`. A project has chats; a chat has turns (runs);
 a turn has agents, and an agent has messages, tool calls, file changes, commands and take-ins (merges).
-Memory, knowledge, to-do tasks and triggers belong to a project; providers, roles, teams and recipes are
+Memory, knowledge and to-do tasks belong to a project; providers, roles, teams and recipes are
 the same for every project. Working copies are folders, not rows.
 
-[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; rooms and discussions; memory, knowledge, to-do tasks and triggers; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
+[![The data model: project, chat, turn, agent, message, tool call, file change, command and merge; rooms and discussions; memory, knowledge and to-do tasks; providers, roles, teams and recipes](../diagrams/data-model.svg)](../diagrams/data-model.svg)
 
 *The main tables, their keys and how they link. ([full size](../diagrams/data-model.svg))*
 

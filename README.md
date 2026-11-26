@@ -89,12 +89,11 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Work over time**: a To-do list of goals, stories and their tasks and bugs - a rough note written
   as one by the Hive keeper - ticked tasks done in a chat one by one, at its level and on its model
   (each story in a topic of its own with a short notebook, on a git branch of its own that is checked,
-  then merged or sent as a pull request when you close the story), with suggested tasks, triggers
-  (clock, files, webhook), and
+  then merged or sent as a pull request when you close the story), with suggested tasks, and
   **☾ Away**: your To-do tasks worked through one at a time, each in its own copy - in a git repository
   on a branch of its own, its push waiting for your Run - until you are back, then one summary of what
   is done, decided and waiting.
-  [To-do](docs/automation/todo.md) · [Triggers](docs/automation/triggers.md) · [☾ Away](docs/automation/overnight.md)
+  [To-do](docs/automation/todo.md) · [☾ Away](docs/automation/overnight.md)
 - **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
   merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)

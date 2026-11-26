@@ -6,9 +6,9 @@ line, or tell the Orchestrator you are going. The chat finishes its turn, then t
 project: your project does not change while you are gone. When you are back you decide what comes
 in.
 
-[![Work while you're away and triggers: the To-do tasks Away works through one at a time in their own copies, and the report](../diagrams/night.svg)](../diagrams/night.svg)
+[![Work while you're away: the To-do tasks Away works through one at a time in their own copies, and the report](../diagrams/night.svg)](../diagrams/night.svg)
 
-*Work while you're away (below) and triggers (above): work that runs while nobody watches.*
+*Work while you're away: work that runs while nobody watches.*
 
 ## Going away
 
@@ -223,8 +223,6 @@ waits before you close KOLONİ.
 **Stop everything** in the top bar holds the jobs instead of ending them: the job at work and a job
 that waits for your word are stopped, the next job waits for **Resume**, and the time and money you
 set still end them.
-
-A trigger's budget plays no part here: these jobs are not trigger turns.
 
 If you set up [notifications](../settings.md#notifications), you get one when every task was looked
 at, and one when a limit or Stop all ends Away - none when you come back yourself.

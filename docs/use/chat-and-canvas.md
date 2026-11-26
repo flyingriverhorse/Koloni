@@ -32,10 +32,9 @@ unread and how many things wait for you.
   A queued message can be removed. **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
   runs, it stays in the chat as "Not sent: KOLONİ restarted", with **Send** to send it now.
 - **Stop everything**, in the top bar on every page, stops every turn in every chat and holds what
-  starts by itself: triggers, the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
+  starts by itself: the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
   what runs and what will be held. Then the button reads **Held · Resume**; its panel lists the chats it
-  stopped and what is held, with **Resume**. Your own messages still run while it holds. After
-  **Resume**, a trigger waits for its next time: the times missed meanwhile are skipped.
+  stopped and what is held, with **Resume**. Your own messages still run while it holds.
 - On **Stop** or **Stop everything**, an agent on a branch of its own keeps its work committed there, and
   a team's recipe keeps its copy for **Take in**, and so does a job while you're away (see
   [Work while you're away](../automation/overnight.md)). A sub-agent's plain working copy with changes is kept on a

@@ -59,7 +59,6 @@ NOT_SETTINGS = {
     "the app": "a level's name (Three levels)",
     "tools": "a page of its own (all-settings.md, Other pages)",
     "knowledge": "a page of its own (all-settings.md, Other pages)",
-    "triggers": "a page of its own (all-settings.md, Other pages)",
     "to-do": "a page of its own (all-settings.md, Other pages)",
     "usage": "a page of its own (all-settings.md, Other pages)",
 }

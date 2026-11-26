@@ -73,7 +73,7 @@ What waits:
   the job is not at work; a row that cannot be decided now says why. A job that waits for something
   else is answered in its chat (**Open its chat to answer**).
 
-A proposed trigger, a Project notes offer or the Orchestrator's Go away line waits only in its own chat unless that
+A Project notes offer or the Orchestrator's Go away line waits only in its own chat unless that
 chat has something else waiting.
 
 ## The "Teams' work is ready" card
@@ -119,7 +119,6 @@ On the canvas the same card is a box titled **Ready for you**. **Open the list �
 | **Approve this plan?** | **Approve**, **Edit**, **Reject** | With Plan first on. See [Plan first](plan-first.md). |
 | **Take in …'s work?** | **Take in** (or **Merge**, **Open pull request**), **Discard** | A sub-agent's work waits in its working copy. |
 | An agent's question itself, saying who asks (**Orchestrator asks**, **Coder asks**), or a title of KOLONİ's own such as **Allow this?** or **Go on with the recipe?** (**KOLONİ asks**), with its words whole under it | its own options, or **Or answer in your own words…** | An agent, or KOLONİ, asks you a question. KOLONİ's **Deny** is shown as **Reject**. A question KOLONİ did not put to you (your message was waiting, or it offered **Take in**) is a row in the chat, "Wanted to ask: … · not asked"; open it for why. |
-| **Make this trigger?** | **Approve**, **Edit**, **Reject** | An agent proposes a trigger. |
 | **Add to Project notes?** | ticks, **Add**, **Not now** | After a turn found things worth noting. It never holds the turn. |
 | **☾ Go away now?** | **Go away**, **Change** | The Orchestrator put work on To-do and offers to go away; nothing starts before Go away. |
 | **Decided for you** (on the Ready for you page; a chat with no folder: **Decided for you while you were away**) | **OK**, or **Change →** another answer - **Change and redo →** once the agent that asked has finished | The Orchestrator answered for you (see [Answering for you](../automation/answering-for-you.md)), KOLONİ's judge refused a command, or [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, on a line of yours (**OK**). See [Decisions](decisions.md). |
@@ -136,7 +135,6 @@ These have a grey edge. Nothing waits on them.
 |---|---|---|
 | **Text tried to give orders** | **False alarm** | Text from outside (a web page, an MCP tool's result, a file, another agent's message) looks like it tries to give the agent orders. It names the rule that matched, never the text. The agent was already told to take it as data; nothing was held back. **False alarm** is counted for that rule. See [Outside content](../security/model.md#outside-content). |
 | **Not all of …'s work reached the project** | none | Some of an agent's changes did not come in. Each file says why. |
-| **Nobody was here to ask** | **Allow this in the trigger** | A trigger's turn would have asked you. Each request was refused, and nothing was done in its place. **Allow this in the trigger** opens the trigger's form; saving it is yours. |
 
 ## When a turn ends, stops, or KOLONİ restarts
 

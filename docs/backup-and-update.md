@@ -18,7 +18,7 @@ Backups hold your API keys, in plain text, like the database itself. Keep `runti
 ## Export everything
 
 Settings › The app › **Your data** › **Export**: "Everything KOLONİ keeps, in one .zip: chats, agents,
-providers, memory, triggers, skills and attachments. Your project folders stay where they are."
+providers, memory, skills and attachments. Your project folders stay where they are."
 
 Not in the file: your project folders (with their `.koloni/` folders and Knowledge), working copies,
 logs, and the CLIs' own sign-ins.
@@ -37,7 +37,7 @@ logs, and the CLIs' own sign-ins.
 2. Nothing changes yet. Close KOLONİ and start it again; the restore happens at that start. Until then
    you can **Cancel** it.
 3. Your data as it was is set aside in `runtime/before-restore/`, not deleted.
-4. "Triggers wait until you press Resume. To-do tasks that waited in a chat's queue are back on To-do."
+4. "What starts by itself waits until you press Resume. To-do tasks that waited in a chat's queue are back on To-do."
    KOLONİ starts held (**Held · Resume** in the top bar), and as at any start, nothing left in a chat's
    To-do queue starts by itself: give the tasks to a chat again.
 

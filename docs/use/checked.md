@@ -135,7 +135,7 @@ A project that had turned off the old **Finish only when the tests pass** switch
    (`Package.swift`), `ctest --test-dir build` (`CMakeLists.txt`), `make test` (a `test:` target
    in the `Makefile`).
 4. Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
-   there for (not while you're away, not a trigger's).
+   there for (not while you're away).
 5. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
    where its tests are. KOLONİ shows it the project's parts and languages, its test files and the
    start of its README, CONTRIBUTING and Makefile (never a secret file, nor one reached through a
@@ -176,8 +176,7 @@ CI)". Until you approve them they are not run - at **Full auto** and while you'r
 change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
 commands not used: a workflow changed in this turn"). Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
 level says. An approved line runs as your own command does: `make test`, `npm test` or `tox` run
-the project's own Makefile, package scripts or tox file, whatever they hold. A trigger's turn runs
-one only with the trigger's own leave for that line.
+the project's own Makefile, package scripts or tox file, whatever they hold.
 
 A line is offered only in a form that checks. One that changes files (`ruff check --fix`, `ruff
 format`, `eslint --fix`, `tsc --build`, a test run's `-u` or `--junitxml=…`), downloads or installs
@@ -213,8 +212,8 @@ test, or no test tool, is never saved, and a command of yours is never replaced.
 Settings › This project › Checks and git shows each saved command under **Found by KOLONİ** as
 soon as it is saved, where it came from and when. **Forget it** clears them; they are found again
 at the next change. A saved command runs as the project's for this check only, and below **Full
-auto** on a card until you say **Always** on it (see [Asking](#asking)). Agents and triggers do
-not get to run it unasked. To make it yours, set it as a part's test command on the project map.
+auto** on a card until you say **Always** on it (see [Asking](#asking)). Agents do not get to run
+it unasked. To make it yours, set it as a part's test command on the project map.
 
 Where KOLONİ reads a count from the runner's summary (pytest, jest, vitest, go, cargo, dotnet,
 Maven, Gradle, RSpec, PHPUnit), the line gives it. Any other runner is judged by its exit code
@@ -249,8 +248,6 @@ KOLONİ's test run is asked about as the Orchestrator's own command would be:
   job finishes. Nor is a saved command you have not said **Always** to: "Tests not run: a saved
   command no Always rule covers, you were away". Your own command still runs. A To-do task's turn in a
   chat asks as any turn of that chat does (a chat's To-do queue waits while you're away).
-- In a trigger's turn it runs only where the trigger allows that very command. Otherwise the
-  section says "Tests not run" with the trigger's words.
 
 The run shows in the turn like any command, as KOLONİ's own. The Orchestrator does not see it
 in its history: it is told the result when the tests fail.
@@ -289,10 +286,8 @@ narrowed to them (`python -m pytest -q tests/test_new.py`), in its working copy.
 the sub-agent's own code, so they run by themselves only at **Full auto**, or where every part's
 command is yours (yours on the map, or a saved one an **Always** rule covers). Otherwise - KOLONİ's
 guess at **Ask before changes** or **Auto-edit files** - the card shows the command, "not run",
-and waits for your **Run the test**; nothing is taken before. While you are away, or in a
-trigger's turn, a guess never runs them (the work is taken as without a test, said "not run");
-your own command runs there - a trigger's tick for a saved one covers its line with the files
-added. A sub-agent that wrote no test is added with no test before (its card says "No tests of
+and waits for your **Run the test**; nothing is taken before. While you are away a guess never
+runs them (the work is taken as without a test, said "not run"); your own command runs there. A sub-agent that wrote no test is added with no test before (its card says "No tests of
 its own to run before it is added"). A part whose test command cannot run just those files is
 not run, and the card and Checked say which and why ("web/: its test command (npm test) cannot
 run just these files (its test script is not vitest or jest alone) - not run") - beside a pass
@@ -512,8 +507,7 @@ the turn, and **Always** keeps that line (the program and its options, never the
 a line that adds another config, a plugin, parser or formatter, a plugin folder, `--fix`, a
 report or trace elsewhere, or tells tsc to build or write (`--incremental`, `--noEmit false`, `-b`)
 asks again); while you are
-away, or in a turn a trigger started without its leave for that line, it is not run and its line
-says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
+away it is not run and its line says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
 folder (`node_modules`, `.venv`, `site-packages`), in the project or in a working copy, taken in or
 not, while the file still holds what it wrote - in any case of its name, or through a link, is never run and
 offers no card, nor one whose real place is outside the project, nor eslint or tsc where the turn wrote in a
@@ -846,7 +840,7 @@ a user would:
   runs in the project itself only: where the work waits in a working copy, "Not tried: the work
   waits in a working copy…".
 - Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
-  nobody watches (Away, a trigger), or where the Tester's role has no browser tools. A To-do task's
+  nobody watches (Away), or where the Tester's role has no browser tools. A To-do task's
   turn is tried as the chat's other turns are.
 
 On the canvas the Tester is drawn in the Checks box ([On the canvas](#on-the-canvas)); KOLONİ's own
@@ -973,7 +967,7 @@ them, the line says "Tests not run: you stopped the check".
   no clock.
 - **Stop everything** and putting the chat away stop it too. If KOLONİ closes while it runs,
   the next start says "Tests not finished: KOLONİ restarted".
-- A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for
+- A job while you're away and a To-do task's turn have nobody waiting for
   the answer, and their fix rounds need the result: they wait for the whole suite, up to the
   project's **Longest command** (10 minutes unless you raise it), with no related step.
 - A turn whose work is in its own working copy (a team's branch) cannot leave its tests running
@@ -1075,7 +1069,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Tests ran none: `command` collected no test | The runner found no test: pytest's or unittest's exit code 5, "Ran 0 tests", jest's "No tests found", vitest's "No test files found". This is not a pass. |
 | – Tests skipped only: `command` - `summary` | Every test it found was skipped. This is not a pass. |
 | – Tests could not start: `why` | The program was not found, the command could not start, or KOLONİ's check itself broke. Nothing is sent back. |
-| – Tests not run: `why` | It was declined on its card, a trigger does not allow it, the web is off and it reaches the internet, you stopped it while the answer waited for it, or the turn ended first. |
+| – Tests not run: `why` | It was declined on its card, the web is off and it reaches the internet, you stopped it while the answer waited for it, or the turn ended first. |
 | – Tests timed out / not waited for | It did not end in time. This is neither a pass nor a failure. |
 | ✓ Related tests passed: `command` `files` - `summary` | The tests related to the changed files passed. The whole suite runs after them. |
 | … Full tests running: `command` (2:14) | The whole suite goes on after the answer. Its line is written again when it ends. |

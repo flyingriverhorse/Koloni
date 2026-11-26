@@ -15,7 +15,6 @@ smallest that fits: every extra agent is more model calls, so more tokens, money
 | the best of several attempts | **Evolve**, or another recipe with **Candidates** | 2 to 5 agents try the same job, each is scored by your measure command, and the best goes on | each candidate in each round, plus the measure runs |
 | two models' answers side by side | **Compare** | one message goes to two models, and you keep one's work | two runs of the message |
 | several jobs done while you are away | **☾ Away** | your To-do tasks run one at a time, each in its own copy, and you decide when you're back what comes in | each job, within the spend limit you set, if any |
-| the same job by the clock, or when files change | **a trigger** | it starts a turn by itself, with only the permissions you ticked | each run, within the trigger's budget |
 | a list of tasks worked through in order | **To-do** | ticked tasks wait in a chat's queue and run there one by one, each story in a topic of its own | each task's turn |
 
 ## Examples
@@ -54,11 +53,6 @@ Limits and money › **A discussion's tokens, at most**. See [Discussions](discu
 from 0 to 100. Evolve has three Coders try the job, each their own way, and tries again while the
 best score is under 80, for at most four rounds. That is up to twelve Coders: the most expensive way on
 this page. See [Picking the best of several candidates](../examples/candidates.md).
-
-**"Run the tests every night and tell me what failed."**
-A trigger: **By the clock**, **At a time of day**, with the message "Run the tests and say what
-failed". It may only do what you tick. A recipe does not run in a trigger's turn, and a trigger never
-starts a CLI that works with its own tools. See [Triggers](../automation/triggers.md).
 
 **"While I'm away tonight: update the dependencies, tidy the docs, and add tests to the parser."**
 Work while you're away. The Orchestrator puts each piece on To-do and offers one line under its answer,

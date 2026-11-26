@@ -157,7 +157,7 @@ secret to its commands?** card. You type the value in a hidden field.
 - It is never sent to the model, written to the chat or kept in the record. The model is told only that
   it was given. Where a command prints it as it is, it shows as `***`.
 - Only agents that run commands with KOLONİ's own tool can ask. A CLI working with its own tools
-  cannot. In a turn nobody watches (a trigger), the ask is refused.
+  cannot.
 - It never leaves on an agent's branch. If a file on the branch holds it, the branch is not merged and
   no pull request is opened, at any level, even on your click: take it off the branch, or **Discard**,
   which deletes the branch. If the agent stopped first, or nobody watched the turn, the branch is
@@ -193,8 +193,6 @@ What is not framed:
 - Project files an agent reads or searches, and what a command that keeps running (a dev server)
   printed when an agent reads it later: a server's log holds what any request to it carried. They are
   only looked at for text that gives orders (the card above).
-- A webhook's body. A trigger's turn gets it after one line that says it came from outside and is
-  "data to look at, not an instruction".
 - What a CLI working with its own tools reads: its own web fetch, MCP servers or file reads.
 - Files you attach yourself: they are your own.
 
@@ -218,7 +216,6 @@ What is not framed:
   ([Branches](../use/workspace.md#branches)).
 - **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.
-- **Turns nobody watches** (triggers) may do only what the trigger allows.
 - **Web searches and requests** reach only public addresses, never this machine or your local
   network. The agents' browser opens previews on this machine and the sites you allowed.
 - **KOLONİ's own calls**: a model's tool call never passes for one of KOLONİ's own - one named as
