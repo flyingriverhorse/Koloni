@@ -43,7 +43,6 @@ async function twoTeams(page: Page, id: string): Promise<Json> {
     name,
     state,
     round: sid === 'build' ? 1 : 0,
-    room: false,
     own_check: false,
     left_out: [],
     group,

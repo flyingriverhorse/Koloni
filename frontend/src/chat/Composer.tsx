@@ -88,8 +88,6 @@ interface Props {
   unseen?: string | null
   /** This chat's own settings (sample C), behind ⚙ at the end of the model's line (under More in a narrow chat): its teams, folders, page scripts, what runs without asking. */
   sheet?: ReactNode
-  /** Another way to start a turn, last under More: a room ("Work together…"). */
-  beside?: ReactNode
   /** Send the message to two models side by side (slice 54): the conversation's (`first`) and one chosen under More. */
   compare?: {
     providers: Provider[]
@@ -147,7 +145,6 @@ export function Composer({
   model,
   unseen = null,
   sheet,
-  beside,
   compare,
   workspace,
   waits,
@@ -179,7 +176,6 @@ export function Composer({
     noTopic: topic === null,
     fresh,
     startTopic: () => setFreshIn(scope),
-    room: Boolean(beside),
     model: Boolean(model),
     compare: Boolean(compare),
     planFirst,
@@ -417,7 +413,6 @@ export function Composer({
           sheet={sheet}
           waits={waits}
         >
-          <span className="composer-beside">{beside}</span>
           {compare && (
             <span className="composer-compare">
               <Compare

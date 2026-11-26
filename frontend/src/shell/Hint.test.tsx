@@ -1,9 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, onTestFinished, test, vi } from 'vitest'
-import type { Merge, Project, Provider, Room, WebRequest } from '../api/types'
-import type { RequestHandlers } from '../chat/MessageList'
-import { RoomWindow } from '../room/RoomWindow'
+import type { Merge, Project, Provider, WebRequest } from '../api/types'
 import { LimitsTab } from '../models/LimitsTab'
 import { ModelPicker } from '../models/ModelPicker'
 import { BacklogPage } from '../backlog/BacklogPage'
@@ -11,7 +9,7 @@ import { TodayView } from '../usage/TodayView'
 import { OutsideApproval } from '../commands/OutsideApproval'
 import { WebApproval } from '../commands/WebApproval'
 import { MergeCard } from '../changes/MergeCard'
-import { agent, convState, memoryRecord, projectMemory, run, toolCall } from '../test-fixtures'
+import { memoryRecord, projectMemory, toolCall } from '../test-fixtures'
 import { MemoryPage } from '../memory/MemoryPage'
 import { useApp } from '../state/store'
 import { Hint } from './Hint'
@@ -123,10 +121,6 @@ const project: Project = {
   spawn_max_agents: 6,
   spawn_max_parallel: 2,
   discussion_budget: null,
-  room_posts: 40,
-  room_tokens: null,
-  room_minutes: 30,
-  room_min_tokens: 60000,
   pass_env: null,
   held_env: [],
   koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
@@ -156,10 +150,9 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
     /a search with it uses your plan/,
     /a CLI that reports no tokens is not limited by this/,
     /at most 90 seconds\) it holds a place like any model step, so the next message may wait for one/,
-    // tek-ev: what every chat's sub-agents, discussions and rooms spend
+    // tek-ev: what every chat's sub-agents and discussions spend
     /Agents on a CLI that work at the same time spend your subscription at the same time/,
     /Sent and written by its speakers, together; a model that reports no tokens is not limited/,
-    /Sent and written by its members’ models, as billed; a model that reports no tokens is not limited/,
   ]
   const warned = new Set<RegExp>()
   let hinted = 0
@@ -345,72 +338,9 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     },
     [
       /Its runs then show no cost on Usage and count nothing in a project’s budget\./,
-      /Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent or room member is opened here\./,
+      /Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent is opened here./,
       /A role that always runs on one tier, or on one model, is never stepped down: your own rule wins\./,
     ],
-  ],
-  [
-    'The room window',
-    async () => {
-      const noop = async () => {}
-      const on = {
-        onOpenChange: () => {},
-        onDecide: noop,
-        onDecideCommand: noop,
-        onDecideWeb: noop,
-        onSelectAgent: () => {},
-        onDecideSpawn: noop,
-        onDecideRole: noop,
-        onDecideMerge: noop,
-        onCheckMerge: noop,
-        onCommitMerge: noop,
-        onAnswer: noop,
-      } as RequestHandlers
-      const room = (id: string, lead_follows: Room['lead_follows']): Room => ({
-        id,
-        run_id: 'r',
-        goal: `Room ${id}`,
-        agent_id: null,
-        status: 'working',
-        outcome: null,
-        why: null,
-        budget: { posts: 40, tokens: 400000, minutes: 30 },
-        spent: { posts: 0, tokens: 0, minutes: 0 },
-        summary: null,
-        paused: false,
-        lead_follows,
-        members: [],
-        created_at: 't',
-        ended_at: null,
-      })
-      const state = convState({
-        runs: [run('r', 'running')],
-        agents: [agent('r', 'waiting', { id: 'lead' })],
-        rooms: [room('o1', 'on'), room('o2', 'stopped')],
-      })
-      render(
-        <>
-          {state.rooms.map(one => (
-            <RoomWindow
-              key={one.id}
-              state={state}
-              room={one}
-              on={on}
-              roles={[]}
-              providers={[]}
-              onSay={noop}
-              onEnd={noop}
-              onMore={noop}
-              onPause={noop}
-              onFollow={noop}
-              onShrink={() => {}}
-              onClose={() => {}}
-            />
-          ))}
-        </>,
-      )
-    },
-    [/^Its steps count toward the room’s tokens\.$/, /^Stopped: answered, few steps left, or a CLI session\.$/],
   ],
   [
     'The approval cards',

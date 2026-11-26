@@ -141,7 +141,7 @@ export function OwnCommands({ projectId }: { projectId: string }) {
           onChange={e => set({ name: e.target.value })}
         />
         <span id="own-name-note" className="choice-note">
-          No spaces; not one of the box’s own (new, room, stop, model, mode, plan).
+          No spaces; not one of the box’s own (new, stop, model, mode, plan).
         </span>
       </div>
       <div className="field">

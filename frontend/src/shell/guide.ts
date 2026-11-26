@@ -42,7 +42,6 @@ export const GUIDE = {
   neverOpened: 'security/model/#places-agents-never-open',
   planMeters: 'money/usage/#plan-meters',
   prices: 'money/usage/#where-the-money-comes-from',
-  roomWindow: 'agents/rooms/#the-room-window',
   checked: 'use/checked/',
   fullAutoJudge: 'use/permissions/#full-autos-judge',
   checkWhatISaid: 'use/permissions/#check-what-i-said-first',

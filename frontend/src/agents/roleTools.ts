@@ -200,13 +200,6 @@ export const ROLE_TOOLS: RoleTool[] = [
     hint: 'talk to other agents',
   },
   {
-    name: 'open_room',
-    group: 'Team',
-    label: 'Open rooms',
-    line: 'several on one goal',
-    hint: 'open a room in which several agents work on one goal together',
-  },
-  {
     name: 'discuss',
     group: 'Team',
     label: 'Discussions',

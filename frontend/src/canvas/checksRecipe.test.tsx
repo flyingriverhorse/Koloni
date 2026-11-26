@@ -50,7 +50,6 @@ const step = (id: string, name: string, state: 'done' | 'now' | 'next') => ({
   name,
   state,
   round: 0,
-  room: false,
   own_check: false,
   left_out: [],
   group: false,

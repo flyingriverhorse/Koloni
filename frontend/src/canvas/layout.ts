@@ -29,7 +29,7 @@ export const FOUND_GAP = 64
 // The box of the files attached to a message: its head, and its files stacked under it.
 export const GROUP_PAD = 14
 export const IN_GAP = 14
-export const TALL: ReadonlySet<string> = new Set(['discussion', 'room'])
+export const TALL: ReadonlySet<string> = new Set(['discussion'])
 // A chat team's frame (slice 84b-2): drawn round its agents' boxes, with its header (name, recipe, step strip) above
 // them and, once its recipe is at its end, a line of what it did under them. Folded, it is one box of its own.
 export const TEAM_HEAD = 76
@@ -111,15 +111,14 @@ export interface Layout {
 
 type Line = { x1: number; y1: number; x2: number; y2: number }
 
-/** Discussions and rooms in the order they began; one with no time on record keeps its place (a stable sort's tie). */
+/** Discussions in the order they began; one with no time on record keeps its place (a stable sort's tie). */
 const began = (a: GraphNode, b: GraphNode) => (a.at && b.at ? a.at.localeCompare(b.at) : 0)
 
 /**
  * Left-to-right, one block per run: the request, then the agent tree. Every agent is a
  * box sized from what is inside it (tools, own sub-agents, commands, files, top to
  * bottom). The boxes of its sub-agents stand in the next column, level with it and one
- * under the other; a room it opened stands there too, outside every box. Discussions and rooms between teams stand in a lane
- * of their own right of the turn, in the order they began. What the turn's
+ * under the other. Discussions between teams stand in a lane of their own right of the turn, in the order they began. What the turn's
  * teams shared (K-shared-bagli) is a card at each frame's top-right; everyone's beside the Lead. The canvas draws
  * one turn at a time; handed more, each run starts below everything the one before used.
  */
@@ -170,14 +169,12 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     const key = (agent: GraphNode) => agent.agentId ?? agent.id
     const parentOf = (agent: GraphNode) => (agent.data as Partial<AgentData>).parentId ?? null
     const roots = agents.filter(a => !agents.some(p => key(p) === parentOf(a)))
-    // The shared places: rooms, and discussions by their opener. One between teams (its lines `member`) is in the lane
-    // (below): by its opener, its lines to members in other frames ran through the frames between (the user, 4 Nov).
-    // Both in the order they began: a discussion held before a room opened stands over it.
+    // The shared places: discussions by their opener. One between teams (its lines `member`) is in the lane (below): by
+    // its opener, its lines to members in other frames ran through the frames between (the user, 4 Nov). In the order
+    // they began.
     const lane = own.filter(n => TALL.has(n.kind) && edges.some(e => e.member && e.target === n.id)).sort(began)
-    const talks = ['room', 'discussion']
-      .flatMap(kind => own.filter(n => n.kind === kind && !lane.includes(n)))
-      .sort(began)
-    // A room whose opener is not drawn stands by the turn's first agent.
+    const talks = own.filter(n => n.kind === 'discussion' && !lane.includes(n)).sort(began)
+    // One whose opener is not drawn stands by the turn's first agent.
     const opener = (talk: GraphNode) =>
       agents.some(a => key(a) === talk.agentId) ? talk.agentId : roots[0] && key(roots[0])
     const byId = new Map(own.map(n => [n.id, n]))
@@ -279,7 +276,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
         // Room for a team frame's foot where one ends, and for its header where one starts; between two, for a line across.
         if (child.team !== before?.team) {
           below += frameRoom(before, child)
-          // A room in a team's step (slice 84e), or a discussion among its agents only: at the head of its frame, over
+          // A discussion among a team's agents only: at the head of its frame, over
           // its agents, whoever opened it. (In a frame laid out by its work line, in its column.)
           if (child.team && !columnsOf(child.team).length)
             talks.filter(t => t.team === child.team && !positions[t.id]).forEach(talk)

@@ -1025,7 +1025,7 @@ p.hive-empty {
 }
 
 /* The chat open, there is no row under the window (Workspace's button is at the chat's foot): beside the
-   column it stands the stage's height, from under the Teams button (as a room's window) - its own buttons at
+   column it stands the stage's height, from under the Teams button (as a discussion's window) - its own buttons at
    its right end are not under that one (moved or expanded, its own rules hold).
    Below 1400px it keeps its own half height at the bottom: full height there left the turn no canvas at all
    (at 1024 its cards ended up past the stage's edge or under the inspector).
@@ -3143,11 +3143,6 @@ button.turn-name:hover {
 
 .composer-more-panel[hidden] {
   display: none;
-}
-
-/* Work together in More, wrapped only so that `/room` finds its button (slice 46). */
-.composer-beside {
-  display: contents;
 }
 
 /* The message box, with the chosen role's chip at its start; the `/` menu over it (slice 46),

@@ -3,7 +3,7 @@
 // the open chat's column (0.1.4), the nodes at work kept clear of both wherever it is. And (from
 // the user's report, 16 October) the message box and Send always inside the open chat, whatever the tab.
 import { expect, test, type Locator, type Page } from './fixtures'
-import { level, more, openFreshConversation, OWN, say, settled, shot } from './helpers'
+import { level, openFreshConversation, OWN, say, settled, shot } from './helpers'
 
 const chatOf = (page: Page) => page.getByRole('region', { name: 'Chat' })
 const viewOf = (page: Page) => page.getByRole('region', { name: 'Workspace' })
@@ -54,17 +54,6 @@ test.describe('at the size of the user’s window', () => {
     // Two turns: the Notes tab has its turn to pick, and a notebook closed.
     await say(page, 'hello, everything at once', 'Hello! Ask me to read or change a file.')
     await say(page, 'review the greeting', 'The reviewer found no problems.')
-    // A room that waits for the user: its question waits (the room itself is a window: AC; its card is on Ready for you's panel).
-    await more(page)
-    await chat.getByRole('button', { name: /Work together/ }).click()
-    const form = chat.getByRole('form', { name: 'Work together' })
-    await form.getByLabel('Goal').fill('Look at the greeting together')
-    await form.getByLabel('Posts by its members').fill('12')
-    await form.getByRole('button', { name: 'Open the room' }).click()
-    const room = page.getByRole('dialog', { name: 'Room: Look at the greeting together' })
-    const waiting = room.getByRole('region', { name: 'Waits for you' })
-    await expect(waiting.getByText('Shall the greeting stay hi?')).toBeVisible({ timeout: 20_000 })
-
     for (const [width, kept] of [
       ['the least', '340'],
       ['the first', null],
@@ -81,7 +70,7 @@ test.describe('at the size of the user’s window', () => {
           await chat.getByRole('combobox', { name: 'Whose notes', exact: true }).selectOption({ index: 0 })
           await expect(chat.getByText(/its notebook is closed/)).toBeVisible()
         }
-        // (0.1.5: the model is on the line over the box while the chat is ready; the room keeps this turn at work.)
+        // (0.1.5: the model is on the line over the box while the chat is ready.)
         const [around, send, line, message] = await Promise.all([
           box(chat),
           box(chat.getByRole('button', { name: /^(Send|Queue)$/ })),
@@ -96,14 +85,6 @@ test.describe('at the size of the user’s window', () => {
           expect(inside(part, around), `${what} inside the chat on its ${tab} tab at ${width} width`).toBe(true)
       }
     }
-    // (The room is left over: the Coder answered, so that it ends. After the reload it is a tab at the canvas's foot.)
-    await page
-      .getByRole('group', { name: 'Rooms' })
-      .getByRole('button', { name: /^Room · Look at the greeting together/ })
-      .click()
-    await waiting.getByLabel('Your answer').fill('Yes')
-    await waiting.getByRole('button', { name: 'Send answer' }).click()
-    await expect(room.getByText('done · 1 of 1')).toBeVisible({ timeout: 20_000 })
   })
 })
 

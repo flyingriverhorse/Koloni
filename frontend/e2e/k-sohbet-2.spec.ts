@@ -445,33 +445,6 @@ test('at 340 px a kept copy’s long folder wraps on its card: nothing in the ch
   expect(sideways).toEqual([])
 })
 
-test('at 1024 px a room’s window opens beside the open chat, never over it', async ({ page }) => {
-  await page.setViewportSize({ width: 1024, height: 700 })
-  await openFreshConversation(page)
-  const chat = page.getByRole('region', { name: 'Chat' })
-  await chat.getByRole('button', { name: 'More', exact: true }).click()
-  await chat.getByRole('button', { name: /Work together/ }).click()
-  const form = chat.getByRole('form', { name: 'Work together' })
-  await form.getByLabel('Goal').fill('Look at the greeting together')
-  await form.getByLabel('Posts by its members').fill('12')
-  await form.getByRole('button', { name: 'Open the room' }).click()
-  const room = page.getByRole('dialog', { name: 'Room: Look at the greeting together' })
-  const waiting = room.getByRole('region', { name: 'Waits for you' })
-  await expect(waiting.getByText('Shall the greeting stay hi?')).toBeVisible({ timeout: 20_000 })
-  const [at, column, zoom] = [
-    (await room.boundingBox())!,
-    (await chat.boundingBox())!,
-    (await page.locator('.react-flow__controls').boundingBox())!,
-  ]
-  expect(at.x).toBeGreaterThanOrEqual(column.x + column.width - 1)
-  // (Clear of the canvas's zoom buttons at its right.)
-  expect(at.x + at.width).toBeLessThanOrEqual(zoom.x)
-  // (Its member answered, so that it ends.)
-  await waiting.getByLabel('Your answer').fill('Yes')
-  await waiting.getByRole('button', { name: 'Send answer' }).click()
-  await expect(room.getByText('done · 1 of 1')).toBeVisible({ timeout: 20_000 })
-})
-
 test('an older turn that ends with a card keeps its Copy and Read aloud under it: nothing lies over the card’s buttons', async ({
   page,
 }) => {

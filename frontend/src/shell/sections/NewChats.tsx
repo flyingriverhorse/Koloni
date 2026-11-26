@@ -3,8 +3,7 @@ import { useState } from 'react'
 import type { Project, TeamsMode } from '../../api/types'
 import { useApp } from '../../state/store'
 import { type FolderRow, GIVEN, listsOf, rowsOf } from '../Folders'
-import { GUIDE } from '../guide'
-import { limitOf, part, Row, sent, typed } from './part'
+import { part, Row } from './part'
 
 const MODES: [mode: TeamsMode, label: string][] = [
   ['lead', 'Orchestrator decides'],
@@ -16,24 +15,22 @@ const same = (a: FolderRow[], b: FolderRow[]) =>
   a.length === b.length && a.every((row, at) => row.path === b[at].path && row.access === b[at].access)
 
 /**
- * This project › New chats start with: the teams and the other folders a new chat of it starts with, and what a room
- * opened in it may spend. A chat sets its own teams and folders; "Use for new chats" and "Keep for this project" there
+ * This project › New chats start with: the teams and the other folders a new chat of it starts with. A chat sets its own
+ * teams and folders; "Use for new chats" and "Keep for this project" there
  * put them here too.
  */
 export function useNewChats(project: Project) {
   const [mode, setMode] = useState<TeamsMode>(project.teams_mode)
   const kept = rowsOf(project.also_in, project.read_in)
   const [folders, setFolders] = useState(kept)
-  const rooms = useRoomLimits(project)
   const patch = {
     // (As a chat's "Use for new chats" sends it: the teams kept only with Manual.)
     ...(mode !== project.teams_mode && { teams_mode: mode, teams: mode === 'manual' ? project.teams : [] }),
     ...(!same(folders, kept) && listsOf(folders)),
-    ...rooms.patch,
   }
   return part(
     patch,
-    rooms.valid,
+    true,
     <>
       <h2>New chats start with</h2>
       <p className="choice-note">A new chat of this project starts with these; each chat then sets its own.</p>
@@ -60,144 +57,7 @@ export function useNewChats(project: Project) {
           A folder is added from a chat’s folder button: “Keep for this project”. {GIVEN}
         </span>
       </Row>
-      {rooms.view}
     </>,
-  )
-}
-
-/** What a room opened in any chat of the project may spend, unless it is set as it opens; empty: no limit. */
-function useRoomLimits(project: Project) {
-  const [postsText, setPostsText] = useState(typed(project.room_posts))
-  const [tokensText, setTokensText] = useState(typed(project.room_tokens))
-  const [minutesText, setMinutesText] = useState(typed(project.room_minutes))
-  const [leastText, setLeastText] = useState(typed(project.room_min_tokens))
-  const posts = limitOf(postsText, 1000)
-  const tokens = limitOf(tokensText, 100_000_000)
-  const minutes = limitOf(minutesText, 1440)
-  const least = limitOf(leastText, 100_000_000)
-  return {
-    valid: posts !== undefined && tokens !== undefined && minutes !== undefined && least !== undefined,
-    patch: {
-      ...sent('room_posts', posts, project.room_posts ?? null),
-      ...sent('room_tokens', tokens, project.room_tokens ?? null),
-      ...sent('room_minutes', minutes, project.room_minutes ?? null),
-      ...sent('room_min_tokens', least, project.room_min_tokens ?? null),
-    },
-    view: (
-      <>
-        <h3 className="kicker">A room’s limits</h3>
-        <p className="choice-note">
-          What a room opened in any chat of this project may spend, unless you say otherwise as you open it. Empty: no
-          limit.
-        </p>
-        <Row
-          label="Posts, at most"
-          htmlFor="room-posts"
-          warn={posts === undefined && <span className="choice-note">1 to 1000, or empty.</span>}
-        >
-          <input
-            id="room-posts"
-            className="input mono set-short"
-            inputMode="numeric"
-            placeholder="No limit"
-            value={postsText}
-            aria-invalid={posts === undefined || undefined}
-            onChange={e => setPostsText(e.target.value)}
-          />
-        </Row>
-        <Row
-          label="Minutes, at most"
-          htmlFor="room-minutes"
-          warn={minutes === undefined && <span className="choice-note">1 to 1440, or empty.</span>}
-        >
-          <input
-            id="room-minutes"
-            className="input mono set-short"
-            inputMode="numeric"
-            placeholder="No limit"
-            value={minutesText}
-            aria-invalid={minutes === undefined || undefined}
-            onChange={e => setMinutesText(e.target.value)}
-          />
-        </Row>
-        <RoomTokens text={tokensText} setText={setTokensText} tokens={tokens} />
-        <RoomLeastTokens text={leastText} setText={setLeastText} least={least} tokens={tokens} />
-      </>
-    ),
-  }
-}
-
-/** B-414: the least tokens a room an agent opens is given; above the most, the most wins. */
-function RoomLeastTokens({
-  text,
-  setText,
-  least,
-  tokens,
-}: {
-  text: string
-  setText: (text: string) => void
-  least: number | null | undefined
-  tokens: number | null | undefined
-}) {
-  const above = least != null && tokens != null && least > tokens
-  return (
-    <Row
-      label="Tokens, at least"
-      htmlFor="room-min-tokens"
-      why="A room an agent asks for with fewer is given this many: one member’s step, with what it rereads, takes some 8,000 to 9,000."
-      warn={
-        <span className="choice-note">
-          {least === undefined ? 'A whole number from 1 to 100,000,000, or empty. ' : ''}
-          {above ? `Above the most: a room gets ${tokens.toLocaleString('en-US')}, the most wins. ` : ''}
-          Empty: an agent’s room gets what it asks for.
-        </span>
-      }
-    >
-      <input
-        id="room-min-tokens"
-        className="input mono"
-        inputMode="numeric"
-        placeholder="None"
-        value={text}
-        aria-invalid={least === undefined || undefined}
-        onChange={e => setText(e.target.value)}
-      />
-    </Row>
-  )
-}
-
-function RoomTokens({
-  text,
-  setText,
-  tokens,
-}: {
-  text: string
-  setText: (text: string) => void
-  tokens: number | null | undefined
-}) {
-  return (
-    <Row
-      label="Tokens, at most"
-      htmlFor="room-tokens"
-      doc={GUIDE.settingsNewChats}
-      why="By default none: a room ends on its posts or minutes, or on the message’s and the project’s own limits."
-      warn={
-        <span className="choice-note">
-          {tokens === undefined ? 'A whole number from 1 to 100,000,000, or empty. ' : ''}
-          Sent and written by its members’ models, as billed; a model that reports no tokens is not limited.
-        </span>
-      }
-    >
-      <input
-        id="room-tokens"
-        className="input mono"
-        inputMode="numeric"
-        placeholder="No limit"
-        value={text}
-        aria-invalid={tokens === undefined || undefined}
-        onChange={e => setText(e.target.value)}
-      />
-    </Row>
   )
 }
 

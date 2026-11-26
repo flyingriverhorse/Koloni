@@ -98,62 +98,6 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-// Slice 84e: a recipe's Room step - its roles meet in one room, drawn in the team's frame; the step strip says Room;
-// the room's work waits in the recipe's copy until Take in.
-test('a Room step meets in the team frame, and its work comes in only with Take in', async ({ page, request }) => {
-  test.setTimeout(60_000)
-  await page.setViewportSize({ width: 1440, height: 900 })
-  const file = path.join(PROJECT_DIR, 'recipe84e-light.txt')
-  rmSync(file, { force: true })
-  const id = await openFreshConversation(page, { leadWrites: false })
-  const name = 'Meet only 84e'
-  const graph = {
-    version: 1,
-    steps: [{ id: 'meet', name: 'Design meeting', who: { room: ['Coder', 'Reviewer'] } }],
-    ends: [{ id: 'end', then: 'in' }],
-    arrows: [
-      { from: 'start', to: 'meet' },
-      { from: 'meet', to: 'end' },
-    ],
-  }
-  await request.post('/api/recipes', { headers: OWN, data: { name, graph } })
-  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
-    r => r.name === name,
-  )
-  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
-    t => t.name === 'Web app',
-  )
-  await setProject(page, { spawn_approval: 'never' })
-  const set = await request.patch(`/api/conversations/${id}`, {
-    headers: OWN,
-    data: { permission_mode: 'auto_edit', teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
-  })
-  expect(set.ok()).toBe(true)
-
-  await page.getByLabel('Message').fill('meet by the recipe, 84e light')
-  await page.getByRole('button', { name: 'Send' }).click()
-  const ready = page.locator('.ready-node')
-  await expect(ready).toContainText('NEEDS YOU', { timeout: 20_000 })
-  const frame = page.locator('.team-frame')
-  await expect(frame.getByRole('list', { name: `${name}: its steps` })).toContainText('Design meetingRoom ✓')
-  expect(existsSync(file)).toBe(false)
-  // The room's box inside the team's frame.
-  const [box, around] = [await page.locator('.react-flow__node-room').boundingBox(), await frame.boundingBox()]
-  expect(box!.y).toBeGreaterThanOrEqual(around!.y)
-  expect(box!.y + box!.height).toBeLessThanOrEqual(around!.y + around!.height)
-  // (AC: the room opened in its own window over the canvas, and says it is over there; × puts it away.)
-  const room = page.getByRole('dialog', { name: /^Room: Meet 84e light/ })
-  await expect(room.getByText(/^done/)).toBeVisible()
-  await room.getByRole('button', { name: 'Close the room' }).click()
-  await expect(room).toHaveCount(0)
-  await shot(page, '84e-room-step')
-  await ready.getByRole('button', { name: 'Open the list →' }).click()
-  await page.getByRole('region', { name: 'Ready to take in' }).getByRole('button', { name: 'Take in' }).click()
-  await expect(ready).toContainText('In the project ✓', { timeout: 20_000 })
-  expect(existsSync(file)).toBe(true)
-  rmSync(file, { force: true })
-})
-
 // B-99: the recipe's own questions are in the chat, under the call that opened the step's agent, and answered there:
 // its Ask me step's "Go on?", then "Take the work into the project?".
 test('a recipe’s Ask me and its Take in are answered in the chat', async ({ page, request }) => {

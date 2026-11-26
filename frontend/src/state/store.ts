@@ -53,7 +53,6 @@ import type {
   NewMcpServer,
   NewOwnCommand,
   OwnCommand,
-  NewRoom,
   Price,
   Project,
   ProjectFile,
@@ -114,7 +113,7 @@ export interface BranchSaid {
   way?: 'merge' | 'pull_request'
 }
 
-/** The tabs of the chat panel. (A room has a window of its own over the canvas: AC.) */
+/** The tabs of the chat panel. */
 export type ChatTab = 'Chat' | 'Talk' | 'Notes'
 
 interface AppStore extends TeamActions, RecipeActions, CategoryActions {
@@ -162,17 +161,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Speak in a discussion, or end it. Both throw ApiError. */
   sayInDiscussion(discussionId: string, content: string): Promise<void>
   endDiscussion(discussionId: string): Promise<void>
-  /**
-   * How each room's window stands, by the room's id (AC): open, or made small - a tab at the
-   * canvas's foot. A room not here has no window; a running one still has its tab.
-   */
-  roomWindows: Record<string, 'open' | 'small'>
-  /** Open a room's window (another open one is made small), the focus going into it. */
-  showRoom(roomId: string): void
-  /** Make a room's window small: a tab, which the focus goes to. */
-  shrinkRoom(roomId: string): void
-  /** Close a room's window: a room that is over leaves the canvas (its line in the chat opens it again). */
-  closeRoom(roomId: string): void
   /** The tab of the chat panel that is shown. */
   chatTab: ChatTab
   /**
@@ -194,16 +182,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   readyChats: Record<string, ConvState>
   /** Read the chats whose Board row changed since; `again`: that one too, whatever its row says (a decision made on it) - `true`: all of them. */
   loadReadyChats(again?: string | true): Promise<void>
-  /** Open a room in the open conversation: a turn of its own, whose message is the goal. Throws ApiError. */
-  openRoom(room: NewRoom): Promise<void>
-  /** Speak in a room, end it, or add to what it may spend. All throw ApiError. */
-  sayInRoom(roomId: string, text: string): Promise<void>
-  endRoom(roomId: string): Promise<void>
-  /** 29c: pause a running room (true) or resume it (false). Throws ApiError. */
-  pauseRoom(roomId: string, paused: boolean): Promise<void>
-  /** K-oda-izle: let the turn's Lead follow a room the user opened (true), or stop it. Throws ApiError. */
-  followRoom(roomId: string, on: boolean): Promise<void>
-  giveRoomMore(roomId: string, more: { posts?: number; tokens?: number; minutes?: number }): Promise<void>
   /**
    * The open project's memory, once something asked for it; null until then. How a source
    * stands is as of the last reading: a file can change on disk without a word.
@@ -616,12 +594,6 @@ const typed = new Map<string, number>()
 const readyRows = new Map<string, string>()
 let readyReads = 0
 
-/** The rooms' windows with this one open: one open at a time, any other made small. */
-const withOpen = (windows: Record<string, 'open' | 'small'>, roomId: string): Record<string, 'open' | 'small'> => ({
-  ...Object.fromEntries(Object.keys(windows).map(id => [id, 'small' as const])),
-  [roomId]: 'open',
-})
-
 /** Put the store and its connection back to the initial state (tests only). */
 export function resetStoreForTests(): void {
   closeEvents?.()
@@ -798,20 +770,10 @@ export const useApp = create<AppStore>()((set, get) => {
     if (moved || runMoved || ['claims.changed', 'agent.created', 'run.finished'].includes(type)) void get().loadBoard()
   }
 
-  /** The window an event of the open conversation opens: a room's, a discussion's. */
+  /** The window an event of the open conversation opens: a discussion's. */
   function openWindowOn(type: string, payload: unknown) {
     // Never an agent's (the user's, 21 Nov): the chat shows a turn's work, and on a native provider its Lead's window
     // opened on every message. It opens from its node, the Inspector or a link.
-    // A room is something to watch too: its window opens over the canvas as it opens - the focus left where it is.
-    // (Another's window open - the user may be writing in it: the new one comes as a tab beside it.)
-    if (type === 'room.created') {
-      const roomId = (payload as { id: string }).id
-      set(s => ({
-        roomWindows: Object.values(s.roomWindows).includes('open')
-          ? { ...s.roomWindows, [roomId]: 'small' }
-          : withOpen(s.roomWindows, roomId),
-      }))
-    }
     // A discussion is something to watch: its shared place opens as it starts.
     if (type === 'discussion.created') {
       set({ discussionWindowId: (payload as { id: string }).id, agentWindowId: null, agentWindowRaw: false })
@@ -861,29 +823,6 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async sayInDiscussion(discussionId, content) {
       await api.post(`/discussions/${discussionId}/posts`, { content })
-    },
-
-    roomWindows: {},
-
-    showRoom(roomId) {
-      set(s => ({ roomWindows: withOpen(s.roomWindows, roomId) }))
-      requestAnimationFrame(() => document.getElementById(`room-${roomId}`)?.focus())
-    },
-
-    shrinkRoom(roomId) {
-      set(s => ({ roomWindows: { ...s.roomWindows, [roomId]: 'small' } }))
-      requestAnimationFrame(() => document.getElementById(`room-tab-${roomId}`)?.focus())
-    },
-
-    closeRoom(roomId) {
-      set(s => ({ roomWindows: Object.fromEntries(Object.entries(s.roomWindows).filter(([id]) => id !== roomId)) }))
-      // Back where it can be opened again: its tab, if it keeps one (something still waits), else its line in the chat.
-      requestAnimationFrame(() =>
-        (
-          document.getElementById(`room-tab-${roomId}`) ??
-          document.querySelector<HTMLElement>(`[data-room-line="${roomId}"]`)
-        )?.focus(),
-      )
     },
 
     chatTab: 'Chat',
@@ -948,35 +887,6 @@ export const useApp = create<AppStore>()((set, get) => {
             }
           }),
       )
-    },
-
-    async openRoom(room) {
-      const conv = get().conv
-      if (!conv) return
-      // (The turn, its message and the room itself arrive as events, like any turn's.)
-      await api.post(`/conversations/${conv.conversation.id}/rooms`, room)
-      set({ turnId: null })
-    },
-
-    async sayInRoom(roomId, text) {
-      await api.post(`/rooms/${roomId}/posts`, { text })
-    },
-
-    async endRoom(roomId) {
-      await api.post(`/rooms/${roomId}/end`)
-    },
-
-    async pauseRoom(roomId, paused) {
-      // (How it stands then arrives as an event, like every change of the room.)
-      await api.post(`/rooms/${roomId}/${paused ? 'pause' : 'resume'}`)
-    },
-
-    async followRoom(roomId, on) {
-      await api.post(`/rooms/${roomId}/${on ? 'follow' : 'unfollow'}`)
-    },
-
-    async giveRoomMore(roomId, more) {
-      await api.post(`/rooms/${roomId}/more`, more)
     },
 
     async endDiscussion(discussionId) {
@@ -1819,7 +1729,6 @@ export const useApp = create<AppStore>()((set, get) => {
               agentWindowId: null,
               agentWindowRaw: false,
               discussionWindowId: null,
-              roomWindows: {},
               filesOpen: false,
               filesRef: null,
               filesAt: { key: null, n: get().filesAt.n },

@@ -81,11 +81,6 @@ export interface ProjectSettingsValues {
   spawn_max_parallel?: number
   /** null takes the limit away. */
   discussion_budget?: number | null
-  room_posts?: number | null
-  room_tokens?: number | null
-  room_minutes?: number | null
-  /** B-414: the least tokens an agent's room is given; null: none. */
-  room_min_tokens?: number | null
   /** Whether a fast model notes what a finished turn found. Sent only when changed. */
   auto_notes?: boolean
   /** 22c: the other projects whose memory an agent's recall also looks in (ids): the whole list. Sent only when changed. */

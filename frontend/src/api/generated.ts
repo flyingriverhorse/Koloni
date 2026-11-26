@@ -1333,28 +1333,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{conversation_id}/rooms": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Open Room
-         * @description The user opens a room: a turn of its own, whose message is the room's goal. Its
-         *     members are opened without the card a sub-agent may need, on the models the user
-         *     names here - so it is theirs to open, from the app's own page.
-         */
-        post: operations["open_room_api_conversations__conversation_id__rooms_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/conversations/{conversation_id}/teams/{team_id}/finish": {
         parameters: {
             query?: never;
@@ -4095,152 +4073,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/rooms/{room_id}/end": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * End
-         * @description End the room now: its members still at work are stopped, and the turn's lead is
-         *     given what came of it so far.
-         */
-        post: operations["end_api_rooms__room_id__end_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/follow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Follow
-         * @description K-oda-izle: let the turn's Lead follow the room the user opened, as it follows one it
-         *     opened itself: it is given what is said, and may post, ask one more in or end it.
-         */
-        post: operations["follow_api_rooms__room_id__follow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/more": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * More
-         * @description Add to a running room's budget. Leave to spend more: the user's to give, from the
-         *     app's own page.
-         */
-        post: operations["more_api_rooms__room_id__more_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/pause": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Pause
-         * @description Pause the room (29c): its members finish the step at hand, then post nothing and ask
-         *     no model, and its clock stands, until Resume. It can still be read and ended.
-         */
-        post: operations["pause_api_rooms__room_id__pause_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/posts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Say
-         * @description The user speaks in the room; every member reads it at its next step.
-         */
-        post: operations["say_api_rooms__room_id__posts_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/resume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Resume
-         * @description Resume a paused room: its members go on where they stopped. Leave to spend again: the
-         *     user's to give, from the app's own page.
-         */
-        post: operations["resume_api_rooms__room_id__resume_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/rooms/{room_id}/unfollow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Unfollow
-         * @description The Lead follows the room no further: it waits for its record, as before (its step at
-         *     hand may finish).
-         */
-        post: operations["unfollow_api_rooms__room_id__unfollow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/runs/{run_id}/cancel": {
         parameters: {
             query?: never;
@@ -6469,14 +6301,6 @@ export interface components {
             provider_id: string | null;
             /** Read In */
             read_in: string[];
-            /** Room Min Tokens */
-            room_min_tokens: number | null;
-            /** Room Minutes */
-            room_minutes: number | null;
-            /** Room Posts */
-            room_posts: number | null;
-            /** Room Tokens */
-            room_tokens: number | null;
             /**
              * Spawn Approval
              * @enum {string}
@@ -6559,14 +6383,6 @@ export interface components {
             provider_id: string | null;
             /** Read In */
             read_in: string[];
-            /** Room Min Tokens */
-            room_min_tokens: number | null;
-            /** Room Minutes */
-            room_minutes: number | null;
-            /** Room Posts */
-            room_posts: number | null;
-            /** Room Tokens */
-            room_tokens: number | null;
             /**
              * Spawn Approval
              * @enum {string}
@@ -6634,14 +6450,6 @@ export interface components {
             provider_id?: string | null;
             /** Read In */
             read_in?: string[] | null;
-            /** Room Min Tokens */
-            room_min_tokens?: number | null;
-            /** Room Minutes */
-            room_minutes?: number | null;
-            /** Room Posts */
-            room_posts?: number | null;
-            /** Room Tokens */
-            room_tokens?: number | null;
             /** Spawn Approval */
             spawn_approval?: ("auto" | "always" | "never") | null;
             /** Spawn Max Agents */
@@ -8685,8 +8493,6 @@ export interface components {
             id: string;
             /** Kept In */
             kept_in?: string | null;
-            /** Room Id */
-            room_id?: string | null;
             /** Run Id */
             run_id: string;
             /**
@@ -9571,14 +9377,6 @@ export interface components {
              * @default 80
              */
             review_lines: number;
-            /** Room Min Tokens */
-            room_min_tokens: number | null;
-            /** Room Minutes */
-            room_minutes: number | null;
-            /** Room Posts */
-            room_posts: number | null;
-            /** Room Tokens */
-            room_tokens: number | null;
             /** Root Path */
             root_path: string;
             /** Search Agy */
@@ -9733,14 +9531,6 @@ export interface components {
             pass_env?: string | null;
             /** Read In */
             read_in?: string[] | null;
-            /** Room Min Tokens */
-            room_min_tokens?: number | null;
-            /** Room Minutes */
-            room_minutes?: number | null;
-            /** Room Posts */
-            room_posts?: number | null;
-            /** Room Tokens */
-            room_tokens?: number | null;
             /** Search Agy */
             search_agy?: boolean | null;
             /** Search Order */
@@ -10280,11 +10070,6 @@ export interface components {
              * @default false
              */
             own_check: boolean;
-            /**
-             * Room
-             * @default false
-             */
-            room: boolean;
             /** Round */
             round: number;
             /** Scores */
@@ -10343,7 +10128,7 @@ export interface components {
             /** When */
             when?: "problem" | null;
             /** Who */
-            who: components["schemas"]["WhoRole"] | components["schemas"]["WhoTeam"] | components["schemas"]["WhoLead"] | components["schemas"]["WhoRoom"] | components["schemas"]["WhoExperts"] | components["schemas"]["WhoCandidates"];
+            who: components["schemas"]["WhoRole"] | components["schemas"]["WhoTeam"] | components["schemas"]["WhoLead"] | components["schemas"]["WhoExperts"] | components["schemas"]["WhoCandidates"];
         };
         /** RecipeWriter */
         RecipeWriter: {
@@ -10563,8 +10348,6 @@ export interface components {
             cannot_pick: {
                 [key: string]: string;
             };
-            /** Cannot Room */
-            cannot_room?: string | null;
             /** Cannot Run */
             cannot_run: string | null;
             /** Cannot Step */
@@ -10755,185 +10538,6 @@ export interface components {
             /** Teams */
             teams: components["schemas"]["HistoryCount"][];
         };
-        /**
-         * RoomBudgetIn
-         * @description What one room may spend. Left out: the conversation's own. Null: no limit.
-         */
-        RoomBudgetIn: {
-            /** Minutes */
-            minutes?: number | null;
-            /** Posts */
-            posts?: number | null;
-            /** Tokens */
-            tokens?: number | null;
-        };
-        /**
-         * RoomBudgetOut
-         * @description A room's limits (None: none) - or, as `spent`, how much of each is used.
-         */
-        RoomBudgetOut: {
-            /** Minutes */
-            minutes: number | null;
-            /** Posts */
-            posts: number | null;
-            /** Tokens */
-            tokens: number | null;
-        };
-        /** RoomIn */
-        RoomIn: {
-            budget?: components["schemas"]["RoomBudgetIn"] | null;
-            /** Goal */
-            goal: string;
-            /**
-             * Over Budget
-             * @default false
-             */
-            over_budget: boolean;
-            /** With */
-            with: components["schemas"]["RoomMemberIn"][];
-        };
-        /** RoomItemOut */
-        RoomItemOut: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Holder Agent Id */
-            holder_agent_id: string | null;
-            /** Id */
-            id: string;
-            /** Number */
-            number: number;
-            /** Paths */
-            paths: string[];
-            /** Result */
-            result: string | null;
-            /** Room Id */
-            room_id: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "open" | "taken" | "done" | "dropped";
-            /** Title */
-            title: string;
-        };
-        /** RoomMemberIn */
-        RoomMemberIn: {
-            /** Model */
-            model?: string | null;
-            /** Provider */
-            provider?: string | null;
-            /** Role */
-            role: string;
-        };
-        /** RoomMemberOut */
-        RoomMemberOut: {
-            /** Agent Id */
-            agent_id: string | null;
-            /** Role */
-            role: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "in" | "waiting" | "done" | "left";
-        };
-        /**
-         * RoomMoreIn
-         * @description What is added to a running room's budget; a limit it does not have stays none.
-         */
-        RoomMoreIn: {
-            /** Minutes */
-            minutes?: number | null;
-            /** Posts */
-            posts?: number | null;
-            /** Tokens */
-            tokens?: number | null;
-        };
-        /** RoomOpenedOut */
-        RoomOpenedOut: {
-            room: components["schemas"]["RoomOut"];
-            run: components["schemas"]["RunOut"];
-        };
-        /**
-         * RoomOut
-         * @description Two to six agents working on one goal at the same time, in one working copy.
-         */
-        RoomOut: {
-            /** Agent Id */
-            agent_id: string | null;
-            budget: components["schemas"]["RoomBudgetOut"];
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ended At */
-            ended_at: string | null;
-            /** Goal */
-            goal: string;
-            /** Id */
-            id: string;
-            /**
-             * Lead Follows
-             * @enum {string}
-             */
-            lead_follows: "off" | "on" | "stopped";
-            /** Members */
-            members: components["schemas"]["RoomMemberOut"][];
-            /** Outcome */
-            outcome: ("agreed" | "budget" | "ended_by_user" | "ended_by_opener" | "too_few") | null;
-            /** Paused */
-            paused: boolean;
-            /** Run Id */
-            run_id: string;
-            spent: components["schemas"]["RoomBudgetOut"];
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "sharing" | "working" | "ended" | "cancelled" | "interrupted";
-            /** Summary */
-            summary: string | null;
-            /** Why */
-            why: ("posts" | "tokens" | "minutes" | "unanswered") | null;
-        };
-        /** RoomPostIn */
-        RoomPostIn: {
-            /** Text */
-            text: string;
-        };
-        /** RoomPostOut */
-        RoomPostOut: {
-            /** Agent Id */
-            agent_id: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: string;
-            /** Number */
-            number: number;
-            /** Open */
-            open: boolean;
-            /** Reply To */
-            reply_to: number | null;
-            /** Room Id */
-            room_id: string;
-            /** Text */
-            text: string;
-            /** To Agent Id */
-            to_agent_id: string | null;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "result" | "review" | "question" | "answer" | "blocked" | "said" | "done" | "left" | "ended";
-        };
         /** RuleIn */
         RuleIn: {
             /** Prefix */
@@ -10965,15 +10569,13 @@ export interface components {
          * RunOn
          * @description A provider a role's agents could be given as their own model (the chat's team picker):
          *     the model they would run with there, and whether such an agent could be a recipe's step
-         *     and a room's member (B-89).
+         *     (B-89).
          */
         RunOn: {
             /** Model Id */
             model_id: string | null;
             /** Provider Id */
             provider_id: string;
-            /** Room */
-            room: boolean;
             /** Step */
             step: boolean;
         };
@@ -11371,12 +10973,6 @@ export interface components {
             pending_skills: components["schemas"]["PendingSkillOut"][];
             /** Questions */
             questions: components["schemas"]["QuestionOut"][];
-            /** Room Items */
-            room_items: components["schemas"]["RoomItemOut"][];
-            /** Room Posts */
-            room_posts: components["schemas"]["RoomPostOut"][];
-            /** Rooms */
-            rooms: components["schemas"]["RoomOut"][];
             /** Runs */
             runs: components["schemas"]["RunOut"][];
             /** Tool Calls */
@@ -12174,11 +11770,6 @@ export interface components {
             most?: number | null;
             /** Role */
             role: string;
-        };
-        /** WhoRoom */
-        WhoRoom: {
-            /** Room */
-            room: string[];
         };
         /** WhoTeam */
         WhoTeam: {
@@ -14487,41 +14078,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostMessageOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    open_room_api_conversations__conversation_id__rooms_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoomIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOpenedOut"];
                 };
             };
             /** @description Validation Error */
@@ -19695,231 +19251,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoleOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    end_api_rooms__room_id__end_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    follow_api_rooms__room_id__follow_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    more_api_rooms__room_id__more_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoomMoreIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    pause_api_rooms__room_id__pause_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    say_api_rooms__room_id__posts_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoomPostIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomPostOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    resume_api_rooms__room_id__resume_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unfollow_api_rooms__room_id__unfollow_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                room_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoomOut"];
                 };
             };
             /** @description Validation Error */

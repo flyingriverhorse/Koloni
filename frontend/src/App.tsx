@@ -150,8 +150,6 @@ export function App() {
   const selectedNodeId = useApp(s => s.selectedNodeId)
   const agentWindowId = useApp(s => s.agentWindowId)
   const discussionWindowId = useApp(s => s.discussionWindowId)
-  // The room whose window is open over the canvas, if any (AC): the canvas keeps clear of it too.
-  const roomWindowId = useApp(s => Object.keys(s.roomWindows).find(id => s.roomWindows[id] === 'open') ?? null)
   const select = useApp(s => s.select)
   const turnId = useApp(s => s.turnId)
   const openChange = useApp(s => s.openChange)
@@ -1053,12 +1051,11 @@ export function App() {
           turnId={turnId}
           onTurn={useApp.getState().showTurn}
           onRenameTopic={useApp.getState().renameTopic}
-          over={agentWindowId ?? discussionWindowId ?? roomWindowId}
+          over={agentWindowId ?? discussionWindowId}
           turnsIn={turnsIn}
           onOpenNode={(kind, refId) => {
             if (kind === 'agent') useApp.getState().openAgentWindow(refId)
             if (kind === 'discussion') useApp.getState().openDiscussion(refId)
-            if (kind === 'room') useApp.getState().showRoom(refId)
             if (kind === 'memory') setView('memory')
             // (The Scout's node, opened, or its To-do →.)
             if (kind === 'po' || kind === 'backlog') setView('backlog')
@@ -1103,7 +1100,6 @@ export function App() {
         onSelect={select}
         onOpenAgent={agentId => useApp.getState().openAgentWindow(agentId)}
         onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
-        onOpenRoom={useApp.getState().showRoom}
         {...agentAsks}
         renderChange={change => (
           <>

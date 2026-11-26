@@ -634,14 +634,10 @@ test('why a role runs where it does, where its tier did not give its first model
 
 test('what stands in a role’s way where it runs is said before any run: on its panel, and marked on its team’s stage (B-89)', async () => {
   const step = 'agy works with tools of its own in the project itself: a recipe’s work stays in its copy'
-  const room = 'Codex works with tools of its own here: the Coder cannot be a member on it'
   const tools = 'The Tester role cannot work on Codex: write files and run commands'
   const onRoleModels = vi
     .fn()
-    .mockResolvedValue([
-      row({ role: 'Coder', cannot_step: step, cannot_room: room }),
-      row({ role: 'Tester', cannot_run: tools }),
-    ])
+    .mockResolvedValue([row({ role: 'Coder', cannot_step: step }), row({ role: 'Tester', cannot_run: tools })])
   render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...handlers()} onRoleModels={onRoleModels} />)
   const web = await openTeam('Web app')
   // (No recipe of the team's own: its stages' roles are no steps, only what stops any agent is marked.)
@@ -657,7 +653,7 @@ test('what stands in a role’s way where it runs is said before any run: on its
   const said = within(screen.getByRole('list', { name: 'Will not run' }))
     .getAllByRole('listitem')
     .map(item => item.textContent)
-  expect(said).toEqual([`⚠ Not as a recipe’s step: ${step}`, `⚠ Not in a room: ${room}`])
+  expect(said).toEqual([`⚠ Not as a recipe’s step: ${step}`])
 })
 
 test('where an agent ran says its tier between its model and its level; with none known, none', () => {

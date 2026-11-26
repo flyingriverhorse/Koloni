@@ -34,14 +34,6 @@ export const EVENT_TYPES = [
   'discussion.created',
   'discussion.updated',
   'discussion_post.created',
-  // A room the user opened: itself (who is in it, how it stands, what it has spent), its
-  // list of items and what is said in it. A post changes once: a question that is replied to.
-  'room.created',
-  'room.updated',
-  'room_item.created',
-  'room_item.updated',
-  'room_post.created',
-  'room_post.updated',
   'board.posted',
   'role_request.created',
   'role_request.resolved',

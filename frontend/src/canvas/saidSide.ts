@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react'
 const SAID_BOX = { width: 380, height: 320 }
 const GAP = 8
 /** What else lies over the canvas, that the box opening on its right keeps clear of. */
-const WINDOWS = '.chat, .view-panel, .agent-window, .room-window, .changes'
+const WINDOWS = '.chat, .view-panel, .agent-window, .changes'
 
 type Place = { position: PanelPosition; style?: CSSProperties }
 const rectOf = (selector: string) => document.querySelector(selector)?.getBoundingClientRect()

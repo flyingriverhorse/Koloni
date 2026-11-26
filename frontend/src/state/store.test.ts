@@ -1155,43 +1155,6 @@ test("a provider's reading that fails keeps its last one; an older loadHealth an
   expect(useApp.getState().inUse).toEqual(first)
 })
 
-test('a room that opens opens its window; one that opens while another is open comes as a tab; another chat starts with none', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string) => {
-      if (url.endsWith('/conversations') || url.endsWith('/projects')) return new Response('[]', { status: 200 })
-      const id = /conversations\/([^/]+)$/.exec(url)?.[1] ?? 'c'
-      return new Response(JSON.stringify({ ...snapshot(id), messages: [], rooms: [] }), { status: 200 })
-    }),
-  )
-  await useApp.getState().openConversation('c')
-  const source = FakeEventSource.open()[0]
-  const room = (id: string) => ({
-    id,
-    run_id: 'r',
-    goal: 'g',
-    agent_id: null,
-    status: 'sharing',
-    outcome: null,
-    why: null,
-    budget: { posts: null, tokens: null, minutes: null },
-    spent: { posts: 0, tokens: null, minutes: 0 },
-    summary: null,
-    members: [],
-    created_at: 't',
-    ended_at: null,
-  })
-  source.emit('room.created', room('o1'), '4')
-  expect(useApp.getState().roomWindows).toEqual({ o1: 'open' })
-  // (the user may be writing in that one: it is not made small under them)
-  source.emit('room.created', room('o2'), '5')
-  expect(useApp.getState().roomWindows).toEqual({ o1: 'open', o2: 'small' })
-  useApp.getState().showRoom('o2')
-  expect(useApp.getState().roomWindows).toEqual({ o1: 'small', o2: 'open' })
-  await useApp.getState().openConversation('d')
-  expect(useApp.getState().roomWindows).toEqual({})
-})
-
 test('a slow read of the conversations list does not overwrite a later one', async () => {
   const answers: ((list: unknown[]) => void)[] = []
   vi.mocked(fetch).mockImplementation(
