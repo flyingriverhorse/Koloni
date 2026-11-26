@@ -486,7 +486,9 @@ known (a CLI that does not say). No **Always run** is offered on its card.
 **Always run rules at Full auto** (since 0.1.10, as Claude Code's auto mode): a **narrow** rule of the
 chat, one that names its task (`npm test`, `npm run build`, `python gen.py`, `make build`, `gh pr
 list`), lets a line it covers by with no judge, in a chat you watch, where KOLONİ knows the folder the
-line runs in, and not where the line runs a program an agent wrote (the judge reads that one). A **broad** rule does
+line runs in, and not where the line runs a program an agent wrote (the judge reads that one) - nor an
+interpreter's or a runner's line whose file KOLONİ does not find (`uv run python x.py`, `npx x`): what it
+runs is not known, and the judge looks. A **broad** rule does
 not: one with no word past its program that is not an option (`npm`, `git`, `docker`, `make`, `gh`,
 `pytest -x`), or one KOLONİ would offer no rule for at all - a shell's, a wrapped line, an interpreter or a
 package runner with no script or package named, a runner's `run` or `exec` with nothing named (`bash …`,

@@ -142,15 +142,17 @@ def test_a_broad_rule_does_not_go_round_the_judge_a_narrow_one_does(
     assert asked["danger"] == "KOLONİ's judge: It installs." and len(judge.calls) == 1
 
 
+@pytest.mark.parametrize("line", ["python gen.py", "uv run python gen.py"])
 def test_a_narrow_rule_does_not_go_round_the_judge_for_a_program_an_agent_wrote(
-    judging, wait_run, project_dir
+    judging, wait_run, project_dir, line
 ):
-    # (no rule covers what an agent wrote - W2: the judge reads it)
+    # (no rule covers what an agent wrote - W2: the judge reads it; a runner's line whose file
+    # KOLONİ does not find - `uv run python x.py` - is judged too, what it runs not known)
     client, _lead, judge, _executor = judging(
         [
             text("ok"),
             write("gen.py", "print('AGENTS-7731')\n"),
-            cmd("python gen.py"),
+            cmd(line),
             text("done"),
         ],
         [said("fine")],
@@ -159,7 +161,7 @@ def test_a_narrow_rule_does_not_go_round_the_judge_for_a_program_an_agent_wrote(
     (project_dir / "gen.py").write_text("print('mine')\n", encoding="utf-8")
     pid, cid, first = go(client, project_dir)
     wait_run(client, cid, first)
-    rule(client, pid, cid, "python gen.py")
+    rule(client, pid, cid, line)
     run_id = again(client, cid)
     (ran,) = wait_run(client, cid, run_id)["commands"]
     assert ran["status"] == "exited" and len(judge.calls) == 1

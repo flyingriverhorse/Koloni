@@ -22,6 +22,7 @@ from app.commands import (
     _INTERPRETER,
     _SHELLS,
     _commands_in,
+    _hands_on,
     _in_a_shell,
     _parts,
     _program,
@@ -574,7 +575,11 @@ class RiskJudgeMixin:
             (None, False) if plain and ordinary or not known else _named_file(root, command, cwd)
         )
         if path is None:
-            return plain, None, None, "", False
+            # (a ruled interpreter's or runner's line whose file is not found - `uv run python
+            # x.py`, `npx x` - is judged: what it runs is not known. shortcut: a tool's own build
+            # (`go run .`, `cargo run`) and what a found file runs in turn are not looked at)
+            unknown = ruled and not ordinary and _hands_on(command)
+            return plain and not unknown, None, None, "", False
         shown, digest = _program_read(path, root)
         written = _agents(self._factory, ctx.cid, root, path, scratch=False)
         if not (written or in_scratch(shown[0])):
