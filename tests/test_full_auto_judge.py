@@ -195,7 +195,7 @@ def test_a_refused_line_is_refused_again_in_the_turn_unasked(judging, wait_run, 
     assert len(judge.calls) == 1 and lead.calls[2][-1]["content"] == REFUSED
 
 
-CAPPED = "Full auto's judge refused 3 commands this turn; the next risky one asks you."
+CAPPED = "Full auto's judge refused 3 commands in a row this turn; each risky one asks you now."
 
 
 def test_after_three_refusals_in_a_turn_the_next_risky_one_is_its_card(
@@ -226,6 +226,62 @@ def test_after_three_refusals_in_a_turn_the_next_risky_one_is_its_card(
     ).json()["run"]["id"]
     snap = wait_run(client, cid, run_id)
     assert snap["commands"][-1]["status"] == "refused" and len(judge.calls) == 5
+
+
+MAILS = said("risky", "It mails the logs.")
+
+
+def test_a_command_that_ran_ends_a_row_of_refusals(judging, wait_run, project_dir):
+    # (0.1.10: 3 in a row, as Claude Code's auto mode - the fourth risky one in a turn was a card,
+    # however far apart the refusals; a command that runs ends a row)
+    client, _lead, _judge, executor = judging(
+        [
+            cmd("python v1.py", id="k1"),
+            cmd("python ok.py", id="k2"),
+            *(cmd(f"python v{n}.py", id=f"k{n + 1}") for n in (2, 3, 4, 5)),
+            text("left it"),
+        ],
+        [MAILS, said("fine"), *[MAILS] * 4],
+        [Script([])],
+    )
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    snap = wait_run(client, cid, run_id)
+    statuses = [one["status"] for one in snap["commands"]]
+    assert statuses == ["refused", "exited", "refused", "refused", "refused", "rejected"], statuses
+    assert asked["command"] == "python v5.py"
+    assert koloni_lines(client, cid) == [CAPPED]
+    assert [one[0] for one in executor.started] == ["python ok.py"]
+
+
+def test_twenty_refusals_in_a_turn_ask_however_far_apart(
+    judging, wait_run, project_dir, monkeypatch
+):
+    # (review of K1: refuse, run something, refuse... never reaches 3 in a row - 20 in all do,
+    # here 3)
+    monkeypatch.setattr(risk_judge, "MOST_REFUSED_IN_A_TURN", 3)
+    client, _lead, _judge, executor = judging(
+        [
+            cmd("python v1.py", id="k1"),
+            cmd("python ok1.py", id="k2"),
+            cmd("python v2.py", id="k3"),
+            cmd("python ok2.py", id="k4"),
+            cmd("python v3.py", id="k5"),
+            cmd("python v4.py", id="k6"),
+            text("left it"),
+        ],
+        [MAILS, said("fine"), MAILS, said("fine"), MAILS, MAILS],
+        [Script([])] * 2,
+    )
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    snap = wait_run(client, cid, run_id)
+    assert asked["command"] == "python v4.py"
+    assert [one["status"] for one in snap["commands"]].count("refused") == 3
+    assert koloni_lines(client, cid) == [
+        "Full auto's judge refused 3 commands this turn; each risky one asks you now."
+    ]
+    assert len(executor.started) == 2
 
 
 def test_the_refusals_are_counted_by_all_the_turns_agents(judging, wait_run, project_dir):

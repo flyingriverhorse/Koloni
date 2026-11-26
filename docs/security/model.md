@@ -234,8 +234,8 @@ What is not framed:
   refuses only on its own "risky" - an error, a slow answer, an unreadable one, no model to ask or one it
   may not ask now (no room, the turn's token limit) is a card, never a run nor a refusal (it fails
   closed); a refused agent is told a general reason, never the judge's sentence (it read your messages,
-  and would guide the next try), and after 3 refusals in a turn, by any of its agents, the next risky
-  command is a card; what it lets by runs as Full auto ran before it: a model's "fine" can be wrong; it reads the first 4 KB of a program an agent wrote, not a file that
+  and would guide the next try), and after 3 refusals in a row (a command that runs ends a row) or 20
+  in a turn, by any of its agents, the rest of the turn's risky commands are cards; what it lets by runs as Full auto ran before it: a model's "fine" can be wrong; it reads the first 4 KB of a program an agent wrote, not a file that
   program imports, a tool an agent changed without writing it, nor a file an agent made by copying
   (`cp x.txt x.py`); test runners and build tools run an agent's `conftest.py`, test files, plugins or
   `build.rs` on an ordinary line it is not asked about; and for a CLI run **Native** it sees only the

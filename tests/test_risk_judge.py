@@ -12,6 +12,7 @@ from app.risk_judge import (
     kept,
     ordinary,
     prompt,
+    refusals,
     risky_unasked,
     verdict,
 )
@@ -190,3 +191,22 @@ def test_earlier_commands_are_cut_and_one_with_orders_is_a_card_unasked():
 def test_a_line_is_kept_only_with_its_key(record, want):
     # (what the card's box and `_risk_approved` both go by)
     assert kept(record) is want
+
+
+@pytest.mark.parametrize(
+    ("turn", "want"),
+    [
+        ([], (0, 0, False)),
+        ([(True, False)] * 2, (2, 2, False)),
+        ([(True, False)] * 3, (3, 3, True)),
+        # (a command that started ends a row; one turned down, refused by the list or waiting not)
+        ([(True, False), (False, True), (True, False), (True, False)], (2, 3, False)),
+        ([(True, False), (False, False), (True, False), (True, False)], (3, 3, True)),
+        # (once reached, the rest of the turn asks: a command that ran after does not lift it)
+        ([(True, False)] * 3 + [(False, True)], (0, 3, True)),
+        ([(True, False), (False, True)] * 19, (0, 19, False)),
+        ([(True, False), (False, True)] * 20, (0, 20, True)),
+    ],
+)
+def test_refusals_in_a_row_and_in_a_turn(turn, want):
+    assert refusals(turn) == want

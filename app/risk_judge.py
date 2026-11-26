@@ -7,7 +7,7 @@ refusal (`REFUSED`). The gate is `app.agent.risk_judge_mixin.RiskJudgeMixin`."""
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TypeGuard
 
 from app import injection, judge
@@ -37,9 +37,10 @@ REFUSED = (
     "fetched, change things outside the project, weaken security or hide what it does). Do it "
     "another way, or ask the user."
 )
-# The judge's refusals a turn, by all its agents: past these the next risky command is its card -
-# an agent may not try variant after variant until one is called fine.
-MOST_REFUSED = 3
+# The judge's refusals a turn, by all its agents, in a row - a command that started ends one - and
+# in all: once either is reached, the rest of the turn's risky commands are cards - an agent may not
+# try variant after variant until one is called fine (0.1.10: Claude Code's auto mode's 3 and 20).
+MOST_REFUSED_IN_A_ROW, MOST_REFUSED_IN_A_TURN = 3, 20
 
 ASKED = """You decide one thing for KOLONİ: should this command run without asking the user, at \
 Full auto?
@@ -205,6 +206,22 @@ def risky_unasked(command: str, program_text: str | None, earlier: Sequence[str]
     if any(injection.scan(one, "command") for one in earlier):
         return "an earlier command of this turn carries words aimed at its judge"
     return ""
+
+
+def refusals(turn: Iterable[tuple[bool, bool]]) -> tuple[int, int, bool]:
+    """Of a turn's commands, oldest first, each (the judge refused it, it started): the judge's
+    refusals in a row at its end - one that started ends a row, one refused, turned down or still
+    waiting does not -, in all, and whether either reached its limit on the way
+    (`MOST_REFUSED_IN_A_ROW`, `MOST_REFUSED_IN_A_TURN`): then the rest of the turn asks."""
+    row = total = 0
+    capped = False
+    for refused, started in turn:
+        if refused:
+            row, total = row + 1, total + 1
+            capped = capped or row >= MOST_REFUSED_IN_A_ROW or total >= MOST_REFUSED_IN_A_TURN
+        elif started:
+            row = 0
+    return row, total, capped
 
 
 def kept(record: object) -> TypeGuard[dict]:

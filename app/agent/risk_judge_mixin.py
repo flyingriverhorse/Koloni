@@ -73,10 +73,9 @@ UNREAD = "its answer could not be read"
 FAILED = "it could not be asked"
 NOT_LOOKED = "it could not look at this command"
 NO_REASON = risk_judge.NO_REASON
-# Said once a turn where the judge refused `risk_judge.MOST_REFUSED`: the next risky one is a card.
-CAPPED = "Full auto's judge refused {count} commands this turn; the next risky one asks you."
-# The key of the turn's count of them in its `_risk_cache` - no line's key is one word long.
-_REFUSED_COUNT = ("refused",)
+# Said once a turn where the judge's refusals reach `risk_judge.refusals`' limits: the rest of the
+# turn's risky commands are cards.
+CAPPED = "Full auto's judge refused {count} this turn; each risky one asks you now."
 
 # An option word of an interpreter's after which the line holds its code itself (`python -c`,
 # `node -e`, `-p`, `-r`): no file of its own runs (`python -m x` is read as its module's file). A
@@ -469,6 +468,15 @@ def _program_read(path: Path, root: Path) -> tuple[tuple[str, str, int], str]:
     return (rel, head.decode("utf-8", "replace"), left), _digest(path)
 
 
+def _refused(judged: object) -> bool:
+    """Whether a command's record of the judge is its refusal (Refuse and go on)."""
+    return (
+        isinstance(judged, dict)
+        and judged.get("kind") == "risk"
+        and judged.get("verdict") == "refuse"
+    )
+
+
 class _Seen(NamedTuple):
     """What of a line besides it the judge goes by: where it runs (`root`, `cwd`), the file it
     runs by its name (`_named_file`; None: none found, or its folder no fact), that program as
@@ -642,23 +650,34 @@ class RiskJudgeMixin:
         refuses such a one (`Project.judge_risky`, read at each command): no card, its record's
         verdict "refuse" - the command is not run and its agent is told so. Any other card stays
         one - KOLONİ's own before it was asked, or one the model gave no verdict for (fails
-        closed: the user decides) -, and so does each after `risk_judge.MOST_REFUSED` in the turn,
-        counted by all its agents (said once in the chat: `CAPPED`). The turn's kept verdict
-        stays "risky" (a new record)."""
+        closed: the user decides) -, and so does each once the turn's refusals, by all its agents,
+        reached `risk_judge.refusals`' limits - 3 in a row (a command that started ends a row), 20
+        in all - read from the turn's records (said once in the chat: `CAPPED`). The turn's kept
+        verdict stays "risky" (a new record).
+        shortcut: two commands judged at once both read the records before either refusal is
+        kept - a row may go one past its limit; hold a count in memory if that is seen."""
         if not (record and record["looked"] and record["verdict"] == "risky"):
             return why, record
         with self._factory() as session:
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             if project is None or project.judge_risky != "refuse":
                 return why, record
-        cache = self._risk_cache.setdefault(ctx.run_id, {})
-        counted = cache.get(_REFUSED_COUNT)
-        count = counted["count"] if isinstance(counted, dict) else 0
-        if count >= risk_judge.MOST_REFUSED:
+            turn = session.execute(
+                select(Command.judged, Command.started_at)
+                .where(Command.run_id == ctx.run_id)
+                .order_by(Command.created_at, literal_column("commands.rowid"))
+            ).all()
+        row, total, capped = risk_judge.refusals(
+            (_refused(judged), started is not None) for judged, started in turn
+        )
+        if capped:
             return why, record
-        cache[_REFUSED_COUNT] = {"count": count + 1}
-        if count + 1 == risk_judge.MOST_REFUSED:
-            self._koloni_line(ctx.cid, ctx.run_id, CAPPED.format(count=count + 1))
+        if row + 1 >= risk_judge.MOST_REFUSED_IN_A_ROW:
+            self._koloni_line(
+                ctx.cid, ctx.run_id, CAPPED.format(count=f"{row + 1} commands in a row")
+            )
+        elif total + 1 >= risk_judge.MOST_REFUSED_IN_A_TURN:
+            self._koloni_line(ctx.cid, ctx.run_id, CAPPED.format(count=f"{total + 1} commands"))
         return "", {**record, "verdict": "refuse"}
 
     def _risk_no_room(self: "AgentRunner", session, ctx: Ctx, picked, project) -> str:

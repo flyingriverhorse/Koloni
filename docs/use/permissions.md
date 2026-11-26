@@ -421,10 +421,12 @@ agent read, and the secrets KOLONİ knows are masked first.
   Ready for you lists it in its **Decided for you** column with the judge's sentence until you click OK
   (the top bar's pill says "1 decided" and opens it; so does the chat's one line about it). Where KOLONİ keeps the line (see **Its card**
   below for which lines it keeps), the same line is refused again in that turn without asking the model;
-  any other line is asked about each time it runs. After **3** refusals in a turn - counted for all its
-  agents, sub-agents too - the next risky command waits for you on its card, and the chat says once
-  "Full auto's judge refused 3 commands this turn; the next risky one asks you.": an agent cannot try
-  variant after variant until one is called fine.
+  any other line is asked about each time it runs. After **3** refusals in a row - counted for all its
+  agents, sub-agents too; a command that runs ends a row, one refused, turned down or waiting does not -
+  or **20** in the turn, as Claude Code's auto mode, each risky command waits for you on its card for the
+  rest of the turn, and the chat says once "Full auto's judge refused 3 commands in a row this turn; each
+  risky one asks you now." ("… refused 20 commands this turn; …"): an agent cannot try variant after
+  variant until one is called fine. A new turn starts again at none.
 - **Ask me** - it waits for you on a card that says **KOLONİ's judge: …**, the model's one sentence; once
   answered, that sentence stays under the command's row.
 

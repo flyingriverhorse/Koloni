@@ -52,7 +52,7 @@ const JUDGE_RISKY: [value: Project['judge_risky'], label: string][] = [
   ['ask', 'Ask me'],
 ]
 const RISKY_WHY =
-  'Refuse and go on: the command does not run - its agent is told a general reason (never the judge’s sentence, which may quote your messages) and goes on another way, with no card and nothing waiting; the command’s row and Decided for you show you the sentence. After 3 refusals in a turn the next risky one waits for you on a card. Ask me: it waits for you on a card, “KOLONİ’s judge: …”. In a job while you’re away it is always parked for you, and a card the judge could not answer for (no answer in time, none it could read, no room to ask) waits at either.'
+  'Refuse and go on: the command does not run - its agent is told a general reason (never the judge’s sentence, which may quote your messages) and goes on another way, with no card and nothing waiting; the command’s row and Decided for you show you the sentence. After 3 refusals in a row (a command that ran ends a row) or 20 in a turn, each risky one waits for you on a card for the rest of the turn. Ask me: it waits for you on a card, “KOLONİ’s judge: …”. In a job while you’re away it is always parked for you, and a card the judge could not answer for (no answer in time, none it could read, no room to ask) waits at either.'
 
 /** The Scout at a turn's end (6 Nov): who it is and what it costs, in sight; the rest behind ⓘ. */
 const SUGGEST_SHOWN =
