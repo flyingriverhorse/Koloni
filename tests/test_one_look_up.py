@@ -33,8 +33,10 @@ def test_recall_and_lookup_offered_together_are_one_recall_with_a_topic():
     assert knows.look_tool({"recall"}, ["recall"]) is None
 
 
-def _runner(read_only=()):
+def _runner(read_only=(), refused=False):
     async def lookup(ctx, args):
+        if refused:
+            raise ToolError("the Coder role uses no knowledge here any more")
         return f"pages for {args['question']} ({args['topic']})"
 
     return SimpleNamespace(
@@ -61,3 +63,9 @@ def test_each_agent_looks_only_in_the_halves_it_holds():
     assert _look(_runner({"a"}), both, "recall", {"query": "q"}) == "pages for q (None)"
     with pytest.raises(ToolError):
         _look(_runner({"a"}), ["recall"], "recall", {"query": "q"})
+    # The pages refused (the role's knowledge gone meanwhile): what the memory found stands.
+    assert _look(_runner(refused=True), both, "recall", {"query": "q"}) == (
+        "memory for q\n\nYour knowledge's pages: the Coder role uses no knowledge here any more"
+    )
+    with pytest.raises(ToolError):
+        _look(_runner(refused=True), both, "lookup", {"question": "q"})

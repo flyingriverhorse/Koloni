@@ -365,7 +365,14 @@ class MemoryMixin:
             # (In a thread: it reads the memory and the index of earlier turns.)
             said.append(await asyncio.to_thread(self._recall, ctx, {"query": query}))
         if pages:
-            said.append(await self._lookup(ctx, {"question": query, "topic": args.get("topic")}))
+            try:
+                said.append(
+                    await self._lookup(ctx, {"question": query, "topic": args.get("topic")})
+                )
+            except ToolError as exc:  # (what the memory found stands: the pages' refusal after it)
+                if not said:
+                    raise
+                said.append(f"Your knowledge's pages: {exc}")
         return "\n\n".join(said)
 
     def note_from_user(self: "AgentRunner", run_id: str, content: str) -> dict | str:
