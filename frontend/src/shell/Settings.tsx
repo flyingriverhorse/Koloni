@@ -487,8 +487,8 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
   )
 }
 
-/** Settings › The app › Agents, under its Save: whether the Models page offers what is experimental (0.1.8: agy, and
- *  Codex run one step at a time; 0.1.10: a CLI run Native) - kept as it is changed. */
+/** Settings › The app › Agents, under its Save: whether the Models page offers what is experimental (0.1.8: agy;
+ *  0.1.10: a CLI run Native) - kept as it is changed. */
 function ExperimentalChoice() {
   const [show, setShow] = useState<boolean | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
@@ -520,9 +520,9 @@ function ExperimentalChoice() {
         <span>
           Show experimental features
           <span className="choice-note">
-            Kept as you change it. Offers agy, Codex’s One run per model step, and Native (a CLI with its own tools)
-            under Experimental on the Models page: they are less measured than the rest. A provider already set up so
-            works either way, tagged Experimental.
+            Kept as you change it. Offers agy, and Native (a CLI with its own tools), under Experimental on the Models
+            page: they are less measured than the rest. A provider already set up so works either way, tagged
+            Experimental.
           </span>
         </span>
       </label>

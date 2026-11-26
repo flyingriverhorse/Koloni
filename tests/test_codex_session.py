@@ -287,9 +287,10 @@ def test_it_is_held_as_a_session_cli_not_as_one_with_tools_of_its_own():
     assert not _needs_its_tools(session, ["read_file", "list_dir"])  # (no `looks_by_running`)
 
 
-def test_session_is_codexs_default_and_a_saved_step_is_kept():
+def test_session_is_codexs_default_and_a_saved_step_runs_as_one():
     assert mode_of(Provider(kind="codex_cli", mode=None)) == "session"
-    assert mode_of(Provider(kind="codex_cli", mode="step")) == "step"
+    # (0.1.10: Codex step by step is cut; a row saved so is a session.)
+    assert mode_of(Provider(kind="codex_cli", mode="step")) == "session"
 
 
 def test_an_item_whose_type_is_no_name_ends_the_session_too():

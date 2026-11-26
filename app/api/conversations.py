@@ -595,15 +595,6 @@ def _delete_for_good(session: Session, ids: list[str]) -> None:
             column = table.c.get(name)
             if column is not None and column.nullable and not column.foreign_keys:
                 session.execute(update(table).where(column.in_(gone)).values({name: None}))
-    # (Their vectors first, 22c: the index gives a row's number again once the row is gone.)
-    session.execute(
-        text(
-            "DELETE FROM embeddings WHERE kind = 'turn' AND record_id IN (SELECT CAST(rowid AS "
-            "TEXT) "
-            "FROM said_in_turns WHERE conversation_id IN :ids)"
-        ).bindparams(bindparam("ids", expanding=True)),
-        {"ids": ids},
-    )
     session.execute(
         text("DELETE FROM said_in_turns WHERE conversation_id IN :ids").bindparams(
             bindparam("ids", expanding=True)

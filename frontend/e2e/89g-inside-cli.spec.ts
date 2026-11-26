@@ -79,7 +79,7 @@ test.describe('a role run inside Claude Code', () => {
     await option.check()
     // K-rol-model: it depends on the agent that opens it running in Claude Code; its card says what it costs.
     const label = panel.locator('#role-part-inside')
-    await expect(label).toContainText('Only when the agent opening it runs in Claude Code.')
+    await expect(label).toContainText('Only when the agent opening it runs in Claude Code, Native - experimental')
     await expect(label).toContainText('cheaper')
     await label.scrollIntoViewIfNeeded()
     await both(page, label, '89g-option')

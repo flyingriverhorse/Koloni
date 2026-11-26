@@ -45,7 +45,7 @@ def test_a_plain_turn_has_one_lead_agent_that_owns_its_records(make_client, wait
     agent = snap["agents"][0]
     assert (agent["role_name"], agent["status"], agent["depth"]) == ("Lead", "completed", 0)
     assert agent["parent_agent_id"] is None and agent["task"] is None
-    # (all but notify: the project has no notification address)
+    # (all but notify: the project has no desktop notifications on)
     assert agent["tools"] == [tool for tool in ALL_TOOLS if tool != "notify"]
     assert (agent["input_tokens"], agent["output_tokens"]) == (30, 9)
     assert agent["started_at"] and agent["ended_at"] and agent["run_id"] == run_id

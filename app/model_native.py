@@ -2232,7 +2232,7 @@ class CodexSessionClient(CodexNativeClient):
     # (Said of a line too long for Windows: `_fits`.)
     line_also = (
         f". As a session its line also switches {len(OFF)} tools of Codex's own off: "
-        "One run per model step or Native has a shorter one"
+        "Native has a shorter one"
     )
 
     async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, effort=None):

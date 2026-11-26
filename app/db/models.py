@@ -84,12 +84,7 @@ class Project(Base):
     # Whether a search may be handed to agy too: it cannot be held to its search tool
     # (`app.model_agy.AgySearch`), so only where the user says so.
     search_agy: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # Where `notify` posts. A secret of the user's: no response, event or record shows it.
-    notify_url: Mapped[str | None] = mapped_column(Text, default=None)
-    # The body it posts there: {"text": …} ("slack"), {"content": …} ("discord"), or
-    # the text alone ("text").
-    notify_format: Mapped[str] = mapped_column(String(8), default="slack", server_default="slack")
-    # Whether `notify` also shows on the user's own desktop.
+    # Whether `notify` shows on the user's own desktop (0.1.10: the only place it goes).
     notify_desktop: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # The most tokens a turn's agents may report together (sent + written; a question
     # KOLONİ itself asked a model for the turn counts too) before no further model step
@@ -137,12 +132,6 @@ class Project(Base):
     # 22c: the other projects of this KOLONİ whose memory and earlier turns `recall` also
     # looks in, read only (`memory.linked`); ids. Nothing of theirs is given at a start.
     memory_links: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
-    # 22c: the provider whose OpenAI-compatible server embeds the memory for a search by
-    # meaning (`app.meaning`), and the model name it is asked for; None: word search alone.
-    embedding_provider_id: Mapped[str | None] = mapped_column(String(32), default=None)
-    embedding_model: Mapped[str] = mapped_column(
-        String(200), default="text-embedding-3-small", server_default="text-embedding-3-small"
-    )
     # Folders outside the project a new chat in it starts with, as they really are (slice
     # 41; its chats' own lists since slice 86b).
     also_in: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
@@ -219,8 +208,8 @@ class Project(Base):
     ci_commands: Mapped[dict | None] = mapped_column(JSON, default=None)
     # S5a (0167): which kinds of work KOLONİ checks after a turn wrote them - {kind: on} for
     # "docs", "slides", "diagram", "data", "config", "scripts", "style" (`app.proof_kinds.KINDS`),
-    # S5b's "ui"; a kind left out is on - so a kind added later is on in every project, with no
-    # migration.
+    # S5b's "ui"; a kind left out is on, with no migration - but `proof.OFF_UNLESS_TICKED` (0.1.10:
+    # "ui", and "test", A test for the change), off.
     check_kinds: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
@@ -239,10 +228,6 @@ class Project(Base):
     # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
     # watched turn. The user's own setting, off until they allow it.
     disposable_deletes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-
-    @property
-    def has_notify_url(self) -> bool:
-        return bool(self.notify_url)
 
     @property
     def after_change_from_off(self) -> bool:
@@ -1824,18 +1809,3 @@ class AwayRun(Base):
     # What its chat had spent at Go away: not counted to its money (`app.away.spent`).
     spent_before: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
-
-
-class Embedding(Base):
-    """A vector of a memory record's words, or of what was said in an earlier turn (22c,
-    `app.meaning`): what a search by meaning compares the question's vector with. `kind`
-    "memory" with the record's id, or "turn" with the `said_in_turns` row's rowid; `model`
-    is the name the vector was asked under, and in the key: vectors of different models do
-    not compare, and two projects that embed with different models each keep their own."""
-
-    __tablename__ = "embeddings"
-    kind: Mapped[str] = mapped_column(String(8), primary_key=True)
-    record_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    project_id: Mapped[str] = mapped_column(String(32), index=True)
-    model: Mapped[str] = mapped_column(String(200), primary_key=True)
-    vector: Mapped[list] = mapped_column(JSON)

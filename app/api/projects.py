@@ -17,7 +17,6 @@ from app import (
     knowledge,
     knows,
     koloni,
-    meaning,
     project_files,
     project_map,
     shared,
@@ -40,7 +39,6 @@ from app.db.models import (
     Memory,
     Project,
     ProjectKnowledge,
-    Provider,
     Role,
     Run,
     ToolCall,
@@ -135,14 +133,14 @@ async def delete_project(
     project_id: str, request: Request, session: Session = Depends(get_session)
 ):
     """KOLONİ's record of the project gone for good, in one transaction: its chats with all
-    of their turns, its memory, knowledge, To-do, nights, usage and vectors. Not
+    of their turns, its memory, knowledge, To-do, nights and usage. Not
     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
     app's clock is.
     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
     not waited for; a row of the project it writes after the delete is refused by the foreign
-    key, and a vector stays until the next start's `tidy_db`. Wait for it here if that bites."""
+    key. Wait for it here if that bites."""
     from app.api.conversations import (  # (it imports this module)
         _cli_sessions,
         _delete_for_good,
@@ -168,7 +166,7 @@ async def delete_project(
     if chats:
         _delete_for_good(session, chats)
     session.execute(text("DELETE FROM said_in_turns WHERE project_id = :p"), {"p": project_id})
-    # Rows kept by the project's id alone (its vectors, ...).
+    # Rows kept by the project's id alone (its allowed commands, ...).
     for table in Base.metadata.sorted_tables:
         column = table.c.get("project_id")
         if column is not None and not column.foreign_keys:
@@ -675,7 +673,6 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
     for name in (
         "search_order",
         "search_agy",
-        "notify_format",
         "notify_desktop",
         "auto_notes",
         "suggest_tasks",
@@ -709,7 +706,7 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
         project.check_kinds = {**(project.check_kinds or {}), **body.check_kinds}
 
 
-def _change_memory(session: Session, project: Project, body: ProjectPatch, embedded: bool) -> None:
+def _change_memory(session: Session, project: Project, body: ProjectPatch) -> None:
     if body.memory_links is not None:
         # 22c: whose memory its recall also reads - projects of this KOLONİ, never itself.
         others = list(dict.fromkeys(body.memory_links))
@@ -717,31 +714,18 @@ def _change_memory(session: Session, project: Project, body: ProjectPatch, embed
         if project.id in others or set(others) - known:
             raise HTTPException(422, "a project to look in is another project of this KOLONİ")
         project.memory_links = others
-    if embedded:
-        # 22c: the server that embeds for a search by meaning: any provider with an address.
-        if body.embedding_provider_id is not None and not (
-            (chosen := session.get(Provider, body.embedding_provider_id)) and chosen.base_url
-        ):
-            raise HTTPException(422, "the search by meaning needs a provider with a server address")
-        project.embedding_provider_id = body.embedding_provider_id
-    if body.embedding_model is not None:
-        project.embedding_model = body.embedding_model.strip() or meaning.DEFAULT_MODEL
 
 
 def _change_addresses_and_day_note(
     request: Request, project: Project, body: ProjectPatch, noted: bool
 ) -> None:
-    for name in ("search_url", "notify_url"):
-        value = getattr(body, name)
-        if value is None:
-            continue
-        address = value.strip()
+    if body.search_url is not None:
+        address = body.search_url.strip()
         if address and not web.settable(address):
-            # Said without the address: the notification address is a secret.
             raise HTTPException(
-                422, f"{name} must be an http or https address, without a user name or password"
+                422, "search_url must be an http or https address, without a user name or password"
             )
-        setattr(project, name, address or None)
+        project.search_url = address or None
     if noted:
         if body.day_note_at and not project.day_note_at:
             # Switched on: a day it was off is no day to send late (`Triggers.day_notes`).
@@ -749,11 +733,11 @@ def _change_addresses_and_day_note(
             project.day_note_sent = max(project.day_note_sent or yesterday, yesterday)
         project.day_note_at = body.day_note_at
     # As the project is after this change: a time with nowhere to send it is never kept.
-    if project.day_note_at and not (project.notify_url or project.notify_desktop):
+    if project.day_note_at and not project.notify_desktop:
         raise HTTPException(
             422,
-            "the day's summary is sent to the notification address or the desktop "
-            "notification: keep one, or empty the summary's time",
+            "the day's summary is sent as a desktop notification: keep it on, or empty the "
+            "summary's time",
         )
 
 
@@ -771,8 +755,6 @@ async def patch_project(
         "search_order",
         "search_url",
         "search_agy",
-        "notify_url",
-        "notify_format",
         "notify_desktop",
         "measure_command",
         "git_commit",
@@ -787,7 +769,6 @@ async def patch_project(
         "continue_steps",
         "longest_command",
         "memory_links",
-        "embedding_model",
         "when_away",
         "away_minutes",
         "full_auto_judge",
@@ -813,14 +794,12 @@ async def patch_project(
     crowded = "max_agents" in body.model_fields_set  # the same: null takes it away
     noted = "day_note_at" in body.model_fields_set  # the same: null sends it no more
     budgeted = "monthly_budget" in body.model_fields_set  # the same
-    embedded = "embedding_provider_id" in body.model_fields_set  # the same: null is off
     rounds = "fix_rounds" in body.model_fields_set  # the same: null is Until it passes
     if (
         limited
         or crowded
         or noted
         or budgeted
-        or embedded
         or rounds
         or spends
         or any(getattr(body, name) is not None for name in users_own)
@@ -849,7 +828,7 @@ async def patch_project(
     if budgeted:
         project.monthly_budget = body.monthly_budget
     _change_switches(project, body, spends)
-    _change_memory(session, project, body, embedded)
+    _change_memory(session, project, body)
     _change_addresses_and_day_note(request, project, body, noted)
     changed = {
         name: getattr(project, name)

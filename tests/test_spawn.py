@@ -1119,7 +1119,7 @@ def test_a_task_with_its_breaks_written_out_reaches_the_child_and_talk_with_real
     assert snap["channel_messages"][0]["content"] == task
 
 
-# --- B-387: Codex's own tools, off in step mode ------------------------------------
+# --- B-387: Codex's own tools, off one step at a time ------------------------------
 
 REFUSED = "File reads were blocked because the tool host returned 'code-mode host is disabled'."
 
@@ -1192,8 +1192,8 @@ def test_a_lead_told_may_answer_from_what_it_knows(make_client, wait_run, projec
 
 
 FAILED = (
-    "could not work: Codex kept trying its own tools, which are off in step mode. Try "
-    "running Codex as One session per agent (Models › Codex › How it runs)."
+    "could not work: Codex kept trying its own tools, which are off when it runs one step at a "
+    "time (in a discussion, or on a Codex version not measured with KOLONİ)."
 )
 
 

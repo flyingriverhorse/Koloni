@@ -915,17 +915,24 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
 PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config", "scripts", "style")
 # (On in a recipe's Checks step unless unticked: a row's graph from before has no such key.)
 ON_UNLESS_UNTICKED = ("config", "scripts", "style")
+# 0.1.10 (the user's, 26 Nov): in a project's Check by kind of work, off unless ticked - Pages
+# (KOLONİ's browser at three widths) and A test for the change (`TestAskMixin`). A project that
+# never changed them has no key for them, so it has them off; one ticked on keeps them.
+OFF_UNLESS_TICKED = ("ui", "test")
 
 
 class Checks(NamedTuple):
     """What a turn's end gate checks (S5c): its parts `on`; its Fix rounds (0: check only; None:
-    until it passes, k-canli-016); the effective After a change (`after_change_of`); and whether
-    a recipe of the turn set its own (its Checks step's "Set for this recipe")."""
+    until it passes, k-canli-016); the effective After a change (`after_change_of`); whether
+    a recipe of the turn set its own (its Checks step's "Set for this recipe"); and whether a turn
+    that changed code and no test is asked for one (the project's A test for the change, where
+    the tests are checked - a recipe's step has no such box)."""
 
     on: frozenset[str]
     rounds: int | None
     setting: str
     own: bool
+    ask_test: bool = False
 
 
 # k-canli-016 (the user's): Until it passes - the work goes back while each round makes progress,
@@ -975,17 +982,14 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     project = session.get(Project, conversation.project_id) if conversation.project_id else None
     rounds = project.fix_rounds if project is not None else None
     kinds = dict(project.check_kinds or {}) if project is not None else {}
+    ticked = {kind: kinds.get(kind, kind not in OFF_UNLESS_TICKED) for kind in (*PARTS, "test")}
     theirs = frozenset(
         (["tests"] if setting in ("check", "tests") else [])
-        + (
-            ["review", *(kind for kind in PARTS[2:] if kinds.get(kind, True))]
-            if setting == "check"
-            else []
-        )
+        + (["review", *(kind for kind in PARTS[2:] if ticked[kind])] if setting == "check" else [])
     )
     recipes = recipe_checks(session, run)
     if all(one is None for one, _who in recipes):
-        return Checks(theirs, rounds, setting, False)
+        return Checks(theirs, rounds, setting, False, "tests" in theirs and ticked["test"])
     on: set[str] = set()
     most: int | None = 0
     for one, who in recipes:
@@ -997,7 +1001,7 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
             on, most = on | parts, _more(most, _asked(asked, rounds))
         else:
             on, most = on | parts | theirs, _more(most, rounds, _asked(asked, rounds))
-    return Checks(frozenset(on), most, setting, True)
+    return Checks(frozenset(on), most, setting, True, "tests" in on and ticked["test"])
 
 
 def with_held(turn: Checks, held: Checks) -> Checks:
@@ -1005,7 +1009,8 @@ def with_held(turn: Checks, held: Checks) -> Checks:
     turn's own and never fewer than the tests and the review, whatever the chat's switch or the
     project's After a change say now: the work goes in by this turn's end check alone. Its Fix
     rounds are the turn's."""
-    return Checks(turn.on | held.on | {"tests", "review"}, turn.rounds, "check", False)
+    on = turn.on | held.on | {"tests", "review"}
+    return Checks(on, turn.rounds, "check", False, turn.ask_test or held.ask_test)
 
 
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:

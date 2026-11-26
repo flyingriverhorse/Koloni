@@ -5,10 +5,10 @@ import { modelName } from '../shell/modelName'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { ModelNameInput } from './ModelNameInput'
-import { Choices, modesShown } from './experimental'
 import { factsText, levelsKnown, namedLevel, takesOf } from './levels'
 import type { GuideRow } from './ModelRow'
 import type { CopilotOptions, ListedModel, Mode, Props as PageProps, ProviderKind, SignIn } from './ModelsPage'
+import { Choices, modesShown } from './experimental'
 import { LogIn, RunIt } from './RunIt'
 
 const MAX_NOTE = 300
@@ -98,7 +98,7 @@ interface CliProps extends CopilotProps {
   ownServer: boolean
   copilot: boolean
   agy: boolean
-  /** Settings › The app › Agents, Show experimental features: Native and Codex's One run per model step are offered only then, or in use. */
+  /** Settings › The app › Agents, Show experimental features: Native is offered only then, or where it is saved. */
   experimental: boolean
 }
 
@@ -122,7 +122,7 @@ export function CliFields(props: CliProps) {
     copilot,
     experimental,
   } = props
-  const [usual, tried] = modesShown(kind, modes, runs, experimental)
+  const [usual, tried] = modesShown(kind, modes, provider?.mode ?? null, experimental)
   const named = (shown: Mode[]) => shown.map((mode): [Mode, string] => [mode, modeLabel(kind, mode)])
   return (
     <>

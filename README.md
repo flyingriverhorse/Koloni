@@ -40,7 +40,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
-<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model, and Cards - the command cards asked, by why"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
+<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
@@ -97,8 +97,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
   merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
-- **Money**: tokens and credits per run, plan meters for each CLI, a monthly budget per project, and
-  the command cards you were asked, by why.
+- **Money**: tokens and credits per run, plan meters for each CLI, and a monthly budget per project.
   [Usage and budgets](docs/money/usage.md)
 - **More tools**: MCP servers (each asks before it runs unless you say otherwise) and skills from a
   folder or a GitHub repository. [MCP servers](docs/tools/mcp.md) · [Skills](docs/tools/skills.md)
@@ -108,7 +107,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 | Provider | How it runs | Sign in |
 |---|---|---|
 | Claude Code | session (KOLONİ's tools over MCP) or native (experimental; goes on in its session on its own sign-in) | `claude auth login` |
-| Codex | session (KOLONİ's tools over MCP), native (experimental; goes on in its thread on its own sign-in), or step (experimental) | `codex login` |
+| Codex | session (KOLONİ's tools over MCP) or native (experimental; goes on in its thread on its own sign-in) | `codex login` |
 | GitHub Copilot CLI | session or native (experimental; goes on in its session; asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing; on GitHub's plan, only the models your Copilot plan lists | `gh auth login` |
 | agy (experimental) | reads (its default) or native | agy's own sign-in |
 | llama.cpp `llama-server` | OpenAI-compatible, started with `--jinja`; the Server tab starts and stops it | — |

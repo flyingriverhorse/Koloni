@@ -19,11 +19,9 @@ NO_PARTS = (422, "a chat with no folder has no parts")
 DOCKER = (422, "choose a Docker image first")
 NO_PR = (422, "a pull request cannot be opened: gh is not here")
 LINKS = (422, "a project to look in is another project of this KOLONİ")
-EMBEDS = (422, "the search by meaning needs a provider with a server address")
 DAY_NOTE = (
     422,
-    "the day's summary is sent to the notification address or the desktop "
-    "notification: keep one, or empty the summary's time",
+    "the day's summary is sent as a desktop notification: keep it on, or empty the summary's time",
 )
 
 
@@ -203,8 +201,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "search_url": " http://127.0.0.1:9/search ",
         "search_order": "cli",
         "search_agy": True,
-        "notify_url": "http://127.0.0.1:9/hook",
-        "notify_format": "discord",
         "notify_desktop": True,
         "turn_token_limit": 5000,
         "max_agents": 3,
@@ -215,8 +211,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "finish_way": "pull_request",
         "auto_notes": True,
         "memory_links": [],
-        "embedding_provider_id": None,
-        "embedding_model": " embed ",
         "suggest_tasks": True,
         "suggest_tier": "fast",
         "also_in": [str(tmp_path / "other")],
@@ -250,15 +244,12 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "docker_image": "python:3.12",
         "search_url": "http://127.0.0.1:9/search",
         "measure_command": "score",
-        "embedding_model": "embed",
         "pass_env": "A_KEY",
         "also_in": [str((tmp_path / "other").resolve())],
     }
-    del want["notify_url"]  # (a secret: no answer shows it)
     assert {name: out[name] for name in want} == want
-    # (It was kept all the same: with the desktop off, the day's summary still has where to go.)
-    assert answer(client, f"/api/projects/{pid}", {"notify_desktop": False})[0] == 200
-    assert answer(client, f"/api/projects/{pid}", {"notify_url": ""}) == DAY_NOTE
+    # (With the desktop off the day's summary has nowhere to go: not kept.)
+    assert answer(client, f"/api/projects/{pid}", {"notify_desktop": False}) == DAY_NOTE
     # (What an empty text and a null take away again.)
     status, out = answer(
         client,
@@ -267,7 +258,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
             "measure_command": " ",
             "pass_env": "",
             "search_url": "",
-            "embedding_model": " ",
             "turn_token_limit": None,
             "max_agents": None,
             "monthly_budget": None,
@@ -295,8 +285,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         {"search_order": "cli"},
         {"search_url": ""},
         {"search_agy": False},
-        {"notify_url": ""},
-        {"notify_format": "text"},
         {"notify_desktop": False},
         {"measure_command": ""},
         {"git_commit": False},
@@ -310,7 +298,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         {"lead_work": "delegates"},
         {"continue_steps": 5},
         {"memory_links": []},
-        {"embedding_model": ""},
         {"when_away": "waits"},
         {"away_minutes": 0},
         {"spawn_approval": "auto"},
@@ -327,7 +314,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         {"day_note_at": None},
         {"monthly_budget": None},
         {"after_change": "nothing"},
-        {"embedding_provider_id": None},
         {"teams_mode": "none"},
         {"teams": []},
         {"also_in": []},
@@ -359,19 +345,15 @@ def test_a_project_is_refused_for_the_first_rule_it_breaks(client, pid, missing,
         {"notify_desktop": True},
         {"memory_links": [pid]},
     )
-    embeds, search, notify = (
-        {"embedding_provider_id": "nope"},
-        {"search_url": "ftp://x/"},
-        {"notify_url": "http://me:secret@x/"},
-    )
+    search = {"search_url": "ftp://x/"}
     day = {"day_note_at": "09:00"}
     # Where its commands run is anybody's to say - and looked at before where the rest is from.
     assert answer(client, url, {"docker_image": "", "docker_network": True}, own=False)[0] == 200
-    assert answer(client, url, {**docker, "notify_url": "http://127.0.0.1:9/"}, own=False) == DOCKER
+    assert answer(client, url, {**docker, "search_url": "http://127.0.0.1:9/"}, own=False) == DOCKER
     assert answer(client, url, {**docker, **teams}) == DOCKER
     # Where each of the rest is from is asked before it is looked at: what would be refused
     # from the app's own page is, from anywhere else, refused for that.
-    for later in (pull, desktop, links, embeds, search, notify, day):
+    for later in (pull, desktop, links, search, day):
         assert answer(client, url, later, own=False) == NO_ORIGIN, later
         assert answer(client, url, {"measure_command": "x", **later}, own=False) == NO_ORIGIN, later
     assert answer(client, url, teams) == (422, "unknown team")
@@ -383,14 +365,12 @@ def test_a_project_is_refused_for_the_first_rule_it_breaks(client, pid, missing,
     assert answer(client, url, desktop) == (422, app.web.NO_DESKTOP)
     assert answer(client, url, {**desktop, **links}) == (422, app.web.NO_DESKTOP)
     assert answer(client, url, links) == LINKS
-    assert answer(client, url, {"memory_links": ["nope"], **embeds}) == LINKS
-    assert answer(client, url, embeds) == EMBEDS
-    assert answer(client, url, {**embeds, **search}) == EMBEDS
-    assert answer(client, url, {**search, **notify}) == address("search_url")
-    assert answer(client, url, {**notify, **day}) == address("notify_url")
+    assert answer(client, url, {"memory_links": ["nope"], **search}) == LINKS
+    assert answer(client, url, {**search, **day}) == address("search_url")
     assert answer(client, url, day) == DAY_NOTE
     # (As the project is after the change: with somewhere to send it, the time is kept.)
-    status, out = answer(client, url, {**day, "notify_url": "http://127.0.0.1:9/hook"})
+    monkeypatch.setattr(app.web, "has_desktop", lambda: True)
+    status, out = answer(client, url, {**day, **desktop})
     assert (status, out["day_note_at"]) == (200, "09:00")
-    assert answer(client, url, {"notify_url": ""}) == DAY_NOTE
+    assert answer(client, url, {"notify_desktop": False}) == DAY_NOTE
     assert answer(client, "/api/projects/nope", docker) == (404, "project not found")

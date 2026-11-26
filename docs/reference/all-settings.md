@@ -19,8 +19,8 @@ message box. See [Settings](../settings.md#this-chat).
 | **Commands and secrets** | This machine / Docker container · Image · Allow network access · Longest command (minutes) · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
 | **Runs without asking** | Sites agents open · Commands and requests, by chat |
 | **Checks and git** | After a change · Fix rounds · Then a stronger model · Check by kind of work · Found by KOLONİ · Measure command · Save each sub-agent's work as a git commit · How a team's finished branch reaches yours |
-| **Memory and web** | Note what the work found, by itself · Search by meaning with · Also look in the memory of · Search address (SearXNG) · Otherwise search with · Let agy search too |
-| **Notifications** | Notification address · Post it as · Show a desktop notification · Send the day's summary at |
+| **Memory and web** | Note what the work found, by itself · Also look in the memory of · Search address (SearXNG) · Otherwise search with · Let agy search too |
+| **Notifications** | Show a desktop notification · Send the day's summary at |
 | **Slash commands** | Name · What it does · Text it puts in the box · Hand it to a role · In every project |
 | **This folder** | Project map · This folder's rules |
 
@@ -57,7 +57,7 @@ topic**, **Chat settings** (this chat's sheet) and **More** (**Work together…*
 |---|---|
 | **Agents** | Each role's model, tools, knowledge, on / off; teams' stages and default recipe; recipes. See [Roles](../agents/roles.md). |
 | **Tools** | Built-in tools on / off; each MCP server's trust, tools and roles; each skill's roles and scripts. See [Built-in tools](../tools/built-in.md). |
-| **Memory** | Your preferences · This project's rules · Search by meaning with. See [Memory](../memory.md). |
+| **Memory** | Your preferences · This project's rules. See [Memory](../memory.md). |
 | **Knowledge** | Each topic's sources, money limit, model and page cap. See [Knowledge](../knowledge.md). |
 | **Usage** | Prices. See [Usage and budgets](../money/usage.md). |
 

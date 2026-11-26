@@ -96,8 +96,6 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       search_url: null,
       search_order: 'builtin',
       search_agy: false,
-      has_notify_url: false,
-      notify_format: 'slack',
       notify_desktop: false,
     },
     ...{
@@ -123,8 +121,6 @@ test('the monthly budget is set and taken away in Limits and money, an amount ab
       judge_risky: 'refuse',
       disposable_deletes: false,
       memory_links: [],
-      embedding_provider_id: null,
-      embedding_model: 'text-embedding-3-small',
       git_commit: false,
       finish_way: null,
       auto_notes: false,

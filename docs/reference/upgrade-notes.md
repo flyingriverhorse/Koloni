@@ -24,6 +24,12 @@ Only what needs your attention after an update; everything else is in the [Chang
   in **How it runs** only with **Show experimental features** on (Settings › The app › Agents; the switch
   that was **Show experimental CLIs**, kept as you had it). A provider you already run Native keeps working
   as before, its card tagged **Experimental**. Nothing in the database changes.
+- **Pages and A test for the change are off unless ticked.** In Settings › This project › Checks
+  and git › **Check by kind of work**, a project that never changed **Pages** has it off from now
+  on, and **A test for the change** is a new box, off. A turn that wrote a page says "Not checked:
+  pages switched off for this project", and one that changed code and no test says "Not checked: a
+  test for the change switched off for this project". Tick them to have them as before (see
+  [What KOLONİ checked](../use/checked.md#a-test-for-the-change)). Nothing in the database changes.
 - **The Word, Excel, PowerPoint and 3D model previews are gone.** Such a file is still in the
   Workspace's files and opens there as any other file that is not a page or a picture: its text where
   it is text of 256 KB at most (an OBJ, a text STL, a glTF), else "Not text: there is no code to show."
@@ -44,6 +50,20 @@ Only what needs your attention after an update; everything else is in the [Chang
   started stay in their chats as they were. What still starts by itself: ☾ Away's jobs, a chat's queue of
   To-do tasks and the day's summary. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that
   copy back in place of `runtime/data/koloni.db`; your triggers come back with it.
+- **Codex's One run per model step is gone.** A Codex provider saved so runs as **One session per agent**,
+  and its window shows that. On a model server of your own a Codex session is not yet measured: try it
+  there knowing that, or set **How it runs** to **Native**. See
+  [Set up a CLI](../models/setup-cli.md#how-it-runs).
+- **The notification address is gone.** The database upgrade deletes a project's web hook address and
+  the form it was posted in: notifications go to the desktop alone (Settings › This project ›
+  Notifications › **Show a desktop notification**, Windows only). A project whose day's summary went
+  only to the address has its summary's time emptied: switch the desktop on and set the time again.
+  Going back to 0.1.9 brings neither back. The copies in `runtime/data/backups/` made before the
+  upgrade and at the first start of a day still hold the address: delete them once you no longer
+  need them if it is a secret.
+- **The search by meaning is gone.** The database upgrade deletes the vectors it kept and the provider
+  and model a project chose for it. Search deeper and an agent's recall match words, as before. Going
+  back to 0.1.9 brings the setting back off.
 
 ### 0.1.8
 

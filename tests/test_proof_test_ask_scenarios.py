@@ -73,6 +73,23 @@ def test_a_reason_instead_of_a_test_is_quoted_and_ends_it(make_client, wait_run,
     assert checked(snap)[-1]["state"] == "note"
 
 
+def test_a_project_with_the_box_off_is_not_asked(make_client, wait_run, project_dir):
+    # (0.1.10: A test for the change is off unless ticked - this module ticks it by default,
+    # conftest; a project that unticked it is never asked)
+    executor = ScriptedExecutor([PASS])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(
+        client, project_dir, check_command="python check.py", check_kinds={"test": False}
+    )
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert asked(model) == 0
+    assert texts(snap) == [
+        "Tests passed: python check.py - 4 passed in 0.1s",
+        "Not checked: a test for the change switched off for this project",
+    ]
+
+
 def test_a_turn_with_a_test_changed_is_not_asked(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([PASS])
     client, model = make_client(

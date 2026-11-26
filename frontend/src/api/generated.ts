@@ -690,27 +690,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/cards": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Cards
-         * @description The cards asked since `since` (all without it), in one project's chats or in all; for one
-         *     project, the rules its approvals suggest too.
-         */
-        get: operations["read_cards_api_cards_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/catalog": {
         parameters: {
             query?: never;
@@ -2487,14 +2466,14 @@ export interface paths {
         /**
          * Delete Project
          * @description KOLONİ's record of the project gone for good, in one transaction: its chats with all
-         *     of their turns, its memory, knowledge, To-do, nights, usage and vectors. Not
+         *     of their turns, its memory, knowledge, To-do, nights and usage. Not
          *     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
          *     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
          *     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
          *     app's clock is.
          *     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
          *     not waited for; a row of the project it writes after the delete is refused by the foreign
-         *     key, and a vector stays until the next start's `tidy_db`. Wait for it here if that bites.
+         *     key. Wait for it here if that bites.
          */
         delete: operations["delete_project_api_projects__project_id__delete"];
         options?: never;
@@ -2683,29 +2662,6 @@ export interface paths {
         get: operations["project_budget_api_projects__project_id__budget_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/card-suggestions/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add Suggested Rule
-         * @description Cards measured (0.1.7): the user's click on a rule the Usage page suggests - by its key
-         *     alone, never text: its line, KOLONİ's, found again among what this project's approvals
-         *     suggest (`cards.suggestions`), at the end of the project's rules, saved as `set_rules` saves
-         *     them. Once there, the same click changes nothing.
-         */
-        post: operations["add_suggested_rule_api_projects__project_id__card_suggestions__key__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3172,8 +3128,7 @@ export interface paths {
         /**
          * Search Memory
          * @description What an agent's `recall` would find for these words: the same searches, so the
-         *     user sees what an agent would be shown. Words that say nothing find nothing. (Not
-         *     async: a search by meaning asks a server, 22c.)
+         *     user sees what an agent would be shown. Words that say nothing find nothing.
          */
         get: operations["search_memory_api_projects__project_id__memory_search_get"];
         put?: never;
@@ -5852,79 +5807,6 @@ export interface components {
             provider_id: string;
         };
         /**
-         * CardReasonOut
-         * @description Cards measured: the cards asked for one reason (`app.cards.REASONS`), and their answers.
-         */
-        CardReasonOut: {
-            /** Approved */
-            approved: number;
-            /** Asked */
-            asked: number;
-            /** Reason */
-            reason: string;
-            /** Rejected */
-            rejected: number;
-            /** Said */
-            said: string;
-            /** Unanswered */
-            unanswered: number;
-        };
-        /**
-         * CardSuggestionOut
-         * @description A delete the user approved unchanged `times` times, and the line for the project's rules
-         *     that would spare its card at Full auto with Check what I said first on - KOLONİ's words.
-         */
-        CardSuggestionOut: {
-            /** Command */
-            command: string;
-            /** Cwd */
-            cwd: string;
-            /** Key */
-            key: string;
-            /** Rule */
-            rule: string;
-            /** Times */
-            times: number;
-        };
-        /**
-         * CardsCheckedOut
-         * @description "Check what I said first"'s outcomes: ran on a line of the user's, not run, asked.
-         */
-        CardsCheckedOut: {
-            /** Ask */
-            ask: number;
-            /** Refuse */
-            refuse: number;
-            /** Run */
-            run: number;
-        };
-        /**
-         * CardsOut
-         * @description Cards measured (0.1.7): the command cards asked in a period, answered how, by reason - only
-         *     cards from 0.1.7 on carry one - the seconds to an answer on average (None: none answered),
-         *     the check's outcomes, and, for one project, the rules it suggests.
-         */
-        CardsOut: {
-            /** Approved */
-            approved: number;
-            /** Asked */
-            asked: number;
-            /** By Reason */
-            by_reason: components["schemas"]["CardReasonOut"][];
-            checked: components["schemas"]["CardsCheckedOut"];
-            /** Decide Seconds */
-            decide_seconds: number | null;
-            /** Rejected */
-            rejected: number;
-            /**
-             * Suggestions
-             * @default []
-             */
-            suggestions: components["schemas"]["CardSuggestionOut"][];
-            /** Unanswered */
-            unanswered: number;
-        };
-        /**
          * CatalogueFillIn
          * @description A provider not added yet, as the form has it so far.
          */
@@ -8382,11 +8264,6 @@ export interface components {
             agent_id: string | null;
             /** Agent Name */
             agent_name: string | null;
-            /**
-             * By Meaning
-             * @default false
-             */
-            by_meaning: boolean;
             /** Checked How */
             checked_how: string | null;
             /** Conversation Id */
@@ -8469,8 +8346,6 @@ export interface components {
          *     and speak to the words, and what was said in earlier turns.
          */
         MemorySearchOut: {
-            /** Meaning Off */
-            meaning_off?: string | null;
             /** Memory */
             memory: components["schemas"]["MemoryOut"][];
             /** Turns */
@@ -9490,10 +9365,6 @@ export interface components {
             docker_image: string | null;
             /** Docker Network */
             docker_network: boolean;
-            /** Embedding Model */
-            embedding_model: string;
-            /** Embedding Provider Id */
-            embedding_provider_id: string | null;
             /**
              * Exec Location
              * @enum {string}
@@ -9512,8 +9383,6 @@ export interface components {
             full_auto_judge: boolean;
             /** Git Commit */
             git_commit: boolean;
-            /** Has Notify Url */
-            has_notify_url: boolean;
             /**
              * Held Env
              * @description The secret variables of KOLONİ's environment its commands are not given: the
@@ -9552,11 +9421,6 @@ export interface components {
             name: string;
             /** Notify Desktop */
             notify_desktop: boolean;
-            /**
-             * Notify Format
-             * @enum {string}
-             */
-            notify_format: "slack" | "discord" | "text";
             /** Pass Env */
             pass_env: string | null;
             /** Read In */
@@ -9689,10 +9553,6 @@ export interface components {
             docker_image?: string | null;
             /** Docker Network */
             docker_network?: boolean | null;
-            /** Embedding Model */
-            embedding_model?: string | null;
-            /** Embedding Provider Id */
-            embedding_provider_id?: string | null;
             /** Exec Location */
             exec_location?: ("host" | "docker") | null;
             /** Finish Way */
@@ -9725,10 +9585,6 @@ export interface components {
             monthly_budget?: number | null;
             /** Notify Desktop */
             notify_desktop?: boolean | null;
-            /** Notify Format */
-            notify_format?: ("slack" | "discord" | "text") | null;
-            /** Notify Url */
-            notify_url?: string | null;
             /** Pass Env */
             pass_env?: string | null;
             /** Read In */
@@ -11034,11 +10890,6 @@ export interface components {
         SaidOut: {
             /** At */
             at: string | null;
-            /**
-             * By Meaning
-             * @default false
-             */
-            by_meaning: boolean;
             /** Conversation Id */
             conversation_id: string | null;
             /** Conversation Title */
@@ -13292,38 +13143,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BuiltinToolOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_cards_api_cards_get: {
-        parameters: {
-            query?: {
-                project_id?: string | null;
-                since?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CardsOut"];
                 };
             };
             /** @description Validation Error */
@@ -17070,38 +16889,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_suggested_rule_api_projects__project_id__card_suggestions__key__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RulesOut"];
                 };
             };
             /** @description Validation Error */

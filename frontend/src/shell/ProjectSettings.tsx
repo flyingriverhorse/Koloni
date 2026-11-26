@@ -37,8 +37,6 @@ export interface ProjectSettingsValues {
   search_url?: string
   search_order?: Project['search_order']
   search_agy?: boolean
-  notify_url?: string
-  notify_format?: Project['notify_format']
   notify_desktop?: boolean
   /** "HH:MM": when the day's summary is sent; null: it is not. Sent only when changed. */
   day_note_at?: string | null
@@ -90,9 +88,6 @@ export interface ProjectSettingsValues {
   auto_notes?: boolean
   /** 22c: the other projects whose memory an agent's recall also looks in (ids): the whole list. Sent only when changed. */
   memory_links?: string[]
-  /** 22c, from the Memory page: the provider whose server embeds for the search by meaning (null: off), and the model name. */
-  embedding_provider_id?: string | null
-  embedding_model?: string
   /** The extra folders a new chat in this folder starts with (slice 86b), to work and to read only in: each whole list. */
   also_in?: string[]
   read_in?: string[]
@@ -255,7 +250,6 @@ export function ProjectSettings({
     setKeptBefore(koloni?.settings_kept ?? true)
     try {
       await onSave(shown.patch)
-      shown.saved?.()
       setSaved(saving)
     } catch (err) {
       setError({ section: saving, text: errorText(err) })

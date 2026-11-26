@@ -402,7 +402,6 @@ export function memoryRecord(id: string, over: Partial<MemoryRecord> = {}): Memo
     unattended: false,
     created_at: '2026-10-05T10:00:00Z',
     last_change: null,
-    by_meaning: false,
     ...over,
   }
 }
@@ -442,7 +441,7 @@ export async function openAgentFold(name: string, root: HTMLElement = document.b
   return fold
 }
 
-/** Settings › The app › Agents' Show experimental features on, for this test: agy, Native and Codex step by step offered. Any
+/** Settings › The app › Agents' Show experimental features on, for this test: agy and Native offered. Any
  *  other GET goes where it went: to a stand-in a test set (kept after), else the real one. */
 export function showExperimental() {
   const was = api.get

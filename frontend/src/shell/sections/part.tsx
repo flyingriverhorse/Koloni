@@ -16,8 +16,6 @@ export interface Part {
   view: ReactNode
   /** Saved row by row in the section: no Save of its own. */
   own?: boolean
-  /** After its Save: what is not kept in its fields. */
-  saved?: () => void
   /** The project as "Use them" saved it: its fields show that. */
   take?: (now: Project) => void
 }

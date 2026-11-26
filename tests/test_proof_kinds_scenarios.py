@@ -172,6 +172,19 @@ def test_a_switched_off_kind_is_said_not_checked(make_client, wait_run, guide):
     assert "Not checked: documents switched off for this project" in texts(snap)
 
 
+def test_a_project_that_never_ticked_pages_says_its_page_was_not_checked(
+    make_client, wait_run, guide
+):
+    # (0.1.10: Pages are off unless ticked - this module leaves them as a project has them)
+    client, model = make_client(
+        [write("index.html", "<!doctype html><title>t</title>\n"), text("done")],
+        executor=ScriptedExecutor([PASS]),
+    )
+    cid, run_id = begin(client, guide, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert "Not checked: pages switched off for this project" in texts(snap), texts(snap)
+
+
 def test_mixed_code_and_docs_turn_has_both_lines(make_client, wait_run, guide):
     client, _model = make_client(
         [write("a.py", "x = 1\n"), write("README.md", GOOD, "w2"), text("done")],

@@ -3,7 +3,6 @@ import { errorText } from '../api/client'
 import type { MemoryRecord, MemorySearch, ProjectMemory } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
-import type { ProjectSettingsValues } from '../shell/ProjectSettings'
 import { Find } from './Find'
 import { FolderRules, type NewFact, RulesBox, WriteBox } from './forms'
 import {
@@ -45,8 +44,6 @@ interface Props {
   onReload: () => Promise<void>
   /** What an agent's `recall` would find for these words; left out, there is no search deeper. */
   onSearch?: (query: string) => Promise<MemorySearch>
-  /** 22c: saves which provider the search by meaning embeds with, and the model's name; left out, there is no picker. */
-  onMeaning?: (values: Pick<ProjectSettingsValues, 'embedding_provider_id' | 'embedding_model'>) => Promise<void>
   /** Saves the core as a Markdown file; left out when there is no project. */
   onExport?: () => Promise<void>
   /** Come from "Search in messages" (Ctrl+K), each time with a new count: the search box takes the focus, and searches the words deeper. */
@@ -164,7 +161,7 @@ function ExportButton({ onExport }: { onExport: () => Promise<void> }) {
   )
 }
 
-export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExport, searchFor, ...on }: Props) {
+export function MemoryPage({ memory, error, onReload, onSearch, onExport, searchFor, ...on }: Props) {
   const [tab, setTab] = useState<Tab>('facts')
   const [factTopic, setFactTopic] = useState('')
   const [noteTopic, setNoteTopic] = useState('')
@@ -490,14 +487,7 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
         </div>
       )}
 
-      <Find
-        key={searchFor?.n}
-        memory={memory}
-        onOpen={open}
-        onSearch={onSearch}
-        onMeaning={onMeaning}
-        searchFor={searchFor?.words}
-      />
+      <Find key={searchFor?.n} memory={memory} onOpen={open} onSearch={onSearch} searchFor={searchFor?.words} />
 
       {waits()}
 

@@ -1,12 +1,8 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import type { MemorySearch, ProjectMemory } from '../api/types'
-import { ProviderOptions } from '../models/ModelNameInput'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
-import type { ProjectSettingsValues } from '../shell/ProjectSettings'
-import { usePanel } from '../shell/usePanel'
-import { useApp } from '../state/store'
 import {
   decisionId,
   decisionOf,
@@ -24,109 +20,9 @@ import { RecordCard } from './RecordCard'
 /** Where a hit is: what waits for your word (above the tabs), or one of the tabs. */
 type Place = Tab | 'waiting'
 const PLACES = [['waiting', 'Waiting for your word'], ...TABS] as const
-type OnMeaning = (values: Pick<ProjectSettingsValues, 'embedding_provider_id' | 'embedding_model'>) => Promise<void>
 
 /** What a record of a linked project says of itself (22c): the server's words for an agent, in short. */
 const NOT_CHECKED_HERE = 'its files are not in this project: it could not be checked here'
-export const MEANING_COSTS =
-  'One embeddings request to that provider for each search (it also reads up to 50 notes, facts or earlier messages not read yet), on your plan or your bill.'
-
-/**
- * 22c: which provider's server embeds the memory for the search by meaning - any with a server
- * address (OpenAI-compatible); off, the search goes by words alone. Saved on the project.
- */
-function MeaningPicker({ onMeaning }: { onMeaning: OnMeaning }) {
-  const project = useApp(s => s.projects.find(p => p.id === s.projectId))
-  const providers = useApp(s => s.providers).filter(p => p.base_url)
-  const savedProvider = project?.embedding_provider_id ?? null
-  const savedModel = project?.embedding_model ?? 'text-embedding-3-small'
-  const [provider, setProvider] = useState(savedProvider)
-  const [model, setModel] = useState(savedModel)
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const changed = provider !== savedProvider || model.trim() !== savedModel
-
-  async function save(event: FormEvent) {
-    event.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      await onMeaning({
-        ...(provider !== savedProvider && { embedding_provider_id: provider }),
-        ...(model.trim() !== savedModel && { embedding_model: model.trim() }),
-      })
-    } catch (err) {
-      setError(errorText(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form className="memory-meaning-form" onSubmit={save} aria-label="Search by meaning">
-      <label htmlFor="meaning-provider">Search by meaning with</label>
-      <select
-        id="meaning-provider"
-        className="input"
-        value={provider ?? ''}
-        onChange={e => setProvider(e.target.value || null)}
-      >
-        <option value="">off: by words alone</option>
-        <ProviderOptions providers={providers} />
-      </select>
-      <input
-        className="input mono"
-        aria-label="Embedding model"
-        value={model}
-        maxLength={200}
-        onChange={e => setModel(e.target.value)}
-        disabled={provider === null}
-      />
-      {/* (What it spends is read before it is saved: in sight, never behind a "?".) */}
-      <span className="muted memory-hint">{MEANING_COSTS}</span>
-      <button type="submit" className="btn btn-small" disabled={busy || !changed}>
-        Save
-      </button>
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-        </div>
-      )}
-    </form>
-  )
-}
-
-/**
- * by words / by meaning ▾: the project's saved way of searching (not one search's), changed in a
- * small window. Kept on the page while closed, so a choice not saved yet is still there to save.
- */
-function MeaningButton({ on, onMeaning }: { on: boolean; onMeaning: OnMeaning }) {
-  const { open, setOpen, close, button, panel } = usePanel()
-  return (
-    <>
-      <button
-        ref={button}
-        type="button"
-        className="btn btn-small"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => (open ? close() : setOpen(true))}
-      >
-        {on ? 'by meaning' : 'by words'} ▾
-      </button>
-      <div
-        ref={panel}
-        tabIndex={-1}
-        className="allow-list-panel memory-meaning"
-        role="dialog"
-        aria-label="How the memory is searched"
-        hidden={!open}
-      >
-        <MeaningPicker onMeaning={onMeaning} />
-      </div>
-    </>
-  )
-}
 
 interface Hit {
   id: string
@@ -168,7 +64,6 @@ interface Props {
   onOpen: (place: Place, id: string) => void
   /** What an agent's `recall` would find; left out, there is no search deeper. */
   onSearch?: (query: string) => Promise<MemorySearch>
-  onMeaning?: OnMeaning
   /** Come from Ctrl+K: these words, searched deeper at once. */
   searchFor?: string
 }
@@ -178,12 +73,11 @@ interface Props {
  * tab; Enter searches deeper, as an agent's `recall` does: the memory, what was said in the
  * project's earlier messages, and the linked projects - each as it was said, with whose words.
  */
-export function Find({ memory, onOpen, onSearch, onMeaning, searchFor }: Props) {
+export function Find({ memory, onOpen, onSearch, searchFor }: Props) {
   const [query, setQuery] = useState(searchFor ?? '')
   const [deeper, setFound] = useState<{ query: string; result: MemorySearch } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const byMeaning = useApp(s => Boolean(s.projects.find(p => p.id === s.projectId)?.embedding_provider_id))
   // Only the latest search counts: an older one's answer that comes later is not shown.
   const searches = useRef(0)
   const form = useRef<HTMLFormElement>(null)
@@ -247,15 +141,12 @@ export function Find({ memory, onOpen, onSearch, onMeaning, searchFor }: Props) 
             </button>
           )}
         </form>
-        {onMeaning && <MeaningButton on={byMeaning} onMeaning={onMeaning} />}
         <Hint doc={GUIDE.memorySearch}>
           As you type, what is on this page is sifted. Search deeper (Enter) is the same search an agent’s recall makes:
           it looks in the memory, in what was said in this project’s earlier messages - yours, the Orchestrator’s
           answers and agents’ reports, never what a tool returned - and in the linked projects.
         </Hint>
       </div>
-      {/* (On, every search spends: said where it is spent, not only in the window it is chosen in.) */}
-      {onMeaning && byMeaning && <p className="muted memory-hint">By meaning: {MEANING_COSTS}</p>}
       {error && (
         <div role="alert" className="alert">
           {error}
@@ -298,15 +189,12 @@ function deeperFound(found: { query: string; result: MemorySearch }) {
   return (
     <>
       <h4 className="memory-found-head">Searched deeper for “{found.query}”</h4>
-      {/* (A provider is chosen for the search by meaning, and it did not run: the words alone were searched.) */}
-      {found.result.meaning_off && <p className="muted memory-hint">{found.result.meaning_off}</p>}
       {own.length === 0 ? (
         <p className="muted">Nothing on record speaks to “{found.query}”.</p>
       ) : (
         <ul className="memory-list" aria-label="What an agent would find in the memory">
           {own.map(record => (
             <li key={record.id}>
-              {record.by_meaning && <span className="tag">by meaning</span>}
               <RecordCard record={record} />
             </li>
           ))}
@@ -331,7 +219,6 @@ function deeperFound(found: { query: string; result: MemorySearch }) {
                 <div className="memory-meta mono">
                   <span className="tag">from project {record.from_project}</span>
                   <span className="muted">{NOT_CHECKED_HERE}</span>
-                  {record.by_meaning && <span className="tag">by meaning</span>}
                 </div>
                 <RecordCard record={record} />
               </li>
@@ -353,7 +240,6 @@ function Said({ said }: { said: MemorySearch['turns'][number] }) {
       <div className="memory-meta mono muted">
         {saidWhere(said)}
         {said.project && <span className="tag">from project {said.project}</span>}
-        {said.by_meaning && <span className="tag">by meaning</span>}
       </div>
     </li>
   )

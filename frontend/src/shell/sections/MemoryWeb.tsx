@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
-import { MEANING_COSTS } from '../../memory/Find'
 import { useExperimentalClis } from '../../models/experimental'
-import { ProviderOptions } from '../../models/ModelNameInput'
 import { useApp } from '../../state/store'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
@@ -21,15 +19,10 @@ export function useMemoryWeb(project: Project) {
   const savedLinks = project.memory_links ?? []
   const [links, setLinks] = useState(savedLinks)
   const linksChanged = links.length !== savedLinks.length || links.some(id => !savedLinks.includes(id))
-  // 22c: the search by meaning, as the Memory page sets it too.
-  const [meaning, setMeaning] = useState(project.embedding_provider_id ?? null)
-  const [model, setModel] = useState(project.embedding_model ?? 'text-embedding-3-small')
   const web = useWeb(project)
   const patch = {
     ...(autoNotes !== project.auto_notes && { auto_notes: autoNotes }),
     ...(linksChanged && { memory_links: links }),
-    ...(meaning !== (project.embedding_provider_id ?? null) && { embedding_provider_id: meaning }),
-    ...(model.trim() !== (project.embedding_model ?? 'text-embedding-3-small') && { embedding_model: model.trim() }),
     ...web.patch,
   }
   return part(
@@ -51,51 +44,10 @@ export function useMemoryWeb(project: Project) {
           </span>
         </span>
       </label>
-      <Meaning provider={meaning} setProvider={setMeaning} model={model} setModel={setModel} />
       <OtherMemories project={project} links={links} setLinks={setLinks} />
       {web.view}
     </>,
     { take: web.take },
-  )
-}
-
-/** Which provider's server embeds for the search by meaning (off: by words alone), and its model. */
-function Meaning({
-  provider,
-  setProvider,
-  model,
-  setModel,
-}: {
-  provider: string | null
-  setProvider: (id: string | null) => void
-  model: string
-  setModel: (name: string) => void
-}) {
-  const providers = useApp(s => s.providers).filter(p => p.base_url)
-  return (
-    <Row
-      label="Search by meaning with"
-      htmlFor="settings-meaning"
-      warn={<span className="choice-note">{MEANING_COSTS}</span>}
-    >
-      <select
-        id="settings-meaning"
-        className="input"
-        value={provider ?? ''}
-        onChange={e => setProvider(e.target.value || null)}
-      >
-        <option value="">off: by words alone</option>
-        <ProviderOptions providers={providers} />
-      </select>
-      <input
-        className="input mono"
-        aria-label="Embedding model"
-        value={model}
-        maxLength={200}
-        disabled={provider === null}
-        onChange={e => setModel(e.target.value)}
-      />
-    </Row>
   )
 }
 

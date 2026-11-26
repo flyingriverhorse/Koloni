@@ -882,8 +882,6 @@ export function App() {
       project={project}
       projects={projects}
       onLoad={useApp.getState().usage}
-      onCards={useApp.getState().cards}
-      onAddCardRule={useApp.getState().addCardRule}
       budget={budget}
       providers={providers}
       onLimits={useApp.getState().limits}
@@ -937,7 +935,6 @@ export function App() {
         onAddPreference={useApp.getState().addPreference}
         onReload={useApp.getState().loadMemory}
         onSearch={useApp.getState().searchMemory}
-        onMeaning={useApp.getState().saveProjectSettings}
         onExport={projectId ? () => download('GET', `/projects/${projectId}/memory/export`) : undefined}
       />
     )

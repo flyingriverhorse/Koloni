@@ -35,7 +35,6 @@ class ProjectIn(BaseModel):
 
 
 ExecLocation = Literal["host", "docker"]
-NotifyFormat = Literal["slack", "discord", "text"]
 
 
 # An image's name as Docker takes one (registry/name:tag@digest) - never an option of its
@@ -91,8 +90,8 @@ JudgeRisky = Literal["refuse", "ask"]
 AfterChange = Literal["check", "tests", "nothing"]
 # S10: Test and review changes, for one chat; None (not sent as such) the project's.
 ChatAfterChange = Literal["off", "on"]
-# S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`).
-CheckKind = Literal["docs", "slides", "diagram", "data", "ui", "config", "scripts", "style"]
+# S5a: the kinds of work KOLONİ checks after it wrote them (`proof_kinds.KINDS`); "test" asks one.
+CheckKind = Literal["docs", "slides", "diagram", "data", "ui", "config", "scripts", "style", "test"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -207,11 +206,7 @@ class ProjectOut(Out):
     search_order: Literal["builtin", "cli"]
     # Whether a search may be handed to agy too.
     search_agy: bool
-    # Whether a notification address is set. The address itself is never given back.
-    has_notify_url: bool
-    # The body posted there: {"text": …}, {"content": …}, or the text alone.
-    notify_format: NotifyFormat
-    # Whether a notification is also shown on the user's desktop.
+    # Whether an agent's notification is shown on the user's desktop.
     notify_desktop: bool
     # The most tokens a turn's agents may report before it is stopped; None: no limit.
     turn_token_limit: int | None
@@ -232,11 +227,8 @@ class ProjectOut(Out):
     # Whether a fast model is asked, after each turn that completed, what the turn found.
     auto_notes: bool
     # 22c: the other projects whose memory and earlier turns `recall` also looks in (ids),
-    # read only; the provider whose server embeds for a search by meaning (null: off) and
-    # the model name it is asked for.
+    # read only.
     memory_links: list[str]
-    embedding_provider_id: str | None
-    embedding_model: str
     # Whether the Scout proposes follow-up tasks after a turn, and on which tier.
     suggest_tasks: bool
     suggest_tier: "Tier"
@@ -279,7 +271,7 @@ class ProjectOut(Out):
     fix_rounds: int | None
     # S11: then a stronger model tries, the rounds spent.
     stronger_model: bool
-    # S5a: Check by kind of work - {kind: on}; a kind left out is on.
+    # S5a: Check by kind of work - {kind: on}; left out: on, but `proof.OFF_UNLESS_TICKED`.
     check_kinds: dict[str, bool] = {}
     # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
     # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this
@@ -335,8 +327,6 @@ class ProjectPatch(BaseModel):
     search_url: str | None = Field(default=None, max_length=500)
     search_order: Literal["builtin", "cli"] | None = None
     search_agy: bool | None = None
-    notify_url: str | None = Field(default=None, max_length=500)
-    notify_format: NotifyFormat | None = None
     notify_desktop: bool | None = None
     # Sent as null to take the limit away; left out to keep it.
     # A whole number as such: not `true`, not "50".
@@ -362,10 +352,6 @@ class ProjectPatch(BaseModel):
     auto_notes: bool | None = None
     # 22c. Left out: kept as it is. The whole list of project ids, as it is to be.
     memory_links: list[str] | None = Field(default=None, max_length=50)
-    # Sent as null to switch the search by meaning off; left out to keep it.
-    embedding_provider_id: str | None = Field(default=None, max_length=32)
-    # Left out: kept as it is. Empty: the default model name.
-    embedding_model: str | None = Field(default=None, max_length=200)
     suggest_tasks: bool | None = None
     suggest_tier: "Tier | None" = None
     # Left out: kept as it is. The whole list, as it is to be.
@@ -4038,8 +4024,6 @@ class MemoryOut(BaseModel):
     source_state: Literal["unchanged", "changed", "moved", "none", "elsewhere"]
     # 22c: the name of the linked project a found record is from; null for this project's.
     from_project: str | None = None
-    # 22c: found by the search by meaning, not by its words.
-    by_meaning: bool = False
     found_at: MemoryFoundAt | None
     # The noted lines as they are on disk now, cut to a size; null when there is no file
     # or nothing can be read there.
@@ -4163,7 +4147,6 @@ class SaidOut(Out):
     trigger: bool  # said in a turn nobody watched: a trigger's
     # 22c: the name of the linked project it was said in; null for this project's own.
     project: str | None = None
-    by_meaning: bool = False
 
 
 class MemorySearchOut(BaseModel):
@@ -4172,9 +4155,6 @@ class MemorySearchOut(BaseModel):
 
     memory: list[MemoryOut]
     turns: list[SaidOut]
-    # 22c: why the search by meaning did not run, when a provider is chosen for it and it
-    # did not ("search by meaning is off: …"); null otherwise.
-    meaning_off: str | None = None
 
 
 class MemoryIn(BaseModel):
@@ -4204,51 +4184,6 @@ class RulesIn(BaseModel):
 
 class RulesOut(BaseModel):
     rules: str | None
-
-
-class CardReasonOut(BaseModel):
-    """Cards measured: the cards asked for one reason (`app.cards.REASONS`), and their answers."""
-
-    reason: str
-    said: str
-    asked: int
-    approved: int
-    rejected: int
-    unanswered: int
-
-
-class CardsCheckedOut(BaseModel):
-    """ "Check what I said first"'s outcomes: ran on a line of the user's, not run, asked."""
-
-    run: int
-    refuse: int
-    ask: int
-
-
-class CardSuggestionOut(BaseModel):
-    """A delete the user approved unchanged `times` times, and the line for the project's rules
-    that would spare its card at Full auto with Check what I said first on - KOLONİ's words."""
-
-    key: str
-    command: str
-    cwd: str
-    times: int
-    rule: str
-
-
-class CardsOut(BaseModel):
-    """Cards measured (0.1.7): the command cards asked in a period, answered how, by reason - only
-    cards from 0.1.7 on carry one - the seconds to an answer on average (None: none answered),
-    the check's outcomes, and, for one project, the rules it suggests."""
-
-    asked: int
-    approved: int
-    rejected: int
-    unanswered: int
-    by_reason: list[CardReasonOut]
-    decide_seconds: float | None
-    checked: CardsCheckedOut
-    suggestions: list[CardSuggestionOut] = []
 
 
 class PreferencesIn(BaseModel):

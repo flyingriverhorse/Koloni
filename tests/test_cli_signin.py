@@ -16,8 +16,8 @@ from app.commands import names_secret
 from app.config import load_settings
 from app.db.models import Provider
 from app.limits import CLI_HOMES, Limits, account, claude_turn, cli_home, of_session
-from app.model_cli import ClaudeCliClient, CodexCliClient
-from app.model_native import ClaudeNativeClient, CodexNativeClient
+from app.model_cli import ClaudeCliClient
+from app.model_native import ClaudeNativeClient, CodexNativeClient, CodexSessionClient
 from app.model_session import ClaudeSessionClient
 from app.providers import Providers, check_options
 from app.workspace import Workspace, WorkspaceError
@@ -74,7 +74,7 @@ def seen(tmp_path) -> list:
         ("claude_cli", "session", ClaudeSessionClient),
         ("claude_cli", "step", ClaudeCliClient),
         ("claude_cli", "native", ClaudeNativeClient),
-        ("codex_cli", "step", CodexCliClient),
+        ("codex_cli", "session", CodexSessionClient),
         ("codex_cli", "native", CodexNativeClient),
     ],
 )
@@ -91,8 +91,7 @@ def test_every_way_of_running_gets_the_providers_own_folder_and_its_own_limits(
     assert client._env[{"claude_cli": "CLAUDE_CONFIG_DIR", "codex_cli": "CODEX_HOME"}[kind]] == str(
         folder
     )
-    if kind == "claude_cli" or mode == "native":
-        assert client.on_limits.args == ((A,),)  # what its runs say is its own account's
+    assert client.on_limits.args == ((A,),)  # what its runs say is its own account's
     mine = providers._build(Provider(id="p2", name="Mine", kind=kind, mode=mode), None)
     assert mine.home is None and "CLAUDE_CONFIG_DIR" not in mine._env
 

@@ -215,7 +215,6 @@ messages.
   newest.
 - KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
   again - **Try again** works it in its chat.
-- **Usage › Cards** counts a parked card as not answered.
 - `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
   there is no git.
 

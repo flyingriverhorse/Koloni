@@ -569,7 +569,7 @@ def test_a_question_an_api_answered_keeps_its_price_when_the_lead_then_runs_on_a
             json={
                 "name": "Plan",
                 "kind": "codex_cli",
-                "mode": "step",
+                "mode": "session",
                 "for_agents": True,
                 "models": [{"name": "cli-strong", "tier": "strongest"}],
             },
