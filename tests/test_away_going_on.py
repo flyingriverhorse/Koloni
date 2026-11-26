@@ -16,14 +16,20 @@ from app.db.models import Agent, BacklogTask, Flag, Merge, Run
 from app.team import quoted
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import edit, write
+from tests.test_away_branch_scenarios import (
+    MORNING,
+    repo,  # noqa: F401  (a fixture)
+)
 from tests.test_away_park import run
 from tests.test_away_park_questions import ask, says
+from tests.test_away_push_secrets import night as branch_night
 from tests.test_away_scenarios import ORIGIN, ended, evening, go_away, lines, night, to_do
 from tests.test_away_waiting import decide, waiting
 from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
 from tests.test_judge_scenarios import judging  # noqa: F401  (a fixture)
 from tests.test_spawn import spawn
+from tests.test_take_in_scenarios import needs_git
 
 ONE = {"jobs": [{"title": "one"}], "kept_out": []}
 
@@ -651,3 +657,55 @@ def test_koloni_closing_during_the_morning_run_stops_the_task_and_says_so(
         runner._closing = False
     assert one["why"] == parked.CLOSED_MEANWHILE
     until(lambda: chat(client, cid)["runs"][1]["status"] == "interrupted")
+
+
+@needs_git
+def test_on_its_branch_too_it_goes_on_in_its_rows_copy_not_a_newer_jobs(
+    make_client, wait_run, repo
+):
+    # (0.1.10: the morning's pick, by its rows' record, is resumed as the turn begins - before the
+    # job's branch start, whose newest kept copy of a job (`kept[-1]`) is a second try's alone)
+    steps = [
+        write("other.py", "x = 1\n", "w1"),
+        run(MORNING, "c1"),
+        text("one done"),
+        text("went on"),
+    ]
+    client, done, job, _row, _origin = branch_night(make_client, wait_run, repo, steps, {})
+    (kept,) = job["kept"]
+    cid = job["conversation_id"]
+    with client.app.state.session_factory() as session:
+        later = Run(conversation_id=cid, topic_id="other", status="completed", by_user=True)
+        session.add(later)
+        session.flush()
+        lead = Agent(
+            run_id=later.id,
+            role_name="Lead",
+            name="Lead",
+            tools=[],
+            status="completed",
+            copy={"state": "own", "away": {}},
+        )
+        session.add(lead)
+        session.flush()
+        one = {"path": "b.py", "kind": "changed", "state": "refused", "note": None, "diff": None}
+        other = Merge(
+            run_id=later.id,
+            agent_id=lead.id,
+            status="interrupted",
+            files=[{**one, "additions": None, "deletions": None}],
+            kept_in="C:/kept/other",
+            created_at=datetime.now(UTC) + timedelta(minutes=1),
+        )
+        session.add(other)
+        session.commit()
+        other_id = other.id
+    (line,) = [one for one in waiting(client, done["id"]) if one["kind"] == "command"]
+    assert decide(client, done["id"], line["id"], "run").status_code == 200
+    until(lambda: len([r for r in chat(client, cid)["runs"] if r["task_id"]]) == 2)
+    until(lambda: all(r["status"] in backlog.ENDED for r in chat(client, cid)["runs"]))
+    with client.app.state.session_factory() as session:
+        assert session.get_one(Merge, kept).status == "discarded"  # (gone on in: resumed)
+        assert session.get_one(Merge, other_id).kept_in == "C:/kept/other"
+    said = [m["content"] or "" for m in chat(client, cid)["messages"]]
+    assert not any("could not go on in the kept work" in one for one in said), said
