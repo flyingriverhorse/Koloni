@@ -8160,17 +8160,18 @@ export interface components {
         };
         /**
          * MergeChoices
-         * @description For each file whose two sides clash, by its path: whose is taken - the agent's
-         *     ("agent") or the project's ("project"). `shown`: of Apply, each file the card showed,
-         *     by path, as its `shown` - where one is not as the card has it now, nothing is taken.
-         *     None (a Take in that shows no files): as the card was last shown - and choices
-         *     without it are refused (a page from before `shown`). As many as a copy has files.
+         * @description For each file whose two sides clash, by its path: whose is taken ("agent" or "project").
+         *     `shown`: of Apply, each file the card showed, by path, as its `shown` - one not as the card has
+         *     it now, and nothing is taken; None (a Take in that shows no files): as last shown, and choices
+         *     without it are refused. `files`: of Take in, only these (T93-01); the rest stay on the card.
          */
         MergeChoices: {
             /** Choices */
             choices?: {
                 [key: string]: "agent" | "project";
             };
+            /** Files */
+            files?: string[] | null;
             /**
              * Keep Branch
              * @default false
