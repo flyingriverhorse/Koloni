@@ -475,7 +475,7 @@ const emptyPages = (over: Record<string, unknown> = {}) => {
     '/api/projects/p/budget',
     '/api/projects/p/memory',
   ]
-  const refused = ['/api/usage', '/api/cards', '/api/projects/p/day']
+  const refused = ['/api/usage', '/api/projects/p/day']
   return vi.fn(async (url: string) => {
     const path = url.split('?')[0]
     if (none.includes(path)) return new Response('null', { status: 200 })

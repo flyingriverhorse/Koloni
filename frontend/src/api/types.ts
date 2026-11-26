@@ -257,8 +257,6 @@ export type NewTrigger = Required<Schemas['TriggerIn']> & { permissions: Require
 export type TriggerChange = Schemas['TriggerPatch']
 /** What the agents' models reported, added up three ways. A sum is null when nothing is known. */
 export type Usage = Schemas['UsageOut']
-/** Cards measured (0.1.7): the command cards of a period, answered how, by reason; the rules they suggest. */
-export type Cards = Schemas['CardsOut']
 export type Budget = Schemas['BudgetOut']
 /** What is left of the plan a CLI is signed in to, as the CLI says - or why that is not known (`unknown`). */
 export type Limits = Schemas['LimitsOut']

@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Removed
+
+- **Usage**: the **Cards** section is gone - the command cards asked in the period by why, how they were answered, the average time to answer, what Check what I said first decided, and the delete rule it suggested with **Add to rules**. Usage keeps its numbers at the top, the table by provider and model and the plan meters; what was decided for you is on Ready for you ([docs](docs/money/usage.md)).
+
 ## [0.1.9] - 2026-11-26
 
 ### Added

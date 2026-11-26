@@ -483,7 +483,7 @@ asked now (its provider gone, closed to agents or down) stays chosen and the lis
 first is asked meanwhile. On a CLI each such command waits for it to start. [Check what I said
 first](#check-what-i-said-first) asks the same model. Each command it looks at is one request, on your plan or your bill, shown on
 [Usage](../money/usage.md) under that model; reads, ordinary work and a line already judged in the turn
-make none. Usage › Cards counts its cards on a row of their own.
+make none.
 
 ### The judge is not a wall
 
@@ -580,11 +580,6 @@ for a one-line delete in the task's copy only: a command of more than one line o
 a git remote's branch, Docker's prune or volumes, a file that steers agents and a command that runs
 another through a shell or a wrapper keep their card. The
 same holds in the chat you went away from, while you're away. A plain chat has no judge's switch.
-
-How often each of these happened - and the cards asked, by why - is on the Usage page under
-[Cards](../money/usage.md#cards). There a delete you approved unchanged 5 times is suggested as a line
-for this project's rules ("You may delete ./build."); it is added only when you press **Add to
-rules**.
 
 ## Plan first
 
