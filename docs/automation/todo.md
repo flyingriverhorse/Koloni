@@ -53,12 +53,12 @@ under **Waiting for your word**, on the left of the page, with everything else t
 
 | What waits | Buttons |
 |---|---|
-| A new task an agent proposed | **Add** / **Edit** / **Reject** |
+| A new task an agent proposed | **Add to To-do** / **Edit** / **Not wanted** |
 | A task an agent thinks is done ("done?") | **Done** / **Not yet** |
 | A change an agent proposed | **Change** / **Reject** |
 
 When several new tasks wait, **Approve all** adds them all. **Edit** opens the task's title and detail;
-change them, then press **Add**.
+change them, then press **Add to To-do**.
 
 ## Follow-up tasks
 
@@ -124,7 +124,8 @@ where a night's job of it worked on one (the story's own branch is not shown the
 runs in, its **State**; its
 [notebook](#the-storys-notebook), each note with who wrote it and when; its buttons; and its tasks, each
 with all it can do (below). **Close** (✕) or Esc shuts it, and you are back on its card; Esc in a form
-in it closes the form first.
+in it closes the form first. While it is open, what it lies over cannot be reached; on a narrow screen it is
+a dialog over the whole page, Tab going round within it.
 
 - A **story** is tasks and bugs that go on together. Its state comes from its tasks: **○ todo** (none
   started), **● running** (one at work), **⚠ stuck** (one stuck), **done?** (every task done, or waiting
