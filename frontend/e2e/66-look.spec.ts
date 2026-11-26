@@ -14,20 +14,7 @@ const inside = (inner: Box, outer: Box) =>
 const apart = (a: Box, b: Box) =>
   a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
 
-const NAMES = [
-  'Canvas',
-  'Chats',
-  'Ready',
-  'To-do',
-  'Agents',
-  'Models',
-  'Tools',
-  'Memory',
-  'Knowledge',
-  'Usage',
-  'Settings',
-  'Theme',
-]
+const NAMES = ['Canvas', 'Chats', 'Ready', 'To-do', 'Agents', 'Models', 'Tools', 'Memory', 'Usage', 'Settings', 'Theme']
 
 for (const theme of ['light', 'dark'] as const)
   test(`the rail's buttons say their names under their icons, at 4.5 or more, in the ${theme} theme`, async ({

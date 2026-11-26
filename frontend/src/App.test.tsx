@@ -506,7 +506,6 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['To-do', 'memory-page', 'To-do'],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', 'Reading the project’s memory…'],
-    ['Knowledge', 'triggers-page knowledge-page', 'Knowledge'],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])
@@ -524,7 +523,6 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['To-do', 'memory-page', noFolder('To-do')],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
-    ['Knowledge', 'memory-page', noFolder('Knowledge page')],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])
