@@ -1,17 +1,15 @@
 import { X } from '@phosphor-icons/react'
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef } from 'react'
+import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useId, useRef, useState } from 'react'
 import type { Away, BacklogTask, Story } from '../api/types'
 import { useAsk } from '../memory/useAsk'
 import { CELL, STANDS_WORD, type Stands, taskStands } from '../ready/cells'
 import { Cell } from '../shell/Cell'
 import { NotebookNotes } from './Notebook'
-import { AwayButton, Deleting, Rename, RowMenu, STATE_WORD, type TreeActions, closable, useDoing } from './TodoTree'
-import { type Card, tickable } from './tree'
+import { AwayButton, Deleting, Rename, RowMenu, STATE_WORD, type TreeActions, closable, useDoing } from './TodoParts'
+import { type Card, cardId, tickable } from './tree'
 
 /** The panel's element: what an open card controls. */
-export const PANEL = 'todo-panel'
-/** A card's button, by its key: where the focus goes back when its panel closes. */
-export const cardId = (key: string) => `todo-card-${key}`
+const PANEL = 'todo-panel'
 const titleOf = (card: Card) => card.story?.title ?? 'Without a story'
 
 /** Each task of a card as it stands, and its word; `pushes`: the tasks whose push the night parked for you. */
@@ -21,7 +19,7 @@ const standsOf = (card: Card, pushes: Set<string>) =>
 /**
  * A story as a card (0.1.10): its name, how many of all its tasks are done (`all`: a filter shows some), a cell for each
  * task shown - a row of honeycomb - and those tasks, each with its cell and how it stands. The card is one button: it
- * opens the story's panel.
+ * opens the story's panel. Its name says the story and its count; its tasks, each with its word, describe it.
  */
 function StoryCard({
   card,
@@ -39,15 +37,17 @@ function StoryCard({
   const done = all.filter(task => task.status === 'done').length
   const stands = standsOf(card, pushes)
   const title = titleOf(card)
+  const id = cardId(card.key)
   return (
     <li>
       <button
-        id={cardId(card.key)}
+        id={id}
         type="button"
         className="todo-card"
         aria-expanded={open}
         aria-controls={open ? PANEL : undefined}
         aria-label={`${title}: ${done} of ${all.length} done`}
+        aria-describedby={`${id}-tasks`}
         onClick={onOpen}
       >
         <span className="todo-card-line">
@@ -58,16 +58,19 @@ function StoryCard({
         </span>
         <span className="cell-comb">
           {stands.map(({ task, said: [state, word] }) => (
-            <Cell key={task.id} {...CELL[state]} label={`${task.title}: ${word}`} big />
+            <Cell key={task.id} {...CELL[state]} label={`${task.title}: ${word}`} big hidden />
           ))}
         </span>
-        <span className="todo-card-tasks">
+        <span id={`${id}-tasks`} className="todo-card-tasks">
           {stands.length === 0 && <span className="muted">No task yet</span>}
           {stands.map(({ task, said: [state, word] }) => (
             <span key={task.id} className="todo-card-task">
-              <Cell {...CELL[state]} label={word} />
+              <Cell {...CELL[state]} label={word} hidden />
               <span className="todo-card-title">{task.title}</span>
+              {/* (Said apart to a screen reader: "title: word;", as the eye sees them apart.) */}
+              <span className="visually-hidden">:</span>{' '}
               <span className={`todo-card-state todo-is-${state}`}>{word}</span>
+              <span className="visually-hidden">;</span>{' '}
             </span>
           ))}
         </span>
@@ -76,34 +79,28 @@ function StoryCard({
   )
 }
 
-/** To-do's stories as cards, and its tasks of no story as one more; one open at a time. `listed`: every task on To-do,
- *  proposals left out - a card counts all of its own. */
+/** To-do's stories as cards, and its tasks of no story as one more; one open at a time. `whole`: all of a card's tasks,
+ *  whatever a filter shows - what it counts. */
 export function StoryCards({
   cards,
-  listed,
+  whole,
   openKey,
   onOpen,
   pushes,
 }: {
   cards: Card[]
-  listed: BacklogTask[]
+  whole: (card: Card) => BacklogTask[]
   openKey: string | null
   onOpen: (key: string | null) => void
   pushes: Set<string>
 }) {
-  const stories = new Set(cards.flatMap(card => (card.story ? [card.story.id] : [])))
-  // (A task of no story, or of a story not shown: the last card's, as the tree has it.)
-  const allOf = (card: Card) =>
-    listed.filter(task =>
-      card.story ? task.story_id === card.story.id : !task.story_id || !stories.has(task.story_id),
-    )
   return (
     <ul className="todo-cards" aria-label="Stories">
       {cards.map(card => (
         <StoryCard
           key={card.key}
           card={card}
-          all={allOf(card)}
+          all={whole(card)}
           open={openKey === card.key}
           onOpen={() => onOpen(openKey === card.key ? null : card.key)}
           pushes={pushes}
@@ -113,13 +110,13 @@ export function StoryCards({
   )
 }
 
-/** What the cells mean, once, under the cards. */
+/** What the cells mean, once, under the cards: each cell with its word - the word is what a screen reader says. */
 export function CellLegend() {
   return (
-    <p className="cell-legend" aria-label="What the cells say">
+    <p className="cell-legend">
       {(Object.keys(STANDS_WORD) as Stands[]).map(state => (
         <span key={state}>
-          <Cell {...CELL[state]} label={STANDS_WORD[state]} /> {STANDS_WORD[state]}
+          <Cell {...CELL[state]} label={STANDS_WORD[state]} hidden /> {STANDS_WORD[state]}
         </span>
       ))}
     </p>
@@ -173,7 +170,8 @@ function Facts({
   )
 }
 
-/** A story's own buttons: Continue in chat, ☾ Do tonight, Close story (or Open it again), and ⋯ for Rename and Delete. */
+/** A story's own buttons: Continue in chat, ☾ Do tonight, Close story (or Open it again), and ⋯ for Rename and Delete.
+ *  `tasks`: all of its tasks, whatever a filter shows. */
 function StoryActs({
   story,
   tasks,
@@ -272,8 +270,69 @@ function TickAll({
   )
 }
 
+/** The window where the halves stand one under the other: there the panel takes the window, a modal. */
+const NARROW = '(max-width: 980px)'
+
+/** Whether the window is narrow now - and again as it is resized. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => window.matchMedia?.(NARROW).matches ?? false)
+  useEffect(() => {
+    const query = window.matchMedia?.(NARROW)
+    const heard = () => setNarrow(query?.matches ?? false)
+    query?.addEventListener?.('change', heard)
+    return () => query?.removeEventListener?.('change', heard)
+  }, [])
+  return narrow
+}
+
+/**
+ * While the panel is open, what it lies over cannot be reached: the rest of To-do (its cards to its dock) is inert -
+ * and, `modal` (a narrow window, the panel the window's), everything else on the page too. Put back as it closes.
+ */
+function useInertAround(box: RefObject<HTMLElement | null>, modal: boolean) {
+  useEffect(() => {
+    const panel = box.current
+    if (!panel) return
+    const made: Element[] = []
+    const shut = (parent: Element | null, keep: Element) => {
+      for (const one of Array.from(parent?.children ?? []))
+        if (one !== keep && !one.hasAttribute('inert')) {
+          one.setAttribute('inert', '')
+          made.push(one)
+        }
+    }
+    shut(panel.parentElement, panel)
+    for (let at = panel.parentElement; modal && at && at !== document.body; at = at.parentElement)
+      shut(at.parentElement, at)
+    return () => made.forEach(one => one.removeAttribute('inert'))
+  }, [box, modal])
+}
+
+/** The panel's elements a Tab goes to, in order. */
+const tabbable = (box: HTMLElement) =>
+  Array.from(
+    box.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+  ).filter(one => !one.matches(':disabled') && !one.closest('[inert]'))
+
+/** A modal's Tab goes round within it: from its last element to its first, and back with Shift+Tab. */
+function keepTab(event: KeyboardEvent, box: HTMLElement) {
+  const all = tabbable(box)
+  const [first, last] = [all[0], all.at(-1)]
+  const at = document.activeElement
+  if (!first || !last) return
+  if (event.shiftKey && (at === first || at === box)) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && at === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
 interface PanelProps {
   card: Card
+  /** All of its tasks, whatever a filter shows: its facts and buttons are of the whole story. */
+  all: BacklogTask[]
   /** The task it was opened at: its row takes the focus, in view. */
   at?: string
   /** Every task on To-do (proposals left out): whether the story may be closed. */
@@ -293,10 +352,12 @@ interface PanelProps {
 /**
  * A story opened (0.1.10), over To-do: its branch, chat and state; its notebook, each note with when and who wrote it;
  * Continue in chat, ☾ Do tonight, Close story; its tasks, each with all it can do. It takes the focus; its Close and
- * Esc - not one inside a form, which is the form's - close it.
+ * Esc - not one inside a form, which is the form's - close it. What it lies over is inert while it is open; on a narrow
+ * window it is a modal dialog over the page, its Tab going round within it.
  */
 export function StoryPanel({
   card,
+  all,
   at,
   listed,
   chats,
@@ -311,6 +372,8 @@ export function StoryPanel({
 }: PanelProps) {
   const id = useId()
   const box = useRef<HTMLElement>(null)
+  const modal = useNarrow()
+  useInertAround(box, modal)
   useEffect(() => {
     const row = at ? document.getElementById(`task-${at}-title`)?.closest('button') : null
     ;(row ?? box.current)?.focus()
@@ -319,9 +382,19 @@ export function StoryPanel({
   const title = titleOf(card)
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && !(event.target as Element).closest('form')) onClose()
+    if (event.key === 'Tab' && modal && box.current) keepTab(event, box.current)
   }
   return (
-    <aside ref={box} id={PANEL} tabIndex={-1} className="todo-panel" aria-labelledby={`${id}-title`} onKeyDown={onKey}>
+    <aside
+      ref={box}
+      id={PANEL}
+      tabIndex={-1}
+      className="todo-panel"
+      role={modal ? 'dialog' : undefined}
+      aria-modal={modal || undefined}
+      aria-labelledby={`${id}-title`}
+      onKeyDown={onKey}
+    >
       <div className="todo-panel-head">
         <div>
           <span className="muted">{card.story ? 'Story' : 'Tasks of no story'}</span>
@@ -331,7 +404,7 @@ export function StoryPanel({
           <X size={16} />
         </button>
       </div>
-      {card.story && <Facts story={card.story} tasks={card.tasks} chats={chats} away={away} />}
+      {card.story && <Facts story={card.story} tasks={all} chats={chats} away={away} />}
       {card.story && card.story.notes.length > 0 && (
         <section className="todo-book" aria-label="The job's notebook">
           <h4>The job’s notebook</h4>
@@ -341,7 +414,7 @@ export function StoryPanel({
       {card.story && (
         <StoryActs
           story={card.story}
-          tasks={card.tasks}
+          tasks={all}
           listed={listed}
           projectId={projectId}
           actions={actions}

@@ -823,7 +823,7 @@ test('To-do is Ready for you’s right half (0.1.10): no rail button of its own;
   expect(rail('Ready')).toHaveAttribute('aria-pressed', 'true')
   await vi.waitFor(() => expect(within(panel).getByRole('button', { name: 'Fix the login' })).toHaveFocus())
   // Its card says how it stands, in a word beside its cell.
-  expect(screen.getByRole('button', { name: 'Without a story: 0 of 1 done' })).toHaveTextContent('Fix the loginstuck')
+  expect(screen.getByRole('button', { name: 'Without a story: 0 of 1 done' })).toHaveTextContent('Fix the login: stuck')
 })
 
 test('To-do asked at a task opens there once: Ready for you opened again from the rail is as any', async () => {

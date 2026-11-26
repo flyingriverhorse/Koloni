@@ -163,7 +163,7 @@ test('a task’s rows of what waits: one row each - new task, "done?", change - 
   expect(proposed.querySelectorAll('.backlog-sub')).toHaveLength(1)
   expect(proposed).toHaveTextContent('new task')
   expect(proposed).toHaveTextContent('Proposed by an agent · Done when: stays signed in')
-  await userEvent.click(within(proposed).getByRole('button', { name: 'Add' }))
+  await userEvent.click(within(proposed).getByRole('button', { name: 'Add to To-do' }))
   expect(props.onDecide).toHaveBeenCalledWith('remember me', 'approve')
   const change = screen.getByRole('group', { name: 'Proposed change: form' })
   expect(change).toHaveTextContent('Priority normal → high')
@@ -553,15 +553,15 @@ test('a proposal of the Scout says what it came from, and is added, edited first
     within(row)
       .getAllByRole('button')
       .map(button => button.textContent),
-  ).toEqual(['Add', 'Edit', 'Reject'])
-  await userEvent.click(within(row).getByRole('button', { name: 'Reject' }))
+  ).toEqual(['Add to To-do', 'Edit', 'Not wanted'])
+  await userEvent.click(within(row).getByRole('button', { name: 'Not wanted' }))
   expect(props.onDecide).toHaveBeenLastCalledWith('parser tests', 'reject')
   await userEvent.click(within(row).getByRole('button', { name: 'Edit' }))
   const title = within(row).getByLabelText('Title')
   await userEvent.clear(title)
   await userEvent.type(title, 'Parser tests for dates')
   await userEvent.clear(within(row).getByLabelText('Detail'))
-  await userEvent.click(within(row).getByRole('button', { name: 'Add' }))
+  await userEvent.click(within(row).getByRole('button', { name: 'Add to To-do' }))
   expect(props.onChange).toHaveBeenCalledWith('parser tests', { title: 'Parser tests for dates', detail: null })
   expect(props.onDecide).toHaveBeenLastCalledWith('parser tests', 'approve')
 })
@@ -704,10 +704,10 @@ test('the cards: stories at the top (a goal’s too), a cell for each task and h
   ).toEqual(['Şifre sıfırlama: 0 of 1 done', 'Login düzelt: 1 of 1 done', 'Without a story: 0 of 1 done'])
   const running = within(cards).getByRole('button', { name: 'Şifre sıfırlama: 0 of 1 done' })
   expect(running).toHaveAttribute('aria-expanded', 'false')
-  expect(running).toHaveTextContent('E-posta gönderimiat work')
+  expect(running).toHaveTextContent('E-posta gönderimi: at work')
   // A cell for each task, named - its colour never says it alone.
   expect(running.querySelector('.cell-comb .cell')).toHaveAttribute('title', 'E-posta gönderimi: at work')
-  expect(within(cards).getByRole('button', { name: /^Login düzelt/ })).toHaveTextContent('Mobilde buton kayıkdone')
+  expect(within(cards).getByRole('button', { name: /^Login düzelt/ })).toHaveTextContent('Mobilde buton kayık: done')
   // Done: only the done task, under its story.
   await userEvent.click(screen.getByRole('button', { name: 'Done', pressed: false }))
   expect(
@@ -842,7 +842,7 @@ test('review M1 / M2 / LOW: a proposal says where adding it puts it; a story wai
   )
   // (A goal a row still names, of a story made before 0.1.10, is not said: the goal level is hidden.)
   expect(screen.getByRole('group', { name: 'Proposed task: Mobile button' })).toHaveTextContent(
-    /Proposed by an agent · In story “Login” \(new\) · bugAdd/,
+    /Proposed by an agent · In story “Login” \(new\) · bugAdd to To-do/,
   )
   // done? with a task still at done?: no Close story yet.
   await open('Şifre sıfırlama')
@@ -871,4 +871,109 @@ test('under a filter a card shows the tasks it lets through, and counts all of i
   expect(card).toHaveTextContent('1 / 2')
   expect(card).toHaveTextContent('second')
   expect(card).not.toHaveTextContent('first')
+})
+
+test('a story gone from under its open panel - deleted, closed under a filter - closes it, the heading takes the focus; back, it stays closed', async () => {
+  const props = page()
+  const story = { ...STORIES[0], state: 'todo' as const }
+  const backlog = [task({ id: 'a', title: 'a', story_id: 's1' }), task({ id: 'c', title: 'c' })]
+  const { rerender } = render(<BacklogPage {...props} backlog={backlog} stories={[story]} />)
+  expect(await open('Şifre sıfırlama')).toHaveFocus()
+  // Deleted: the list read again without it, its task of no story now.
+  const without = [task({ id: 'a', title: 'a' }), task({ id: 'c', title: 'c' })]
+  rerender(<BacklogPage {...props} backlog={without} stories={[]} />)
+  expect(screen.queryByRole('complementary')).toBeNull()
+  expect(screen.getByRole('heading', { name: /^To-do/ })).toHaveFocus()
+  // The same story back: its panel does not spring open, nor take the focus.
+  rerender(<BacklogPage {...props} backlog={backlog} stories={[story]} />)
+  expect(screen.queryByRole('complementary')).toBeNull()
+  expect(screen.getByRole('heading', { name: /^To-do/ })).toHaveFocus()
+})
+
+test('under a filter, the card of no story counts only its own tasks, and a panel is of its whole story', async () => {
+  const props = page()
+  const story = { ...STORIES[0], state: 'running' as const }
+  const backlog = [
+    task({ id: 'a', title: 'a', story_id: 's1', status: 'done', conversation_id: 'c1' }),
+    task({ id: 'b', title: 'b', story_id: 's1' }),
+    task({ id: 'c', title: 'c', status: 'done' }),
+  ]
+  render(<BacklogPage {...props} backlog={backlog} stories={[story]} chats={{ c1: 'Auth work' }} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Done', pressed: false }))
+  expect(screen.getByRole('button', { name: 'Without a story: 1 of 1 done' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Todo', pressed: false }))
+  const panel = await open('Şifre sıfırlama')
+  // (Its done task is filtered out of the card; its facts and its chat are still the story's.)
+  expect(panel).toHaveTextContent('1 of 2 tasks done')
+  expect(within(panel).getByRole('button', { name: 'Continue in chat' })).toBeVisible()
+})
+
+test('a card is named by its story and count, and described by its tasks, each with its word; the legend is said once', async () => {
+  render(<BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} />)
+  const card = screen.getByRole('button', { name: 'Şifre sıfırlama: 0 of 1 done' })
+  expect(card).toHaveAccessibleDescription('E-posta gönderimi: at work;')
+  expect(card.querySelector('.cell')).toHaveAttribute('aria-hidden', 'true')
+  const legend = document.querySelector('.cell-legend')!
+  expect(legend).not.toHaveAttribute('aria-label')
+  expect(legend.querySelectorAll('[role="img"]')).toHaveLength(0)
+  expect(legend).toHaveTextContent('done')
+})
+
+test('while a story is open what it lies over is inert; on a narrow window it is a modal, the page behind it inert, its Tab going round in it', async () => {
+  const { rerender, container } = render(
+    <>
+      <div className="ready-left">
+        <button type="button">left</button>
+      </div>
+      <BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} />
+    </>,
+  )
+  const cards = screen.getByRole('list', { name: 'Stories' })
+  const panel = await open('Şifre sıfırlama')
+  expect(cards.closest('[inert]')).not.toBeNull()
+  expect(container.querySelector('.ready-left')).not.toHaveAttribute('inert')
+  await userEvent.keyboard('{Escape}')
+  expect(cards.closest('[inert]')).toBeNull()
+  expect(panel).not.toBeInTheDocument()
+  // A narrow window: the panel is the window's - a dialog over everything, Shift+Tab never leaves it.
+  const was = window.matchMedia
+  window.matchMedia = ((query: string) => ({
+    matches: query === '(max-width: 980px)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia
+  try {
+    rerender(
+      <>
+        <div className="ready-left">
+          <button type="button">left</button>
+        </div>
+        <BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} key="narrow" />
+      </>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: 0 of 1 done' }))
+    const dialog = screen.getByRole('dialog', { name: 'Şifre sıfırlama' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(container.querySelector('.ready-left')).toHaveAttribute('inert')
+    const close = within(dialog).getByRole('button', { name: 'Close Şifre sıfırlama' })
+    close.focus()
+    await userEvent.tab({ shift: true })
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    await userEvent.tab()
+    expect(close).toHaveFocus()
+    await userEvent.click(close)
+    expect(container.querySelector('.ready-left')).not.toHaveAttribute('inert')
+  } finally {
+    window.matchMedia = was
+  }
+})
+
+test('Esc in a task’s Edit closes the form, not the story', async () => {
+  render(<BacklogPage {...page()} backlog={[task({ title: 'lone' })]} />)
+  await loose()
+  await userEvent.click(within(await more('lone')).getByRole('menuitem', { name: 'Edit' }))
+  expect(screen.getByRole('form', { name: 'Edit lone' })).toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('form', { name: 'Edit lone' })).toBeNull()
+  expect(screen.getByRole('complementary', { name: 'Without a story' })).toBeInTheDocument()
 })

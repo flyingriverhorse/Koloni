@@ -34,3 +34,11 @@ test('a task stands as its row says it; a night job as its lane does', () => {
     'queued',
   ])
 })
+
+test('a cell beside its word is hidden from a screen reader - said once -, its title kept for the mouse', () => {
+  render(<Cell {...CELL.done} label="done" hidden />)
+  expect(screen.queryByRole('img')).toBeNull()
+  const cell = document.querySelector('.cell')!
+  expect(cell).toHaveAttribute('aria-hidden', 'true')
+  expect(cell).toHaveAttribute('title', 'done')
+})
