@@ -56,7 +56,7 @@ export const EFFORTS: Record<Effort, string> = {
 }
 /** What an agent of a role would run on now, where that comes from, and which providers may be picked for it. */
 export type RoleModel = Schemas['RoleModelOut']
-/** A group of roles (slice 62): a chat working with some opens only their roles (84b). */
+/** A group of roles (slice 62): a chat working with some opens only their roles (84b) - where the Orchestrator decides, any built-in role too. */
 export type Team = Schemas['TeamOut']
 /** A label roles are found by on the Agents page (slice 63b): a role's kind is its key. */
 export type Category = Schemas['CategoryOut']

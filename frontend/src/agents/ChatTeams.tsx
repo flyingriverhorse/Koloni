@@ -284,7 +284,10 @@ export function ChatTeams({
         </p>
       )}
       {mode === 'lead' && rows.length > 0 && (
-        <p className="muted cmd-approval-note">To change them, switch to Manual: its picks stay there.</p>
+        <p className="muted cmd-approval-note">
+          Beside its picks it calls any built-in role the work needs, though not while a recipe runs. To change them,
+          switch to Manual: its picks stay there.
+        </p>
       )}
     </>
   )

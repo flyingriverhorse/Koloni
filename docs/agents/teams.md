@@ -21,9 +21,11 @@ one of them for keeps its other teams; with none left, the Orchestrator picks ag
 
 Fourteen built-in roles are in none of the three: Architect, Database engineer, Performance engineer,
 Data analyst, Researcher, DevOps, Dependency keeper, Hive keeper, Scout, Data scientist, ML engineer,
-Model evaluator, MLOps engineer and Data engineer. With **No teams** the Orchestrator opens any of them
-as before. In a chat with picked teams it reaches one only when you name it in your message, when a
-recipe's step names it, or when you put it in a team of your own.
+Model evaluator, MLOps engineer and Data engineer. The Orchestrator still opens any of them when the work
+needs one: with **No teams**, and with **Orchestrator decides** too - the teams it picks are where it
+starts, not a fence (see [Which roles the Orchestrator opens](#which-roles-the-orchestrator-opens)). In
+**Manual** it reaches one only when you name it in your message, when a recipe's step names it, or when
+you put it in one of the chat's teams.
 
 To build a website, the Web app team also has a Copywriter for the site's words and an SEO specialist
 in **Build**, and an Accessibility reviewer in **Check**: the SEO specialist makes the site easy to
@@ -58,6 +60,27 @@ On the canvas, **Teams for this chat** chooses how the chat uses teams:
 project → **New chats start with** shows and changes it). **Plan first** is the switch in the permission level's
 menu under the message box, not here. While a team runs,
 **Stop** stops it and **Finish now** ends it with what it has.
+
+### Which roles the Orchestrator opens
+
+- **Orchestrator decides**: the teams it picks are where it starts, not a fence. It opens their roles,
+  and beside them any built-in role the work needs (an Architect, a Researcher), as the note under its
+  picks says: "Beside its picks it calls any built-in role the work needs, though not while a recipe
+  runs." A role of your own keeps to your teams: outside its picks it does not open. Before it picks,
+  any role opens. Before and after, a role that is only in teams with **The Orchestrator may pick it**
+  off does not.
+- **Manual**: only the roles of the teams you picked.
+- **No teams**: any role.
+
+In every mode:
+
+- A role you name in your message opens, even one switched off.
+- While a team's recipe runs, only the roles of its current step open. The three ready teams each have
+  a default recipe, so a built-in role beside them opens once the recipe has ended in the turn, or beside
+  a team with no **Default recipe**.
+- With two or more teams whose coordinators are on, the Orchestrator opens only the coordinators; each
+  coordinator then opens roles by the rules above.
+- A role the Orchestrator opens beside the chat's teams is drawn on the canvas outside their frames.
 
 ### A team that was not opened
 

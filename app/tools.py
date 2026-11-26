@@ -459,8 +459,8 @@ def pick_schema(teams, recipes) -> dict:
         "call this first, before any spawn_agent. A small change - a few lines in one or two "
         "files - needs no team: make it with one agent (or yourself, where you may write "
         "files), and say in one line why no team; KOLONİ checks the work at the end all the "
-        "same. Pick before you open their roles: once picked, spawn_agent opens only the roles "
-        "of the teams picked; until then, any role but one only in teams you may not pick. A "
+        "same. Pick before you open their roles; the teams are where you start, not a fence: any "
+        "built-in role the work needs opens beside them - none only in teams you may not pick. A "
         "simple question needs no team: answer it yourself. A later pick replaces this one: "
         f"name every team then. Their roles listed are those on. Teams you may pick:\n{listed}"
         + (

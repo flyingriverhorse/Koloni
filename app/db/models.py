@@ -1477,7 +1477,7 @@ class Recipe(Base):
 
 class ConversationTeam(Base):
     """A team a chat works with, and its recipe (slice 84b): the user's in Manual, the Lead's
-    where it decides. Its agents open only these teams' roles (`app.roles.closed`)."""
+    where it decides: whose roles its agents may open (`app.roles.closed`)."""
 
     __tablename__ = "conversation_teams"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
