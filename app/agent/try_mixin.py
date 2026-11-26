@@ -115,7 +115,7 @@ class TryMixin:
         tried: list[Row] = []
         if proof.still_failing(held.rows):  # (N: not one failing before this turn)
             rows.append(proof.row("try", "note", NOT_TRIED.format(why=FAILING)))
-        elif not self._watched(ctx.run_id) or self._away_now(ctx):
+        elif self._away_now(ctx):
             rows.append(proof.row("try", "note", NOT_TRIED.format(why=UNWATCHED)))
         else:
             for line, why in tools:

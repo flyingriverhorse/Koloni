@@ -93,7 +93,7 @@ class StoryBranchMixin:
         shortcut: the user's own message in a story's topic works in the project, not on its
         branch; take it onto the branch if users expect the story's work there."""
         closing = run_id in self._closes_story
-        if not (t.on_branch and t.root) or t.planning or t.run_compare or t.job or t.unattended:
+        if not (t.on_branch and t.root) or t.planning or t.run_compare or t.job:
             return
         if not closing and only_in_project(t.model, t.lead_tools):
             return

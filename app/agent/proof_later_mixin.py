@@ -3,7 +3,7 @@ whole suite. The tests related to the changed files run first (`proof_related`) 
 for those, and a failure goes back as S1's does; then the whole suite starts, and where it is not
 over soon it goes on after the answer, as a pull request's CI does: its Checked row says "Full
 tests running" and is written again when it ends (`_checked_update`). A failure then offers Fix
-it - nothing starts by itself. A turn nobody waits on (an Away job, a To-do task's, a trigger's) and
+it - nothing starts by itself. A turn nobody waits on (an Away job, a To-do task's) and
 work in a copy (a branch turn's: taken in or set aside under the run) wait for it as before.
 
 Every one of KOLONİ's test runs at a turn's end is a task of its own (`Check`): the user may stop

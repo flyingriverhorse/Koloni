@@ -11,7 +11,7 @@ from sqlalchemy import literal_column, select
 from sqlalchemy.orm import Session
 
 from app import catalog, models_dev, skills
-from app.agent.ctx import Ctx, _NobodyToAsk
+from app.agent.ctx import Ctx
 from app.commands import web_off_reason
 from app.db.models import Agent, McpServer, Provider, Skill, now
 from app.roles import find_role, is_team_lead, tools_off
@@ -214,9 +214,6 @@ class SkillsMixin:
                     f"there is already a skill named {found.name}: the user gives it to a role "
                     "on the Agents page"
                 )
-        refused = self._nobody_to_ask(ctx, "skill", f"add the skill {found.name}")
-        if refused is not None:
-            raise _NobodyToAsk(refused)
         proposal = {
             "tool_call_id": call_id,
             "run_id": ctx.run_id,

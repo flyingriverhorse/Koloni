@@ -497,8 +497,6 @@ class AttachmentsMixin:
         if not wanted:
             return
         self._kept_in_project(wanted)  # (once, whatever comes of it)
-        if self._nobody_to_ask(ctx, "write", "save files into the project"):
-            return
         ws, taken = Workspace(ctx.folder), set()
         for one in wanted:
             source = attachments.path_of(self.settings.runtime_root, ctx.cid, one.id)

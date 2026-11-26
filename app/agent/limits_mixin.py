@@ -1,6 +1,5 @@
-"""Limits and a turn nobody watches: the project's budget and minutes, a role's steps and tokens,
-how near a turn is to a limit and how it is wrapped up, and who may be asked when the user is
-not watching (`_nobody_to_ask`, `_leave`) - `LimitsMixin`.
+"""Limits: the project's budget and a turn's tokens, a role's steps and tokens, how near a turn
+is to a limit and how it is wrapped up - `LimitsMixin`.
 """
 
 import asyncio
@@ -12,25 +11,22 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
-from app import away, project_map, recipe_run, signs
+from app import away, recipe_run, signs
 from app.agent.cards import _goes_on, _steps_of_chain
-from app.agent.ctx import Ctx, _NobodyToAsk, _Slow, _Unwatched
+from app.agent.ctx import Ctx, _NobodyToAsk, _Slow
 from app.agent.words import (
     ANSWER_PREFIX,
     CONTINUE_WORDS,
     GIVEN_UNDONE,
     LEFT_UNDONE,
     MINUTE,
-    NOBODY,
     STEPS_ASKED,
     STEPS_CONTINUE,
     STEPS_STOP,
     TEAM_STOPPED,
-    UNATTENDED_NOT_THIS,
     USER_STOPPED_HERE,
 )
 from app.api.usage import month_spend
-from app.commands import is_exactly
 from app.db.models import (
     Agent,
     Command,
@@ -50,7 +46,6 @@ from app.model_client import ModelClient, OwnStop
 from app.providers import works_with_own_tools
 from app.roles import find_role, shown_name
 from app.serialize import question_out
-from app.team import quoted
 from app.workspace import standing_asks
 
 if TYPE_CHECKING:
@@ -92,7 +87,7 @@ CIRCLING_LANDED = "The Orchestrator ended after this turn's work was in the proj
 TODO_TOO_LONG = (
     "stopped after {hours} hour{s}, the longest a To-do task's turn works: what it did is kept"
 )
-# B-413: a turn nobody watches - a To-do task's, a night's job, a trigger's - whose Orchestrator
+# B-413: a turn nobody watches - a To-do task's, a night's job - whose Orchestrator
 # counts no steps, ends where nothing real moved for Settings' minutes (`_progress`).
 NO_PROGRESS = (
     "stopped: nothing moved in {minutes} minutes - no file of the turn changed, no "
@@ -140,8 +135,6 @@ BUDGET_NEAR = (
 # seen to matter.
 BUDGET_EVERY = 60.0
 
-BUDGET_STEPS = "budget: stopped after {steps} model steps, the most this trigger gives a turn"
-BUDGET_MINUTES = "budget: stopped after {minutes} minutes, the longest this trigger lets a turn run"
 OVER_LIMIT = "this turn used {used} tokens, over the project's limit of {limit}"
 # Where the stop cut a step or a CLI at work: what that had spent by then is not all known.
 OVER_LIMIT_AT_LEAST = "this turn used at least {used} tokens, over the project's limit of {limit}"
@@ -175,61 +168,6 @@ def app_steps(session, default: int) -> int:
 
 
 class LimitsMixin:
-    # --- a turn nobody is watching --------------------------------------------
-
-    def _watch_the_budget(self: "AgentRunner", session, run: Run) -> None:
-        """An unattended turn starts: from here on it is one, and its time is counted.
-        With triggers gone (0.1.10) nothing gives it a step, or a leave."""
-        unwatched = self._unwatched[run.id] = _Unwatched(
-            None, run.trigger_name or "", steps=0, minutes=0
-        )
-        unwatched.left = unwatched.minutes * MINUTE
-        self._count_minutes(run.id)
-        # (B-413: where nothing moves - only where its own minutes are longer: else they end it)
-        if unwatched.minutes > away.unattended(session)[0]:
-            self._progress(run.id, arm=True)
-
-    def _clock(self: "AgentRunner", run_id: str) -> None:
-        """Who of a turn holds a place, or stands in line for one, has changed. For an
-        unattended turn its minutes are looked at - once what is going on right now is
-        through: a place that goes from one of its agents to the next stops no clock."""
-        if run_id in self._unwatched:
-            asyncio.get_running_loop().call_soon(self._count_minutes, run_id)
-
-    def _count_minutes(self: "AgentRunner", run_id: str) -> None:
-        """An unattended turn's minutes are not counted while it is only kept waiting
-        for room: one of its agents stands in line for a place (its project, or its
-        provider, is full), none holds one and none waits for a file. Every other minute
-        counts - one spent waiting for a file another agent holds too, also while
-        another agent of the turn stands in line: the minutes are what ends that wait."""
-        unwatched = self._unwatched.get(run_id)
-        if unwatched is None or run_id in self._over:
-            return
-        kept_out = self._kept_out(run_id)
-        at = asyncio.get_running_loop().time()
-        if kept_out and unwatched.timer is not None:
-            unwatched.timer.cancel()
-            unwatched.timer, unwatched.left = None, unwatched.left - (at - unwatched.since)
-        elif not kept_out and unwatched.timer is None:
-            later = self.call_later or asyncio.get_running_loop().call_later
-            unwatched.since = at
-            unwatched.timer = later(
-                max(0.0, unwatched.left),
-                self._over_budget,
-                run_id,
-                BUDGET_MINUTES.format(minutes=unwatched.minutes),
-            )
-
-    def _kept_out(self: "AgentRunner", run_id: str) -> bool:
-        """Whether a turn is only kept waiting for room right now: one of its agents
-        stands in line for a place, none holds one and none waits for a file."""
-        in_line = any(ctx.run_id == run_id and not came.done() for ctx, came in self._line_up)
-        return in_line and not any(
-            self._ctxs[agent].run_id == run_id
-            for agent in (*self._placed, *(a for a, files in self._held_up.items() if files))
-            if agent in self._ctxs
-        )
-
     def _over_budget(self: "AgentRunner", run_id: str, why: str | int) -> None:
         """Stop a turn that has used up its budget the way Stop does - every agent,
         command and CLI of it ends with it - and have it recorded as failed, with `why`.
@@ -281,24 +219,10 @@ class LimitsMixin:
         if sent is not None or made is not None:
             self._count_tokens(ctx, sent, made, read=read, written=written)
 
-    def _count_step(self: "AgentRunner", ctx: Ctx) -> None:
-        """A model step of an unattended turn is about to be taken, by whichever of its
-        agents: one more than its budget has, and the whole turn stops here. So does any
-        turn - watched or not - that is over its project's limit on tokens."""
-        self._hold_to_limit(ctx)
-        unwatched = self._unwatched.get(ctx.run_id)
-        if unwatched is None:
-            return
-        if unwatched.taken >= unwatched.steps:
-            self._over_budget(ctx.run_id, BUDGET_STEPS.format(steps=unwatched.steps))
-            raise asyncio.CancelledError
-        unwatched.taken += 1
-
     def _hold_to_limit(self: "AgentRunner", ctx: Ctx) -> None:
         """Before a model step, or a CLI, is started: a turn whose agents (and a question
         KOLONİ asked a model for it) have reported more tokens than its project lets a
-        turn use is stopped, as one over a trigger's
-        budget is. Only what was reported counts - a model that reports nothing is not
+        turn use is stopped. Only what was reported counts - a model that reports nothing is not
         limited - and a CLI that keeps its own loop reports when it ends, so what it
         spends itself holds nothing back until then: it is checked before it starts and
         at each message of it, against what the turn's others have reported. A job while
@@ -396,19 +320,11 @@ class LimitsMixin:
         """What an agent is told before a step near the end of what it may do - one of its
         last steps, or most of its role's tokens spent - so that it ends with a report
         rather than being cut off in the middle of its work; "" when it is not near one.
-        In an unattended turn its budget of steps, counted over all its agents, is a limit
-        too. A CLI session is told with a tool result (B-382: `_session_loop`), its steps left
+        A CLI session is told with a tool result (B-382: `_session_loop`), its steps left
         kept at each message it writes (`_Transcript`). shortcut: a CLI with tools of its own
         is told only what its first prompt says - of tokens, not of steps: nothing reaches it
-        between its steps. shortcut: a session's unattended budget below counts one step more
-        than it has (its message is counted when it begins); count it apart if that matters."""
+        between its steps."""
         left = self._steps_left.get(ctx.agent_id)
-        unwatched = self._unwatched.get(ctx.run_id)
-        if unwatched is not None:
-            # (this step is counted already: `_count_step`; B-413: the Orchestrator has no
-            # count of its own, only the turn's)
-            budget = unwatched.steps - unwatched.taken + 1
-            left = budget if left is None else min(left, budget)
         if left is not None and left <= WRAP_UP_STEPS:
             return WRAP_UP.format(near=f"you have {left} step{'' if left == 1 else 's'} left")
         if ctx.role_tokens is None:
@@ -450,28 +366,24 @@ class LimitsMixin:
         return said
 
     def _step_limit(self: "AgentRunner", ctx: Ctx) -> int | None:
-        """The most steps one agent takes on a job. In an unattended turn the trigger's
-        budget, which counts all its agents together, is what holds. A job on a budget given
+        """The most steps one agent takes on a job. A job on a budget given
         on top (K-devam-butce) takes that many. None: no count of its own - the Orchestrator.
         B-413: three teams and the messages between them ran its fixed count out
         after the work was in the project, and no Continue card is asked of it. What holds it
         instead: the loop guard (`_counted`, `_circled`), a limit the user set - its role's own
-        (the Lead's `max_steps`), a trigger's steps for the whole turn (`_count_step`) - the
-        turn's tokens, the month's budget, a night's or a trigger's minutes, and Stop."""
+        (the Lead's `max_steps`) - the turn's tokens, the month's budget, a night's minutes,
+        and Stop."""
         if (given := self._given_steps.get(ctx.agent_id)) is not None:
             return given
         if not ctx.depth:
             return None
-        unwatched = self._unwatched.get(ctx.run_id)
-        if unwatched is None:
-            return self._app_steps() + self._recipe_steps(ctx)
-        return max(self._app_steps(), unwatched.steps)
+        return self._app_steps() + self._recipe_steps(ctx)
 
     async def _circled(self: "AgentRunner", ctx: Ctx) -> tuple[str, str | None] | None:
         """How an agent KOLONİ stopped (`_stuck`) ends - or, B-413, None where the Orchestrator's
         loop guard stopped it (`_counted`) in a turn the user can be asked in (`_attended`: one
         they started, a To-do task's too, 0.1.8) and they said Go on: its counts start again.
-        Elsewhere - a trigger's turn, a night's job - it ends with why on record, and the night
+        Elsewhere - a night's job - it ends with why on record, and the night
         goes on with the next. A To-do task's turn that fails so gets its fix round, then is
         stuck, and its chat's queue goes on (`backlog.turn_ended`). In a turn the user can be
         asked in where work of it is in the project, it ends completed, with why as KOLONİ's line:
@@ -634,7 +546,7 @@ class LimitsMixin:
         """B-413: something real moved in a turn nobody watches - a file of it changed, an agent
         finished its work, a command that failed passed (`_counted`): its minutes with nothing
         moving (`away.unattended`) start again. `arm`: its clock starts (a To-do task's turn, a
-        night's job, a trigger's); a turn with none is not timed. At their end: `_progress_due`."""
+        night's job); a turn with none is not timed. At their end: `_progress_due`."""
         if (timer := self._progress_timers.pop(run_id, None)) is not None:
             timer.cancel()
         elif not arm:
@@ -830,8 +742,8 @@ class LimitsMixin:
 
     def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user can be asked on a card in this turn: one they started - not a
-        trigger's, nor a night's job (a To-do task's turn is its chat's, 0.1.8)."""
-        return self._watched(ctx.run_id) and ctx.run_id not in self._away_jobs
+        night's job (a To-do task's turn is its chat's, 0.1.8)."""
+        return ctx.run_id not in self._away_jobs
 
     async def _more_steps(self: "AgentRunner", ctx: Ctx) -> bool:
         """B-397: a sub-agent - a team's coordinator too - that came to its step limit in a turn
@@ -840,7 +752,7 @@ class LimitsMixin:
         goes on where it is (True); Stop here ends it as before (False). At Full auto the Lead
         answers the card for the user (K-fullauto-sorma: a "card"), either way, once for each
         agent in a turn (`_budgeted`, as K-devam-butce): past that it ends. No card where nobody
-        would be there to answer - a turn a trigger started, a night's job, a backlog task - nor
+        would be there to answer - a night's job, a backlog task - nor
         for a job with a limit of its own (a speech), an answer, or a turn on another's
         message (its sender waits for the reply). Nor where its work is kept
         on a card of its own with Continue on it (B-322: that ends at once and holds nobody up).
@@ -894,7 +806,6 @@ class LimitsMixin:
             or not _goes_on(ctx)
             or ctx.in_turn
             or ctx.agent_id in self._halted
-            or not self._watched(ctx.run_id)
             or ctx.run_id in self._away_jobs
             or await self._kept_card_comes(ctx)
         ):
@@ -932,174 +843,32 @@ class LimitsMixin:
                     steps += len(recipe_run.graph_of(state).steps) * (1 + asked)
         return LEAD_STEPS_PER_RECIPE_STEP * steps
 
-    def _watched(self: "AgentRunner", run_id: str) -> bool:
-        """Whether somebody is there to be asked: a turn the user started."""
-        return run_id not in self._unwatched
-
     def _full_auto(self: "AgentRunner", ctx: Ctx) -> bool:
         """K-fullauto-sorma: a turn the user watches at Full auto (not a job while they are
         away): by their rule nothing asks there but harm - the Lead decides the rest.
         shortcut: a session per call, at every command look too; cache it per run once a
         turn is seen to feel it (the level may change mid-turn: read it then)."""
-        if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
+        if ctx.run_id in self._away_jobs:
             return False
         with self._factory() as session:
             return session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
-
-    def _unwatched_like(self: "AgentRunner", run_id: str) -> bool:
-        """Whether a provider is picked as for a turn nobody watches - a trigger's - a CLI with
-        its own tools passed over rather than refused."""
-        return not self._watched(run_id)
 
     def _standing_asks(self: "AgentRunner", run_id: str, standing: str | None, level: str) -> bool:
         """`standing_asks` at the turn's level (a To-do task's turn too, since 0.1.8)."""
         return standing_asks(standing, level)
 
-    def _nobody_to_ask(
-        self: "AgentRunner",
-        ctx: Ctx,
-        what: str,
-        wanted: str,
-        command: str | None = None,
-        cwd: str = ".",
-        opening: int = 1,
-        host: str | None = None,
-    ) -> str | None:
-        """The one gate before anything that would wait for the user.
-
-        None in a turn somebody is watching: the caller asks, or does not, as the
-        conversation's settings say. In an unattended turn nothing is ever asked, and the
-        conversation's level and allow list count for nothing: "" when the trigger's own
-        permissions allow this - it is done without asking - and otherwise the words it
-        is refused with. `what` is "write", "command" (the whole line, as it would run,
-        in the project folder: it has to be, character for character, a rule the trigger
-        has ticked on its conversation's allow list as that list stands now), "agent"
-        (one more, or `opening` more, below the lead), "web" (a search), "host" (a GET or
-        HEAD to `host` - scheme, name and port as `web.rule_of` writes them - which the
-        trigger has to name, letter for letter) or "notify";
-        anything else no trigger can allow. `wanted` says it in words, for the refusal.
-        Read off the trigger each time: what the user takes back is gone at once.
-        """
-        unwatched = self._unwatched.get(ctx.run_id)
-        if unwatched is None:
-            return None
-        # (Triggers are gone, 0.1.10: a turn nobody watches has no leave of its own.)
-        leave: dict = {}
-        lines: list[str] = []
-        with self._factory() as session:
-            tests = (
-                session.scalar(
-                    select(Project.test_commands)
-                    .join(Conversation, Conversation.project_id == Project.id)
-                    .where(Conversation.id == ctx.cid)
-                )
-                if what == "command"
-                else None
-            )
-            opened = (
-                session.scalar(
-                    select(func.count())
-                    .select_from(Agent)
-                    .where(Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected")
-                )
-                or 0
-            )
-        if what == "write":
-            may = leave.get("write") is True
-        elif what == "command":
-            # A ticked rule of the conversation's allow list lets one command through:
-            # the one that is its text. (With the user there the same rule also covers
-            # that command with more arguments - `CommandRunner` reads it so, not this.)
-            # So does the user's own test command, run in its part's folder (K-buyuk-proje).
-            may = isinstance(command, str) and (
-                cwd == "."
-                and any(is_exactly(command, line) for line in lines)
-                or project_map.own_test(tests, command, cwd)
-            )
-        elif what == "agent":
-            most = leave.get("agents")
-            may = isinstance(most, int) and not isinstance(most, bool) and opened + opening <= most
-        elif what in ("web", "notify"):
-            may = leave.get(what) is True
-        elif what == "host":
-            named = leave.get("hosts")
-            may = isinstance(named, list) and host in [
-                one.lower() for one in named if isinstance(one, str)
-            ]
-        else:
-            may = False
-        if may:
-            return ""
-        return NOBODY.format(trigger=quoted(unwatched.trigger_name), what=wanted)
-
     @staticmethod
     def _cannot_be_held(model: ModelClient | None, provider: Provider | None = None) -> bool:
-        """Whether an agent would work with tools of its own, and so cannot be used where
-        nobody is watching: only an agent that works with KOLONİ's tools runs there.
+        """Whether an agent would work with tools of its own, and so cannot be held to KOLONİ's
+        rules for what it does unasked.
 
         Such a CLI has tools, web tools and sub-agents of its own, and KOLONİ sees of them
         only what it asks about: since 89a/b/c Codex, Claude Code and Copilot ask before
         each tool KOLONİ judges, and native agy through its hook, but what each does
-        without asking (its own rules, agy that reads) is not held to a trigger. That goes
+        without asking (its own rules, agy that reads) is not held. That goes
         for every one of them. Told by the client, and by how its provider is set up
         (`providers.OWN_TOOLS`) - either is enough.
         """
         return bool(getattr(model, "native", False)) or (
             provider is not None and works_with_own_tools(provider)
-        )
-
-    def _not_unattended(self: "AgentRunner", ctx: Ctx) -> str | None:
-        """Why this agent's turn is not started: nobody is watching - a trigger's turn - and it
-        would work with tools of its own. None when it may start."""
-        if self._watched(ctx.run_id):
-            return None
-        with self._factory() as session:
-            provider = session.get(Provider, ctx.provider_id) if ctx.provider_id else None
-            if not self._cannot_be_held(ctx.model, provider):
-                return None
-        return UNATTENDED_NOT_THIS.format(provider=ctx.provider or "This CLI")
-
-    def _leave(self: "AgentRunner", run_id: str) -> dict:
-        """What the trigger of an unattended turn allows: nothing, with triggers gone (0.1.10)."""
-        return {}
-
-    def _leave_in_words(self: "AgentRunner", run_id: str) -> str:
-        """What the trigger of an unattended turn allows, for the agent's instructions."""
-        leave = self._leave(run_id)
-        lines = [line for line in leave.get("commands") or [] if isinstance(line, str)]
-        most = leave.get("agents") if isinstance(leave.get("agents"), int) else 0
-        hosts = [one for one in leave.get("hosts") or [] if isinstance(one, str)]
-        off = self._off()  # (slice 61: a web tool switched off is not said to be allowed)
-        if "http_request" in off:
-            hosts = []
-        return "; ".join(
-            [
-                "read, search, look in the memory and write notes",
-                "change files" if leave.get("write") is True else "change no file",
-                # (`_nobody_to_ask`: the user's own test command runs unticked, `own_test`)
-                (
-                    "run exactly these command lines in the project folder, and the project's own "
-                    "test "
-                    "command if it has one, and no other: "
-                    + ", ".join(quoted(line) for line in lines)
-                )
-                if lines
-                else "run no command but the project's own test command, if it has one",
-                f"open {most} sub-agent(s) in all, held to the same"
-                if most
-                else "open no sub-agent",
-                "search the web"
-                if leave.get("web") is True and "web_search" not in off
-                else "make no web search",
-                (
-                    "make GET and HEAD requests to these and no other: "
-                    + ", ".join(hosts)
-                    + " (with no body and no headers)"
-                )
-                if hosts
-                else "make no HTTP request",
-                "send the user a notification"
-                if leave.get("notify") is True
-                else "send no notification",
-            ]
         )

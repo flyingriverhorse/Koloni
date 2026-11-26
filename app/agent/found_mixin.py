@@ -211,9 +211,8 @@ class FoundMixin:
     def _agents_test(self: "AgentRunner", ctx: Ctx, held: "Proof") -> TestRun | None:
         """Plan decision 9: with none saved, the newest test line an agent of the turn ran in its
         own work that really ran tests (`test_found.tryable`, some passed or failed) - adopted:
-        saved, and run as the project's. Only in a turn the user is there for - not away, not a
-        trigger's."""
-        if not self._watched(ctx.run_id) or self._away_now(ctx):
+        saved, and run as the project's. Only in a turn the user is there for - not away."""
+        if self._away_now(ctx):
             return None
         with self._factory() as session:
             for one in session.scalars(
@@ -356,7 +355,7 @@ class FoundMixin:
         tried and saved only if it really runs tests. Only in a turn the user is there for.
         shortcut: one request on KOLONİ's digest rather than an agent with read tools; give it
         read tools if the digest is seen to miss what it needs."""
-        if not self._watched(ctx.run_id) or self._away_now(ctx):
+        if self._away_now(ctx):
             return []
         with self._factory() as session:
             project = self._project(session, ctx.cid)

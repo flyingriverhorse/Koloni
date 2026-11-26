@@ -466,7 +466,7 @@ class LoopMixin:
                 agent.failure, agent.failure_resets_at = self._why_failed(agent.id, agent.error)
                 agent.ended_at = now()
                 agent.waiting_for = None
-                # A turn stopped for its budget (a trigger's, or its project's tokens).
+                # A turn stopped for its budget (`_over_budget`).
                 if agent.status == "failed" and run_id in self._over:
                     agent.stopped_by_koloni = True
             session.commit()
@@ -512,7 +512,7 @@ class LoopMixin:
         self: "AgentRunner", ctx: Ctx, exc: ModelUnavailable, before: str | None
     ) -> None:
         """`_loop_again`: what a refusal for its size says to the user besides the CLI's own
-        line, after `before` (None: nothing - a turn nobody watches). Where nothing is left
+        line, after `before` (None: nothing - a turn not started again). Where nothing is left
         that a summary could stand for, that what it is sent is itself too large; else, after
         it was started again, what to do. Never for a model KOLONİ does not compact."""
         now = self._ctxs.get(ctx.agent_id, ctx)
@@ -543,11 +543,6 @@ class LoopMixin:
             # In here: the lead may wait for room in its project, and Stop ends that too.
             # (`_take`, not `_settle`: its first place, not one given up for a wait.)
             await self._take(ctx)
-            refused = self._not_unattended(ctx)
-            if refused:
-                # Before anything of it runs: the turn does not start.
-                self._stopped_by_koloni(ctx)
-                return "failed", refused
             self._still_allowed(ctx)
             if (
                 self._sides.get(run_id) == ctx.agent_id
@@ -1129,7 +1124,7 @@ class LoopMixin:
         reported it sent; past COMPACT_AT of the known window, the older part of its
         history is summarised first (`_compact`)."""
         run_id, cid = ctx.run_id, ctx.cid
-        self._count_step(ctx)
+        self._hold_to_limit(ctx)
         # The level that goes with this step (below), on its record: none where none goes,
         # nor to a service that refused one before (`EFFORT_REFUSED`); the one sent instead of
         # one its model said it does not take (`EFFORT_INSTEAD`).

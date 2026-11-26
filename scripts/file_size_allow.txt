@@ -4,11 +4,11 @@
 # list only gets shorter: never add a file to it - split the file.
 
 # app/, frontend/src/, scripts/
-10237 app/agent/__init__.py
-2268 app/agent/context_mixin.py
-1567 app/agent/loop_mixin.py
+10030 app/agent/__init__.py
+2242 app/agent/context_mixin.py
+1562 app/agent/loop_mixin.py
 1602 app/agent/merge.py
-3411 app/agent/spawn_mixin.py
+3344 app/agent/spawn_mixin.py
 1696 app/browser.py
 6746 app/commands.py
 1785 app/db/models.py
@@ -34,8 +34,8 @@
 1733 tests/test_lead_decides.py
 1615 tests/test_live.py
 2735 tests/test_memory.py
-1693 tests/test_native_agent.py
-1615 tests/test_places.py
+1689 tests/test_native_agent.py
+1611 tests/test_places.py
 1602 tests/test_proof_pages.py
 2010 tests/test_proof_style.py
 2701 tests/test_recipe_checks_scenarios.py

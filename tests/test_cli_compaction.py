@@ -366,7 +366,7 @@ def test_only_a_lead_working_alone_is_started_again(cli_chat):
 
 def a_turn(**kind):
     t = _LeadTurn()
-    for flag in ("planning", "unattended", "run_compare", "job", "todo_turn"):
+    for flag in ("planning", "run_compare", "job", "todo_turn"):
         setattr(t, flag, kind.get(flag, False))
     return t
 
@@ -375,15 +375,15 @@ def test_which_turns_are_summarised_after_a_refusal_for_their_size():
     assert _summary_after(a_turn(), "failed", True) is True
     assert _summary_after(a_turn(), "failed", False) is None
     assert _summary_after(a_turn(), "cancelled", True) is None
-    # Nobody is there to send the message again: a To-do task's turn, a night's job, a
-    # trigger's turn; nor a plan's, nor a side of a comparison.
-    for kind in ("job", "todo_turn", "unattended", "planning", "run_compare"):
+    # Nobody is there to send the message again: a To-do task's turn, a night's job; nor a
+    # plan's, nor a side of a comparison.
+    for kind in ("job", "todo_turn", "planning", "run_compare"):
         assert _summary_after(a_turn(**{kind: True}), "failed", True) is None, kind
 
 
 def test_only_a_turn_the_user_watches_is_started_again():
     assert _sends_again(a_turn()) is True
-    for kind in ("job", "todo_turn", "unattended", "planning", "run_compare"):
+    for kind in ("job", "todo_turn", "planning", "run_compare"):
         assert _sends_again(a_turn(**{kind: True})) is False, kind
 
 
@@ -391,7 +391,7 @@ def test_a_completed_turn_is_looked_at_past_the_threshold_as_before():
     assert _summary_after(a_turn(), "completed", False) is False
     for kind in ("job", "todo_turn"):
         assert _summary_after(a_turn(**{kind: True}), "completed", False) is False, kind
-    for kind in ("unattended", "planning", "run_compare"):
+    for kind in ("planning", "run_compare"):
         assert _summary_after(a_turn(**{kind: True}), "completed", False) is None, kind
 
 

@@ -9,14 +9,12 @@ from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import literal_column, select
 
-from app.agent.ctx import Ctx, _NobodyToAsk
+from app.agent.ctx import Ctx
 from app.agent.words import (
     ANSWER_TOOLS,
     LEADS_LATER,
     PAID_NO,
-    PAID_UNATTENDED,
     TURN_ANSWERED,
-    UNATTENDED_NOT_THIS,
 )
 from app.api.usage import past_its_limit
 from app.db.models import (
@@ -210,17 +208,13 @@ class DiscussionsMixin:
                 new = sum(1 for _known, spec in plans if spec is not None)
                 self._discuss_within(session, ctx, role, new, opened, max_depth, max_agents)
                 tools = effective_tools(role.tools, self._caps(ctx))
-                refused = self._discuss_unasked(ctx, role, tools, new, mode, approval)
+                self._discuss_unasked(role, tools, mode, approval)
                 # shortcut: no `step` here (B-301's next provider): a recipe's discussion member
                 # on a provider it cannot be a step on is refused below; pass it if that is seen.
-                would = would_run(
-                    session, role, conversation, unattended=refused is not None, tools=tools
-                )
+                would = would_run(session, role, conversation, tools=tools)
                 provider, model_name = would.provider, would.model_id
-                self._discuss_paid(
-                    session, ctx, role, conversation, provider, tools, refused, approval
-                )
-                self._discuss_on(session, ctx, role, would, tools, refused, recipe)
+                self._discuss_paid(session, ctx, role, conversation, provider, tools, approval)
+                self._discuss_on(session, ctx, role, would, tools, recipe)
                 plans.append(
                     (
                         None,
@@ -402,31 +396,16 @@ class DiscussionsMixin:
             )
 
     def _discuss_unasked(
-        self: "AgentRunner",
-        ctx: Ctx,
-        role: Role,
-        tools: list[str],
-        new: int,
-        mode: str,
-        approval: str,
-    ) -> str | None:
-        """`_discuss`: a new member is opened with nobody asked - else it is not opened here.
-        What `_nobody_to_ask` says of the turn: None where it is watched."""
-        # A member opened here is an agent opened below the lead like any other.
-        refused = self._nobody_to_ask(
-            ctx, "agent", f"open a {role.name} for a discussion", opening=new + 1
-        )
-        if refused:
-            raise _NobodyToAsk(refused)
-        if refused is None and (
-            approval == "always"
-            or (approval == "auto" and mode == "ask" and can_change_things(tools))
+        self: "AgentRunner", role: Role, tools: list[str], mode: str, approval: str
+    ) -> None:
+        """`_discuss`: a new member is opened with nobody asked - else it is not opened here."""
+        if approval == "always" or (
+            approval == "auto" and mode == "ask" and can_change_things(tools)
         ):
             raise ToolError(
                 f"opening a {role.name} needs the user's approval: open it with "
                 "spawn_agent first, then invite it by its name"
             )
-        return refused
 
     def _discuss_paid(
         self: "AgentRunner",
@@ -436,7 +415,6 @@ class DiscussionsMixin:
         conversation: Conversation,
         provider: Provider,
         tools: list[str],
-        refused: str | None,
         approval: str,
     ) -> None:
         # PAID_SWITCH: a move onto a provider paid per token is the user's word - on
@@ -445,8 +423,6 @@ class DiscussionsMixin:
             said = self._paid_word.get((ctx.run_id, provider.id))
             if said is False:
                 raise ToolError(PAID_NO.format(to=shown_name(provider.name)))
-            if refused is not None:
-                raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
             if said is None and approval != "never":
                 raise ToolError(
                     f"opening a {role.name} needs the user's word ({paid}): "
@@ -461,13 +437,10 @@ class DiscussionsMixin:
         role: Role,
         would: Would,
         tools: list[str],
-        refused: str | None,
         recipe: bool,
     ) -> None:
         """`_discuss`: a new member can be had on the provider and model it would run on."""
         provider, model_name = would.provider, would.model_id
-        if refused is not None and self._cannot_be_held(None, provider):
-            raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
         try:
             allowed(provider, model_name)
         except NotListed as exc:
@@ -479,10 +452,6 @@ class DiscussionsMixin:
         if recipe and only_in_project(self.providers.client(provider, model_name), tools):
             # (As `_propose`: gone on with later, it would write in the project itself.)
             raise ToolError(ONLY_IN_THE_PROJECT.format(provider=shown_name(provider.name)))
-        if refused is not None and self._cannot_be_held(
-            self.providers.client(provider, model_name)
-        ):
-            raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
 
     def _discuss_opens(
         self: "AgentRunner", ctx: Ctx, call_id: str, topic: str, plans: list[tuple], recipe: bool

@@ -107,7 +107,7 @@ MOST_BRANCH_DIFFS = 30
 # the comparing is quadratic on repeated lines (0.3 s at 2000, measured).
 MAX_LINES_COMPARED = 2000
 
-# A Python install, whose `.pth` files stand where nobody watches (`_command_names`).
+# A Python install, whose `.pth` files stand at Full auto (`_command_names`).
 PIP_INSTALLS = re.compile(
     r"(?i)(?:^|[\s;&|(])(?:\S*[\\/])?(?:(?:python[\d.]*|py)(?:\.exe)?\s+-m\s+)?"
     r"(?:pip3?|uv|poetry)(?:\.exe)?\s+(?:install|add|sync|pip\s+install)\b"
@@ -1019,16 +1019,16 @@ _KEPT_LOCK = threading.Lock()  # (it is counted in the threads `_put_back` runs 
 
 
 def _command_names(
-    command: str, approved: bool, unwatched: bool
+    command: str, approved: bool, full_auto: bool
 ) -> tuple[set[str], frozenset[str]]:
     """What a command lets stand at the one look just after it (K-yazma-denetimi), as paths
     and names for `_put_back`, where the user `approved` it: the standing name its card showed
     (`names_standing`) - of git's folder its config alone, never its hooks; `.git/config` where
-    it is git's own that rewrites it as it works (`writes_git_config`); and, `unwatched` - or
-    at Full auto in a watched turn (K-fullauto-sorma: kept, said on record) -, the `.pth`
-    files a Python install alone adds - whether it ran was its approval's, and taken back
-    they would leave it half undone (npm's runs its packages' own scripts; below Full auto,
-    watched, those are a card that says the install made them). What any other git command
+    it is git's own that rewrites it as it works (`writes_git_config`); and, at `full_auto`
+    (K-fullauto-sorma: kept, said on record), the `.pth` files a Python install alone adds -
+    whether it ran was its approval's, and taken back they would leave it half undone (npm's
+    runs its packages' own scripts; below Full auto those are a card that says the install made
+    them). What any other git command
     changes there - a checkout, a pull - is a card like any write.
     shortcut: a checkout that brings in other standing files is a card for each of them."""
     if not approved:
@@ -1036,7 +1036,7 @@ def _command_names(
     key = names_standing(command)
     paths = {".git/config"} if key == ".git" or writes_git_config(command) else set()
     names = {key} if key and key not in (".git", PATCH) else set()
-    if unwatched and PIP_INSTALLS.search(command) and not MORE_THAN_ONE.search(command):
+    if full_auto and PIP_INSTALLS.search(command) and not MORE_THAN_ONE.search(command):
         names.add("*.pth")
     return paths, frozenset(names)
 
