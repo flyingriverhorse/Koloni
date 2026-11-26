@@ -331,6 +331,7 @@ from app.agent.words import (
     SAME_MESSAGE,
     SECRET_IN_COPY,
     SHARED_WITH_PROJECT,
+    SOME_NOT_HERE,
     STEERED,
     TEAM_STOPPED,
     TESTS_TAIL_LINES,
@@ -1111,6 +1112,13 @@ def _held_to_run(role: Role | None, step: str, tools) -> bool:
     return "run_command" in tools and (
         step in TEST_STEPS or (role is not None and role.builtin and role.name == "Tester")
     )
+
+
+def _whole_branch(only: list[str] | None, on_branch: dict | None) -> None:
+    """L3: a branch's copy kept over a crash has a card with no `branch`, and goes in whole:
+    `git.Refused` where Take in names some of its files (`only`)."""
+    if only is not None and on_branch:
+        raise git.Refused(SOME_NOT_HERE)
 
 
 class AgentRunner(
@@ -3088,6 +3096,7 @@ class AgentRunner(
             tree, recorded, part = _kept_as(session, agent.id, copies.place(runtime, name))
             on_branch = _kept_branch(session, agent.id, copies.place(runtime, name))
             times = _last_changes(session, _line_on_record(session, agent.id))
+        _whole_branch(only, on_branch)
         # What Apply was asked for: the folder goes only when all of that was taken.
         asked = [path for path, one in files.items() if one["state"] in OPEN]
         copy = None
@@ -3115,6 +3124,7 @@ class AgentRunner(
             )
             for path, one in files.items()
         )
+        await self._kept_some(merge_id, copy if left else None, files)
         if not left:
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
@@ -3143,6 +3153,17 @@ class AgentRunner(
                 ),
             )
         return True
+
+    async def _kept_some(self, merge_id: str, copy: copies.Copy | None, files: dict) -> None:
+        """L1: a Take in of some of a kept card (`copy`: the one it stays with): what each file
+        taken now held before and after, kept for the commit offered once the card closes
+        (`_offer`) - `Copy.was` is this process's alone, and so is this copy."""
+        if copy is not None and copy.was:
+            for path, pair in (
+                await asyncio.to_thread(self._keep_sides, merge_id, copy.was)
+            ).items():
+                files[path]["taken_sides"] = pair
+            copy.was.clear()
 
     def decide_merge(
         self,
@@ -5017,6 +5038,15 @@ class AgentRunner(
         kept = (
             await asyncio.to_thread(self._keep_sides, merge_id, sides) if state == "offered" else {}
         )
+        if state == "offered":  # (and those of a kept card's earlier Take in: `_decide_kept`)
+            kept = {
+                **{
+                    path: files[path]["taken_sides"]
+                    for path in paths
+                    if "taken_sides" in files[path]
+                },
+                **kept,
+            }
         with self._factory() as session:
             merge = session.get_one(Merge, merge_id)
             merge.commit = {

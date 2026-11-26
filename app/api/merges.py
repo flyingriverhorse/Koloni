@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import git
 from app.agent import CHECK_NOT_KEPT, as_shown, not_as_seen, unchosen, writes_nothing
-from app.agent.words import OPEN
+from app.agent.words import OPEN, SOME_NOT_HERE
 from app.api.deps import get_session, require_own_origin
 from app.db.models import Compare, Merge, Run
 from app.schemas import MergeChoices, MergeCommitIn, MergeOut
@@ -33,7 +33,7 @@ def _some(merge: Merge, decision: str, only: list[str], card: dict[str, dict]) -
     card's other open files, which stay on it."""
     open_ = [path for path, one in card.items() if one["state"] in OPEN]
     if decision != "approve" or merge.branch:
-        raise HTTPException(409, "only Take in takes some of a card's files: all of it goes here")
+        raise HTTPException(409, SOME_NOT_HERE)
     if not only:
         raise HTTPException(409, "choose at least one file to take in")
     if other := sorted(set(only) - set(open_)):
@@ -71,7 +71,11 @@ async def _decide_kept(
     if decision == "check":
         raise HTTPException(409, CHECK_NOT_KEPT)
     # A copy kept over a restart: no agent task waits, the decision is carried out here.
-    if not await request.app.state.runner.decide_kept(merge.id, decision, choices, only):
+    try:
+        done = await request.app.state.runner.decide_kept(merge.id, decision, choices, only)
+    except git.Refused as exc:  # (some files of a branch's copy: its card does not say so)
+        raise HTTPException(409, str(exc)) from None
+    if not done:
         raise HTTPException(409, "nothing of these changes can be decided like this")
     session.refresh(merge)
 
