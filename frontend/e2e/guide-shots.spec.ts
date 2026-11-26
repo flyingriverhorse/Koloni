@@ -593,6 +593,8 @@ test.describe('proven finish (0.1.6)', () => {
       const judge = app.getByLabel('Judge model')
       await expect(judge).toHaveValue('')
       await expect(judge.locator('option').first()).toHaveText('Fast tier’s first (now: fake-qwen)')
+      // (Under More limits since 0.1.10.)
+      await app.getByText(/^More limits/).click()
       await judge.scrollIntoViewIfNeeded()
       await expect(app.getByText('KOLONİ’s test runs at once')).toBeInViewport()
       await expect(app.getByText('Test processes per run')).toBeInViewport()

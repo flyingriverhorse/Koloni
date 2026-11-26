@@ -24,14 +24,16 @@ message box. See [Settings](../settings.md#this-chat).
 | **Slash commands** | Name · What it does · Text it puts in the box · Hand it to a role · In every project |
 | **This folder** | Project map · This folder's rules |
 
-See [Settings](../settings.md).
+In **Limits and money**, **Monthly budget** and **Stop the work on a message over this many tokens** are in sight; the
+others are under **More limits**, closed until you open it. See [Settings](../settings.md).
 
 ## Settings › The app
 
 **Answer in**, **Steps an agent may take**, **Stuck after this many minutes with no progress**,
 **An unattended turn runs at most (hours)**, **Summarise a long context at (%)**, **Knowledge
 reads at most**, **KOLONİ's test runs at once**, **Test processes per run**, **Show experimental
-features** and **Judge model** (Agents),
+features** and **Judge model** (Agents; the step limit, the two unattended limits, knowledge's and the test runs' under
+**More limits**),
 **Voice** (this browser's), and **Your data** (Export, Restore, kept working copies, Always blocked). See
 [Settings](../settings.md#the-app).
 
