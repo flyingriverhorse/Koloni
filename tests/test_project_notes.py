@@ -569,3 +569,16 @@ def test_a_project_notes_knowledge_of_0_1_9_is_no_role_s_and_not_listed(client, 
         session.commit()
         assert knows.used_here(session, lead, pid) == []
     assert not _listed(client, pid)
+
+
+def test_a_secret_in_a_kept_line_is_masked_as_kept_and_as_given(client, project_dir, monkeypatch):
+    secret = "sk-live-0123456789abcdef"
+    monkeypatch.setenv("KOLONI_TEST_API_KEY", secret)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    with client.app.state.session_factory() as session:
+        project = project_notes.accept(
+            session, pid, [{"line": f"docs/a.md (its words): key {secret}", "source": "docs/a.md"}]
+        )
+        assert secret not in (project.project_notes or "") and "***" in project.project_notes
+        project.project_notes = f"- typed by the user: {secret}"  # (Memory's box: as saved)
+        assert secret not in project_notes.told(project) and "***" in project_notes.told(project)
