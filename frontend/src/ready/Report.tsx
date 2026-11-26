@@ -23,6 +23,34 @@ function Decided({ away }: { away: Away }) {
   )
 }
 
+/** The report's foot: what was decided on its jobs, and why the night ended where its record says (its money limit,
+ *  its time, Stop all). */
+function Foot({ away }: { away: Away }) {
+  return (
+    <>
+      <Decided away={away} />
+      {away.why && <span>{away.why}</span>}
+    </>
+  )
+}
+
+/** No news: one line - and, a night there is, the way to its whole report. */
+function Nothing({ away, onReport }: { away: Away | null; onReport?: () => void }) {
+  return (
+    <p className="ready-nothing muted">
+      Nothing new since you last looked.
+      {away?.status === 'ended' && onReport && (
+        <>
+          {' '}
+          <button type="button" className="link-btn" onClick={onReport}>
+            The whole report
+          </button>
+        </>
+      )}
+    </p>
+  )
+}
+
 /** The report's words: its one sentence and a row per job - its cell, what came of it, its branch, what you can do
  *  about it. */
 function Body({ away, onOpen }: { away: Away; onOpen: (conversationId: string) => void }) {
@@ -73,10 +101,10 @@ export function Report({
   const id = useId()
   const news = useNews(away)
   if (!news || !away || (away.status !== 'running' && away.status !== 'ended'))
-    return <p className="ready-nothing muted">Nothing new since you last looked.</p>
+    return <Nothing away={away} onReport={onReport} />
   if (away.status === 'ended' && axisOf(away))
     return (
-      <NightStrip away={away} parked={parked} onReport={onReport} foot={<Decided away={away} />}>
+      <NightStrip away={away} parked={parked} onReport={onReport} foot={<Foot away={away} />}>
         <Body away={away} onOpen={onOpen} />
       </NightStrip>
     )
@@ -89,7 +117,7 @@ export function Report({
       </div>
       <Body away={away} onOpen={onOpen} />
       <p className="ready-report-foot">
-        <Decided away={away} />
+        <Foot away={away} />
         <span>{spentLine(away)}</span>
       </p>
     </section>

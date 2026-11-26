@@ -110,11 +110,12 @@ for (const theme of ['light', 'dark'] as const)
     await storyRows(page, theme)
     if (process.env.KOLONI_SHOTS) await shot(page, `52-backlog-${theme}`)
 
-    // Add / Edit / Reject (6 Nov): Edit opens its title and detail, and adds it as changed.
-    await expect(card.getByRole('button', { name: 'Reject', exact: true })).toBeVisible()
+    // Add to To-do / Edit / Not wanted (6 Nov; 0.1.10 the spec's words): Edit opens its title and detail, and adds
+    // it as changed.
+    await expect(card.getByRole('button', { name: 'Not wanted', exact: true })).toBeVisible()
     await card.getByRole('button', { name: 'Edit', exact: true }).click()
     await card.getByLabel('Detail').fill('prints bye, then exits')
-    await card.getByRole('button', { name: 'Add', exact: true }).click()
+    await card.getByRole('button', { name: 'Add to To-do', exact: true }).click()
     await expect(card).toBeHidden()
 
     // The second waits for the first, chosen from its ⋯.

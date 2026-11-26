@@ -23,9 +23,9 @@ import { TodoDock } from './Dock'
 import { DraftTree } from './DraftTree'
 import { NotebookButton } from './Notebook'
 import { StoryPicker } from './StoryPicker'
-import { CellLegend, StoryCards, StoryPanel, cardId } from './StoryCards'
-import { TaskMarks, TodoBar, type TreeActions } from './TodoTree'
-import { type Card, cardsOf, useTreeView } from './tree'
+import { CellLegend, StoryCards, StoryPanel } from './StoryCards'
+import { TaskMarks, TodoBar, type TreeActions } from './TodoParts'
+import { type Card, cardId, cardsOf, useTreeView, wholeOf } from './tree'
 
 type Priority = BacklogTask['priority']
 type Status = BacklogTask['status']
@@ -455,8 +455,9 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
           .filter(Boolean)
           .join(' · '),
         buttons: [
-          ['Add', decide('approve')],
-          ['Reject', decide('reject')],
+          // (The spec's verbs, 0.1.10: what it does to To-do, and that you do not want it.)
+          ['Add to To-do', decide('approve')],
+          ['Not wanted', decide('reject')],
         ],
         edit: async fields => {
           await onChange(task.id, fields)
@@ -633,7 +634,7 @@ function Decision({
   )
 }
 
-/** A proposed task's Edit (6 Nov): its title and detail as you want them, then Add. */
+/** A proposed task's Edit (6 Nov): its title and detail as you want them, then Add to To-do. */
 function ProposalEdit({
   task,
   busy,
@@ -680,7 +681,7 @@ function ProposalEdit({
         />
       </div>
       <button type="submit" className="btn btn-small btn-primary" disabled={busy || !title.trim()}>
-        Add
+        Add to To-do
       </button>{' '}
       <button type="button" className="btn btn-small" disabled={busy} onClick={onCancel}>
         Cancel
@@ -725,8 +726,7 @@ interface RowProps {
   onChange: Props['onChange']
   onDelete: Props['onDelete']
   onOpen: Props['onOpen']
-  /** 0.1.8: how deep in the tree it stands, whether it is ticked, and its story to choose. */
-  depth: 0 | 1
+  /** 0.1.8: whether it is ticked, and its story to choose. */
   ticked: boolean
   onTick: (on: boolean) => void
   choice: StoryChoice
@@ -785,6 +785,8 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
     <form
       className="memory-edit"
       aria-label={`Edit ${task.title}`}
+      // (Esc leaves it as it was, as Cancel does.)
+      onKeyDown={event => event.key === 'Escape' && setEditing(null)}
       onSubmit={event => {
         event.preventDefault()
         void ask(() => onChange(task.id, { ...cleaned(editing), after: waits })).then(done => done && setEditing(null))
@@ -855,7 +857,7 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
 
   return (
     <li
-      className={`backlog-task todo-depth-${tree.depth}${open ? ' backlog-open' : ''}`}
+      className={`backlog-task${open ? ' backlog-open' : ''}`}
       aria-labelledby={`${id}-title`}
       onDragOver={event => dropHere && event.preventDefault()}
       onDrop={event => {
@@ -1005,6 +1007,37 @@ function useAsked(asked: TodoAsked | null | undefined, cards: Card[] | null, ope
   }, [asked, taken, cards, open])
 }
 
+/**
+ * The card whose panel is open, and where the focus goes as it closes: back on its card - or, the card gone from under
+ * it (its story deleted, closed under a filter), on To-do's heading; the panel does not open again of itself. `read`:
+ * the list is read, so a card not found is gone. (The focus moves once the panel is gone: what it lay over is inert
+ * until then.)
+ */
+function useOpened(cards: Card[], read: boolean) {
+  const [opened, setOpened] = useState<{ key: string; at?: string } | null>(null)
+  const [back, setBack] = useState<string | null>(null)
+  const card = cards.find(one => one.key === opened?.key)
+  const gone = !!opened && read && !card
+  useEffect(() => {
+    if (!gone) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpened(null)
+    setBack('todo-head')
+  }, [gone])
+  useEffect(() => {
+    if (!back || card) return
+    document.getElementById(back)?.focus()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBack(null)
+  }, [back, card])
+  const open = useCallback((key: string, at?: string) => setOpened({ key, at }), [])
+  const close = () => {
+    if (opened) setBack(cardId(opened.key))
+    setOpened(null)
+  }
+  return { card, at: opened?.at, open, close }
+}
+
 /** How the ticked tasks run, and what it runs and spends: in sight, never behind an ⓘ. */
 function TodoNotes() {
   return (
@@ -1062,17 +1095,13 @@ export function BacklogPage({
   pushes = NO_PUSH,
 }: Props & { asked?: TodoAsked | null; pushes?: Set<string> }) {
   const [dragged, setDragged] = useState<BacklogTask | null>(null)
-  const [opened, setOpened] = useState<{ key: string; at?: string } | null>(null)
   const listed = backlog?.filter(task => task.status !== 'proposed') ?? []
   const view = useTreeView(listed, stories, tree.onNewStory)
   const cards = cardsOf(view.rows)
-  const card = cards.find(one => one.key === opened?.key)
-  const openAt = useCallback((key: string, at: string) => setOpened({ key, at }), [])
-  useAsked(asked, backlog ? cards : null, openAt)
-  const close = () => {
-    setOpened(null)
-    if (opened) document.getElementById(cardId(opened.key))?.focus()
-  }
+  const { card, at, open, close } = useOpened(cards, backlog !== null)
+  useAsked(asked, backlog ? cards : null, open)
+  /** All of a card's tasks, whatever the filter shows. */
+  const whole = (one: Card) => wholeOf(one, listed, view.stories)
   const dock = (
     <TodoDock listed={listed} selected={view.selected} onSelect={view.select} projectId={projectId} onDo={onDoInChat} />
   )
@@ -1091,7 +1120,6 @@ export function BacklogPage({
           onChange={onChange}
           onDelete={onDelete}
           onOpen={onOpen}
-          depth={0}
           ticked={view.selected.has(task.id)}
           onTick={on => view.select([task.id], on)}
           choice={view.choice}
@@ -1118,9 +1146,9 @@ export function BacklogPage({
       <Cards backlog={backlog} error={error} empty={view.empty}>
         <StoryCards
           cards={cards}
-          listed={listed}
+          whole={whole}
           openKey={card?.key ?? null}
-          onOpen={key => (key ? setOpened({ key }) : close())}
+          onOpen={key => (key ? open(key) : close())}
           pushes={pushes}
         />
       </Cards>
@@ -1135,7 +1163,8 @@ export function BacklogPage({
         <StoryPanel
           key={card.key}
           card={card}
-          at={opened?.at}
+          all={whole(card)}
+          at={at}
           listed={listed}
           chats={chats}
           away={away}

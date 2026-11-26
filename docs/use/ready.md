@@ -67,7 +67,8 @@ The left half, from the top:
   report** and **Copy report as Markdown** - see
   [The night on Ready for you](../automation/overnight.md#the-night-on-ready-for-you). With no night,
   or one you have seen that ended more than a day ago, this is one line: "Nothing new since you last
-  looked". KOLONİ opened after a night opens on this page, until the night has been on screen - not
+  looked" - with **The whole report** of that night, where there is one. Where the record says why the
+  night ended (its money limit, its time, **Stop all**), the report says it too. KOLONİ opened after a night opens on this page, until the night has been on screen - not
   where you opened another page before it was read.
 - **Waiting for your word**: everything that waits, oldest first - what the night parked for you
   first -, in one list. Each row starts with its cell and says what it is - **Push**, **Parked
@@ -104,7 +105,7 @@ To-do lists them under its cards.
 What waits:
 
 - **Chat cards** from every chat, including chats in other folders.
-- **To-do** decisions: a new task (**Add** / **Edit** / **Reject**), a "done?" (**Done** / **Not yet**),
+- **To-do** decisions: a new task (**Add to To-do** / **Edit** / **Not wanted**), a "done?" (**Done** / **Not yet**),
   or a change (**Change** / **Reject**). New tasks include the
   [Scout](../automation/todo.md#follow-up-tasks)'s suggestions after a turn. At Full auto, a task
   the Orchestrator added for you is under **Decided for you** (**OK** / **Change → Reject**): it does

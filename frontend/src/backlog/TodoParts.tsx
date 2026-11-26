@@ -7,7 +7,9 @@ import { usePanel } from '../shell/usePanel'
 import { useApp } from '../state/store'
 import { tickable, type Filter } from './tree'
 
-/** What the tree changes of a story; each throws ApiError, and the list is read again after it. */
+/** To-do's parts (0.1.10, the tree gone for cards): its bar, a task's marks, a story's ⋯, its Rename and its Delete. */
+
+/** What To-do changes of a story; each throws ApiError, and the list is read again after it. */
 export interface TreeActions {
   onStory: (storyId: string, change: { title?: string; closed?: boolean }) => Promise<void>
   onDeleteStory: (storyId: string) => Promise<void>
@@ -19,13 +21,6 @@ export const STATE_WORD: Record<Story['state'], string> = {
   todo: '○ todo',
   stuck: '⚠ stuck',
   'done?': 'done?',
-}
-export const STATE_TONE: Record<Story['state'], string> = {
-  done: ' tag-ok',
-  running: ' tag-accent',
-  todo: '',
-  stuck: ' tag-del',
-  'done?': ' tag-ok',
 }
 
 /** A row's ⋯ and its menu: each item closes it, then does its work. */
@@ -130,7 +125,6 @@ export function Deleting({
 }
 
 export type Doing = 'rename' | 'delete' | null
-type Item = [string, () => void]
 
 /** What a row's ⋯ opened (Rename, Delete) - and, once that is done or left, the focus back on its ⋯. */
 export function useDoing(menuId: string) {
@@ -151,19 +145,6 @@ export const closable = (story: Story, tasks: BacklogTask[]) => {
   const own = tasks.filter(task => task.story_id === story.id && task.status !== 'proposed')
   return story.state === 'done?' && own.length > 0 && own.every(task => task.status === 'done')
 }
-
-/** A story's ⋯: Rename, Delete - and, once all its tasks are done, Close the story (done is only ever yours), or Open it again. */
-export const storyItems = (
-  story: Story,
-  canClose: boolean,
-  set: (doing: Doing) => void,
-  close: (closed: boolean) => void,
-): Item[] => [
-  ['Rename', () => set('rename')],
-  ...(canClose ? [['Close the story', () => close(true)] as Item] : []),
-  ...(story.state === 'done' ? [['Open it again', () => close(false)] as Item] : []),
-  ['Delete', () => set('delete')],
-]
 
 const FILTERS: [Filter, string][] = [
   ['all', 'All'],

@@ -305,3 +305,18 @@ test('a night planned, then gone away under the same id, is reported at once - n
   rerender(<Report away={{ ...planned, status: 'running', started_at: at(2, 10) }} parked={[]} onOpen={vi.fn()} />)
   expect(screen.getByRole('region', { name: /^☾ While you're away, since / })).toBeVisible()
 })
+
+test('a night folded into "nothing new" keeps the way to its whole report; the report says why the night ended', async () => {
+  const onReport = vi.fn()
+  const old = { started_at: '2026-01-02T22:00:00Z', ended_at: '2026-01-03T06:00:00Z', seen_at: '2026-01-03T08:00:00Z' }
+  const { rerender } = render(<Report away={night(JOBS, old)} parked={[]} onReport={onReport} onOpen={vi.fn()} />)
+  expect(screen.getByText(/^Nothing new since you last looked\./)).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: 'The whole report' }))
+  expect(onReport).toHaveBeenCalled()
+  rerender(<Report away={null} parked={[]} onReport={onReport} onOpen={vi.fn()} />)
+  expect(screen.queryByRole('button', { name: 'The whole report' })).toBeNull()
+  rerender(
+    <Report away={night(JOBS, { id: 'a9', why: 'Its money limit was reached.' })} parked={[]} onOpen={vi.fn()} />,
+  )
+  expect(screen.getByRole('region', { name: /^Last night, / })).toHaveTextContent('Its money limit was reached.')
+})

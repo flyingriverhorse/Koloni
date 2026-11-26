@@ -77,6 +77,20 @@ export function cardsOf(rows: TreeRow[]): Card[] {
   return cards
 }
 
+/**
+ * All of a card's tasks, whatever a filter shows: a story's, or - the last card - those of no story or of a story not
+ * known (gone since the list was read), as the tree has them. `stories`: every story of the project, shown or not.
+ */
+export function wholeOf(card: Card, listed: BacklogTask[], stories: Story[]): BacklogTask[] {
+  const known = new Set(stories.map(story => story.id))
+  return listed.filter(task =>
+    card.story ? task.story_id === card.story.id : !task.story_id || !known.has(task.story_id),
+  )
+}
+
+/** A card's button, by its key: where the focus goes back when its panel closes. */
+export const cardId = (key: string) => `todo-card-${key}`
+
 /** A task that can be ticked to go into a chat: to do or stuck, not waiting in a chat's queue already. */
 export const tickable = (task: BacklogTask) => (task.status === 'todo' || task.status === 'blocked') && !task.place
 
