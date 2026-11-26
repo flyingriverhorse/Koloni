@@ -52,7 +52,7 @@ the project. A chat with no folder has no decision log: its pill counts that cha
 
 Each row says when, who, the chat it is in (or To-do), what was decided, the question, command or task
 it was about, and the reason in quotes. The newest come first. Five rows show, then **Show all**. A
-decision you have not said OK to yet says **not seen**; the heading counts them: "Decided for you 5, 2
+decision you have not said OK to yet says **new**; the heading counts them: "Decided for you 5, 2
 not seen". Each row links to where the decision is: **The question**, **The command** and **The
 agent** open its chat, and **The task** opens To-do, on the same page, at that task.
 

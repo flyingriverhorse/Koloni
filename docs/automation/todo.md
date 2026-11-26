@@ -119,8 +119,9 @@ and how it stands - *done*, *at work*, *done?*, *waits for Take in*, *push waits
 mean is said under the cards. (Since 0.1.10 there is no goal level over the stories. A goal made before
 stays in the database, and its stories stand at the top like any other.)
 
-A card opens its story in a panel over To-do (the whole window on a narrow screen): its **Branch**, where
-a night's job of it worked on one, the **Chat** it runs in, its **State**; its
+A card opens its story in a panel over To-do (the whole window on a narrow screen): its **Night branch**,
+where a night's job of it worked on one (the story's own branch is not shown there yet), the **Chat** it
+runs in, its **State**; its
 [notebook](#the-storys-notebook), each note with who wrote it and when; its buttons; and its tasks, each
 with all it can do (below). **Close** (✕) or Esc shuts it, and you are back on its card; Esc in a form
 in it closes the form first.

@@ -63,7 +63,7 @@ The left half, from the top:
   checks, and what you can do about it - **Take in**, **Try again**, **Open its chat**. What a job asks
   is answered on its card, under **Waiting for your word**. Once the night has ended, a lane for each
   job on the night's clock, the decisions made for you on its lane, **Not checked**, how many were
-  decided for you (**See them** opens them under **Decided for you**), what it spent, **The whole
+  decided for you on its jobs (**See them** opens them under **Decided for you**), what it spent, **The whole
   report** and **Copy report as Markdown** - see
   [The night on Ready for you](../automation/overnight.md#the-night-on-ready-for-you). With no night,
   or one you have seen that ended more than a day ago, this is one line: "Nothing new since you last
