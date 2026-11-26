@@ -361,6 +361,38 @@ test('Memory search and Usage', async ({ page, request }) => {
   await picture(page, 'usage')
 })
 
+test('the Chats page: each chat’s cell and line, and Now', async ({ page, request }) => {
+  test.setTimeout(90_000)
+  const name = (id: string, title: string) =>
+    request
+      .patch(`/api/conversations/${id}`, { headers: OWN, data: { title } })
+      .then(said => expect(said.ok()).toBe(true))
+  await name(await openFreshConversation(page), 'Ideas for the logo')
+  const done = await openFreshConversation(page)
+  await say(page, 'review the greeting', 'The reviewer found no problems.')
+  await name(done, 'Review the greeting')
+  const asks = await openFreshConversation(page)
+  expect(
+    (await request.patch(`/api/conversations/${asks}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+  ).toBe(true)
+  await say(page, 'run the tests', 'Run this command?')
+  await name(asks, 'Run the tests')
+  // (Loaded again: the turn's "Done" toast is not in the picture.)
+  await page.reload()
+  await rail(page, 'Chats').click()
+  const list = page.locator('.conv-page')
+  await expect(list.getByRole('button', { name: /^Run the tests/ })).toContainText('Waits for your word · Command')
+  await expect(list.getByRole('button', { name: /^Review the greeting/ })).toContainText('Done')
+  await expect(list.getByRole('complementary', { name: 'Now every folder' })).toContainText(
+    '1 thing waits for your word',
+  )
+  await picture(page, 'chats')
+  // (Answered: what runs after finds nothing waiting.)
+  await list.getByRole('button', { name: /^Run the tests/ }).click()
+  await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: 'Reject' }).click()
+  await expect(page.getByText('Okay, I left hello.py unchanged.')).toBeVisible({ timeout: 20_000 })
+})
+
 test.describe('the guide’s videos', () => {
   test.use({ viewport: FRAME })
 
