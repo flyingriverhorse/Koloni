@@ -12,7 +12,6 @@ import type {
   BacklogTask,
   BacklogTaskChange,
   Board,
-  Cards,
   Day,
   DayWords,
   CatalogueDraft,
@@ -337,10 +336,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   removePrice(modelId: string): Promise<void>
   /** What the agents' models reported, in one project or (null) in all, from a moment on (null: all of it). Throws ApiError. */
   usage(projectId: string | null, since: string | null, runId?: string): Promise<Usage>
-  /** The command cards asked in one project or (null) in all, from a moment on (null: all of it); a project's suggested rules too. Throws ApiError. */
-  cards(projectId: string | null, since: string | null): Promise<Cards>
-  /** The user's click on a suggested rule: KOLONİ adds its line to the project's rules (it takes the key, never text). Throws ApiError. */
-  addCardRule(projectId: string, key: string): Promise<void>
   /** The open project's day from a moment on, counted from the record. Throws ApiError. */
   day(since: string): Promise<Day>
   /** The day's numbers in words, by a conversation's model: asked once; `overBudget`: the user's word to ask it over the month's budget. Throws ApiError. */
@@ -1421,17 +1416,6 @@ export const useApp = create<AppStore>()((set, get) => {
       if (since) asked.set('since', since)
       if (runId) asked.set('run_id', runId)
       return api.get<Usage>(`/usage?${asked}`)
-    },
-
-    async cards(projectId, since) {
-      const asked = new URLSearchParams()
-      if (projectId) asked.set('project_id', projectId)
-      if (since) asked.set('since', since)
-      return api.get<Cards>(`/cards?${asked}`)
-    },
-
-    async addCardRule(projectId, key) {
-      await api.post(`/projects/${projectId}/card-suggestions/${encodeURIComponent(key)}`, {})
     },
 
     day: since => api.get<Day>(`/projects/${get().projectId}/day?since=${encodeURIComponent(since)}`),

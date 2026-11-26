@@ -4186,51 +4186,6 @@ class RulesOut(BaseModel):
     rules: str | None
 
 
-class CardReasonOut(BaseModel):
-    """Cards measured: the cards asked for one reason (`app.cards.REASONS`), and their answers."""
-
-    reason: str
-    said: str
-    asked: int
-    approved: int
-    rejected: int
-    unanswered: int
-
-
-class CardsCheckedOut(BaseModel):
-    """ "Check what I said first"'s outcomes: ran on a line of the user's, not run, asked."""
-
-    run: int
-    refuse: int
-    ask: int
-
-
-class CardSuggestionOut(BaseModel):
-    """A delete the user approved unchanged `times` times, and the line for the project's rules
-    that would spare its card at Full auto with Check what I said first on - KOLONİ's words."""
-
-    key: str
-    command: str
-    cwd: str
-    times: int
-    rule: str
-
-
-class CardsOut(BaseModel):
-    """Cards measured (0.1.7): the command cards asked in a period, answered how, by reason - only
-    cards from 0.1.7 on carry one - the seconds to an answer on average (None: none answered),
-    the check's outcomes, and, for one project, the rules it suggests."""
-
-    asked: int
-    approved: int
-    rejected: int
-    unanswered: int
-    by_reason: list[CardReasonOut]
-    decide_seconds: float | None
-    checked: CardsCheckedOut
-    suggestions: list[CardSuggestionOut] = []
-
-
 class PreferencesIn(BaseModel):
     text: str
 

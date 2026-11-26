@@ -690,27 +690,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/cards": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Cards
-         * @description The cards asked since `since` (all without it), in one project's chats or in all; for one
-         *     project, the rules its approvals suggest too.
-         */
-        get: operations["read_cards_api_cards_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/catalog": {
         parameters: {
             query?: never;
@@ -2683,29 +2662,6 @@ export interface paths {
         get: operations["project_budget_api_projects__project_id__budget_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/card-suggestions/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add Suggested Rule
-         * @description Cards measured (0.1.7): the user's click on a rule the Usage page suggests - by its key
-         *     alone, never text: its line, KOLONİ's, found again among what this project's approvals
-         *     suggest (`cards.suggestions`), at the end of the project's rules, saved as `set_rules` saves
-         *     them. Once there, the same click changes nothing.
-         */
-        post: operations["add_suggested_rule_api_projects__project_id__card_suggestions__key__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5849,79 +5805,6 @@ export interface components {
             model_id?: string | null;
             /** Provider Id */
             provider_id: string;
-        };
-        /**
-         * CardReasonOut
-         * @description Cards measured: the cards asked for one reason (`app.cards.REASONS`), and their answers.
-         */
-        CardReasonOut: {
-            /** Approved */
-            approved: number;
-            /** Asked */
-            asked: number;
-            /** Reason */
-            reason: string;
-            /** Rejected */
-            rejected: number;
-            /** Said */
-            said: string;
-            /** Unanswered */
-            unanswered: number;
-        };
-        /**
-         * CardSuggestionOut
-         * @description A delete the user approved unchanged `times` times, and the line for the project's rules
-         *     that would spare its card at Full auto with Check what I said first on - KOLONİ's words.
-         */
-        CardSuggestionOut: {
-            /** Command */
-            command: string;
-            /** Cwd */
-            cwd: string;
-            /** Key */
-            key: string;
-            /** Rule */
-            rule: string;
-            /** Times */
-            times: number;
-        };
-        /**
-         * CardsCheckedOut
-         * @description "Check what I said first"'s outcomes: ran on a line of the user's, not run, asked.
-         */
-        CardsCheckedOut: {
-            /** Ask */
-            ask: number;
-            /** Refuse */
-            refuse: number;
-            /** Run */
-            run: number;
-        };
-        /**
-         * CardsOut
-         * @description Cards measured (0.1.7): the command cards asked in a period, answered how, by reason - only
-         *     cards from 0.1.7 on carry one - the seconds to an answer on average (None: none answered),
-         *     the check's outcomes, and, for one project, the rules it suggests.
-         */
-        CardsOut: {
-            /** Approved */
-            approved: number;
-            /** Asked */
-            asked: number;
-            /** By Reason */
-            by_reason: components["schemas"]["CardReasonOut"][];
-            checked: components["schemas"]["CardsCheckedOut"];
-            /** Decide Seconds */
-            decide_seconds: number | null;
-            /** Rejected */
-            rejected: number;
-            /**
-             * Suggestions
-             * @default []
-             */
-            suggestions: components["schemas"]["CardSuggestionOut"][];
-            /** Unanswered */
-            unanswered: number;
         };
         /**
          * CatalogueFillIn
@@ -13273,38 +13156,6 @@ export interface operations {
             };
         };
     };
-    read_cards_api_cards_get: {
-        parameters: {
-            query?: {
-                project_id?: string | null;
-                since?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CardsOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     catalogue_api_catalog_get: {
         parameters: {
             query?: never;
@@ -17038,38 +16889,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_suggested_rule_api_projects__project_id__card_suggestions__key__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RulesOut"];
                 };
             };
             /** @description Validation Error */

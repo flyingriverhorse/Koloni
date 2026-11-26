@@ -51,7 +51,6 @@ from app.api import (
     backup,
     board,
     builtin_tools,
-    cards,
     categories,
     commands,
     compares,
@@ -525,7 +524,6 @@ def create_app(
         hold,
         backup,
         knowledge_page,
-        cards,
         judge,
     ):
         app.include_router(module.router)
