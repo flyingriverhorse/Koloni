@@ -186,7 +186,7 @@ const options = () =>
 test('Ctrl+K opens it from inside the message box; it finds by name as it is typed; Esc closes it and the focus is back in the box', async () => {
   render(<App />)
   const box = await screen.findByLabelText('Message')
-  await waitFor(() => expect(asked).toContain('/api/conversations/c1'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c1?turns=40'))
   await userEvent.click(box)
   await userEvent.keyboard('{Control>}k{/Control}')
   expect(palette()).toBeInTheDocument()
@@ -233,7 +233,7 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
   expect(screen.getByRole('heading', { name: 'Web search' })).toBeInTheDocument()
   // a conversation, by its name: it is opened on the canvas
   await pick('tidy')
-  await waitFor(() => expect(asked).toContain('/api/conversations/c2'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c2?turns=40'))
   expect(screen.queryByRole('form', { name: 'Project settings' })).not.toBeInTheDocument()
   expect(await screen.findByLabelText('Message')).toBeInTheDocument()
 })
@@ -360,7 +360,7 @@ test('the first steps are one path - a provider, a folder, a message: the first 
   answers['/api/conversations'] = [{ ...listed('c1', 'Fix the login'), wrote: true }]
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().loadProjects()))
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().newConversation()))
-  await waitFor(() => expect(asked).toContain('/api/conversations/c3'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c3?turns=40'))
   expect(screen.queryByRole('region', { name: 'First steps' })).not.toBeInTheDocument()
   expect(localStorage.getItem('koloni-first-steps')).toBeNull()
 })
@@ -371,7 +371,7 @@ test('a conversation with a turn has no first steps over it, even with the model
   answers['/api/providers'] = [{ id: 'pv', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] }]
   answers['/api/roles/models'] = [{ role: 'Reviewer', provider_name: 'Local', asks_how_hard: null }]
   render(<App />)
-  await waitFor(() => expect(asked).toContain('/api/conversations/c1'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c1?turns=40'))
   expect(await screen.findByLabelText('Message')).toBeInTheDocument()
   await screen.findByText(/Local isn't answering/)
   expect(screen.queryByRole('region', { name: 'First steps' })).not.toBeInTheDocument()

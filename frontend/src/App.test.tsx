@@ -219,7 +219,7 @@ test('in a project whose conversations are all archived, none is opened, and the
   await userEvent.click(screen.getByRole('button', { name: 'Hide the first steps' }))
   expect(await screen.findByText(/Local isn't answering at/)).toBeInTheDocument()
   const asked = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
-  expect(asked).not.toContain('/api/conversations/a')
+  expect(asked.filter(url => url.startsWith('/api/conversations/a'))).toEqual([])
 })
 
 test('a server that runs another API than the page was built against, or does not say which, is to be restarted', async () => {

@@ -358,6 +358,8 @@ export function convState(over: Partial<ConvState> = {}): ConvState {
     summarisingAgents: [],
     live: {},
     shown: 0,
+    older: 0,
+    olderFrom: null,
     ...over,
   }
 }

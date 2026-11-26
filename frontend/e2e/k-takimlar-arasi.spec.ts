@@ -172,8 +172,9 @@ for (const theme of ['light', 'dark'] as const) {
     file('contracts/items-api.md', 'Web app · Coder', 'GET /api/items?page=1 -> { items, next }')
     file('backend-api/items-endpoint.md', 'Backend / API · Coder', 'done, 3 tests')
     let record = await asked(page, id)
-    await page.route(`**/api/conversations/${id}`, route =>
-      route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+    await page.route(
+      url => url.pathname === `/api/conversations/${id}`,
+      route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
     )
     await page.reload()
     await expect(page.locator('.team-frame')).toHaveCount(2)
@@ -387,8 +388,9 @@ for (const theme of ['light', 'dark'] as const) {
     const id = await openFreshConversation(page)
     await say(page, 'hello, two teams and a request', 'Hello! Ask me to read or change a file.')
     const record = await asked(page, id, true, true)
-    await page.route(`**/api/conversations/${id}`, route =>
-      route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+    await page.route(
+      url => url.pathname === `/api/conversations/${id}`,
+      route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
     )
     await page.reload()
     await expect(page.locator('.team-frame')).toHaveCount(2)

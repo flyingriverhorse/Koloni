@@ -17,8 +17,9 @@ async function realTurn(page: Page) {
 
 /** The page shown `record` in place of the chat's own. */
 async function shown(page: Page, id: string, record: Json) {
-  await page.route(`**/api/conversations/${id}`, route =>
-    route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback(),
+  await page.route(
+    url => url.pathname === `/api/conversations/${id}`,
+    route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()),
   )
   await page.reload()
 }

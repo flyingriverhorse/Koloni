@@ -2403,19 +2403,19 @@ class SnapshotOut(BaseModel):
     discussions: list[DiscussionOut]
     discussion_posts: list[DiscussionPostOut]
     board_posts: list[BoardPostOut]
-    # The files of the project held right now, by agents of any of its conversations.
-    claims: list[ClaimOut]
-    # The working copies of this conversation's agents that were, or are to be, taken
-    # into the project.
-    merges: list[MergeOut]
-    # The files added to its messages, and those added to the next one, not sent yet.
-    attachments: list[AttachmentOut] = []
+    claims: list[ClaimOut]  # the project's files held now, by agents of any of its chats
+    merges: list[MergeOut]  # its agents' working copies taken into the project, or to be
+    attachments: list[AttachmentOut] = []  # its messages' files, and the next one's not sent yet
     # The "While you're away" cards its Lead put here, with their nights (slice 106).
     away: list["AwayOut"] = []
     # K-bilgi 6: the "Add to Project notes?" offers under its turns, decided or not.
     notes_offers: list["NotesOfferOut"] = []
     warnings: list[WarningOut] = []
     last_event_id: int
+    # Of `?turns=N` (a long chat's page): how many turns before these were not sent, and the run to
+    # read the page before from (`before=`) - 0 or None: every turn is here.
+    older: int | None = None
+    older_from: str | None = None
 
 
 class PostMessageOut(BaseModel):

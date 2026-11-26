@@ -1098,7 +1098,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Snapshot */
+        /**
+         * Snapshot
+         * @description A chat as it is: every turn - or, of `turns` (the page opening a long chat), its newest that
+         *     many, every older one that still waits for the user, and how many are left out (`older`):
+         *     `before` reads the page before that run. What needs the whole history (search, the decision
+         *     log, the night's report) reads it on the server, not here.
+         */
         get: operations["snapshot_api_conversations__conversation_id__get"];
         put?: never;
         post?: never;
@@ -10740,6 +10746,10 @@ export interface components {
              * @default []
              */
             notes_offers: components["schemas"]["NotesOfferOut"][];
+            /** Older */
+            older?: number | null;
+            /** Older From */
+            older_from?: string | null;
             /** Pending Roles */
             pending_roles: components["schemas"]["PendingRoleOut"][];
             /** Pending Skills */
@@ -13453,7 +13463,10 @@ export interface operations {
     };
     snapshot_api_conversations__conversation_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                turns?: number | null;
+                before?: string | null;
+            };
             header?: never;
             path: {
                 conversation_id: string;

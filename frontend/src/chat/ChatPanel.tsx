@@ -33,6 +33,7 @@ import { ChatTodoQueue } from './TodoQueue'
 import type { Second } from './Compare'
 import { Composer, type ComposerTopic } from './Composer'
 import { judgeWordsOf } from './levels'
+import { Earlier } from './Earlier'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { ChatStoryStrip } from './StoryStrip'
 import { DecidedLine } from './DecidedLine'
@@ -492,21 +493,24 @@ function ChatPane({ conv, tab }: { conv: ConvState | null; tab: ChatTab }) {
   if (!conv) return <div className="msg-list msg-empty muted">Send a message to start.</div>
   if (tab === 'Talk') return <ChannelPanel state={conv} />
   return (
-    <MessageList
-      state={conv}
-      onRemoveQueued={runId => void useApp.getState().cancelRun(runId)}
-      {...handlersOf()}
-      onDecidePlan={app.decidePlan}
-      onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
-      roles={roles}
-      providers={providers}
-      onUsage={turnUsage}
-      prices={prices}
-      onLoadCompare={app.loadCompare}
-      onDecideCompare={app.decideCompare}
-      onShowTurn={app.showTurn}
-      onShowGit={app.showGit}
-    />
+    <>
+      <Earlier conv={conv} />
+      <MessageList
+        state={conv}
+        onRemoveQueued={runId => void useApp.getState().cancelRun(runId)}
+        {...handlersOf()}
+        onDecidePlan={app.decidePlan}
+        onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
+        roles={roles}
+        providers={providers}
+        onUsage={turnUsage}
+        prices={prices}
+        onLoadCompare={app.loadCompare}
+        onDecideCompare={app.decideCompare}
+        onShowTurn={app.showTurn}
+        onShowGit={app.showGit}
+      />
+    </>
   )
 }
 

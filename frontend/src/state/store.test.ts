@@ -61,7 +61,7 @@ beforeEach(() => {
       if (failing) throw new TypeError('Failed to fetch')
       // (And the folders, for a chat's folder the page does not know yet.)
       if (url.endsWith('/projects')) return new Response('[]', { status: 200 })
-      const id = /conversations\/([^/]+)$/.exec(url)?.[1] ?? 'c'
+      const id = /conversations\/([^/?]+)(\?turns=\d+)?$/.exec(url)?.[1] ?? 'c'
       return new Response(JSON.stringify(snapshot(id)), { status: 200 })
     }),
   )
@@ -141,7 +141,7 @@ const inFolders = (ids: string[]) =>
 function readsFolders() {
   const read = vi.mocked(fetch).getMockImplementation()!
   vi.mocked(fetch).mockImplementation(async (url, init) => {
-    const id = /conversations\/([^/]+)$/.exec(String(url))?.[1]
+    const id = /conversations\/([^/?]+)(\?turns=\d+)?$/.exec(String(url))?.[1]
     if (!id || !(id in folders)) return read(url, init)
     const opened = snapshot(id)
     return new Response(
@@ -425,7 +425,7 @@ test('the store follows the open chat’s folder: another folder’s board, budg
     'fetch',
     vi.fn(async (url: string) => {
       asked.push(url)
-      const id = /conversations\/([^/]+)$/.exec(url)?.[1]
+      const id = /conversations\/([^/?]+)(\?turns=\d+)?$/.exec(url)?.[1]
       if (id)
         return new Response(JSON.stringify(of(id, id === 'plain' ? null : id.startsWith('inq') ? 'q' : 'p')), {
           status: 200,
@@ -929,14 +929,14 @@ test('KOLONİ opens on the newest chat not archived, of any folder or of none, a
         asked.push(`${init?.method ?? 'GET'} ${url}`)
         if (url.endsWith('/projects')) return new Response(JSON.stringify([{ id: 'p' }, { id: 'q' }]), { status: 200 })
         if (url === '/api/conversations') return new Response(JSON.stringify(list), { status: 200 })
-        const id = /conversations\/([^/?]+)$/.exec(url)?.[1]
+        const id = /conversations\/([^/?]+)(\?turns=\d+)?$/.exec(url)?.[1]
         const one = list.find(c => c.id === id)
         return new Response(one ? JSON.stringify({ ...snapshot(one.id), conversation: one }) : '[]', { status: 200 })
       }),
     )
     await useApp.getState().loadProjects()
     expect([useApp.getState().conv?.conversation.id, useApp.getState().projectId]).toEqual([opened, folder])
-    expect(asked).not.toContain('GET /api/conversations/a')
+    expect(asked.filter(call => call.startsWith('GET /api/conversations/a'))).toEqual([])
     expect(asked.filter(call => call.startsWith('POST'))).toEqual([])
   }
 })
@@ -953,12 +953,14 @@ test('the page is ready only once the newest chat is open: a message typed befor
           JSON.stringify([{ ...conversation, id: 'a', archived_at: null, kept: false, backlog_task: null }]),
           { status: 200 },
         )
-      if (url === '/api/conversations/a') await held
-      return new Response(JSON.stringify(url === '/api/conversations/a' ? snapshot('a') : []), { status: 200 })
+      if (url === '/api/conversations/a?turns=40') await held
+      return new Response(JSON.stringify(url === '/api/conversations/a?turns=40' ? snapshot('a') : []), { status: 200 })
     }),
   )
   const loading = useApp.getState().loadProjects()
-  await vi.waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/conversations/a', expect.anything()))
+  await vi.waitFor(() =>
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/conversations/a?turns=40', expect.anything()),
+  )
   expect(useApp.getState().ready).toBe(false)
   open()
   await loading
@@ -998,7 +1000,7 @@ test('a folder change the server answers after another chat was opened leaves th
         return new Response(JSON.stringify({ ...conversation, id: 'a', project_id: 'q' }), { status: 200 })
       }
       if (url === '/api/conversations' || url === '/api/projects') return new Response('[]', { status: 200 })
-      const id = /conversations\/([^/]+)$/.exec(url)?.[1] ?? 'c'
+      const id = /conversations\/([^/?]+)(\?turns=\d+)?$/.exec(url)?.[1] ?? 'c'
       return new Response(JSON.stringify(snapshot(id)), { status: 200 })
     }),
   )

@@ -104,6 +104,7 @@ import { chatOf, closing, kept, opened, remember, rememberChat, remembered, tabO
 import { keyOf } from '../views/views'
 import { waitCount } from '../board/waiting'
 import { activeRun, applyEvent, fromSnapshot, type ConvState } from './applyEvent'
+import { earlierPage, reachTurn, turnsOf, withEarlier } from './earlier'
 
 /** K-dal-takim D2: what else Merge says on a branch's card - keep the branch after it, and which way finished work goes. */
 export interface BranchSaid {
@@ -403,6 +404,7 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Delete a kept skill: every role loses it. Throws ApiError. */
   deleteSkill(skillId: string): Promise<void>
   openConversation(id: string): Promise<void>
+  loadEarlier(): Promise<void> // (a long chat's older turns, a page more: `ConvState.older`; throws ApiError)
   /** The tabs over the canvas, one per project - its id, or 'none' - in their order (slice 86e); remembered in this browser. */
   tabs: string[]
   /** Go to a project's tab: the chat opened last in it, else its newest, else a new one in it. */
@@ -1629,6 +1631,12 @@ export const useApp = create<AppStore>()((set, get) => {
       if (mine === healthRuns && kept() && (get().conv?.conversation.id ?? null) === of) set({ inUse: { of, ...now } })
     },
 
+    async loadEarlier() {
+      const { conv } = get()
+      const page = conv?.olderFrom ? await earlierPage(conv) : null
+      if (page) set(s => (s.conv?.conversation.id === conv!.conversation.id ? { conv: withEarlier(s.conv, page) } : s))
+    },
+
     async openConversation(id) {
       // Only the latest call may install a stream: an earlier one that is still
       // waiting for its snapshot would otherwise leave a second stream behind.
@@ -1644,7 +1652,7 @@ export const useApp = create<AppStore>()((set, get) => {
       opening = id
       let snapshot: Snapshot
       try {
-        snapshot = await api.get<Snapshot>(`/conversations/${id}`)
+        snapshot = await api.get<Snapshot>(`/conversations/${id}?turns=${turnsOf(get().conv, sameAsOpen)}`)
       } finally {
         if (mine === generation) opening = null
       }
@@ -2112,7 +2120,7 @@ export const useApp = create<AppStore>()((set, get) => {
     async openTurn(conversationId, runId) {
       // Opening another conversation forgets the turn picked in the one before: so first that.
       if (get().conv?.conversation.id !== conversationId) await get().openConversation(conversationId)
-      if (get().conv?.conversation.id === conversationId) set({ turnId: runId })
+      if (await reachTurn(get, conversationId, runId)) set({ turnId: runId })
     },
 
     filesOpen: false,
