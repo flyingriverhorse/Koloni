@@ -273,10 +273,11 @@ class AwayBranchMixin:
             mine = await asyncio.to_thread(
                 git.holding, copy.project, look["tip"], mine, _secret_forms(copy)
             )
-        if secret := [path for path in secret if path not in mine]:
-            # (HIGH-1: kept out of git - its name masked too, MEDIUM-3 -, said; the rest goes on)
-            named = [raw.hide(path, copy.every_secret()) for path in secret]
-            held = {**held, "left_out": named}
+        # (HIGH-1: kept out of git - its name masked too, MEDIUM-3 -, said; the rest goes on. Each
+        # turn's own: a later turn of the job carries the earlier one's record)
+        named = [raw.hide(path, copy.every_secret()) for path in secret if path not in mine]
+        held = {**held, "left_out": named}
+        if named:
             self._koloni_line(ctx.cid, ctx.run_id, LEFT_OUT.format(files=_few(named)))
         held |= await self._branch_on_record(ctx, copy, look, held)
         self._set_agent(ctx.cid, ctx.agent_id, copy={**record, "away": held})
