@@ -238,7 +238,7 @@ test('the same decision everywhere: answered in Ready, another chat’s card is 
     async (url: string) =>
       new Response(
         JSON.stringify(
-          url.endsWith('/conversations/x')
+          url.endsWith('/conversations/x?turns=40')
             ? {
                 conversation: other.conversation,
                 messages: [],
@@ -281,7 +281,8 @@ test('the same decision everywhere: answered in Ready, another chat’s card is 
   expect(fetch.mock.calls.map(([url]) => String(url))).toEqual(
     expect.arrayContaining([
       expect.stringContaining('/api/commands/cmd/approve'),
-      expect.stringContaining('/api/conversations/x'),
+      // (its newest page, not the whole chat: an older turn that still waits comes with it)
+      expect.stringContaining('/api/conversations/x?turns=40'),
     ]),
   )
   await vi.waitFor(() => expect(screen.queryByRole('group', { name: 'chat: “Fix the login”' })).toBeNull())
@@ -335,7 +336,7 @@ test('a chat answered here that asks again with the same Board row is read again
     'fetch',
     vi.fn(async (url: string) => {
       if (url.includes('/approve')) asking = { ...asking, status: 'approved' }
-      return new Response(JSON.stringify(url.endsWith('/conversations/x') ? snapshot() : {}), { status: 200 })
+      return new Response(JSON.stringify(url.endsWith('/conversations/x?turns=40') ? snapshot() : {}), { status: 200 })
     }),
   )
   // (The Board's row says "x" waits - before the decision, and the same again once it asks anew.)

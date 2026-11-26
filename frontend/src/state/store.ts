@@ -104,7 +104,7 @@ import { chatOf, closing, kept, opened, remember, rememberChat, remembered, tabO
 import { keyOf } from '../views/views'
 import { waitCount } from '../board/waiting'
 import { activeRun, applyEvent, fromSnapshot, type ConvState } from './applyEvent'
-import { earlierPage, reachTurn, turnsOf, withEarlier } from './earlier'
+import { TURNS_PAGE, earlierPage, reachTurn, turnsOf, withEarlier } from './earlier'
 
 /** K-dal-takim D2: what else Merge says on a branch's card - keep the branch after it, and which way finished work goes. */
 export interface BranchSaid {
@@ -858,7 +858,8 @@ export const useApp = create<AppStore>()((set, get) => {
             const mark = fresh.has(id) ? `read ${++readyReads}` : row
             readyRows.set(id, mark)
             try {
-              const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}`))
+              // (Its newest page, as the open chat is read: an older turn that still waits comes with it, `_waits_in`.)
+              const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}?turns=${TURNS_PAGE}`))
               // (Not over a later read's answer.)
               set(s => (readyRows.get(id) === mark ? { readyChats: { ...s.readyChats, [id]: read } } : s))
             } catch {
