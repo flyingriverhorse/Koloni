@@ -197,7 +197,9 @@ test('the Lead’s picks are shown with why, to be changed only in Manual', asyn
   expect(panel()).toHaveTextContent('Orchestrator’s pick: “new page work”')
   expect(within(panel()).queryByRole('combobox')).toBeNull()
   expect(within(panel()).queryByRole('button', { name: /Add a team/ })).toBeNull()
-  expect(panel()).toHaveTextContent('Beside its picks it calls any built-in role the work needs.')
+  expect(panel()).toHaveTextContent(
+    'Beside its picks it calls any built-in role the work needs, though not while a recipe runs.',
+  )
   expect(panel()).toHaveTextContent('To change them, switch to Manual')
 })
 
