@@ -32,6 +32,8 @@ def test_the_address_goes_and_a_summary_with_nowhere_to_go_loses_its_time(tmp_pa
             ("both", "18:00"),
             ("hook", None),
         ]
+    # (Zeroed with the old table's pages, not left in a free page of the file.)
+    assert ADDRESS.encode() not in b"".join(f.read_bytes() for f in tmp_path.glob("old.db*"))
 
     command.downgrade(cfg, "0190")
     with sqlite3.connect(db) as conn:

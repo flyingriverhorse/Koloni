@@ -48,7 +48,9 @@ Only what needs your attention after an update; everything else is in the [Chang
   the form it was posted in: notifications go to the desktop alone (Settings › This project ›
   Notifications › **Show a desktop notification**, Windows only). A project whose day's summary went
   only to the address has its summary's time emptied: switch the desktop on and set the time again.
-  Going back to 0.1.9 brings neither back.
+  Going back to 0.1.9 brings neither back. The copies in `runtime/data/backups/` made before the
+  upgrade and at the first start of a day still hold the address: delete them once you no longer
+  need them if it is a secret.
 - **The search by meaning is gone.** The database upgrade deletes the vectors it kept and the provider
   and model a project chose for it. Search deeper and an agent's recall match words, as before. Going
   back to 0.1.9 brings the setting back off.
