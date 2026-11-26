@@ -85,7 +85,11 @@ agent's CLI keeps its own commands off KOLONİ's record, its report is taken as 
 **Loop back** goes back to an earlier step, **at most** 1 to 5 rounds. **Ask for changes** gives a
 recipe's loops their rounds again: your word is a new start. A fix round of KOLONİ's checks goes back
 the same way but does not: a review whose loop ran out runs once more, and what it finds then is yours
-on the card, not another round of the loop.
+on the card - it names the findings and offers **Fix the findings** - not another round of the loop.
+Where a recipe's fixer loops back to its tests (Quality check, Upkeep) and those rounds ran out, KOLONİ
+sends no fix round on top: it would only run the tests again. In **Integration**, whose one loop goes
+back to Plan, a fix round plans again, has the experts check the plan, and stops before Build if they
+find something again.
 
 A **Room** step of a recipe drawn before 0.1.10 (rooms are gone) opens as an **All at once** group in
 its place, with a step for each of its roles: they run side by side, as sub-agents, in the recipe's
@@ -133,7 +137,7 @@ The ready recipes come set: **Bugfix**, **Feature**, **Model change** and **Pipe
 their tests and a review, **Docs** its documents and a review, **Evolve** its tests; the others follow
 the project. A recipe set for itself
 checks so even in a project at **Nothing** - set its Checks step to **Follow the project** to leave it
-to the project. Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
+to the project (a ready recipe cannot be changed: copy it, and set the copy's Checks step). Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
 project does; one the Orchestrator picked (Orchestrator decides) only adds to the project's checks
 and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step,
 never the chat's **Test and review changes** switch. Rounds never stack: where the recipe's own

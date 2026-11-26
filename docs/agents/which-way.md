@@ -30,7 +30,7 @@ A team with the **Feature** recipe: in **Teams for this chat** choose **Manual**
 team, whose default recipe is Feature. A Spec writer writes the spec for you to approve, a Coder builds
 it, then a UI designer looks at its screens; findings go back to the Coder, at most twice. Then KOLONİ
 runs the tests, and has a big or security-touching change looked at by its own Reviewer and Security
-reviewer: 3 to 7 agents in all, as its recipe counts them. You take the work in on the **Teams' work is
+reviewer: 3 to 7 agents as its recipe counts them, KOLONİ's own reviewers on top. You take the work in on the **Teams' work is
 ready** card. See [A web app with a team](../examples/team-web-app.md).
 
 **"Fix this crash, and make sure it stays fixed."**
