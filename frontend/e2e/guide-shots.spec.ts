@@ -439,9 +439,27 @@ test('Memory search and Usage', async ({ page, request }) => {
   await expect(search.getByRole('list', { name: 'In earlier messages' }).getByRole('listitem').first()).toBeVisible()
   await picture(page, 'memory-search')
 
-  await rail(page, 'Usage').click()
-  await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
-  await picture(page, 'usage')
+  // Usage's picture: a price for the model and a monthly budget three times what the month spent at it (the earlier
+  // pictures' turns too), so that the summary says what was spent and a third of the budget's cells fill. Both are
+  // taken away after it, whatever happens: the backend is shared.
+  const project = await e2eProject(page)
+  const price = { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' }
+  const budget = (monthly_budget: number | null) =>
+    request.patch(`/api/projects/${project}`, { headers: OWN, data: { monthly_budget } })
+  try {
+    expect((await request.put('/api/prices', { headers: OWN, data: price })).ok()).toBe(true)
+    const { spent } = await (await request.get(`/api/projects/${project}/budget`)).json()
+    expect((await budget(Math.max(spent * 3, 0.5))).ok()).toBe(true)
+    await page.reload()
+    await rail(page, 'Usage').click()
+    await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'This month' }).click()
+    await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
+    await expect(page.getByRole('meter', { name: 'Monthly budget used' })).toBeVisible()
+    await picture(page, 'usage')
+  } finally {
+    await request.delete('/api/prices?model_id=fake-qwen', { headers: OWN })
+    await budget(null)
+  }
 })
 
 test('the Chats page: each chat’s cell and line, and Now', async ({ page, request }) => {

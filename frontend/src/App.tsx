@@ -903,10 +903,10 @@ export function App() {
               await useApp.getState().openTurn(id, runId)
               setView('canvas')
             }}
-            decisions={<DecidedToday onLoad={decisionsOf} />}
           />
         )
       }
+      decisions={projectId ? period => <DecidedToday onLoad={decisionsOf} period={period} /> : undefined}
       onOpen={id => {
         void useApp.getState().openConversation(id)
         setView('canvas')

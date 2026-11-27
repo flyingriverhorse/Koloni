@@ -1,6 +1,7 @@
 import { Wallet } from '@phosphor-icons/react'
 import type { Budget } from '../api/types'
-import { budgetWarning, UNENFORCED, unenforced, usedPercent } from './budgetText'
+import { Cell } from '../shell/Cell'
+import { budgetWarning, daysLeft, UNENFORCED, unenforced, usedPercent } from './budgetText'
 import { money } from './cost'
 
 /**
@@ -28,10 +29,48 @@ export function BudgetPill({ budget, onOpen }: { budget: Budget | null; onOpen: 
   )
 }
 
-/** On the Usage page: this calendar month's spend against the budget, a bar and its numbers; unpriced turns said apart. */
+const TENTHS = 10
+
+/**
+ * The month's spend as ten cells, each a tenth of the budget: full where it is spent, light where part of it is, and
+ * red-orange all over once the budget is. One meter, named; its numbers are in words beside it, the cells hidden.
+ */
+function Comb({ budget, spent, of }: { budget: Budget; spent: number; of: number }) {
+  const tenths = (spent / of) * TENTHS
+  const tenth = `${(of / TENTHS).toLocaleString('en-US', { maximumFractionDigits: 2 })} ${budget.currency ?? ''}`
+  return (
+    <span
+      role="meter"
+      aria-label="Monthly budget used"
+      aria-valuemin={0}
+      aria-valuemax={of}
+      aria-valuenow={Math.min(spent, of)}
+      aria-valuetext={`${budget.at_least ? 'at least ' : ''}${usedPercent(budget)}% used`}
+      className="budget-comb"
+    >
+      {Array.from({ length: TENTHS }, (_, at) => {
+        const part = Math.min(1, Math.max(0, tenths - at))
+        return (
+          <Cell
+            key={at}
+            big
+            hidden
+            // (From 80% what is left has a red-orange rim, as the top bar's pill shows; over, every cell is red-orange.)
+            tone={budget.over ? 'warn' : part > 0 ? 'honey' : budget.warn ? 'warn' : 'plain'}
+            fill={part >= 1 ? 'full' : part > 0 ? 'soft' : 'none'}
+            label={`A tenth of the budget, ${tenth}: ${part >= 1 ? 'spent' : part > 0 ? 'partly spent' : 'not spent'}`}
+          />
+        )
+      })}
+    </span>
+  )
+}
+
+/** On the Usage page: this calendar month's spend against the budget, its cells and numbers; unpriced turns said apart. */
 export function BudgetSection({ budget, onSettings }: { budget: Budget; onSettings?: () => void }) {
   if (budget.budget === null) return null
   const unpriced = budget.unpriced_runs
+  const left = daysLeft()
   return (
     <section className="memory-section" aria-label="This month’s budget">
       <div className="memory-head">
@@ -46,24 +85,21 @@ export function BudgetSection({ budget, onSettings }: { budget: Budget; onSettin
         <p className="muted">{UNENFORCED}: this month’s spend is not added up.</p>
       ) : (
         <>
-          <meter
-            className="budget-meter"
-            aria-label="Monthly budget used"
-            min={0}
-            max={budget.budget}
-            low={budget.budget * 0.8}
-            high={budget.budget}
-            optimum={0}
-            value={budget.spent}
-          />
+          <Comb budget={budget} spent={budget.spent} of={budget.budget} />
           <p className="usage-summary">
             <span className="mono">
               {money({ amount: budget.spent, currency: budget.currency ?? '', at_least: budget.at_least })} of{' '}
               {budget.budget.toLocaleString('en-US')} {budget.currency ?? ''}
             </span>{' '}
-            <span className="muted">· {usedPercent(budget)}% used</span>
+            <span className="muted">
+              · {usedPercent(budget)}% used ·{' '}
+              {left === 0 ? 'the month’s last day' : left === 1 ? '1 day left' : `${left} days left`}
+            </span>
           </p>
           {budget.over && <p className="alert">{budgetWarning(budget)}</p>}
+          <p className="muted memory-hint">
+            Each cell is a tenth of it. Once all are full, new work waits for your word.
+          </p>
         </>
       )}
       {unpriced > 0 && (
