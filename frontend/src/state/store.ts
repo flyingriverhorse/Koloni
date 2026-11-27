@@ -811,17 +811,14 @@ export const useApp = create<AppStore>()((set, get) => {
     chatTab: 'Chat',
     chatOpenAsked: 0,
     chatAt: null,
-
     showChatTab(tab, open = false, at) {
       set({ chatTab: tab, chatAt: at ?? null, ...(open && { chatOpenAsked: get().chatOpenAsked + 1 }) })
     },
-
     readyPanel: { open: false, at: null },
     showReady(open, at) {
       set({ readyPanel: { open, at: at ?? null } })
     },
     readyTab: 'ready',
-
     settingsAsked: null,
     askSettings(section) {
       set(s => ({ settingsAsked: { section, n: (s.settingsAsked?.n ?? 0) + 1 } }))
