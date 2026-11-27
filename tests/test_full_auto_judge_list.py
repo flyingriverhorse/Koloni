@@ -700,10 +700,9 @@ def test_a_change_of_folder_a_short_name_or_another_part_keeps_the_lists_card(li
         "cd sub; rm -rf x",
         "cd sub/dir; git reset --hard",
         "git reset --hard HEAD~3",
-        "rm -rf a & rm -rf b",
     ],
 )
-def test_run_commands_own_folder_git_s_ancestors_and_a_chain_of_harms_are_still_judged(line):
+def test_run_commands_own_folder_and_git_s_ancestors_are_still_judged(line):
     assert judges(line) and judges(line, POWERSHELL)
 
 
@@ -797,3 +796,92 @@ def test_round_twos_end_to_end_lines_are_cards_unjudged(judging, wait_run, proje
     wait_run(client, cid, run_id)
     assert asked["command"] == line and asked["judged"] is None and executor.started == []
     assert not [one for one in judge.calls if JUDGE_ASKED in one[0]["content"]]
+
+
+# --- the review's round 3 ------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # (R1: one harm a line - two may make a link between them)
+        "rm -rf build; rm -rf dist",
+        "rm -rf a & rm -rf b",
+        "pytest --basetemp=out; Remove-Item data/sub -Recurse",
+        "git checkout evil -- data; rm -rf data/sub",
+        "git reset --hard evil && rm -rf data/sub",
+        "rm -rf build && git stash drop",
+        "cd sub; rm -rf a; rm -rf b",
+    ],
+)
+def test_one_harm_a_line(line):
+    assert harms(line, False) and not judges(line) and not judges(line, POWERSHELL)
+
+
+def test_no_cdpath_reaches_a_command_or_a_cli():
+    # (R3: `cd src` is the folder's own `src`, never one a CDPATH names)
+    from app.executors.host import no_cwd_search
+
+    env = no_cwd_search({"CDPATH": "/tmp", "cdpath": "/x", "Path": "p"})
+    assert not {k for k in env if k.upper() == "CDPATH"} and env["Path"] == "p"
+
+
+def test_a_leading_cd_into_no_folder_is_the_lists(tmp_path):
+    # (R3: `cd x` to none leaves the shell where it was - the delete runs there, not in `x`)
+    from app.risk_judge import on_disk
+
+    (tmp_path / "sub").mkdir()
+    assert on_disk(tmp_path, "cd sub; rm -rf x")
+    assert not on_disk(tmp_path, "cd nosuch; rm -rf x")
+
+
+def test_a_link_made_while_the_judge_looked_is_the_lists_card(
+    judging, wait_run, project_dir, tmp_path
+):
+    # (R2: the disk looked at again once the judge said fine - `data` made a junction meanwhile)
+    looked, release = threading.Event(), threading.Event()
+    outside = tmp_path / "outside"
+    (outside / "sub").mkdir(parents=True)
+
+    async def held(_on_delta):
+        looked.set()
+        await asyncio.to_thread(release.wait, scaled(20))
+        return said("fine", "Asked for.")
+
+    client, _lead, judge, executor = judging([cmd("rm -rf data/sub"), text("left")], [held], [])
+    _, cid, run_id = go(client, project_dir)
+    try:
+        assert looked.wait(scaled(10))
+        link(project_dir / "data", outside)
+        release.set()
+        asked = card(client, cid)
+        wait_run(client, cid, run_id)
+        assert asked["command"] == "rm -rf data/sub" and asked["judged"] is None
+        assert len(judge.calls) == 1 and executor.started == [] and (outside / "sub").exists()
+    finally:
+        if os.path.lexists(project_dir / "data"):
+            unlink(project_dir / "data")
+
+
+def test_what_moved_on_the_disk_before_the_command_runs_is_its_card(
+    judging, wait_run, project_dir, monkeypatch
+):
+    # (R2: looked at once more as KOLONİ's own command is decided, after any wait of the turn -
+    # here the disk is "as it was" to the gate and the judge, and moved by the time it runs)
+    from app import risk_judge
+
+    real, seen = risk_judge.on_disk, []
+
+    def on_disk(root, line):
+        seen.append(line)
+        return real(root, line) and len(seen) <= 2  # (the gate's look, the one after the verdict)
+
+    monkeypatch.setattr(risk_judge, "on_disk", on_disk)
+    client, _lead, judge, executor = judging(
+        [cmd("rm -rf src"), text("left")], [said("fine", "Asked for.")], []
+    )
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["command"] == "rm -rf src" and asked["judged"] is None
+    assert len(judge.calls) == 1 and executor.started == [] and len(seen) >= 3

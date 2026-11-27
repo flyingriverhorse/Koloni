@@ -588,14 +588,17 @@ in the project, written as a plain line, goes to the judge instead of a card:
 A plain line is words of letters, digits and `_ . / = ~ -`, its commands joined by `;` or `&` - so
 KOLONİ reads each target as the shell will. In KOLONİ's own PowerShell a `\` is a path's separator
 (`del src\app.py`); everywhere else it is an escape (`.gi\t` is `.git` to Git Bash), and the line is
-the list's. Each command of the line must be such a harm itself - but the one `cd sub` its folder
-starts it with: a change of folder with no plain word in the folder (`cd`, `cd -`, `cd ..`, `popd`,
-`Set-Location`, an alias of `cd`) or any other command beside it (`rm -rf build; npm install`) keeps
-the card. So does a Windows short name (`ENV~1` is `.env`; git's `HEAD~3` is not one), git told of
+the list's. The line is one such harm - but the one `cd sub` its folder starts it with (a folder
+there): a change of folder with no plain word in the folder (`cd`, `cd -`, `cd ..`, `popd`,
+`Set-Location`, an alias of `cd`), any other command beside it (`rm -rf build; npm install`) and a
+second harm (`rm -rf build; rm -rf dist`: one could make a link the other goes through) keep the
+card. So does a Windows short name (`ENV~1` is `.env`; git's `HEAD~3` is not one), git told of
 another tree (`git -C x`, `--work-tree=…`), and git's work where the project is not its repository's
 top folder (a reset there throws away work outside it). Before the judge is asked KOLONİ looks at the
-disk: a path through a link or a junction you made (`rm -rf data/`, where `data` leads elsewhere) is
-the list's card too.
+disk, and again once it said fine and as the command is about to run: a path through a link or a
+junction (`rm -rf data/`, where `data` leads elsewhere) is the list's card too. A sub-agent's delete in
+its working copy stays its card. No command or CLI KOLONİ starts is given a `CDPATH`: `cd src` is
+the project's own `src`.
 
 The list still asks at every level - its card, never the judge's word - about:
 

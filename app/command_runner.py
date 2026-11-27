@@ -152,13 +152,11 @@ def refused_by_rule(judgement: dict) -> str:
 
 
 def _gate_open(mode: str, check: bool, judgement: dict | None, judge: bool, line: str) -> bool:
-    """Whether what the check of the user's words said of a command still holds: only while the
-    chat is at Full auto and the project's check is on (`check`: its judge and the judge's box,
-    §8) - a run or a refusal that comes back after either changed is its card, as if never checked
-    (the security review of K-yargic's slice 2). Full auto's judge's "risk" and K5's quote
-    (`kind` "said", an ask at every level) have none - "risky" a card or a refusal -, but a risk
-    "fine" on a line the list asks of (`line` with its folder, K3): it holds as the check's run
-    does, the judge on (`judge`) and the chat at Full auto."""
+    """Whether what the check of the user's words said still holds: while the chat is at Full auto
+    and the project's check is on (`check`, §8) - else its card (the security review of K-yargic).
+    Full auto's judge's "risk" and K5's quote ("said", an ask) have none - but a risk "fine" on a
+    line the list asks of (`line`, K3): it holds while the chat is at Full auto and `judge` (the
+    project's judge on, what it names still where it is written: `risk_judge.on_disk`)."""
     kind = judgement.get("kind") if judgement is not None else None
     if kind == "risk" and danger(line, False):
         return mode == "full_auto" and judge
@@ -721,7 +719,9 @@ class CommandRunner:
             check, judge = project.full_auto_judge and project.judge_words, project.full_auto_judge
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
-            gate = _gate_open(conversation.permission_mode, check, judgement, judge, judged)
+            # (K3's R2: a "fine" holds where what it names is still where it was - in a copy: no)
+            on = judge and (where is None and risk_judge.on_disk(ws.root, judged))
+            gate = _gate_open(conversation.permission_mode, check, judgement, on, judged)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
                 self._may_serve(

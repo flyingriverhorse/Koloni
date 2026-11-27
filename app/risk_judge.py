@@ -7,8 +7,10 @@ refusal (`REFUSED`) - and since 0.1.10 (K3) which of the list's own cards it dec
 turn (`judges`). The gate is `app.agent.risk_judge_mixin.RiskJudgeMixin`."""
 
 import json
+import os
 import re
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import TypeGuard
 
 from app import injection, judge
@@ -16,6 +18,7 @@ from app.commands import (
     _ENCODED,
     _PARTS,
     _SCRATCH,
+    KILLS_BY_NAME,
     POWERSHELL,
     _as_read,
     _asked_anyway,
@@ -26,6 +29,7 @@ from app.commands import (
     _readings,
     _reasons,
     _words,
+    danger,
     is_plain,
     is_wrapped,
 )
@@ -288,7 +292,8 @@ def judges(command: str, shell: str | None = None) -> bool:
     KOLONİ's own PowerShell, `shell`), nothing encoded in it (`_ENCODED`), no short name (`ENV~1`
     is `.env`), and each part of it a harm of `_JUDGES`' itself - but the one `cd <a word in the
     folder>` run_command's folder starts it with (`with_cwd`): `cd; rm -rf x`, `popd; …` run
-    elsewhere, `rm -rf build; ./x.sh` runs more than the judge decides -, git's with no option
+    elsewhere, `rm -rf build; ./x.sh` runs more than the judge decides -, one such part alone,
+    git's with no option
     before its sub-command (`-C`, `--work-tree`: another tree), nothing of it asked at every level
     (`commands._asked_anyway`: a secret, `.koloni`, out of the folder, all of it, KOLONİ itself, a
     line handed to a wrapper - `sudo`, `env`, `xargs`, `VAR=1` -, a place it builds) but git's
@@ -305,8 +310,10 @@ def judges(command: str, shell: str | None = None) -> bool:
     parts = [part.strip() for part in _PARTS.split(command) if part.strip()]
     if parts and in_folder_cd(parts[0]):
         parts = parts[1:]
+    # (R1: one harm a line - two may make a link between them: `git checkout evil -- data; rm -rf
+    # data/sub`; `rm -rf build; rm -rf dist` is a card)
     return (
-        bool(parts)
+        len(parts) == 1
         and all(map(_judged_part, parts))
         and not _SCRATCH.search(_as_read(command))  # (as the shell joins it: `t""mp`)
         and not any(_asked_anyway(line, False, judged=True) for line in _readings(command))
@@ -342,6 +349,43 @@ def _short_name(command: str) -> bool:
     return any(
         re.search(r"~\d", word) and not re.fullmatch(r"HEAD~\d+", word) for word in command.split()
     )
+
+
+def on_disk(root: Path, line: str) -> bool:
+    """K3 (the review's round 2): whether what a line the judge would decide names is where it is
+    written - each word of a part but its program and its options (an option's `=` value too), and
+    the folder its leading `cd` enters, joined with the folder before it: its real path that very
+    path, in the root - no link nor junction on the way (`rm -rf data/` deletes what a junction
+    `data` leads to), as `disposable` looks; and a git part's repository the root's own top (`.git`
+    there: a reset where the project is a folder of a larger repository throws away work outside
+    it). Not a stop's words: they name programs. Blocking."""
+    top = os.path.realpath(root)
+    here = top
+    for at, part in enumerate(part.strip() for part in _PARTS.split(line) if part.strip()):
+        words = _words(part)
+        if at == 0 and in_folder_cd(part):
+            here = os.path.join(here, words[1])
+            # (R3: a folder there - `cd x` to none runs what follows where it was)
+            if not (_stays(top, here) and os.path.isdir(here)):
+                return False
+            continue
+        if _program(words[0]) == "git" and not os.path.exists(os.path.join(top, ".git")):
+            return False
+        if danger(part, False) == KILLS_BY_NAME:
+            continue
+        for word in words[1:]:
+            value = word.partition("=")[2] if word.startswith("-") else word
+            if value and not _stays(top, os.path.join(here, value)):
+                return False
+    return True
+
+
+def _stays(top: str, spelt: str) -> bool:
+    """Whether a path below `top` is its own real path (no link on the way) and in `top`."""
+    spelt = os.path.normcase(os.path.normpath(spelt))
+    real = os.path.normcase(os.path.realpath(spelt))
+    folder = os.path.normcase(top)
+    return real == spelt and (real == folder or real.startswith(folder.rstrip(os.sep) + os.sep))
 
 
 # Sub-commands whose task is whatever they are handed - a package to fetch and install, an image or
