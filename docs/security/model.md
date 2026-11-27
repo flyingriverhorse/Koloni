@@ -15,8 +15,9 @@ way, and where that ends.
 - **Full auto** runs commands without asking. Its check for harmful commands (deleting, force-pushing,
   sending data off the machine) is a courtesy for honest commands, not a wall: a command written to hide
   what it does is not seen. [Full auto's judge](../use/permissions.md#full-autos-judge), on by default,
-  also asks a small model about each command that list does not stop, and puts one it finds risky on a
-  card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
+  also asks a small model about each command that list does not stop - since 0.1.10 a delete in the
+  project, git work thrown away and a stop by name too, which the list asked of before - and refuses one
+  it finds risky, or puts it on a card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
   then it runs. Use Full auto only for work you are ready to let run.
 - For a wall against a deliberate attacker on your own account, run agents' commands in Docker, or run
   KOLONİ as another user.
@@ -230,8 +231,14 @@ What is not framed:
   model decide whether a harmful-looking command at Full auto runs: it reads only your own words, never
   an agent's, and asks on a card when anything is unclear, but a model can misread a line. Leave it on
   **Ask me** where a wrong delete would cost you.
-- [Full auto's judge](../use/permissions.md#full-autos-judge) never lets a command run that asks, and
-  refuses only on its own "risky" - an error, a slow answer, an unreadable one, no model to ask or one it
+- [Full auto's judge](../use/permissions.md#full-autos-judge) never lets a command run that asks at
+  every level - out of the project or all of it, a send, a git remote's branches, a secret, `.koloni`, a
+  file that steers agents, what may stop KOLONİ, an unread line. Since 0.1.10, in a chat you watch at
+  Full auto, it decides a delete in the project, git work thrown away and a stop by name in place of the
+  list's card: its "fine" deletes with no card, and it does not see the disk (a link you made inside
+  what a delete takes). With the judge off, no model to answer, at Ask or Auto-edit, in a To-do task's
+  turn or a job while you're away those are the list's cards as before. It refuses only on its own
+  "risky" - an error, a slow answer, an unreadable one, no model to ask or one it
   may not ask now (no room, the turn's token limit) is a card, never a run nor a refusal (it fails
   closed); a refused agent is told a general reason, never the judge's sentence (it read your messages,
   and would guide the next try), and after 3 refusals in a row (a command that runs ends a row) or 20
