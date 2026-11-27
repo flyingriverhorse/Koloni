@@ -1424,7 +1424,7 @@ export interface paths {
          * Noted Change
          * @description The user's Change on a noted decision, in their own words: into its turn while that one is
          *     at work and takes a word - Send now's own way (`post_message`); else in a turn of KOLONİ's of
-         *     its chat, queued behind one at work. Seen either way.
+         *     its chat, queued behind one at work - not a job's chat (`JOB_CHAT`). Seen once sent.
          */
         post: operations["noted_change_api_decisions__decision_id__change_post"];
         delete?: never;
