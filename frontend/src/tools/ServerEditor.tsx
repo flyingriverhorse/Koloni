@@ -4,6 +4,7 @@ import { errorText } from '../api/client'
 import type { McpRead, McpServer, McpTool } from '../api/types'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
+import { foundIn } from './cells'
 import { PackageLook } from './PackageLook'
 import { commandShown, count, downloadOf, packageOf, type Pasted } from './paste'
 import type { Props } from './ToolsPage'
@@ -23,17 +24,6 @@ const linesOf = (text: string) =>
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)
-
-/** What a reading found against the one before, in words; nothing that is not there is named. */
-export function foundIn(read: McpRead): string {
-  const parts = [
-    read.new.length > 0 && `New: ${read.new.join(', ')}.`,
-    read.changed.length > 0 &&
-      `Changed: ${read.changed.join(', ')} - one that ran without asking is asked about again.`,
-    read.gone.length > 0 && `Gone: ${read.gone.join(', ')}.`,
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' ') : 'Nothing is new, changed or gone since the reading before.'
-}
 
 export interface EditorProps extends Omit<Props, 'servers'> {
   server: McpServer | null

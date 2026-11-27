@@ -562,6 +562,24 @@ test('a reading that takes a trusted server’s trust back: its cell red-orange,
   rerender(<ToolsPage servers={[server()]} roles={[]} {...h} />)
   expect(screen.queryByRole('button', { name: 'See the difference' })).toBeNull()
   expect(screen.queryByRole('img', { name: /trust taken back/ })).toBeNull()
+  // and that reading is spent: watched again later (another command, say), it is only watched - not that reading's
+  rerender(<ToolsPage servers={[server({ trusted: false, command: ['rea-agents', '--other'] })]} roles={[]} {...h} />)
+  expect(screen.getByRole('img', { name: 'watching: every call asks you' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'See the difference' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeEnabled()
+})
+
+test('a watched server’s Trust waits while its tools are being read: no tool not seen yet is trusted', async () => {
+  const h = handlers()
+  let done: (read: unknown) => void = () => {}
+  h.onRead.mockReturnValueOnce(new Promise(resolve => (done = resolve)))
+  render(<ToolsPage servers={[server({ trusted: false })]} roles={[]} {...h} />)
+  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeEnabled()
+  await userEvent.click(screen.getByRole('button', { name: 'Read its tools' }))
+  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeDisabled()
+  done({ server: server({ trusted: false }), new: [], changed: [], gone: [] })
+  expect(await screen.findByRole('status')).toHaveTextContent('4 tools read.')
+  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeEnabled()
 })
 
 test('a server only watched - never trusted on this page - is honey, not red-orange', async () => {

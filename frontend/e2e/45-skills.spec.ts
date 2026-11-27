@@ -84,11 +84,13 @@ test('a skill is added on the Tools page and given to a role on its row there, a
   await expect(chat.getByText('It has no scripts.')).toBeVisible()
   // 0.1.10: on the Tools page's Skills it waits for your word too - its yes is on its card, not there.
   await rail(page, 'Tools').click()
-  await page.getByRole('tab', { name: 'Skills 1 proposed' }).click()
-  const proposed = page.getByRole('region', { name: 'Proposed by agents' })
-  await expect(proposed.getByRole('listitem')).toContainText('plain')
-  await expect(proposed.getByRole('listitem')).toContainText('For Coder.')
-  await expect(proposed.getByRole('button', { name: 'Open on Ready for you' })).toBeVisible()
+  await page.getByRole('tab', { name: /^Skills \d+ proposed$/ }).click()
+  const plain = page
+    .getByRole('region', { name: 'Proposed by agents' })
+    .getByRole('listitem')
+    .filter({ hasText: 'Say it plainly.' })
+  await expect(plain).toContainText('For Coder.')
+  await expect(plain.getByRole('button', { name: 'Open on Ready for you' })).toBeVisible()
   await rail(page, 'Canvas').click()
   await chat.getByRole('button', { name: 'Add skill' }).click()
   await expect(chat.getByText('The skill is added.')).toBeVisible()

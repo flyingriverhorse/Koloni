@@ -65,3 +65,14 @@ export function serverRuns(server: McpServer, taken: boolean): [Runs, string] {
 /** A reading kept by the page (`ToolsPage`) took this server's trust back, and it is not trusted again since. */
 export const takenBack = (server: McpServer, read: McpRead | undefined) =>
   !!read && !server.trusted && read.new.length + read.changed.length > 0
+
+/** What a reading found against the one before, in words; nothing that is not there is named. */
+export function foundIn(read: McpRead): string {
+  const parts = [
+    read.new.length > 0 && `New: ${read.new.join(', ')}.`,
+    read.changed.length > 0 &&
+      `Changed: ${read.changed.join(', ')} - one that ran without asking is asked about again.`,
+    read.gone.length > 0 && `Gone: ${read.gone.join(', ')}.`,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' ') : 'Nothing is new, changed or gone since the reading before.'
+}

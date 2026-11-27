@@ -3146,13 +3146,11 @@ fieldset.choice > label .choice-note,
   white-space: nowrap;
 }
 
-.tools-row-sub,
-.tools-row-use {
+.tools-row-sub {
   font-size: var(--text-meta);
 }
 
 .tools-row-open .chips,
-.tools-row-use,
 .tools-row-caret {
   flex: none;
 }

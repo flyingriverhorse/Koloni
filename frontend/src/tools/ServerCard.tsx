@@ -5,9 +5,8 @@ import { since } from '../board/columns'
 import { Cell } from '../shell/Cell'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
-import { runsCell, serverRuns, takenBack } from './cells'
+import { foundIn, runsCell, serverRuns, takenBack } from './cells'
 import { commandShown, count, packageOf } from './paste'
-import { foundIn } from './ServerEditor'
 
 /** A server's state beside its name, in its cell's colour: trust a reading took back, could not be read, watched, trusted. */
 const tagOf = (server: McpServer, taken: boolean) =>
@@ -43,9 +42,11 @@ interface Props {
   given: Role[]
   /** The reading on this page that took its trust back, if one did (`ToolsPage`). */
   read?: McpRead
+  /** Its tools are being read now: its Trust waits for what is read. */
+  reading: boolean
   onOpen: () => void
   onSwitch: () => void
-  /** Throws ApiError: the page says it. */
+  /** The page says a refusal; it never throws. */
   onTrust: () => Promise<void>
   /** Its editor, while it is open. */
   children: ReactNode
@@ -55,7 +56,7 @@ interface Props {
  * A server's card (0.1.10): its head - its switch, its cell, its name, command and state, the roles that list it - and,
  * while it is not trusted, its trust in sight; open, its editor under it.
  */
-export function ServerCard({ server, shown, given, read, onOpen, onSwitch, onTrust, children }: Props) {
+export function ServerCard({ server, shown, given, read, reading, onOpen, onSwitch, onTrust, children }: Props) {
   const taken = takenBack(server, read)
   const [tag, tone] = tagOf(server, taken)
   const command = commandShown(server.command).join(' ')
@@ -103,7 +104,7 @@ export function ServerCard({ server, shown, given, read, onOpen, onSwitch, onTru
         </button>
       </div>
       {/* Slice 92: a server added is watched until you trust it (one added before is trusted) - said on its card. */}
-      {!server.trusted && <Trust server={server} read={taken ? read : undefined} onTrust={onTrust} />}
+      {!server.trusted && <Trust server={server} read={taken ? read : undefined} reading={reading} onTrust={onTrust} />}
       <div id={`tools-server-${server.id}`} hidden={!shown}>
         {shown && children}
       </div>
@@ -112,7 +113,17 @@ export function ServerCard({ server, shown, given, read, onOpen, onSwitch, onTru
 }
 
 /** A server not trusted: Trust this server - or, a reading having taken its trust back, the difference and Trust it again. */
-function Trust({ server, read, onTrust }: { server: McpServer; read?: McpRead; onTrust: () => Promise<void> }) {
+function Trust({
+  server,
+  read,
+  reading,
+  onTrust,
+}: {
+  server: McpServer
+  read?: McpRead
+  reading: boolean
+  onTrust: () => Promise<void>
+}) {
   const [busy, setBusy] = useState(false)
   const [seeing, setSeeing] = useState(false)
   const unpinned = unpinnedOf(server.command)
@@ -134,11 +145,11 @@ function Trust({ server, read, onTrust }: { server: McpServer; read?: McpRead; o
             See the difference
           </button>
         )}
-        {/* Trust is in the tools read: none before the first reading. */}
+        {/* Trust is in the tools read: none before the first reading, nor while one runs. */}
         <button
           type="button"
           className={`btn btn-small${read ? '' : ' btn-primary'}`}
-          disabled={busy || server.read_at === null}
+          disabled={busy || reading || server.read_at === null}
           aria-describedby={unpinned ? `mcp-trust-note-${server.id}` : undefined}
           onClick={trust}
         >

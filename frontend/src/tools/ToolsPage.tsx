@@ -116,11 +116,26 @@ export function ToolsPage({
   // shortcut: a reading that took a server's trust back is known only from its answer, kept while the page is open
   // (no field says it): opened anew, such a server shows as watched. Keep it on the server if that is seen to matter.
   const [reads, setReads] = useState<Record<string, McpRead>>({})
+  // The server whose tools are being read: its Trust waits, so that no tool not seen yet is trusted.
+  const [reading, setReading] = useState<string | null>(null)
   const onRead: Props['onRead'] = async (serverId, osv, inProject) => {
     const was = servers.find(server => server.id === serverId)?.trusted
-    const got = await (inProject ? rest.onRead(serverId, osv, inProject) : rest.onRead(serverId, osv))
-    if (was && !got.server.trusted) setReads(kept => ({ ...kept, [serverId]: got }))
-    return got
+    setReading(serverId)
+    try {
+      const got = await (inProject ? rest.onRead(serverId, osv, inProject) : rest.onRead(serverId, osv))
+      if (was && !got.server.trusted) setReads(kept => ({ ...kept, [serverId]: got }))
+      return got
+    } finally {
+      setReading(null)
+    }
+  }
+  /** Trusted again: the reading kept is spent - trust taken back later (another command, say) is not its. */
+  const trust = (server: McpServer) => {
+    setError(null)
+    return rest.onSave(server.id, { trusted: true }).then(
+      () => setReads(kept => Object.fromEntries(Object.entries(kept).filter(([id]) => id !== server.id))),
+      err => setError(errorText(err)),
+    )
   }
   // The server open under its row (picked, or else the first); '' none; 'new' while one is being added.
   const [selected, setSelected] = useState<string | null>(toSkills ? null : (picked ?? null))
@@ -272,7 +287,8 @@ export function ToolsPage({
                   read={reads[server.id]}
                   onOpen={() => setSelected(shown ? '' : server.id)}
                   onSwitch={() => void saveServer(server, { enabled: !server.enabled })}
-                  onTrust={() => saveServer(server, { trusted: true })}
+                  reading={reading === server.id}
+                  onTrust={() => trust(server)}
                 >
                   {/* Keyed by the server and what was saved of it, so a save or a switch reloads the form. */}
                   <ServerEditor
