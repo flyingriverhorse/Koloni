@@ -44,11 +44,16 @@ const add = async (way: RegExp) => {
   await userEvent.click(screen.getByRole('menuitem', { name: way }))
 }
 const edit = () => userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+/** A tool's three marks, and the one it has. */
+const marks = (name: string) => screen.getByRole('radiogroup', { name: `When an agent calls ${name}` })
+const marked = (name: string) =>
+  (within(marks(name)).getAllByRole('radio') as HTMLInputElement[]).find(radio => radio.checked)?.value
 
 test('a server shows its command, its variables by name only and what each tool costs a step', async () => {
   render(<ToolsPage servers={[server()]} roles={[]} {...handlers()} />)
-  // its command on the unfolded row's first line; its name, command and variables behind Edit
+  // its command on its card's head, under its name; its name, command and variables behind Edit
   expect(screen.getByTitle('rea-agents --stdio')).toHaveTextContent('rea-agents --stdio')
+  expect(screen.getByRole('button', { name: /^rea/ })).toContainElement(screen.getByTitle('rea-agents --stdio'))
   expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Edit' })).toHaveAttribute('aria-expanded', 'false')
   await edit()
@@ -69,10 +74,17 @@ test('a server shows its command, its variables by name only and what each tool 
   )
   expect(row('bad name!').queryByText(/Its inputs/)).not.toBeInTheDocument()
   expect(row('scan').getByText('about 1,200 characters')).toBeInTheDocument()
-  expect(row('patch').getByRole('combobox')).toHaveValue('free')
+  // its three marks side by side, in the card's words, the one it has checked
+  expect(
+    row('patch')
+      .getAllByRole('radio')
+      .map(radio => radio.getAttribute('value')),
+  ).toEqual(['free', 'ask', 'off'])
+  expect(within(marks('patch')).getByRole('radio', { name: 'Runs without asking' })).toBeChecked()
+  expect(marked('scan')).toBe('ask')
   // one that cannot be offered says why, and has no mark to set
   expect(row('bad name!').getByText(/Not offered: its name has characters other than/)).toBeInTheDocument()
-  expect(row('bad name!').queryByRole('combobox')).not.toBeInTheDocument()
+  expect(row('bad name!').queryByRole('radiogroup')).not.toBeInTheDocument()
   // the sum counts what is on: not the one switched off, not the one that cannot be offered
   expect(screen.getByText(/2 tools on: about 1,500 characters added to every model step/)).toBeInTheDocument()
   // and it is said above the table too, in sight before the table is read to its end
@@ -101,7 +113,7 @@ test('a search box lists the tools whose name or description has what is typed, 
   await userEvent.type(find, 'scan')
   expect(names()).toEqual(['scan', 'listing'])
   // a mark is still set from a row that was found
-  expect(screen.getByLabelText('When an agent calls listing')).toHaveValue('ask')
+  expect(marked('listing')).toBe('ask')
   // what is on is counted over all of the server's tools, not over the ones shown
   expect(
     screen.getByText(/^3 of 4 tools on · about 1,800 characters added to every model step · 2 shown$/),
@@ -181,7 +193,7 @@ test('a server with 170 tools: the first 8 and "+ 162 more", none of their input
   // "+ N more" lists them all, every column and mark with them
   await userEvent.click(screen.getByRole('button', { name: '+ 162 more' }))
   expect(names()).toHaveLength(170)
-  expect(screen.getByLabelText('When an agent calls tool_170')).toHaveValue('ask')
+  expect(marked('tool_170')).toBe('ask')
   expect(screen.queryByRole('button', { name: /more$/ })).not.toBeInTheDocument()
 })
 
@@ -221,7 +233,7 @@ test('the Servers tab says in one line what a server is; that it runs with your 
   expect(screen.queryByRole('note')).not.toBeInTheDocument()
 })
 
-test('one layout whatever is open: the heading with Add, the tabs, the servers each a row across the page, the open one under its row', async () => {
+test('one layout whatever is open: the heading with Add, the key of the cells, the tabs, the servers each a card across the page, the open one under its head', async () => {
   const servers = [
     server(),
     server({ id: 's2', name: 'fetch', command: ['uvx', 'mcp-server-fetch'], env_names: [], tools: [], read_at: null }),
@@ -229,9 +241,14 @@ test('one layout whatever is open: the heading with Add, the tabs, the servers e
   const { container } = render(<ToolsPage servers={servers} roles={[]} {...handlers()} />)
   const page = container.firstElementChild!
   const parts = (of: Element) => Array.from(of.children).map(child => child.className || child.tagName)
-  // no column beside: the heading, the tabs, the tab open; in it its line, then the list (no form to add one until asked)
+  // no column beside: the heading, the key, the tabs, the tab open; in it its line, then the list (no form to add one
+  // until asked)
   expect(container.querySelector('.agents-list, .agents-page, .composer-warning')).not.toBeInTheDocument()
-  expect(parts(page)).toEqual(['conv-head', 'tabs tools-tabs', 'tools-panel'])
+  expect(parts(page)).toEqual(['conv-head', 'cell-legend tools-key', 'tabs tools-tabs', 'tools-panel'])
+  // the key: each cell with its word, said once for the page
+  expect(screen.getByRole('group', { name: 'What the cells say' })).toHaveTextContent(
+    'runs without asking asks you first off: given to no agent changed: trust taken back',
+  )
   const panel = screen.getByRole('tabpanel', { name: /^Servers/ })
   expect(parts(panel)).toEqual(['muted provider-note tools-lead', 'tools-servers'])
   // the first is open under its row: each row a disclosure of what it controls
@@ -268,7 +285,7 @@ test('one layout whatever is open: the heading with Add, the tabs, the servers e
   expect(row('rea')).toHaveAttribute('aria-expanded', 'false')
   await userEvent.click(screen.getByRole('button', { name: 'Stop adding a server' }))
   expect(screen.queryByRole('region', { name: 'Start from a common server' })).toBeNull()
-  expect(parts(page)).toEqual(['conv-head', 'tabs tools-tabs', 'tools-panel'])
+  expect(parts(page)).toEqual(['conv-head', 'cell-legend tools-key', 'tabs tools-tabs', 'tools-panel'])
 })
 
 test('a server’s switch turns it off for every agent and its row says so; its marks stay, and a refused switch says why', async () => {
@@ -278,15 +295,18 @@ test('a server’s switch turns it off for every agent and its row says so; its 
   const on = screen.getByRole('switch', { name: 'rea on' })
   const row = () => screen.getByRole('button', { name: /^rea/ })
   expect(on).toBeChecked()
-  // beside the row's button, not in it; the row says its state, what it has, and the roles that may use it
+  // beside the card's button, not in it; the head says its state, its command, what it has, and the roles that may use
+  // it - and its cell how far its tools go without you
   expect(row()).not.toContainElement(on)
-  expect(row()).toHaveTextContent(/^rea trusted4 tools · 1 asks first · read \d+ (d|h|min) agoLead$/)
+  expect(row()).toHaveTextContent(/^rea trustedrea-agents --stdio4 tools · 1 asks first · read \d+ (d|h|min) agoLead$/)
+  expect(screen.getByRole('img', { name: 'trusted: some of its tools run without asking' })).toHaveClass('cell-ok')
   await userEvent.click(on)
   expect(h.onSave).toHaveBeenCalledExactlyOnceWith('s1', { enabled: false })
   rerender(<ToolsPage servers={[server({ enabled: false })]} roles={roles} {...h} />)
   expect(screen.getByRole('switch', { name: 'rea on' })).not.toBeChecked()
   expect(row()).toHaveTextContent('off: given to no agent · 4 tools')
-  expect(screen.getByLabelText('When an agent calls patch')).toHaveValue('free')
+  expect(screen.getByRole('img', { name: 'off: given to no agent' })).toHaveClass('cell-plain', 'cell-none')
+  expect(marked('patch')).toBe('free')
   h.onSave.mockRejectedValueOnce(new Error('refused'))
   await userEvent.click(screen.getByRole('switch', { name: 'rea on' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('refused')
@@ -391,8 +411,10 @@ test('a mark is saved as it is chosen, and a role is given the server by its box
   const h = handlers()
   const roles = [role('r1', 'Lead', ['rea', 'other']), role('r2', 'Coder', ['other'])]
   render(<ToolsPage servers={[server()]} roles={roles} {...h} />)
-  await userEvent.selectOptions(screen.getByLabelText('When an agent calls scan'), 'Runs without asking')
+  await userEvent.click(within(marks('scan')).getByRole('radio', { name: 'Runs without asking' }))
   expect(h.onSave).toHaveBeenCalledWith('s1', { marks: { scan: 'free' } })
+  await userEvent.click(within(marks('patch')).getByRole('radio', { name: 'Off' }))
+  expect(h.onSave).toHaveBeenLastCalledWith('s1', { marks: { patch: 'off' } })
   expect(screen.getByLabelText('Lead')).toBeChecked()
   expect(screen.getByLabelText('Coder')).not.toBeChecked()
   await userEvent.click(screen.getByLabelText('Coder'))
@@ -466,26 +488,78 @@ test('a server that could not be read says why, and one never read says no agent
   expect(screen.getByRole('button', { name: /^rea/ })).toHaveTextContent('not read yet')
 })
 
-test('slice 92: a server not yet trusted says on its row that every call asks, and is trusted by its button', async () => {
+test('slice 92: a server not yet trusted says on its card that every call asks, and is trusted by its button there', async () => {
   const h = handlers()
   const { unmount } = render(<ToolsPage servers={[server({ trusted: false })]} roles={[]} {...h} />)
   expect(screen.getByRole('button', { name: /^rea/ })).toHaveTextContent(
-    /^rea watching4 tools · every call asks until you trust it/,
+    /^rea watchingrea-agents --stdio4 tools · every call asks until you trust it/,
   )
-  expect(screen.getByText('Watching: every call asks')).toBeInTheDocument()
+  expect(screen.getByRole('img', { name: 'watching: every call asks you' })).toHaveClass('cell-honey', 'cell-soft')
+  // the tab says how many are watched
+  expect(screen.getByRole('tab', { name: 'Servers 1 watching' })).toBeInTheDocument()
   // one line in sight; the rest behind its ⓘ
   expect(screen.getByText('Every call asks until you trust it.', { exact: false })).toBeVisible()
   expect(screen.getByText(/at every level, Full auto too, and “Runs without asking” waits/)).not.toBeVisible()
   // its tools are listed with the server's words, as for any server
   expect(screen.getByText('“Does scan.”')).toBeInTheDocument()
+  // its trust is on its head: in sight with the card closed too
+  await userEvent.click(screen.getByRole('button', { name: /^rea/ }))
+  expect(screen.queryByText('“Does scan.”')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Trust this server' }))
   expect(h.onSave).toHaveBeenCalledWith('s1', { trusted: true })
+  // a refused trust says why
+  h.onSave.mockRejectedValueOnce(new Error('refused'))
+  await userEvent.click(screen.getByRole('button', { name: 'Trust this server' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('refused')
   unmount()
   // one trusted (every server added before slice 92) says none of it
   render(<ToolsPage servers={[server()]} roles={[]} {...handlers()} />)
-  expect(screen.getByRole('button', { name: /^rea/ })).toHaveTextContent(/^rea trusted4 tools · 1 asks first/)
-  expect(screen.queryByText('Watching: every call asks')).toBeNull()
+  expect(screen.getByRole('button', { name: /^rea/ })).toHaveTextContent(/^rea trustedrea-agents --stdio4 tools/)
+  expect(screen.queryByText('Every call asks until you trust it.', { exact: false })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Trust this server' })).toBeNull()
+  expect(screen.getByRole('tab', { name: 'Servers' })).toBeInTheDocument()
+})
+
+test('a reading that takes a trusted server’s trust back: its cell red-orange, the difference by name, Trust it again', async () => {
+  const h = handlers()
+  const after = server({ trusted: false })
+  h.onRead.mockResolvedValueOnce({ server: after, new: ['scan'], changed: ['patch'], gone: [] })
+  const { rerender } = render(<ToolsPage servers={[server()]} roles={[]} {...h} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Read its tools' }))
+  // (the store puts the server read in place of the one before)
+  rerender(<ToolsPage servers={[after]} roles={[]} {...h} />)
+  expect(screen.getByRole('img', { name: 'trust taken back: a reading found new or changed tools' })).toHaveClass(
+    'cell-warn',
+  )
+  expect(screen.getByRole('button', { name: /^rea trust taken back/ })).toBeInTheDocument()
+  const see = screen.getByRole('button', { name: 'See the difference' })
+  const found = document.getElementById(see.getAttribute('aria-controls')!)!
+  expect(found).not.toBeVisible()
+  await userEvent.click(see)
+  expect(see).toHaveAttribute('aria-expanded', 'true')
+  expect(found).toBeVisible()
+  expect(found).toHaveTextContent('New: scan. Changed: patch - one that ran without asking is asked about again.')
+  // closed and opened again, the card still knows: the reading is kept by the page
+  await userEvent.click(screen.getByRole('button', { name: /^rea/ }))
+  await userEvent.click(screen.getByRole('button', { name: /^rea/ }))
+  expect(screen.getByRole('button', { name: 'See the difference' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Trust it again' }))
+  expect(h.onSave).toHaveBeenLastCalledWith('s1', { trusted: true })
+  // trusted again: no longer taken back
+  rerender(<ToolsPage servers={[server()]} roles={[]} {...h} />)
+  expect(screen.queryByRole('button', { name: 'See the difference' })).toBeNull()
+  expect(screen.queryByRole('img', { name: /trust taken back/ })).toBeNull()
+})
+
+test('a server only watched - never trusted on this page - is honey, not red-orange', async () => {
+  const h = handlers()
+  const watched = server({ trusted: false })
+  h.onRead.mockResolvedValueOnce({ server: watched, new: ['scan'], changed: [], gone: [] })
+  render(<ToolsPage servers={[watched]} roles={[]} {...h} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Read its tools' }))
+  expect(await screen.findByRole('status')).toHaveTextContent('4 tools read. New: scan.')
+  expect(screen.queryByRole('img', { name: /trust taken back/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'See the difference' })).toBeNull()
 })
 
 test('slice 92: there is nothing to trust before its tools are read, and a package that updates itself says so', () => {
@@ -764,29 +838,53 @@ test('osv.dev is offered only for a package it would be asked about', async () =
   expect(h.onRead).toHaveBeenCalledWith('s1', false)
 })
 
-test('the Built-in group: each of KOLONİ’s own tools with what it does and a named switch (slice 61)', async () => {
+test('KOLONİ’s tools: grouped as a role’s Tools tab, each with its cell; the switchable ones with what they do and a named switch (slice 61)', async () => {
   const onSwitchTool = vi.fn().mockResolvedValue(undefined)
   const builtin = [
     { name: 'web_search', on: true },
     { name: 'http_request', on: false },
+    { name: 'read_attachment', on: true },
     { name: 'git_status', on: true },
   ]
   render(<ToolsPage servers={[]} roles={[]} {...handlers()} builtin={builtin} onSwitchTool={onSwitchTool} />)
-  await userEvent.click(screen.getByRole('tab', { name: /^Built-in/ }))
-  const group = within(screen.getByRole('region', { name: 'Built-in tools' }))
+  await userEvent.click(screen.getByRole('tab', { name: /^KOLONİ’s tools/ }))
+  const group = within(screen.getByRole('region', { name: 'KOLONİ’s tools' }))
   expect(group.getByRole('switch', { name: 'Search the web' })).toBeChecked()
   expect(group.getByRole('switch', { name: 'Search the web' })).toHaveAccessibleDescription(
     /^Looks things up on the web/,
   )
   expect(group.getByRole('switch', { name: 'Web requests' })).not.toBeChecked()
-  // one the server lists that the page has no words for yet: by its name
+  // one the server lists that the page has no words for yet: by its name, in Other
   expect(group.getByRole('switch', { name: 'git_status' })).toBeChecked()
+  // the groups in a role's Tools tab's order, the switchable ones no tile lists among them, and Other last
+  // (each heading's text after its mark's letter)
+  expect(group.getAllByRole('heading').map(h => h.textContent!.slice(1))).toEqual([
+    'Files',
+    'Commands',
+    'Web',
+    'Browser',
+    'Team',
+    'To-do',
+    'Memory',
+    'Other',
+  ])
+  const row = (name: string) => group.getByText(name, { selector: 'label, span' }).closest('.tools-tool')!
+  // each tool's cell says how it runs: asks first (by the permission level), without asking, or off
+  expect(within(row('Search the web') as HTMLElement).getByRole('img')).toHaveAccessibleName(
+    'asks you first, as the permission level says',
+  )
+  expect(within(row('Web requests') as HTMLElement).getByRole('img')).toHaveAccessibleName('off: given to no agent')
+  expect(within(row('Read files') as HTMLElement).getByRole('img')).toHaveAccessibleName('runs without asking')
+  expect(row('Read attached files').closest('.tools-group')).toHaveTextContent(/^FFiles/)
+  // one given by a role, not switched here: no switch, said so
+  expect(within(row('Run commands') as HTMLElement).queryByRole('switch')).toBeNull()
+  expect(row('Run commands')).toHaveTextContent('by role')
   // what web off does to commands (K-web-komut): behind the tab's ⓘ
-  expect(screen.getByRole('tabpanel', { name: /^Built-in/ })).toHaveTextContent(
-    /KOLONİ’s own tools; one switched off is given to no agent\. One you switch off/,
+  expect(screen.getByRole('tabpanel', { name: /^KOLONİ’s tools/ })).toHaveTextContent(
+    /grouped as a role’s Tools tab has them: one “by role” is given there; one with a switch, switched off here, is given to no agent\. One you switch off/,
   )
   expect(
-    within(screen.getByRole('tabpanel', { name: /^Built-in/ })).getByText(
+    within(screen.getByRole('tabpanel', { name: /^KOLONİ’s tools/ })).getByText(
       /While Search the web or Web requests is off, a command that reaches the internet \(curl,\s+git clone, an https address\) asks you on a card at every level, Full auto too\./,
     ),
   ).toBeInTheDocument()
@@ -821,7 +919,7 @@ const skillActions = () => ({
   onSkillRecord: vi.fn().mockResolvedValue([]),
 })
 
-test('three tabs, each with its count: a tablist the arrow keys move along, one tab stop; picked opens the right one', async () => {
+test('three tabs: a tablist the arrow keys move along, one tab stop; picked opens the right one', async () => {
   const builtin = [
     { name: 'web_search', on: true },
     { name: 'http_request', on: false },
@@ -843,7 +941,7 @@ test('three tabs, each with its count: a tablist the arrow keys move along, one 
     within(tabs)
       .getAllByRole('tab')
       .map(tab => tab.textContent),
-  ).toEqual(['Built-in 2', 'Servers 1', 'Skills 0'])
+  ).toEqual(['KOLONİ’s tools ', 'Servers ', 'Skills '])
   expect(screen.getByRole('tab', { name: /^Servers/ })).toHaveAttribute('aria-selected', 'true')
   expect(screen.getAllByRole('tabpanel')).toEqual([screen.getByRole('tabpanel', { name: /^Servers/ })])
   screen.getByRole('tab', { name: /^Servers/ }).focus()
@@ -851,8 +949,8 @@ test('three tabs, each with its count: a tablist the arrow keys move along, one 
   expect(screen.getByRole('tab', { name: /^Skills/ })).toHaveFocus()
   expect(screen.getByRole('tabpanel', { name: /^Skills/ })).toHaveTextContent('No skill yet.')
   await userEvent.keyboard('{ArrowRight}')
-  expect(screen.getByRole('tab', { name: /^Built-in/ })).toHaveFocus()
-  expect(screen.getByRole('tabpanel', { name: /^Built-in/ })).toBeVisible()
+  expect(screen.getByRole('tab', { name: /^KOLONİ’s tools/ })).toHaveFocus()
+  expect(screen.getByRole('tabpanel', { name: /^KOLONİ’s tools/ })).toBeVisible()
   expect(screen.getAllByRole('tab').map(tab => tab.tabIndex)).toEqual([0, -1, -1])
   await userEvent.keyboard('{End}')
   expect(screen.getByRole('tab', { name: /^Skills/ })).toHaveAttribute('aria-selected', 'true')
