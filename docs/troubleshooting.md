@@ -196,7 +196,7 @@ A failed turn shows **"Run failed: {Provider}: {reason}."** with a next step und
 ## Commands and Docker
 
 **"Docker is not running: a container cannot be chosen."**
-: Settings › This project › Commands and secrets. Start Docker, then open the page again.
+: Settings › This project › When you're asked. Start Docker, then open the page again.
 
 **"the image {image} is not on this machine; run: docker pull {image}"**
 : KOLONİ never pulls an image for you. Run the command shown in your own terminal.

@@ -28,13 +28,13 @@ how they hang together.
 
 **The Orchestrator (Lead)**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
-  sub-agents, unless you let it change files itself (Settings › This project › Agents › **Who
+  sub-agents, unless you let it change files itself (Settings › This project › How agents work › **Who
   changes the files**). Behind the scenes its role is named Lead. See [Roles](../agents/roles.md).
 
 **Sub-agent**
 : An agent that the Orchestrator, or another agent, opens for one part of the work. It changes files
   in its own working copy, not in your folder. Opening one can ask you first (Settings › This project ›
-  Asking and away › **Opening a sub-agent**). See [Permission levels](../use/permissions.md#sub-agents).
+  When you're asked › **Opening a sub-agent**). See [Permission levels](../use/permissions.md#sub-agents).
 
 **Role**
 : What an agent is for: a description, instructions, the tools it may use and, if you like, its own

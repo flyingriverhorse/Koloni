@@ -52,7 +52,7 @@ changes anything; you can join in and end it. Set a token limit under Settings �
 Limits and money › More limits › **A discussion's tokens, at most**. See [Discussions](discussions.md).
 
 **"Make this function faster, and keep the fastest version."**
-**Evolve**. First set a **Measure command** (Settings › This project › Checks and git) whose last line is a score
+**Evolve**. First set a **Measure command** (Settings › This project › When the work is done) whose last line is a score
 from 0 to 100. Evolve has three Coders try the job, each their own way, and tries again while the
 best score is under 80, for at most four rounds. That is up to twelve Coders: the most expensive way on
 this page. See [Picking the best of several candidates](../examples/candidates.md).

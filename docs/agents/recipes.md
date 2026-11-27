@@ -167,7 +167,7 @@ A step whose **Who** is **Candidates (the best one goes on)** gives the same job
 Each works in its own working copy. For their models choose **Auto, the Orchestrator picks**, **Same model** or
 **I pick each**.
 
-Each candidate's work is scored by the project's **Measure command** (Settings › This project › Checks and git):
+Each candidate's work is scored by the project's **Measure command** (Settings › This project › When the work is done):
 a command whose last line of output is a number from 0 to 100. A card then lists the scores and asks
 which candidate's work goes on. At Full auto the best score goes on by itself.
 

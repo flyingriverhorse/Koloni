@@ -67,6 +67,6 @@ these does nothing to providers that already exist.
 Agents' commands get this machine's environment, except variables with secret names (such as
 `GITHUB_TOKEN` or `OPENAI_API_KEY`) and the ways into a program you are signed in to (`GIT_ASKPASS`,
 `SSH_AUTH_SOCK`, `VSCODE_*`, `CLAUDE_CODE_*` and the like), unless you name them under Settings ›
-This project › Commands and secrets › **Secret variables commands may see**. A project whose tests use git over ssh
+This project › When you're asked › **Secret variables commands may see**. A project whose tests use git over ssh
 needs `SSH_AUTH_SOCK` named there. KOLONİ's own git, which pushes for you, keeps all of them. With **Planted test key (canary)** on, they also get a made-up
 `KOLONI_CANARY_KEY`. In Docker, commands get none of this machine's environment.
