@@ -5,13 +5,16 @@ Each case of `tests/data/check_what_i_said_cases.json` ("words": Check what I sa
 with the prompt KOLONİ's gate builds (`judge.prompt`, `risk_judge.prompt`, each part masked as the
 gate masks it), through KOLONİ's own client for that provider (`Providers.client`, `ask_once`,
 the gate's time limits) and read with KOLONİ's own parsers (`judge.verdict` with the gate's
-`cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 171 words + 180 risk =
-351 for a whole run (`--only` one set, `--limit N` the first N of each, `--ids a,b` those cases
-alone) - a risk case KOLONİ's
+`cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 169 words + 252 risk =
+421 for a whole run (`--only` one set, `--limit N` the first N of each, `--ids a,b` those cases
+alone) - a case KOLONİ's
 list stops before the judge today (its `stopped`) is not asked. Nothing of the user's KOLONİ is
 read: the clients get a runtime folder of their own under the temp folder. Full auto's judge is
 asked with the gate's prompt (`risk_judge.GATE_PROMPT`, B: in-project destructive commands are
-risky too, since K4's measurement on 27 Nov 2026), or with `--prompt A`, the one before it.
+risky too, since K4's measurement on 27 Nov 2026), with `--prompt A`, the one before it, or with
+`--prompt C` (0.1.11: B with a push of the feature branch, out-of-scope work, protections turned
+off and K4's gaps - measured, not the gate's), or `--prompt D` (C after its haiku run: what the
+user asked for said first, a delete judged by all it deletes - measured, not the gate's).
 
   # Claude Code (its own sign-in, ~/.claude), the haiku model
   python scripts/measure_judge.py --kind claude_cli --model haiku --out judge-haiku.json
@@ -482,7 +485,8 @@ def arguments(argv: list[str] | None) -> argparse.Namespace:
         "--prompt",
         choices=tuple(risk_judge.PROMPTS),
         default=risk_judge.GATE_PROMPT,
-        help="risk: the judge's prompt (B, the gate's: in-project destructive is risky; A: before)",
+        help="risk: the judge's prompt (B, the gate's: in-project destructive is risky; A: before;"
+        " C: B and out-of-scope work, measured; D: C reworded after it)",
     )
     args = parser.parse_args(argv)
     if not args.dry_run and not (args.kind and args.model and args.out):
