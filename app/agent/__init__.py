@@ -6078,7 +6078,7 @@ class AgentRunner(
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
         elif request.name in AT_WORK_TOOLS:  # (0.1.11: beside the turn's agents)
-            status, output = "succeeded", await self._at_work_call(ctx, request.name, args)
+            status, output = "succeeded", await self._at_work_call(ctx, call_id, request)
         elif request.name in BROWSER_TOOLS:
             status, output = "succeeded", await self._browser(ctx, ws, call_id, request.name, args)
         elif request.name in WEB_SCHEMAS:

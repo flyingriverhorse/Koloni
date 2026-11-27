@@ -33,8 +33,8 @@ for (const theme of ['light', 'dark'] as const) {
       .toBe('lead')
 
     // A Coder to open (asked at this level), then its question: both the Lead's to answer.
-    await page.getByLabel('Message').fill('vk: greet while I am away')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill('vk: greet while I am away')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     // (To look at, not waiting: the pill says "2 decided" - or, where other chats of the run wait, how many do;
     // the chat says it in one line, and so does the panel's This chat.)

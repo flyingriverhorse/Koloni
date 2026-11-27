@@ -158,13 +158,14 @@ export function AgentStory({
   )
 }
 
-/** Its CLI's plan as it says it while it works (89j, Codex's), a step a line, over the story it goes with. */
+/** Its plan as it says it while it works - a CLI's (89j, Codex's), the Orchestrator's update_plan (0.1.11) -, in its own
+ *  words, a step a line, over the story it goes with. */
 function LivePlan({ state, agent }: { state: ConvState; agent: Agent }) {
   const plan = state.live[agent.id]?.plan
   if (!plan?.length) return null
   return (
     <dl className="facts agent-sum">
-      <dt>Plan</dt>
+      <dt>Plan (its own words)</dt>
       <dd>
         <ol className="agent-plan">
           {plan.map((step, index) => (

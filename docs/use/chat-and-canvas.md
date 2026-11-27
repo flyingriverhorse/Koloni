@@ -100,6 +100,10 @@ unread and how many things wait for you.
   every task of a story is done, **Story done? - "…"** (**Close the story** / **Add a task**). Above the
   message box, **N wait** lists the chat's queue - the task at work, those waiting with **Remove** - and
   "+ your message goes first when you send one".
+- While a turn runs with agents at work, a plan of the Orchestrator's or something that waits for you,
+  one line over the chat says so: "3 agents at work · step 3 of 6 · 1 waits for you · ≈ 0.40 USD". A
+  click opens **At work in this turn**, each agent with **Stop** and **Message**. See
+  [Talking while agents work](talk-while-agents-work.md#the-line-over-the-chat).
 - At the foot of a turn that did something, once it is over, one line sums it up at the right, such as "2
   agents · 3 files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and
   known cost.

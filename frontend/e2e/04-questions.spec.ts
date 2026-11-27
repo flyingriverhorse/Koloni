@@ -2,8 +2,8 @@ import { expect, test, type Page } from './fixtures'
 import { openFreshConversation } from './helpers'
 
 async function ask(page: Page, text: string) {
-  await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill(text)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('the agent asks, waits through a reload, and goes on with the chosen answer', async ({ page }) => {

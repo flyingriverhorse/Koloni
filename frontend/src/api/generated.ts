@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/advisor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Advisor */
+        get: operations["get_advisor_api_advisor_get"];
+        /**
+         * Put Advisor
+         * @description The user's Advisor model: one of `choices` now, or none (both null: another provider's).
+         */
+        put: operations["put_advisor_api_advisor_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agents/{agent_id}/approve": {
         parameters: {
             query?: never;
@@ -1384,6 +1405,48 @@ export interface paths {
          *     for its rule, once.
          */
         post: operations["false_alarm_api_conversations__conversation_id__warnings__warning_id__false_alarm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/decisions/{decision_id}/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Noted Change
+         * @description The user's Change on a noted decision, in their own words: into its turn while that one is
+         *     at work and takes a word - Send now's own way (`post_message`); else in a turn of KOLONİ's of
+         *     its chat, queued behind one at work. Seen either way.
+         */
+        post: operations["noted_change_api_decisions__decision_id__change_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/decisions/{decision_id}/ok": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Noted Ok
+         * @description The user's OK on a noted decision: it stays in the log, seen.
+         */
+        post: operations["noted_ok_api_decisions__decision_id__ok_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4216,6 +4279,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/spent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Spent
+         * @description Task 6: what the turn cost so far, for the line over its chat (`usage.spend`): None where
+         *     nothing of it is priced - never a made-up zero; at least where a part of it is not.
+         */
+        get: operations["run_spent_api_runs__run_id__spent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/undo": {
         parameters: {
             query?: never;
@@ -4692,6 +4776,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdvisorOut */
+        AdvisorOut: {
+            /** Choices */
+            choices: components["schemas"]["JudgeChoice"][];
+            /** Model Id */
+            model_id: string | null;
+            /** Provider Id */
+            provider_id: string | null;
+        };
         /** AgentOut */
         AgentOut: {
             asked_how_hard: components["schemas"]["AskedModel"] | null;
@@ -6589,7 +6682,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "answer" | "command" | "task" | "spawn";
+            kind: "answer" | "command" | "task" | "spawn" | "noted";
             link: components["schemas"]["DecisionLink"];
             /** Options */
             options?: string[] | null;
@@ -6629,7 +6722,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "question" | "command" | "task" | "agent";
+            kind: "question" | "command" | "task" | "agent" | "noted";
         };
         /** DecisionLog */
         DecisionLog: {
@@ -8607,6 +8700,11 @@ export interface components {
             /** Why */
             why: string;
         };
+        /** NotedChangeIn */
+        NotedChangeIn: {
+            /** Words */
+            words: string;
+        };
         /**
          * NotesAnswerIn
          * @description K-bilgi 6: the user's word on a Project notes offer: the lines its card showed, and those of
@@ -10509,6 +10607,20 @@ export interface components {
             unattended: boolean;
         };
         /**
+         * RunSpentOut
+         * @description Task 6: what a turn cost so far at the user's prices - its agents and KOLONİ's own requests
+         *     for it (`GET /api/runs/{id}/spent`). `spent` None where nothing of it is priced (a CLI's, a
+         *     model with no price); `at_least` where a part of it is not.
+         */
+        RunSpentOut: {
+            /** At Least */
+            at_least: boolean;
+            /** Currency */
+            currency: string | null;
+            /** Spent */
+            spent: number | null;
+        };
+        /**
          * SaidOut
          * @description Something said in an earlier turn of the project, as a search found it - or a
          *     backlog task as the user closed it (`run_id` is then "task:" and the task's id).
@@ -11684,6 +11796,59 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_advisor_api_advisor_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvisorOut"];
+                };
+            };
+        };
+    };
+    put_advisor_api_advisor_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JudgeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvisorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     approve_agent_api_agents__agent_id__approve_post: {
         parameters: {
             query?: never;
@@ -14061,6 +14226,70 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WarningOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    noted_change_api_decisions__decision_id__change_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotedChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostMessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    noted_ok_api_decisions__decision_id__ok_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -19381,6 +19610,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostMessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_spent_api_runs__run_id__spent_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSpentOut"];
                 };
             };
             /** @description Validation Error */

@@ -3,8 +3,8 @@ import { openAgentFold, openFreshConversation, windowFromPanel } from './helpers
 import { MODEL_URL } from './paths.mjs'
 
 async function ask(page: Page, text: string) {
-  await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill(text)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('the user puts a provider in the team guide, the lead picks it for a sub-agent, and the card says so', async ({

@@ -54,11 +54,11 @@ for (const theme of ['light', 'dark'] as const)
       ).ok(),
     ).toBe(true)
     const chat = page.getByRole('region', { name: 'Chat' })
-    await chat.getByRole('textbox', { name: 'Message' }).fill('compare the greeting')
+    await chat.getByRole('textbox', { name: 'Message', exact: true }).fill('compare the greeting')
     await more(page)
     await chat.getByRole('button', { name: 'Compare…' }).click()
     const form = chat.getByRole('form', { name: 'Compare two models' })
-    await expect(form.getByLabel('Message')).toHaveValue('compare the greeting')
+    await expect(form.getByLabel('Message', { exact: true })).toHaveValue('compare the greeting')
     await form.getByLabel('Second model’s provider').selectOption({ label: 'Rival' })
     await reads(form, 3)
     // Its notes wrap in it: nothing runs off sideways (opened from More, whose row does not wrap).
@@ -117,7 +117,7 @@ for (const theme of ['light', 'dark'] as const)
 
     if (theme === 'dark') {
       // A second comparison, both thrown away: nothing reaches the project.
-      await chat.getByRole('textbox', { name: 'Message' }).fill('compare the greeting again')
+      await chat.getByRole('textbox', { name: 'Message', exact: true }).fill('compare the greeting again')
       await more(page)
       await chat.getByRole('button', { name: 'Compare…' }).click()
       await form.getByLabel('Second model’s provider').selectOption({ label: 'Rival' })

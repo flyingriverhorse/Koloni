@@ -41,7 +41,8 @@ browser, and they are hidden in logs and in command output. Keep `runtime/` priv
 Only these, and each only when you set it up or an agent is allowed to:
 
 1. **Model providers**: your messages and the agents' work go to the providers you add. CLIs talk to
-   their own vendors.
+   their own vendors. The Orchestrator's `ask_advisor` sends its summary, its question and its turn's
+   last steps, masked, to the **Advisor model** - by default a provider other than the Orchestrator's.
 2. **Web searches**: to your own SearXNG if you set one, then DuckDuckGo and a CLI's search, in the
    order you set, and last the Anthropic API with a provider's key. Below Full auto a search asks first,
    unless you allowed searching in that chat.
@@ -57,7 +58,8 @@ Only these, and each only when you set it up or an agent is allowed to:
    ask.
 9. **Knowledge**: the pages a topic learns from, its research searches, and a repository cloned
    from GitHub when you press **Learn**.
-10. **Pull requests**: pushing a branch and opening a pull request, when you choose that.
+10. **Pull requests**: pushing a branch and opening a pull request, when you choose that; and
+    reading one's reviews and checks with your own `gh` when the Orchestrator calls `read_pr_feedback`.
 11. **Plan and balance checks**: when you press **Check now** or **Read now**.
 12. **What agents' commands and MCP servers reach.** MCP servers run with your own rights, outside
     KOLONİ's cards.

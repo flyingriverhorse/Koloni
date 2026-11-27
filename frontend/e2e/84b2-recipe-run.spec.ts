@@ -50,8 +50,8 @@ for (const theme of ['light', 'dark'] as const) {
     })
     expect(set.ok()).toBe(true)
 
-    await page.getByLabel('Message').fill(`build it by the recipe, 84b2 ${theme}`)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill(`build it by the recipe, 84b2 ${theme}`)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const ready = page.locator('.ready-node')
     await expect(ready).toContainText('NEEDS YOU', { timeout: 20_000 })
     // The team's frame, its recipe's step strip, and the work kept out of the project until Take in.
@@ -130,8 +130,8 @@ test('a recipe’s Ask me and its Take in are answered in the chat', async ({ pa
   })
   expect(set.ok()).toBe(true)
 
-  await page.getByLabel('Message').fill('build it by the recipe, 84b2 askme')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('build it by the recipe, 84b2 askme')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   // (A title of KOLONİ's own, its words whole under it: sample A.)
   await expect(chat.getByText(`Web app: Build it is done. Go on with the ${name} recipe?`)).toBeVisible({

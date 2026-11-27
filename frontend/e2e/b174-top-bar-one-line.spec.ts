@@ -51,8 +51,8 @@ for (const [width, held] of [
       await openFreshConversation(page)
       // (Ends in "slowly": the scripted Lead asks to run a command, and its turn waits for the answer.)
       const title = `A turn at work in a bar ${width} px wide, run it slowly`
-      await page.getByLabel('Message').fill(title)
-      await page.getByRole('button', { name: 'Send' }).click()
+      await page.getByLabel('Message', { exact: true }).fill(title)
+      await page.getByRole('button', { name: 'Send', exact: true }).click()
       const bar = page.locator('.topbar')
       await expect(bar.locator('[data-run="waiting_approval"]')).toBeVisible({ timeout: 15_000 })
       await expect(bar.getByRole('button', { name: /^Notifications/ })).toBeVisible({ timeout: 15_000 })
@@ -132,8 +132,8 @@ test('at 1283 px, with two plans read and a turn that waits, the plans are in th
   await e2eProject(page)
   try {
     await openFreshConversation(page)
-    await page.getByLabel('Message').fill('A turn at work in a bar 1283 px wide, run it slowly')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill('A turn at work in a bar 1283 px wide, run it slowly')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const bar = page.locator('.topbar')
     await expect(bar.locator('[data-run="waiting_approval"]')).toBeVisible({ timeout: 15_000 })
     await expect(bar.getByRole('button', { name: /^Plan use: / })).toBeVisible({ timeout: 15_000 })

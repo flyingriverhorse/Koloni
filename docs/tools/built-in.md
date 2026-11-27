@@ -98,8 +98,13 @@ in this turn with Open sub-agents, alone - its work so far kept for your **Take 
 project; any other is refused ("… is not one you opened in this turn", "… has finished"). The
 Orchestrator of an API model may open an agent **in the background** (Open sub-agents with `background`)
 and run a command in the background (Run commands with `background`, where it has the two tools for a
-command that keeps running): it goes on at once and is told when each ends. See
-[Talking while agents work](../use/talk-while-agents-work.md).
+command that keeps running): it goes on at once and is told when each ends. Beside them it has
+**agents_at_work** (who of the turn is at work, since when, what each last said), **update_plan** (its
+plan shown to you, an API model's), **ask_advisor** (a second model's advice, three times a turn: your
+**Advisor model**, else another provider's), **note_decision** (a decision it took for you, a row of
+**Decided for you**) and, where `gh` is installed and the origin is on GitHub, **read_pr_feedback** (one
+pull request's reviews, comments and failing checks, read only). None is a sub-agent's. See
+[Talking while agents work](../use/talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
 
 A role needs at least one tool. Tools from MCP servers and skills are given to roles on the Tools page;
 see [MCP servers](mcp.md) and [Skills](skills.md).

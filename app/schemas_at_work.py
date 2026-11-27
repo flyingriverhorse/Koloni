@@ -52,3 +52,13 @@ class TellIn(BaseModel):
     # B-164: to the Orchestrator instead, about the agent - one whose CLI hears nothing while it
     # works (Copilot's, agy's own; the user's answer 2, 25 Nov).
     to_lead: bool = False
+
+
+class RunSpentOut(BaseModel):
+    """Task 6: what a turn cost so far at the user's prices - its agents and KOLONİ's own requests
+    for it (`GET /api/runs/{id}/spent`). `spent` None where nothing of it is priced (a CLI's, a
+    model with no price); `at_least` where a part of it is not."""
+
+    spent: float | None
+    currency: str | None
+    at_least: bool

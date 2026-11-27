@@ -103,8 +103,8 @@ test('models are given a tier, a role asks for one, and a lead’s model follows
 
   // The fast model says this one is hard: the lead of the turn runs on the strongest model,
   // and its node says how that was decided - a model's guess, in that model's words.
-  await page.getByLabel('Message').fill('hello, everything at once')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('hello, everything at once')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
   const lead = page.locator('.react-flow__node-agent').first()
   await expect(lead).toContainText('Local · fake-strong')
@@ -122,8 +122,8 @@ test('models are given a tier, a role asks for one, and a lead’s model follows
   await own.getByRole('button', { name: 'Close agent window' }).click()
 
   // An easy one runs on the fast model.
-  await page.getByLabel('Message').fill('hello again')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('hello again')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.react-flow__node-agent').first()).toContainText('Local · fake-quick')
 
   // Put back, so that later runs start from the defaults: the role's tier, and the models' tiers.

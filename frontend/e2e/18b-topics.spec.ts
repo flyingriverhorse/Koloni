@@ -23,8 +23,8 @@ test.afterEach(async () => {
 })
 
 async function say(page: Page, text: string, answer: string, times = 1) {
-  await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill(text)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText(answer)).toHaveCount(times, { timeout: 20_000 })
 }
 
@@ -122,7 +122,7 @@ test('a message goes on with the topic: Recent names it, the canvas draws this t
   const coder = agents.filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) })
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   // With no topic yet nothing is said about topics.
-  await expect(page.getByLabel('Message')).toBeVisible()
+  await expect(page.getByLabel('Message', { exact: true })).toBeVisible()
   await expect(line).toHaveCount(0)
 
   // --- turn 1 opens a Coder; turn 2, sent with nothing chosen, goes on with the same topic ----

@@ -39,7 +39,7 @@ for (const theme of ['light', 'dark'] as const) {
       { name: 'shot85b.png', mimeType: 'image/png', buffer: PNG },
       { name: 'cart85b.ts', mimeType: 'text/plain', buffer: CODE },
     ])
-    await page.getByLabel('Message').fill('fix the cart, 85b - see https://stripe.com/docs')
+    await page.getByLabel('Message', { exact: true }).fill('fix the cart, 85b - see https://stripe.com/docs')
     const chips = page.getByRole('list', { name: 'Attached' })
     await expect(chips.getByRole('listitem')).toHaveText([
       'PNGshot85b.pngimage · 70 B · seen by a model that sees images',
@@ -49,18 +49,19 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByText('2 attached · 122 B')).toBeVisible()
     // (Files added, Send stays on the level's line.)
     const [level, send] = await Promise.all(
-      [page.getByRole('button', { name: /^Permission level:/ }), page.getByRole('button', { name: 'Send' })].map(
-        async c => {
-          const at = (await c.boundingBox())!
-          return Math.round(at.y + at.height / 2)
-        },
-      ),
+      [
+        page.getByRole('button', { name: /^Permission level:/ }),
+        page.getByRole('button', { name: 'Send', exact: true }),
+      ].map(async c => {
+        const at = (await c.boundingBox())!
+        return Math.round(at.y + at.height / 2)
+      }),
     )
     expect(send).toBe(level)
     expect((await page.locator('.composer').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     if (process.env.KOLONI_SHOTS) await shot(page.locator('.composer'), `85b-composer-${theme}`)
 
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     await expect(chat.getByText('cart85b.ts: the click handler waits for the banner → Coder')).toBeVisible({
       timeout: 20_000,
@@ -104,8 +105,11 @@ test('ten files keep Send in sight; "not added" goes; the project list closes an
   const chips = page.getByRole('list', { name: 'Attached' })
   await expect(chips.getByText('a message has 10 files at most: not added')).toBeVisible()
   await expect(page.getByText(/^10 attached/)).toBeVisible()
-  await page.getByLabel('Message').fill('read them')
-  const [send, panel] = [await page.getByRole('button', { name: 'Send' }).boundingBox(), await chat.boundingBox()]
+  await page.getByLabel('Message', { exact: true }).fill('read them')
+  const [send, panel] = [
+    await page.getByRole('button', { name: 'Send', exact: true }).boundingBox(),
+    await chat.boundingBox(),
+  ]
   expect(send!.y + send!.height).toBeLessThanOrEqual(panel!.y + panel!.height)
   expect(send!.y + send!.height).toBeLessThanOrEqual(771)
   // One taken off: what was refused beside it says so no more.
@@ -126,9 +130,9 @@ test('ten files keep Send in sight; "not added" goes; the project list closes an
   await open()
   await clickCanvas(page)
   await expect(list).toHaveCount(0)
-  await page.getByLabel('Message').fill('')
+  await page.getByLabel('Message', { exact: true }).fill('')
   await open()
   await page.keyboard.type('hello')
   await expect(list).toHaveCount(0)
-  await expect(page.getByLabel('Message')).toHaveValue('hello')
+  await expect(page.getByLabel('Message', { exact: true })).toHaveValue('hello')
 })

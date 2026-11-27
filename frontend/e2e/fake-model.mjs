@@ -302,6 +302,30 @@ function loopedStep(messages, last) {
   return say(LOOPED.fixes ? 'Fixed the findings.' : 'Wrote the three modules.')
 }
 
+// 0.1.11 (92): talking to the Orchestrator while its agents work - it opens the Coder in the background and says so;
+// your word sent now it answers while the Coder works (whose step this server holds: `HELD_92`); told you stopped the
+// Coder, it says it will not open it again.
+const TALK_92 = 'talk while agents work'
+const TASK_92 = 'Count the lines of hello.py (talk 92)'
+const held92 = messages =>
+  String(messages[0].content).includes('Coder sub-agent') && messages.some(m => String(m.content) === TASK_92)
+
+function talk92(messages) {
+  if (held92(messages)) return say('Counted.')
+  if (!messages.some(m => m.role === 'user' && String(m.content) === TALK_92)) return null
+  const said = text => messages.some(m => m.role === 'assistant' && String(m.content) === text)
+  if (messages.some(m => /the user stopped Coder/.test(String(m.content))))
+    return say('Coder is stopped; I will not open it again.')
+  if (
+    messages.some(m => m.role === 'user' && String(m.content) === 'how is it going?') &&
+    !said('Coder is still at work.')
+  )
+    return say('Coder is still at work.')
+  if (!messages.some(m => m.tool_calls?.length))
+    return toolCall('c92', 'spawn_agent', { role: 'Coder', task: TASK_92, background: true })
+  return say('Coder is at work on it.')
+}
+
 function nextStep(all, tools = [], model = '') {
   // (A message with files sent as they are - slice 85b - is read by its text parts.)
   const read = all.map(m =>
@@ -559,6 +583,8 @@ function nextStep(all, tools = [], model = '') {
     if (last.role === 'user') return toolCall('c5', 'read_file', { path: 'hello.py' })
     return say('Looks fine.')
   }
+  const talk = talk92(messages)
+  if (talk) return talk
   // The Coder writes a file and reports. Gone on with in a later turn of the topic, it is
   // sent what it did then and the lead's new message: it changes what it wrote, and says
   // what it had written before - which it can only know from that earlier work.
@@ -1248,8 +1274,9 @@ http
       const great =
         messages.some(m => m.role === 'user' && / at great length$/.test(String(m.content))) &&
         String(messages.at(-1).content).startsWith('applied')
-      const wait = great ? 25000 : long ? 7000 : slow ? 1500 : speaking ? 900 : 0
-      setTimeout(() => sse(res, told(nextStep(messages, tools, model))), wait)
+      // (92: the Coder's step is held till it is stopped - its request then goes, and nothing is written to it)
+      const wait = held92(messages) ? 120000 : great ? 25000 : long ? 7000 : slow ? 1500 : speaking ? 900 : 0
+      setTimeout(() => res.destroyed || sse(res, told(nextStep(messages, tools, model))), wait)
     })
   })
   .listen(PORT, '127.0.0.1', () => console.log(`fake model on ${PORT}`))

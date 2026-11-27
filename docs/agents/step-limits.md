@@ -18,6 +18,9 @@ a command, open a sub-agent. The tools run, and the next step reads what they ga
   still at work and takes no step more. Agents opened in the background are held to the chat's
   limits as any agent - how many at once, how many a turn opens, how deep. See
   [Talking while agents work](../use/talk-while-agents-work.md#agents-in-the-background).
+- The Orchestrator's own tools beside its agents have limits of a turn's: `ask_advisor` 3 asks,
+  `note_decision` 10 notes; past them a call is refused and it goes on. See
+  [What the Orchestrator has while its agents work](../use/talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
 
 When an agent has two steps left, KOLONİ tells it to start nothing new, finish what it is on, and
 write its report: what it did and what is left.

@@ -17,8 +17,8 @@ for (const theme of ['light', 'dark'] as const) {
     const title = `hold ${theme} ${Date.now()} run it slowly`
     const chat = page.getByRole('region', { name: 'Chat' })
     await openFreshConversation(page)
-    await page.getByLabel('Message').fill(title)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill(title)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByText('Run this command?')).toBeVisible({ timeout: 15_000 })
 
     const bar = page.locator('.topbar')

@@ -112,7 +112,7 @@ for (const theme of ['light', 'dark'] as const) {
     // Read again from the server: all of it kept, and the team still open (the browser remembers it).
     await page.goto('about:blank')
     await page.goto(LINK)
-    await page.getByLabel('Message').waitFor()
+    await page.getByLabel('Message', { exact: true }).waitFor()
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
     await expect(team.getByRole('region', { name: /^Stage \d/ })).toHaveText([
       /^1Plan/,

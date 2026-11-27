@@ -23,8 +23,8 @@ for (const theme of ['light', 'dark'] as const) {
     })
     expect(set.ok()).toBe(true)
 
-    await page.getByLabel('Message').fill(`quality check it, qc ${theme}`)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill(`quality check it, qc ${theme}`)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(
       page.getByRole('region', { name: 'Chat' }).getByText('Quality check is done: nothing found.').last(),
     ).toBeVisible({ timeout: 30_000 })

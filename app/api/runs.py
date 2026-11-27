@@ -10,7 +10,7 @@ from app.agent import TERMINAL
 from app.agent.stronger_mixin import FIX_HELD, HELD_WHY, HELD_WHY_TESTS
 from app.api.conversations import new_turn, queue_or_start
 from app.api.deps import get_session, require_origin, require_own_origin
-from app.api.usage import over_budget
+from app.api.usage import over_budget, spend
 from app.db.models import Conversation, Message, Run, now, project_of
 from app.schemas import (
     BoardPostIn,
@@ -21,7 +21,7 @@ from app.schemas import (
     PlanRejectIn,
     SendIn,
 )
-from app.schemas_at_work import PostMessageOut
+from app.schemas_at_work import PostMessageOut, RunSpentOut
 from app.serialize import conversation_out, message_out, run_out
 from app.tools import ToolError
 
@@ -319,3 +319,19 @@ async def reject_plan(
     session.commit()
     request.app.state.bus.emit(run.conversation_id, run.id, "run.updated", run_out(run))
     return {}
+
+
+@router.get("/{run_id}/spent", response_model=RunSpentOut)
+def run_spent(run_id: str, session: Session = Depends(get_session)):
+    """Task 6: what the turn cost so far, for the line over its chat (`usage.spend`): None where
+    nothing of it is priced - never a made-up zero; at least where a part of it is not."""
+    if session.get(Run, run_id) is None:
+        raise HTTPException(404, "run not found")
+    found = spend(session, [Run.id == run_id])
+    unpriced = bool(found["unpriced_runs"])
+    priced = found["spent"] is not None and not (unpriced and not found["spent"])
+    return {
+        "spent": found["spent"] if priced else None,
+        "currency": found["currency"] if priced else None,
+        "at_least": priced and (found["at_least"] or unpriced),
+    }

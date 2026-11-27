@@ -64,6 +64,11 @@ Full auto alone does not let it open a sub-agent for you; of KOLONİ's own cards
 is decided while you're away. An Orchestrator on a CLI answers at Full auto only where **When you're away** is set
 to **The Orchestrator answers what it safely can**.
 
+A decision the Orchestrator took without a card - a library, an approach - it can note for you with
+`note_decision` (0.1.11): it is in the same list, "Orchestrator · Decided: …" with its reason, until
+your **OK**; **Change** takes your own words. See
+[Talking while agents work](../use/talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
+
 ## The same question again
 
 If the same agent asks the same question again in the turn, with the same words and choices, it gets

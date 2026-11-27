@@ -9,13 +9,11 @@ import base64
 import contextlib
 import json
 import logging
-import os
 import re
 import time
 import uuid
 from dataclasses import replace
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import func, or_, select
@@ -25,7 +23,6 @@ from app import (
     backlog,
     cli_surface,
     earlier,
-    git,
     injection,
     knowledge,
     knows,
@@ -647,20 +644,6 @@ class LoopMixin:
             return cid
         except Exception:
             return None
-
-    async def _git_start(self: "AgentRunner", ctx: Ctx) -> None:
-        """The project's git as the turn begins (slice 70): what a CLI of it is told, and
-        what its end is compared with. Once a turn, by its Lead, before any agent of the turn
-        works (`_attempt`: where Stop is taken) - never at an agent's steps. A folder with no
-        `.git` is not looked at (no thread); one that is, in a thread: `git.where` keeps to its
-        own time limit.
-        shortcut: also a turn none of whose agents turns out to be a CLI or run a command;
-        which will is not known yet as it begins."""
-        if ctx.root is None or ctx.run_id in self._git_at:
-            return
-        self._git_at[ctx.run_id] = None  # (None: no git, or not read - nothing to compare)
-        if os.path.lexists(Path(ctx.root) / ".git"):
-            self._git_at[ctx.run_id] = await asyncio.to_thread(git.where, Path(ctx.root))
 
     def _map_start(self: "AgentRunner", ctx: Ctx) -> None:
         """The project's map as the turn begins (K-buyuk-proje), for its Lead's brief: once a

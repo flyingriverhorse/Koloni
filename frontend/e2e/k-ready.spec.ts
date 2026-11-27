@@ -14,8 +14,8 @@ async function asking(page: Page, words: string) {
   // (Ask before a command. Its first message names it: its row is found by these words.)
   const set = await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })
   expect(set.ok()).toBe(true)
-  await page.getByLabel('Message').fill(`run the tests, ${words}`)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill(`run the tests, ${words}`)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('Run this command?')).toBeVisible({
     timeout: 20_000,
   })

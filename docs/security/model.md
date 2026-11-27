@@ -233,6 +233,15 @@ What is not framed:
   own page; the Orchestrator's `stop_agent` stops only an agent it opened itself in this turn, never
   KOLONİ's own checks. A background agent's desktop notice says only its name and how it ended
   ([Talking while agents work](../use/talk-while-agents-work.md)).
+- **The Orchestrator's own tools beside its agents** (0.1.11). `agents_at_work` reads only this turn's
+  agents; their last words come back quoted, cut and masked. `ask_advisor` sends the Orchestrator's
+  summary, question and last steps to another model - by default on another provider -, masked, with
+  no tools, three times a turn at most; its answer is quoted as data, never an order. `note_decision`
+  only adds a row to Decided for you, its words masked and cut; the row changes nothing, and its **OK**
+  and **Change** are yours alone, from the app's own page - a Change puts no word of the
+  Orchestrator's into a message of yours. `read_pr_feedback` only reads, with your own `gh`, a pull
+  request of the project's own repository; what reviewers and checks wrote is framed as data, masked
+  and cut, and there is no way to reply with it.
 
 ## Where protection ends
 
