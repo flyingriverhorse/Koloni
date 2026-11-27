@@ -103,6 +103,25 @@ The Orchestrator can also run a command in the background (`run_command` with `b
 on, reads the command's output with `command_output`, stops it with `stop_command`, and is told when it
 ends. At most as many run at once as the chat lets agents work at once. The turn's end stops them.
 
+### Messages between agents: reply, leave, now
+
+The Orchestrator of an API model also says *how* a message to one of its agents (`message_agent`)
+goes - only to an agent it could message anyway:
+
+| How | The agent is not at work | The agent is at work |
+|---|---|---|
+| **reply** (as ever) | it takes a turn on it while the Orchestrator waits for its reply | it is handed it at its next step - or, a Claude Code, Codex or Copilot agent, in its running turn |
+| **leave** | it takes it up now, in a turn of its own; the Orchestrator goes on, and the reply comes to it as a note, as a background agent's report does | it is handed it at its next step; where its work ends before that, it takes it up in a turn of its own, and its reply comes the same way |
+| **now** | as **leave** | into its running work: a CLI's running turn - with what came of it, as [below](#what-came-of-a-word-sent-into-a-clis-turn) - else at its next step, as **leave** |
+
+A turn an agent takes on a message left waits for its other turns and for a place, as any agent's
+turn. A message left counts twice toward the turn's messages between agents (its note and the turn
+it may start), so it is refused where there is room for one only. However it ends, the Orchestrator
+is told: the agent read it (from its next step on, without a step of its own for it), its reply, or
+why it was not taken up - the agent was stopped, or can no longer be messaged, or the turn ended
+first; it is not sent again. Every other agent, and a CLI Orchestrator, sends a message as a reply:
+one that asks otherwise is told so.
+
 ## Stop and Message on one agent
 
 An agent at work that the Orchestrator (or one of its agents) opened has **Stop** and **Message** on

@@ -138,6 +138,14 @@ messages.
   a decision or an answer is given again from the agent's next step. Claude Code is asked for its
   echo only from 2.1.332 on, the version it was measured on (`--version`, asked at each run), and
   not for a prompt over 8 MB (pictures): a word steered into such a turn is unknown.
+- `message_agent`'s **leave** and **now** are the API Orchestrator's alone (as `spawn_agent`'s
+  background); others send a reply. Whether an agent at work read a message left for it, or its work
+  ended first, is looked at every half second and kept in memory only: KOLONİ restarted meanwhile,
+  the message stays on the agent's record unread and nobody takes it up. A Claude Code, Codex or
+  Copilot agent at work is handed a message left for it (**leave**) with its next KOLONİ tool result,
+  else in a turn of its own once its run ends; agy is out of reach while it works, as before, and
+  takes a message up only once it has finished. Where the Orchestrator's turn ends before a message
+  is taken up, it is told on its own record - which no step reads any more.
 - Talking while agents work: the Orchestrator's steps that answer your word are refused KOLONİ's
   Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and any MCP
   server's tool; a CLI Orchestrator's own tools are only told so. While it answers your word the
