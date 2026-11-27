@@ -102,8 +102,8 @@ function CardNotes({ command, rememberable, offers }: { command: Command; rememb
         <div>
           KOLONİ checked {command.disposable?.what}: disposable. Allow such deletes in this project runs this one, and
           from now on, at Auto-edit and Full auto in a chat you watch, such deletes (clean worktrees and merged branches
-          you no longer use, build and cache folders) go without a card. Settings › This project › Asking and away turns
-          it off.
+          you no longer use, build and cache folders) go without a card. Settings › This project › When you’re asked
+          (under More) turns it off.
         </div>
       )}
     </CardMore>

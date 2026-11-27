@@ -26,7 +26,7 @@ export const GUIDE = {
   roleModel: 'models/tiers/#a-roles-model',
   editingRole: 'agents/roles/#editing-a-role',
   rolePanel: 'agents/roles/#a-roles-panel',
-  builtInTools: 'tools/built-in/#the-built-in-tab',
+  builtInTools: 'tools/built-in/#the-kolonis-tools-tab',
   mcpAdding: 'tools/mcp/#adding-a-server',
   mcpTrust: 'tools/mcp/#trust',
   mcpTools: 'tools/mcp/#reading-its-tools',

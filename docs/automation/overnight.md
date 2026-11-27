@@ -28,7 +28,7 @@ It opens the Away panel:
   to keep out (up to 20): a pattern such as `src/*` or a place outside the project is refused.
 - Where the project is not on **Test and review**: "While you're away, Test and review is suggested:
   tests, and a review of big or security-touching changes." **Use Test and review** sets the project
-  to it (Settings › This project › Checks and git › **After a change**) - while you are away, nobody
+  to it (Settings › This project › When the work is done › **After a change**) - while you are away, nobody
   but KOLONİ's checks looks at the work ([What KOLONİ checked](../use/checked.md)).
 - **Go away**, or **Cancel**. **How it works** says the rest.
 

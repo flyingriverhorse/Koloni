@@ -53,7 +53,7 @@ test('"Always run" adds a rule, the next run does not ask, and the rule can be r
   await openTurns(page)
   await expect(turns.last()).toHaveAttribute('aria-current', 'true')
 
-  // Removed in Settings › This project › Runs without asking, under the chat's title (tek-ev); ⚙ Chat links there.
+  // Removed in Settings › This project › When you’re asked › Runs without asking, under the chat's title (tek-ev); ⚙ Chat links there.
   await (await chatSheet(page)).getByRole('button', { name: '1 run without asking →' }).click()
   const rules = page
     .getByRole('form', { name: 'Project settings' })

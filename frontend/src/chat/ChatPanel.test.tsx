@@ -476,7 +476,7 @@ test('under the message box: the model, the level, ⚙ Chat and Send; More holds
   expect(more).toHaveAttribute('aria-expanded', 'false')
   expect(more).toHaveFocus()
   expect(screen.getByLabelText('Message')).toBeInTheDocument()
-  // ⚙ Chat: the link asks for Settings › This project › Runs without asking, and folds the sheet.
+  // ⚙ Chat: the link asks for Settings › This project › When you’re asked, at Runs without asking, and folds the sheet.
   const sheet = screen.getByRole('button', { name: 'This chat’s settings' })
   await userEvent.click(sheet)
   await userEvent.click(

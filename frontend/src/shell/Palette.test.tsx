@@ -282,7 +282,55 @@ test('a section of the settings picked over a page picked before leaves that pag
   await userEvent.click(
     within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }),
   )
-  expect(screen.getByRole('heading', { name: 'Agents' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'How agents work' })).toBeInTheDocument()
+})
+
+test('0.1.10: a section is found by its new name, and by a name it had before - listed by its new one', async () => {
+  render(<App />)
+  await screen.findByLabelText('Message')
+  const find = async (words: string) => {
+    await userEvent.keyboard('{Control>}k{/Control}')
+    await userEvent.type(within(palette()!).getByRole('combobox'), words)
+    return within(palette()!)
+      .getAllByRole('option')
+      .map(one => one.textContent)
+  }
+  for (const [old, now] of [
+    ['runs without asking', 'When you’re asked'],
+    ['commands and secrets', 'When you’re asked'],
+    ['asking and away', 'When you’re asked'],
+    ['checks and git', 'When the work is done'],
+    ['slash commands', 'How agents work'],
+    ['new chats start with', 'How agents work'],
+  ]) {
+    expect(
+      (await find(old)).some(one => one?.includes(now)),
+      old,
+    ).toBe(true)
+    await userEvent.keyboard('{Escape}')
+  }
+  await find('when the work')
+  await userEvent.keyboard('{Enter}')
+  expect(screen.getByRole('heading', { name: 'When the work is done' })).toBeInTheDocument()
+})
+
+test('0.1.10: a section folded into another is found by its old name, and opened where it is now - its More, or the rules', async () => {
+  render(<App />)
+  await screen.findByLabelText('Message')
+  const go = async (words: string, shown: string) => {
+    await userEvent.keyboard('{Control>}k{/Control}')
+    await userEvent.type(within(palette()!).getByRole('combobox'), words)
+    expect(within(palette()!).getAllByRole('option')[0]).toHaveTextContent(shown)
+    await userEvent.keyboard('{Enter}')
+  }
+  await go('slash commands', 'How agents work › Slash commands')
+  expect(screen.getByRole('heading', { name: 'Slash commands' })).toBeVisible()
+  await go('commands and secrets', 'When you’re asked › Commands and secrets')
+  expect(screen.getByLabelText(/^Planted test key/)).toBeVisible()
+  await go('runs without asking', 'When you’re asked › Runs without asking')
+  expect(screen.getByRole('button', { name: 'Hide the rules' })).toHaveAttribute('aria-expanded', 'true')
+  await go('new chats start', 'How agents work › New chats start with')
+  expect(screen.getByRole('list', { name: 'New chats’ other folders' })).toBeVisible()
 })
 
 test('“Search in messages” opens the memory’s search with the words, and searches them', async () => {

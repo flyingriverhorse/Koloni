@@ -507,8 +507,8 @@ function wayField(
         {branch.pr_off && <span className="muted"> — not now: {branch.pr_off}</span>}
       </label>
       <div className="muted cmd-approval-note">
-        Kept for this project; Settings › This project › Checks and git can change it. A pull request lets KOLONİ push
-        this project's finished branches to GitHub - it never merges one.
+        Kept for this project; Settings › This project › When the work is done can change it. A pull request lets KOLONİ
+        push this project's finished branches to GitHub - it never merges one.
       </div>
     </fieldset>
   )

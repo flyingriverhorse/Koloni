@@ -17,7 +17,7 @@ test('in a new conversation the Lead hands code to a Coder; switched to doing it
   await level(page, 'auto_edit')
 
   // (Every chat of the project follows it: Settings › This project › Agents - tek-ev.)
-  const settings = await projectSettings(page, /^Agents/)
+  const settings = await projectSettings(page, /^How agents work/)
   await expect(settings.getByLabel('Who changes the files')).toHaveValue('delegates')
   await page.getByRole('button', { name: 'Close settings' }).click()
 
@@ -34,11 +34,11 @@ test('in a new conversation the Lead hands code to a Coder; switched to doing it
     ['farewell.py', coder.id],
   ])
 
-  await projectSettings(page, /^Agents/)
+  await projectSettings(page, /^How agents work/)
   await settings.getByLabel('Who changes the files').selectOption('itself')
   await saveSettings(page)
   await expect.poll(async () => (await (await request.get(url)).json()).conversation.lead_hands_code).toBe(false)
   // opened again, it starts from what is saved
-  await projectSettings(page, /^Agents/)
+  await projectSettings(page, /^How agents work/)
   await expect(settings.getByLabel('Who changes the files')).toHaveValue('itself')
 })

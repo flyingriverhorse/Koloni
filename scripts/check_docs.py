@@ -228,8 +228,8 @@ def stale_diagrams(root: Path) -> tuple[list[str], int]:
 _APP_LABELS = (
     re.compile(r"(?<![\w-])label=\"([^\"]+)\""),
     re.compile(r"type=\"(?:checkbox|radio)\".*?/>\s*(?:\{' '\}\s*)?(?:<span>\s*)?([^<{]+)", re.S),
-    re.compile(r"<(?:h2|h3|legend|label)\b[^>]*>([^<{]+)<"),
-    re.compile(r"^\s*\['\w+', '([^']+)'\],?$", re.M),
+    re.compile(r"<(?:h2|h3|h4|legend|label)\b[^>]*>([^<{]+)<"),
+    re.compile(r"^\s*\['[\w-]+', '([^']+)'\],?$", re.M),
 )
 
 

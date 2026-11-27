@@ -5,6 +5,8 @@ import { fold } from './fold'
 export interface Place {
   kind: string
   name: string
+  /** Other names it is found by, not shown (a section's names before 0.1.10). */
+  also?: string[]
   go: () => void
 }
 
@@ -65,7 +67,7 @@ export function Palette({ places, onOpen, onSearch }: Props) {
   if (!open) return null
   const wanted = fold(words.trim())
   const shown: Place[] = [
-    ...places.filter(place => fold(place.name).includes(wanted)),
+    ...places.filter(place => [place.name, ...(place.also ?? [])].some(name => fold(name).includes(wanted))),
     {
       kind: 'Search',
       name: wanted ? `Search in messages: “${words.trim()}”` : 'Search in messages',

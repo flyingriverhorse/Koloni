@@ -68,7 +68,7 @@ unread and how many things wait for you.
   "2 wait"; at the narrowest **New topic** and **More** keep only their icon, **Settings** its word. The level always shows its name
   ("Ask", "Auto-edit", "Full auto").
 - Type `/` for slash commands: `/new`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's
-  name to hand it a task, and your own commands (Settings › This project › Slash commands).
+  name to hand it a task, and your own commands (Settings › This project › How agents work › More).
 
 ### What the chat shows
 

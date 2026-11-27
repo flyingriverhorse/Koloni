@@ -108,7 +108,7 @@ it asked when the Orchestrator runs on a CLI and the project does not let it ans
 It never adds a suggestion whose words look like orders. Suggestions from jobs while you're away always
 wait for you.
 
-Turn it off, or choose the tier, in [Settings › This project › Agents](../settings.md#agents).
+Turn it off, or choose the tier, in [Settings › This project › How agents work](../settings.md#how-agents-work).
 
 ## Stories { #goals-and-stories }
 

@@ -26,7 +26,7 @@ test('`?` lists the keyboard shortcuts - not while something is typed - and Esc 
     .map(term => term.textContent)
   expect(keys).toEqual(['Ctrl+K', '?', '/', '/ in the box', 'C', 'Enter', 'Esc'])
   expect(within(help()!).getByText(/^Commands, at the start of the message box/)).toHaveTextContent(
-    'or one of your own (Settings › This project › Slash commands)',
+    'or one of your own (Settings › This project › How agents work, under More)',
   )
   await userEvent.keyboard('{Escape}')
   expect(help()).not.toBeInTheDocument()

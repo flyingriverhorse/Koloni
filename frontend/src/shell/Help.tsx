@@ -9,7 +9,7 @@ const SHORTCUTS: [keys: string, what: string][] = [
   ['/', 'Write a message: the focus goes to the message box'],
   [
     '/ in the box',
-    'Commands, at the start of the message box: /new, /stop, /model, /mode, a role and its task - /coder fix the tests, or one of your own (Settings › This project › Slash commands)',
+    'Commands, at the start of the message box: /new, /stop, /model, /mode, a role and its task - /coder fix the tests, or one of your own (Settings › This project › How agents work, under More)',
   ],
   ['C', 'Open the chat, where it is closed'],
   ['Enter', 'Send the message; Shift+Enter starts a new line'],

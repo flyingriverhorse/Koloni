@@ -68,9 +68,12 @@ const project: Project = {
 }
 const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true, onClose: vi.fn() }
 
-/** The More limits of the level shown (the other level's is in a hidden panel). */
+/** The More limits of the level shown (the other level's is in a hidden panel): its button, and what it folds. */
 const shownMore = () => screen.getAllByText(/^More limits/).find(one => !one.closest('[hidden]'))!
 const openMore = () => userEvent.click(shownMore())
+const folded = () => document.getElementById(shownMore().getAttribute('aria-controls')!)!
+/** The Save of the section shown: there only while something in it is changed. */
+const save = () => screen.getByRole('button', { name: 'Save' })
 
 /** The Judge model as a server with two fast models (one a CLI) and a strongest one has it, none chosen. */
 const LOCAL = { provider_id: 'p1', provider_name: 'Local', cli: false, measured: false }
@@ -232,6 +235,7 @@ test('a place asked for lands on its level and section, each time it is asked; t
   expect(level('This project')).toHaveAttribute('aria-current', 'true')
   expect(levels().getByRole('button', { name: /^Limits and money/ })).toHaveAttribute('aria-current', 'true')
   // Continue's extra steps are the project's; the step limit is the app's: each names the other, a click away.
+  await openMore()
   await userEvent.click(screen.getByRole('button', { name: 'Steps an agent may take' }))
   expect(level('The app')).toHaveAttribute('aria-current', 'true')
   expect(await screen.findByLabelText('Steps an agent may take')).toBeVisible()
@@ -277,22 +281,21 @@ test('App: Answer in and Summarise a long context at are every project’s, each
   const compact = screen.getByLabelText('Summarise a long context at (%)')
   await vi.waitFor(() => expect(compact).toHaveValue('75'))
   expect(screen.getByText(/^For every project: once an agent’s context passes this much/)).not.toBeVisible()
-  const save = screen.getByRole('button', { name: 'Save' })
-  expect(save).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.type(language, 'Türkçe. Ignore')
   expect(screen.getByText('A language’s name: at most 40 letters, spaces and hyphens.')).toBeVisible()
-  expect(save).toBeDisabled()
+  expect(save()).toBeDisabled()
   await userEvent.clear(language)
   await userEvent.type(language, 'Türkçe')
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenCalledWith('/answer-in', { answer_in: 'Türkçe' })
   expect(put).not.toHaveBeenCalledWith('/compaction', expect.anything())
   await userEvent.clear(compact)
   await userEvent.type(compact, '96')
-  expect(save).toBeDisabled()
+  expect(save()).toBeDisabled()
   await userEvent.clear(compact)
   await userEvent.type(compact, '90')
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenLastCalledWith('/compaction', { compact_at: 90 })
 })
 
@@ -303,14 +306,13 @@ test('App: Steps an agent may take (B-398) is read, held to 5-200 and sent only 
   const steps = await screen.findByLabelText('Steps an agent may take')
   await vi.waitFor(() => expect(steps).toHaveValue('25'))
   await openMore()
-  const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(steps)
   await userEvent.type(steps, '4')
   expect(screen.getByText('A whole number from 5 to 200.')).toBeVisible()
-  expect(save).toBeDisabled()
+  expect(save()).toBeDisabled()
   await userEvent.clear(steps)
   await userEvent.type(steps, '60')
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenCalledWith('/steps', { max_steps: 60 })
   expect(put).not.toHaveBeenCalledWith('/compaction', expect.anything())
 })
@@ -324,15 +326,14 @@ test('App: when work nobody watches is stuck, and its ceiling (B-413), are read,
   await vi.waitFor(() => expect(stuck).toHaveValue('30'))
   expect(ceiling).toHaveValue('8')
   await openMore()
-  const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(stuck)
   await userEvent.type(stuck, '2')
   expect(screen.getByText('A whole number from 5 to 1440.')).toBeVisible()
-  expect(save).toBeDisabled()
+  expect(save()).toBeDisabled()
   await userEvent.clear(stuck)
   await userEvent.type(stuck, '45')
   await userEvent.clear(ceiling)
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenCalledWith('/unattended', { stuck_minutes: 45 })
   expect(put).toHaveBeenCalledWith('/unattended', { turn_hours: null })
   expect(put).not.toHaveBeenCalledWith('/steps', expect.anything())
@@ -347,14 +348,13 @@ test('App: KOLONİ’s test runs at once and the test processes each may start s
   await vi.waitFor(() => expect(runs).toHaveValue('1'))
   expect(workers).toHaveValue('2')
   await openMore()
-  const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(runs)
   await userEvent.type(runs, '5')
   expect(screen.getByText('A whole number from 1 to 4.')).toBeVisible()
-  expect(save).toBeDisabled()
+  expect(save()).toBeDisabled()
   await userEvent.clear(runs)
   await userEvent.type(runs, '2')
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenCalledWith('/test-load', { runs_at_once: 2 })
   expect(put).not.toHaveBeenCalledWith('/test-load', { workers: expect.anything() })
 })
@@ -368,24 +368,22 @@ test('App: what knowledge from a repository or a folder reads at most is read, h
   await vi.waitFor(() => expect(files).toHaveValue('50000'))
   expect(mb).toHaveValue('300')
   await openMore()
-  const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(mb)
   await userEvent.type(mb, '0')
   expect(screen.getByText('A whole number from 1 to 10240.')).toBeVisible()
-  expect(save).toBeDisabled()
+  expect(save()).toBeDisabled()
   await userEvent.clear(mb)
   await userEvent.type(mb, '50')
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenCalledWith('/knowledge-limits', { max_mb: 50 })
   expect(put).not.toHaveBeenCalledWith('/knowledge-limits', { max_files: expect.anything() })
 })
 
-test('This project › Asking and away, and Limits and money: every chat’s sub-agent settings, one line each, sent only when changed; above 8 at once is said in sight', async () => {
+test('This project › When you’re asked, and Limits and money: every chat’s sub-agent settings, one line each, sent only when changed; above 8 at once is said in sight', async () => {
   server()
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<Settings {...base} project={{ ...project, discussion_budget: 200000 }} onSave={onSave} />)
-  const save = () => screen.getByRole('button', { name: 'Save' })
-  await userEvent.click(levels().getByRole('button', { name: /^Asking and away/ }))
+  await userEvent.click(levels().getByRole('button', { name: /^When you’re asked/ }))
   expect(screen.getByLabelText('Opening a sub-agent')).toHaveValue('auto')
   // Never asking is said in sight: it holds in every chat of the project.
   const own = 'Sub-agents open on their own, in every chat of this project.'
@@ -437,11 +435,11 @@ test('This project › Limits and money: the monthly budget and a job’s budget
   server()
   const { unmount } = render(<Settings {...base} project={project} onSave={vi.fn()} />)
   await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
-  const more = shownMore().closest('details')!
-  expect(more).not.toHaveAttribute('open')
-  expect(shownMore()).toHaveTextContent(/^More limits$/)
+  const more = folded()
+  expect(shownMore()).toHaveAttribute('aria-expanded', 'false')
+  expect(shownMore()).toHaveTextContent(/^More limits · 6 settings, all at their defaults$/)
   for (const label of ['Monthly budget', 'Stop the work on a message over this many tokens'])
-    expect(screen.getByLabelText(label).closest('details'), label).toBeNull()
+    expect(screen.getByLabelText(label).closest('.set-more-rows'), label).toBeNull()
   for (const label of [
     'At most this many agents at work in this project',
     'Agents at the same time',
@@ -450,36 +448,35 @@ test('This project › Limits and money: the monthly budget and a job’s budget
     'Continue gives this many more steps',
     'A discussion’s tokens, at most',
   ])
-    expect(screen.getByLabelText(label).closest('details'), label).toBe(more)
+    expect(screen.getByLabelText(label).closest('.set-more-rows'), label).toBe(more)
   expect(screen.getByLabelText('Monthly budget')).toBeVisible()
   expect(screen.getByLabelText('Agents at the same time')).not.toBeVisible()
   unmount()
   render(<Settings {...base} project={{ ...project, spawn_max_parallel: 4 }} onSave={vi.fn()} />)
   await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
-  expect(shownMore()).toHaveTextContent('More limits · set')
+  expect(shownMore()).toHaveTextContent('More limits · 6 settings, 1 set here: Agents at the same time 4')
 })
 
 test('a value under More limits that cannot be saved keeps it open - the field that says why stays in sight while Save is off; fixed, it closes again (N7)', async () => {
   server()
   render(<Settings {...base} project={project} onSave={vi.fn()} />)
   await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
-  const more = shownMore().closest('details')!
   await openMore()
-  expect(more).toHaveAttribute('open')
+  expect(shownMore()).toHaveAttribute('aria-expanded', 'true')
   const steps = screen.getByLabelText('Continue gives this many more steps')
   await userEvent.clear(steps)
   await userEvent.type(steps, '0')
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   await openMore() // (closed by the user)
-  await waitFor(() => expect(more).toHaveAttribute('open'))
+  await waitFor(() => expect(shownMore()).toHaveAttribute('aria-expanded', 'true'))
   expect(steps).toBeVisible()
   expect(screen.getByText(/A whole number from 1 to 200/)).toBeVisible()
   await userEvent.clear(steps)
   await userEvent.type(steps, '7')
-  expect(more).toHaveAttribute('open') // (fixed: not shut under the cursor)
+  expect(shownMore()).toHaveAttribute('aria-expanded', 'true') // (fixed: not shut under the cursor)
   expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   await openMore()
-  await waitFor(() => expect(more).not.toHaveAttribute('open'))
+  await waitFor(() => expect(shownMore()).toHaveAttribute('aria-expanded', 'false'))
 })
 
 test('The app › Agents: a step limit that cannot be saved keeps its More limits open (N7)', async () => {
@@ -487,12 +484,11 @@ test('The app › Agents: a step limit that cannot be saved keeps its More limit
   render(<Settings {...base} project={null} onSave={vi.fn()} />)
   const steps = await screen.findByLabelText('Steps an agent may take')
   await vi.waitFor(() => expect(steps).toHaveValue('25'))
-  const more = shownMore().closest('details')!
   await openMore()
   await userEvent.clear(steps)
   await userEvent.type(steps, '1')
   await openMore()
-  await waitFor(() => expect(more).toHaveAttribute('open'))
+  await waitFor(() => expect(shownMore()).toHaveAttribute('aria-expanded', 'true'))
   expect(steps).toBeVisible()
 })
 
@@ -501,11 +497,11 @@ test('The app › Agents: the step limit, the unattended limits, and what knowle
   render(<Settings {...base} project={null} onSave={vi.fn()} />)
   const steps = await screen.findByLabelText('Steps an agent may take')
   await vi.waitFor(() => expect(steps).toHaveValue('25'))
-  const more = shownMore().closest('details')!
-  expect(more).not.toHaveAttribute('open')
-  expect(shownMore()).toHaveTextContent(/^More limits$/)
+  const more = folded()
+  expect(shownMore()).toHaveAttribute('aria-expanded', 'false')
+  expect(shownMore()).toHaveTextContent(/^More limits · 7 settings, all at their defaults$/)
   for (const label of ['Answer in', 'Summarise a long context at (%)'])
-    expect(screen.getByLabelText(label).closest('details'), label).toBeNull()
+    expect(screen.getByLabelText(label).closest('.set-more-rows'), label).toBeNull()
   for (const label of [
     'Steps an agent may take',
     'Stuck after this many minutes with no progress',
@@ -515,19 +511,23 @@ test('The app › Agents: the step limit, the unattended limits, and what knowle
     'KOLONİ’s test runs at once',
     'Test processes per run',
   ])
-    expect(screen.getByLabelText(label).closest('details'), label).toBe(more)
-  // A limit typed away from its default says so on it.
+    expect(screen.getByLabelText(label).closest('.set-more-rows'), label).toBe(more)
+  // A limit typed away from its default is a change the bar names; More names what is set here once it is saved.
+  await openMore()
   await userEvent.clear(steps)
   await userEvent.type(steps, '40')
-  expect(shownMore()).toHaveTextContent('More limits · set')
+  expect(screen.getByRole('status')).toHaveTextContent('1 change not saved: Steps an agent may take')
+  expect(shownMore()).toHaveTextContent('More limits · 7 settings, all at their defaults')
 })
 
-test('This project › New chats start with: the teams and other folders a new chat starts with (rooms and their limits are gone, 0.1.10)', async () => {
+test('This project › How agents work: the teams and other folders a new chat starts with (rooms and their limits are gone, 0.1.10)', async () => {
   server()
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<Settings {...base} project={{ ...project, also_in: ['D:/lib'], read_in: ['D:/notes'] }} onSave={onSave} />)
-  await userEvent.click(levels().getByRole('button', { name: /^New chats start with/ }))
+  await userEvent.click(levels().getByRole('button', { name: /^How agents work/ }))
   expect(screen.getByLabelText('New chats’ teams')).toHaveValue('none')
+  // (A new chat's other folders, under More)
+  await userEvent.click(screen.getByRole('button', { name: /^More ·/ }))
   expect(
     within(screen.getByRole('list', { name: 'New chats’ other folders' }))
       .getAllByRole('listitem')
@@ -600,21 +600,20 @@ test('App: Answer in is sent tidied - spaces between words once; “auto” in a
   render(<Settings {...base} project={null} onSave={vi.fn()} />)
   const language = await screen.findByLabelText('Answer in')
   await vi.waitFor(() => expect(language).toBeEnabled())
-  const save = screen.getByRole('button', { name: 'Save' })
   await userEvent.clear(language)
   await userEvent.type(language, '  Brazilian   Portuguese ')
   expect(language).not.toHaveAttribute('aria-invalid')
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenLastCalledWith('/answer-in', { answer_in: 'Brazilian Portuguese' })
   await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved$/))
   await userEvent.clear(language)
   await userEvent.type(language, 'x'.repeat(41))
   expect(language).toHaveAttribute('aria-invalid', 'true')
-  expect(save).toBeDisabled()
-  expect(screen.getByRole('status')).toHaveTextContent(/^$/)
+  expect(save()).toBeDisabled()
+  expect(screen.getByRole('status')).toHaveTextContent(/^A value here cannot be saved yet/)
   await userEvent.clear(language)
   await userEvent.type(language, ' AUTO ')
   expect(language).not.toHaveAttribute('aria-invalid')
-  await userEvent.click(save)
+  await userEvent.click(save())
   expect(put).toHaveBeenLastCalledWith('/answer-in', { answer_in: null })
 })

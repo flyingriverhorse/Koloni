@@ -3,7 +3,8 @@ import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
 import { afterChangeSaid } from './afterChangeWords'
 import { FoundTests } from './FoundTests'
-import { Row } from './part'
+import { fromOf, Marked, Row } from './part'
+import { USUAL } from './usual'
 
 /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code, in this project. */
 export const AFTER_CHANGE: [value: Project['after_change'], label: string][] = [
@@ -29,12 +30,13 @@ export const FROM_OFF =
   'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.'
 
 /** The Fix rounds row: until it passes (null) or 1 to 10. */
-function fixRoundsRow(fix: number | null, setFix: (fix: number | null) => void) {
+function fixRoundsRow(fix: number | null, setFix: (fix: number | null) => void, rounds: number | null) {
   return (
     <Row
       label="Fix rounds"
       htmlFor="fix-rounds"
       doc={GUIDE.checked}
+      from={fromOf(fix, rounds, USUAL.fix_rounds)}
       warn={
         <span id="fix-rounds-note" className="choice-note">
           {FIX_ROUNDS_NOTE}
@@ -59,12 +61,13 @@ function fixRoundsRow(fix: number | null, setFix: (fix: number | null) => void) 
   )
 }
 
-/** Settings › This project › Checks and git: After a change - its part of the section's Save, and its row. */
+/** Settings › This project › When the work is done (Checks and git before 0.1.10): After a change - its part of the
+ *  section's Save, its rows, and under More what KOLONİ found. */
 export function useAfterChange(project: Project) {
   // (A server older than the page has no such field yet: the default.)
   const saved = project.after_change ?? 'check'
   const [after, setAfter] = useState(saved)
-  const [forget, setForget] = useState(false)
+  const forget = useForget(project)
   // (null: until it passes - the default, and what a server older than the page says by leaving it out)
   const rounds = project.fix_rounds ?? null
   const [fix, setFix] = useState<number | null>(rounds)
@@ -74,7 +77,7 @@ export function useAfterChange(project: Project) {
     ...(after !== saved && { after_change: after }),
     ...(fix !== rounds && { fix_rounds: fix ?? ('until' as const) }),
     ...(stronger !== strongerSaved && { stronger_model: stronger }),
-    ...(forget && { forget_tests_found: true }),
+    ...forget.patch,
   }
   const view = (
     <>
@@ -83,6 +86,7 @@ export function useAfterChange(project: Project) {
         htmlFor="after-change"
         why={AFTER_CHANGE_WHY}
         doc={GUIDE.checked}
+        from={fromOf(after, saved, USUAL.after_change)}
         warn={
           <span id="after-change-note" className="choice-note">
             {afterChangeSaid(project, after, fix, stronger)}
@@ -106,16 +110,33 @@ export function useAfterChange(project: Project) {
           ))}
         </select>
       </Row>
-      {fixRoundsRow(fix, setFix)}
-      <label className="choice">
-        <input type="checkbox" checked={stronger} onChange={e => setStronger(e.target.checked)} />
-        <span>
-          Then a stronger model
-          <span className="choice-note">{STRONGER_NOTE}</span>
-        </span>
-      </label>
-      <FoundTests found={project.tests_found ?? {}} forget={forget} setForget={setForget} />
+      {fixRoundsRow(fix, setFix, rounds)}
+      <Marked from={fromOf(stronger, strongerSaved, USUAL.stronger_model)}>
+        <label className="choice">
+          <input type="checkbox" checked={stronger} onChange={e => setStronger(e.target.checked)} />
+          <span>
+            Then a stronger model
+            <span className="choice-note">{STRONGER_NOTE}</span>
+          </span>
+        </label>
+      </Marked>
     </>
   )
-  return { patch, view, saved: () => setForget(false) }
+  return {
+    patch,
+    view,
+    found: forget.row,
+    now: { after_change: after, fix_rounds: fix, stronger_model: stronger },
+  }
+}
+
+/** Forget the test command KOLONİ found: sent only while there is one to forget - once forgotten, nothing is left to
+ *  send, and the section is saved. */
+function useForget(project: Project) {
+  const found = project.tests_found ?? {}
+  const [forget, setForget] = useState(false)
+  return {
+    patch: forget && Object.keys(found).length > 0 ? { forget_tests_found: true as const } : {},
+    row: <FoundTests found={found} forget={forget} setForget={setForget} />,
+  }
 }

@@ -92,7 +92,7 @@ export function ProjectSites({ projectId, onCount }: { projectId: string; onCoun
 
   return (
     <section aria-label="Sites agents open" className="field">
-      <h2>Sites agents open</h2>
+      <h4>Sites agents open</h4>
       <span className="choice-note">
         The agents’ own browsers open these in every chat of this project without asking, unless marked Ask first.
       </span>

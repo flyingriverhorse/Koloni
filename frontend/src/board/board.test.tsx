@@ -165,8 +165,8 @@ test('how many agents may be at work in the project is set in its settings: a wh
   render(<ProjectSettings {...base} project={{ ...project, max_agents: 4 }} />)
   await userEvent.click(screen.getByRole('button', { name: /^Limits and money/ }))
   expect(screen.getByLabelText('At most this many agents at work in this project')).toHaveValue('4')
-  // (left as it is, there is nothing to save)
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  // (left as it is, there is nothing to save: no Save)
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   expect(onSave).toHaveBeenCalledTimes(1)
   await userEvent.clear(screen.getByLabelText('At most this many agents at work in this project'))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -183,8 +183,8 @@ test('K-devam-butce: how many more steps Continue gives is set beside it, a whol
   expect(
     screen.getByText(/What Continue gives an agent stopped at a step limit.*a fresh app step limit instead/),
   ).toBeInTheDocument()
-  // (left as it is, there is nothing to save)
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  // (left as it is, there is nothing to save: no Save)
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   for (const bad of ['', '0', '201', '2.5']) {
     await userEvent.clear(field)
     if (bad) await userEvent.type(field, bad)

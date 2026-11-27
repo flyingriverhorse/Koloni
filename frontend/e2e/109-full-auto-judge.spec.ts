@@ -92,8 +92,8 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await expect(row.getByRole('button', { name: 'OK' })).toHaveCount(0)
   await rail(page, 'Canvas').click()
 
-  // Ask me, chosen in Settings › This project › Asking and away: its card.
-  const settings = await projectSettings(page, /^Asking and away/)
+  // Ask me, chosen in Settings › This project › When you’re asked: its card.
+  const settings = await projectSettings(page, /^When you’re asked/)
   await settings.getByLabel('When the judge finds a command risky').selectOption('ask')
   await saveSettings(page)
   await expect.poll(async () => (await (await request.get(`/api/projects/${pid}`)).json()).judge_risky).toBe('ask')
