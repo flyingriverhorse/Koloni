@@ -11,6 +11,7 @@ import json
 import pytest
 
 from app.copilot_own_agents import APPROVE_ONCE, OwnAgents, copilot_tools
+from tests.test_agent_writes import wait_status
 from tests.test_codex_app_server_scenarios import card_for
 from tests.test_copilot_agent import copilot_native, start  # noqa: F401  (a fixture)
 from tests.test_copilot_headless_scenarios import APPROVE, REJECT, answers
@@ -174,17 +175,20 @@ def test_a_role_inside_copilot_works_under_its_task_call_held_to_its_tools(
     assert "It prints hi." not in "".join(words) and "Done." in words, words
 
 
-def test_a_tool_its_role_gives_it_is_asked_as_its_leads_a_card_at_ask(
+def test_at_ask_a_role_that_changes_things_is_a_card_and_so_is_each_tool_it_is_given(
     copilot_native,
     wait_run,
     project_dir,  # noqa: F811
 ):
+    # (As spawn_agent's at Ask - `cards._asked_about` - and Claude Code's Agent: the card's call is
+    # the sub-agent's record once allowed.)
     client, provider = p4(
         copilot_native,
         [
             {
                 "task": "koloni-runner",
                 "mode": "sync",
+                "prompt": "Run the build.",
                 "steps": [{"shell": "Set-Content ran.txt x", "touches": {"ran.txt": "x"}}],
             },
             {"say": "Done."},
@@ -192,15 +196,57 @@ def test_a_tool_its_role_gives_it_is_asked_as_its_leads_a_card_at_ask(
         RUNNER,
     )
     cid, run_id = start(client, project_dir, provider, mode="ask")
+    question = wait_status(client, cid, "waiting_approval")["questions"][0]
+    assert "koloni-runner" in question["question"] and "Run the build." in question["question"]
+    assert copilot_native.record()["answers"] == []  # (nothing opened before the answer)
+    answered = client.post(
+        f"/api/questions/{question['id']}/answer", json={"answer": "Allow"}, headers=ORIGIN
+    )
+    assert answered.status_code == 200, answered.text
     asked = card_for(client, cid, "Set-Content ran.txt x")
     assert not (project_dir / "ran.txt").exists()
     assert client.post(f"/api/commands/{asked['id']}/approve", json={}).status_code == 200
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert (project_dir / "ran.txt").exists()
-    sub = by_name(snap)["copilot__task"]
+    (sub,) = [c for c in snap["tool_calls"] if c["name"] == "copilot__task"]
+    assert json.loads(sub["arguments"])["koloni_role"] == "Runner" and sub["status"] == "succeeded"
     (ran,) = [c for c in snap["tool_calls"] if c["id"] == snap["commands"][0]["tool_call_id"]]
     assert ran["parent_call_id"] == sub["id"], (ran, sub)
+
+
+@pytest.mark.parametrize("answer", ["Deny", None])
+def test_at_ask_a_role_that_only_reads_opens_with_no_card_and_one_denied_never_opens(
+    copilot_native,
+    wait_run,
+    project_dir,
+    answer,  # noqa: F811
+):
+    role, step = (RUNNER, {"shell": "Set-Content ran.txt x", "touches": {"ran.txt": "x"}})
+    if answer is None:
+        role, step = (CHECKER, {"read": "hello.py"})
+    client, provider = p4(
+        copilot_native,
+        [
+            {"task": f"koloni-{role['name'].lower()}", "mode": "sync", "steps": [step]},
+            {"say": "ok"},
+        ],
+        role,
+    )
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    if answer:
+        question = wait_status(client, cid, "waiting_approval")["questions"][0]
+        client.post(
+            f"/api/questions/{question['id']}/answer", json={"answer": answer}, headers=ORIGIN
+        )
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (task,) = [c for c in snap["tool_calls"] if c["name"] == "copilot__task"]
+    if answer:
+        assert task["status"] == "denied" and answers(copilot_native) == [("hook", REJECT)]
+        assert not (project_dir / "ran.txt").exists()
+    else:
+        assert snap["questions"] == [] and task["status"] == "succeeded", snap["questions"]
 
 
 def test_approve_holds_it_to_its_roles_tools_by_what_each_file_is_asked_as(
@@ -239,6 +285,11 @@ def test_approve_holds_it_to_its_roles_tools_by_what_each_file_is_asked_as(
         ({"task": "koloni-checker", "mode": "background"}, 'mode "sync"'),
         ({"task": "koloni-checker"}, 'mode "sync"'),
         ({"task": "koloni-checker", "mode": "sync", "args": {"agent_type": ["x"]}}, "only the"),
+        # (Copilot's task takes more: each would choose past KOLONİ's pick of a model, its cards)
+        ({**SYNC, "args": {"model": "claude-opus-4.5"}}, "not model"),
+        ({**SYNC, "args": {"reasoning_effort": "xhigh"}}, "not reasoning_effort"),
+        ({**SYNC, "args": {"context_tier": "long_context"}}, "not context_tier"),
+        ({**SYNC, "args": {"surprise": 1}}, "not surprise"),
     ],
 )
 def test_its_task_opens_only_a_role_offered_and_only_while_it_waits(
@@ -431,7 +482,7 @@ def gate(own, data, request, use_id="u1"):
 def opened(roles):
     """An OwnAgents given `roles` ({name: Copilot tools}), its task call t1 of the first let
     through and its sub-agent a1 started."""
-    own = OwnAgents(set())
+    own = OwnAgents(set(), call_tool=None)  # (no role here is asked about: `asks`)
     own.given(
         {"tools": {"availableTools": []}},
         {n: {"description": "", "prompt": "", "tools": t} for n, t in roles.items()},
@@ -442,7 +493,7 @@ def opened(roles):
     started = {
         "type": "subagent.started",
         "agentId": "a1",
-        "data": {"toolCallId": "t1", "agentName": first},
+        "data": {"toolCallId": "t1", "agentName": first, "agentType": first},
     }
     assert own.translator(lambda _event: [], {})(started)[0]["item"]["id"] == "t1"
     return own
@@ -480,7 +531,7 @@ def test_the_gate_passes_a_sub_agents_own_tool_on_with_its_role_named_to_approve
     asyncio.run(asking("approve", json.dumps({"tool_name": "Read", "agent_type": "forged"})))
     assert asked == [
         ("announced", {"id": "u1:0", "parent": "t1"}),
-        ("approve", {"tool_name": "Read", "agent_type": "koloni-x"}),
+        ("approve", {"tool_name": "Read", "agent_type": "koloni-x", "input": {}}),
     ]
     # its Lead's: as they are
     assert own.held({}, on_item, call_tool) == (on_item, call_tool)
@@ -535,3 +586,124 @@ def test_a_refused_call_said_to_have_run_all_the_same_stays_on_record():
     said = {"type": "tool.execution_complete", "agentId": "a1", "data": {"toolCallId": "u3"}}
     assert translate({**said, "data": {**said["data"], "success": True}}) == ran
     assert translate({**said, "data": {**said["data"], "success": False}}) == ran[:1]
+
+
+def test_a_repeated_task_request_then_its_failed_end_still_ends_its_sub_agent():
+    # (The review's P3: the repeat put the task call among the refused, and its failed end was
+    # left off - its sub-agent kept working past it.)
+    own = opened({"koloni-x": ["view"]})
+    hook = {
+        "kind": "hook",
+        "toolName": "task",
+        "toolArgs": {"agent_type": "koloni-x", "mode": "sync"},
+    }
+    assert gate(own, {}, hook, "t1")[0]["kind"] == "reject"
+    failed = {"type": "tool.execution_complete", "data": {"toolCallId": "t1", "success": False}}
+    (done,) = own.translator(lambda _event: [], {})(failed)
+    assert done["item"]["status"] == "failed"
+    view = {"kind": "hook", "toolName": "view", "toolArgs": {"path": "a.py"}}
+    answer, _told = gate(own, {"agentId": "a1"}, view, "u9")
+    assert answer["kind"] == "reject" and "did not open this sub-agent" in answer["feedback"]
+
+
+def test_whose_request_it_is_its_hook_says_when_its_envelope_does_not():
+    # (The review's P4: a sub-agent's request with no agentId on its envelope was its Lead's.)
+    own = opened({"koloni-x": ["view"]})
+    hook = {"hookType": "preToolUse", "input": {"toolCallId": "u5", "agentId": "a1"}}
+    assert own.hooked(hook) is hook
+    mcp = {"kind": "hook", "toolName": "koloni-spawn_agent", "toolArgs": {}, "toolCallId": "u5"}
+    answer, _told = gate(own, {"agentId": None, "permissionRequest": mcp}, mcp, "u5")
+    assert answer["kind"] == "reject" and "Orchestrator's" in answer["feedback"]
+
+
+def test_a_start_naming_a_role_by_name_but_another_type_or_no_call_opens_nothing():
+    # (The review's P8 and P9: measured, C5 - its start names the task call and the role's type.)
+    for data in (
+        {"toolCallId": "t1", "agentName": "koloni-x", "agentType": "general-purpose"},
+        {"agentName": "koloni-x", "agentType": "koloni-x"},
+    ):
+        own = OwnAgents(set(), call_tool=None)
+        own.given({"tools": {}}, {"koloni-x": {"description": "", "prompt": "", "tools": ["view"]}})
+        hook = {
+            "kind": "hook",
+            "toolName": "task",
+            "toolArgs": {"agent_type": "koloni-x", "mode": "sync"},
+        }
+        assert gate(own, {}, hook, "t1")[0] == APPROVE_ONCE
+        started = {"type": "subagent.started", "agentId": "a1", "data": data}
+        assert own.translator(lambda _event: [], {})(started) == [] and own.agents == {}, data
+
+
+def test_a_sub_agents_command_runs_where_its_folder_is_not_known_and_a_delete_needs_its_shell():
+    asked: list = []
+
+    async def call_tool(name, arguments):
+        asked.append(json.loads(arguments))
+        return True, "{}"
+
+    async def on_item(phase, item):
+        pass
+
+    own = opened({"koloni-x": ["view", "edit", "apply_patch"]})
+    _told, asking = own.held({"agentId": "a1"}, on_item, call_tool)
+    bash = {"tool_name": "Bash", "input": {"command": "git status", "new_shell": True}}
+    delete = {"tool_name": "Edit", "input": {"file_path": "a.py", "kind": "delete"}}
+    edit = {"tool_name": "Edit", "input": {"file_path": "a.py", "kind": "update"}}
+    for one in (bash, delete, edit):
+        asyncio.run(asking("approve", json.dumps(one)))
+    assert asked[0]["input"]["new_shell"] is False  # (KOLONİ's prefix is not applied: C6)
+    assert asked[1]["tool_name"] == "Delete" and asked[2]["tool_name"] == "Edit"
+    runner = opened({"koloni-x": ["view", "edit", "apply_patch", "powershell"]})
+    _told, asking = runner.held({"agentId": "a1"}, on_item, call_tool)
+    asyncio.run(asking("approve", json.dumps(delete)))
+    assert asked[-1]["tool_name"] == "Edit"
+
+
+def test_a_sub_agents_own_usage_is_counted_in_its_run_never_twice():
+    from app.model_session import SessionResult
+
+    own = OwnAgents(set(), call_tool=None)
+    usage = {"inputTokens": 5000, "outputTokens": 50, "cacheReadTokens": 100}
+    own.apart({"type": "assistant.usage", "data": {"inputTokens": 10, "outputTokens": 5}})
+    lead_only = SessionResult(400, 40)
+    assert own.counted(lead_only) is lead_only  # (no sub-agent spent: the checkpoint, as ever)
+    assert own.apart({"type": "assistant.usage", "agentId": "a1", "data": usage}) is True
+    # its root's checkpoint without it: the calls' sum; with it (larger): the checkpoint alone
+    summed = own.counted(SessionResult(400, 40))
+    assert (summed.input_tokens, summed.output_tokens, summed.cache_read) == (5010, 55, 100)
+    held = own.counted(SessionResult(9000, 90, cache_read=100, nano_aiu=7))
+    assert (held.input_tokens, held.output_tokens, held.nano_aiu) == (9000, 90, 7)
+    # its context is never its Lead's
+    assert own.apart({"type": "session.usage_info", "agentId": "a1", "data": {}}) is True
+
+
+@pytest.mark.judge  # (Full auto's judge stands aside in tests unless marked: conftest)
+def test_at_full_auto_a_sub_agents_git_line_is_judged_where_its_folder_is_not_known(
+    copilot_native,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
+):
+    # (Its hook's modifiedArgs is not applied to a sub-agent's command - C6 -: never read as run at
+    # the root, as its Lead's is, so its git is the judge's: `risk_judge.git_below`.)
+    client, provider = p4(
+        copilot_native,
+        [
+            {"shell": "git status"},
+            {"task": "koloni-runner", "mode": "sync", "steps": [{"shell": "git status"}]},
+            {"say": "Done."},
+        ],
+        RUNNER,
+    )
+    runner, judged = client.app.state.runner, []
+
+    async def judging(ctx, command, cwd, root, known, takes=False):
+        judged.append((command, cwd, known))
+        return "", None
+
+    monkeypatch.setattr(runner, "_risk_judging", judging)
+    _cid, snap = run(client, project_dir, provider, wait_run)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert ("git status", None, False) in judged, judged
+    lead, sub = sorted(snap["commands"], key=lambda c: c["cwd"] is None)
+    assert (lead["cwd"], sub["cwd"]) == (".", None), snap["commands"]

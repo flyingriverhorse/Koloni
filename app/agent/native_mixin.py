@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 
 from app import copies, koloni
 from app.agent.cards import (
+    _asked_about,
     _changes_nothing,
     _hands_back,
     _links_in_copy,
@@ -225,7 +226,8 @@ class NativeMixin:
         instructions, its tools (capped by this agent's) as the CLI's own, and on Claude Code its
         model where it runs on its Lead's provider. Nothing else of the role's or the user's goes.
         Each is put on `watch` with its tools as `approve` is asked of them, where `_approve` holds
-        it to those.
+        it to those. Copilot's is said to be asked about before it opens where spawn_agent would be
+        (`asks`: a card at Ask for one that changes things, `OwnAgents.gate`).
         shortcut: of two roles offered by one name (`inside_name`) only the first is; the other
         is opened as an agent of KOLONİ's only. None where a spawn_agent of this agent's would
         be asked about every time, or could not go a level deeper, nor in a job done while the
@@ -239,7 +241,8 @@ class NativeMixin:
             return {}
         given: dict[str, dict] = {}
         with self._factory() as session:
-            own = settings_of(session, session.get_one(Conversation, ctx.cid))
+            conversation = session.get_one(Conversation, ctx.cid)
+            own = settings_of(session, conversation)
             if own.spawn_approval == "always" or self._level(ctx) + 1 > own.spawn_max_depth:
                 return {}
             door, named = self._door(session, ctx), self._names_past(session, ctx)
@@ -276,6 +279,15 @@ class NativeMixin:
                     "prompt": role.instructions or role.description or role.name,
                     "tools": tools,
                     **({"model": model} if model else {}),
+                    **(
+                        {
+                            "asks": _asked_about(
+                                own.spawn_approval, conversation.permission_mode, capped
+                            )
+                        }
+                        if copilot
+                        else {}
+                    ),
                 }
                 watch.roles[name] = (shown_name(role.name), held)
         return given

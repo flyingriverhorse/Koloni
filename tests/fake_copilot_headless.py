@@ -53,8 +53,9 @@ made on auto (or fusion), "picked" is the model it picks, said with "picked_why"
                                                       or another named) and subagent.completed
                                                       ("failed": subagent.failed); then the
                                                       task call ends with "result". "args": more
-                                                      of its arguments; "as": the agentName its
-                                                      start says (default the task's).
+                                                      of its arguments; "as": the agentName and
+                                                      agentType its start says (default the
+                                                      task's).
 
 A step with "unasked" runs without a permission request; "twice": the same request is
 sent again under a new request id; "no_complete": a rejected tool is never said to be done;
@@ -506,7 +507,8 @@ def pre_tool(call: str, name: str, arguments: object) -> tuple[str | None, objec
     decision = output.get("permissionDecision")
     return (
         decision if decision in ("allow", "deny", "ask") else None,
-        output.get("modifiedArgs", arguments),
+        # (a sub-agent's command is not modified: measured on 1.0.114, C6)
+        arguments if AGENTS else output.get("modifiedArgs", arguments),
         str(output.get("permissionDecisionReason") or ""),
     )
 
@@ -850,10 +852,12 @@ for number, action in enumerate(flat(plan.get("script", []))):
     elif "task_begin" in action:
         mark = action["task_begin"]
         task, mark["call"] = mark["task_of"], call
+        # (its arguments as measured on 1.0.114, C5: `name` its own must)
         given = {
-            "agent_type": task["task"],
             "description": task.get("description", "Look it over"),
             "prompt": task.get("prompt", "Read hello.py and say what it prints."),
+            "agent_type": task["task"],
+            "name": task["task"],
             **({"mode": task["mode"]} if "mode" in task else {}),
             **task.get("args", {}),
         }
@@ -874,8 +878,11 @@ for number, action in enumerate(flat(plan.get("script", []))):
             {
                 **({"toolCallId": named} if named else {}),
                 "agentName": task.get("as", task["task"]),
+                "agentType": task.get("as", task["task"]),
                 "agentDisplayName": task["task"],
                 "agentDescription": "",
+                "executionMode": "sync",
+                "model": plan.get("model", "auto"),
             },
         )
     elif "task_end" in action:

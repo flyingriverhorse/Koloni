@@ -3,21 +3,24 @@ Copilot Orchestrator run Native at protocol 4, asked through KOLONİ's hook, is 
 user lets run inside the CLI (`Role.inside_cli`) as agents of its own (session.create's `agents`),
 and opens one with its `task` tool.
 
-Measured on Copilot 1.0.114 (27 Nov 2026, an empty COPILOT_HOME; cli-kendi-alt-ajanlari.md): the
-session takes `agents.definitions` with `includedBuiltinAgents: []` and lists only those; each tool
-of a sub-agent comes to KOLONİ's preToolUse hook, then as a permission request in its Lead's
-session - as do its events - each with the sub-agent's `agentId` (absent for the Lead's); its Lead
-alone goes idle; a role's `tools` hold it to those (one given none had every tool of the session's,
-never more); and KOLONİ's MCP bridge is shared with it, started once - a sub-agent could reach
-KOLONİ's tools, its Lead's, through it: here it may not.
+Measured on Copilot 1.0.114 (27 Nov 2026, an empty COPILOT_HOME; cli-kendi-alt-ajanlari.md, C1-C6):
+the session takes `agents.definitions` with `includedBuiltinAgents: []` and lists only those; its
+task is called with {description, prompt, agent_type, name, mode: "sync"} (`name` its own must);
+`subagent.started` names that call (`toolCallId`) and the role (`agentType`), the sub-agent on its
+Lead's model; each tool of a sub-agent comes to KOLONİ's preToolUse hook, then as a permission
+request in its Lead's session - as do its events, its own usage among them - each with the
+sub-agent's `agentId` (absent for the Lead's); its Lead alone goes idle; a role's `tools` hold it
+to those (one given none had every tool of the session's, never more); and KOLONİ's MCP bridge is
+shared with it, started once - a sub-agent could reach KOLONİ's tools, its Lead's, through it: here
+it may not. The hook's modifiedArgs is not applied to a sub-agent's command (C6): where its shell
+starts is not known.
 
 Here: what a role is given (`copilot_tools`), the session's fields (`OwnAgents.given`), the gate of
 its task call and of a sub-agent's requests (`OwnAgents.gate`), and a sub-agent's events apart from
 its Lead's (`OwnAgents.apart`, `OwnAgents.translator`) - on record as one call of `task`, its tools
 under it, as Claude Code's Agent is (`ClaudeNativeClient._translator`).
-shortcut: `task`'s `agent_type` and `mode` and `subagent.started`'s `toolCallId` are read off
-Copilot's package (its SDK's types and strings), not seen on the wire - the measurement did not
-print them; measure them live. Where they are not so, no sub-agent opens (fail closed).
+shortcut: a sub-agent's create, edit and apply_patch are not measured (it wrote with PowerShell
+in C6): they are asked as its Lead's are, by the forms its Lead's were measured in.
 shortcut: a role is given no model of its own (the role's `model` is not measured in a definition:
 one refused would stop the turn); it runs on its Lead's.
 shortcut: at protocol 3 no role is offered, and nothing says so (Claude Code's `inside_not_given`).
@@ -27,9 +30,11 @@ is - not measured that it takes them so; the gate holds it to this turn's alone 
 
 import json
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 
 from app.model_cli import _dict
-from app.model_session import COPILOT_PREFIX, CallTool
+from app.model_client import count_of
+from app.model_session import COPILOT_PREFIX, CallTool, SessionResult, _sum
 
 OnItem = Callable[[str, dict], Awaitable[None]]
 
@@ -56,6 +61,16 @@ ASKED_AS = {
 # KOLONİ's answer to a permission request it lets through: this once, never for the session.
 APPROVE_ONCE = {"kind": "approve-once"}
 TASK = "task"
+# What its task is called with (measured, C5): any other key - a model, a level, a context tier -
+# would choose past KOLONİ's own pick of a model and its cards.
+TASK_KEYS = frozenset({"description", "prompt", "agent_type", "name", "mode"})
+# A model call's own usage (`assistant.usage`, a sub-agent's too: C6), as its run's counts name it.
+CALL_COUNTS = {
+    "input_tokens": "inputTokens",
+    "output_tokens": "outputTokens",
+    "cache_read": "cacheReadTokens",
+    "cache_write": "cacheWriteTokens",
+}
 SUB_EVENTS = ("subagent.started", "subagent.completed", "subagent.failed")
 # A sub-agent's events read as such; every other of one is its own, never its Lead's (`apart`).
 SUB_KINDS = ("tool.execution_start", "tool.execution_complete", "permission.requested", *SUB_EVENTS)
@@ -83,12 +98,18 @@ class OwnAgents:
     KOLONİ let through, by call id - the role, what it was given, the sub-agent's agentId once it
     started, how it ended; `agents`: each sub-agent that started, by agentId, the task call it is
     on record under; `words`: each one's last; `refused`: the calls refused here (their failed end
-    is not put on record again). `asked`: its turn's calls asked about (`_converse`'s: one of
-    them that ends did not run unasked)."""
+    is not put on record again); `hooks`: whose each tool call is, by its preToolUse hook
+    (`hooked`); `calls`: every model call's own usage, summed (`counted`). `asked`: its turn's calls
+    asked about (`_converse`'s: one of them that ends did not run unasked); `call_tool`: its
+    run's."""
 
-    def __init__(self, asked: set[str]) -> None:
-        self.asked = asked
+    def __init__(self, asked: set[str], call_tool: CallTool) -> None:
+        self.asked, self.call_tool = asked, call_tool
         self.offered: dict[str, list[str]] = {}
+        self.asks: dict[str, bool] = {}
+        self.hooks: dict[str, str] = {}
+        self.calls: dict[str, int | None] = {}
+        self.spent_inside = False
         self.tasks: dict[str, dict] = {}
         self.agents: dict[str, str] = {}
         self.words: dict[str, str] = {}
@@ -103,6 +124,7 @@ class OwnAgents:
         if not roles:
             return session
         self.offered = {name: list(role["tools"]) for name, role in roles.items()}
+        self.asks = {name: bool(role.get("asks")) for name, role in roles.items()}
         tools = _dict(session.get("tools"))
         return {
             **session,
@@ -123,13 +145,60 @@ class OwnAgents:
 
     def apart(self, event: dict) -> bool:
         """Whether an event of its is a sub-agent's that is no business of its Lead's turn: its
-        words (kept, as its report where none comes), model, usage, compaction, idle or error.
-        Its tools, requests, start and end are read on (`translator`, `gate`)."""
-        agent = str(event.get("agentId") or "")
-        if agent and event.get("type") == "assistant.message":
-            said = str(_dict(event.get("data")).get("content") or "")
-            self.words[agent] = said or self.words.get(agent, "")
-        return bool(agent) and event.get("type") not in SUB_KINDS
+        words (kept, as its report where none comes), model, context, compaction, idle or error.
+        Its tools, requests, start and end are read on (`translator`, `gate`). Each model call's
+        own usage, its Lead's and its sub-agents', is summed (`counted`)."""
+        agent, kind = str(event.get("agentId") or ""), event.get("type")
+        data = _dict(event.get("data"))
+        if agent and kind == "assistant.message":
+            self.words[agent] = str(data.get("content") or "") or self.words.get(agent, "")
+        if kind == "assistant.usage":
+            for field, said in CALL_COUNTS.items():
+                self.calls[field] = _sum(self.calls.get(field), count_of(data.get(said)))
+            self.spent_inside |= bool(agent)
+        return bool(agent) and kind not in SUB_KINDS
+
+    def counted(self, result: SessionResult) -> SessionResult:
+        """Its run's counts where a sub-agent of its own spent: each the larger of its root's last
+        checkpoint (the session's total, as ever: `copilot_counts`) and its model calls' own usage
+        summed, its sub-agents' with them - never the two added.
+        shortcut: whether the checkpoint holds its sub-agents' spend is not measured (C6): where it
+        does, it stands; where not, the calls' sum does. Its AI credits (totalNanoAiu) are the
+        checkpoint's alone (a call's `cost` and `copilotUsage` are not read: their form is not
+        seen); and a kept session's checkpoint is its whole (`copilot_since`), larger than one
+        turn's calls: there the sub-agents' spend is not added if the checkpoint lacks it."""
+        if not self.spent_inside:
+            return result
+
+        def larger(field: str) -> int | None:
+            known = [
+                one for one in (getattr(result, field), self.calls.get(field)) if one is not None
+            ]
+            return max(known) if known else None
+
+        return replace(
+            result,
+            input_tokens=larger("input_tokens"),
+            output_tokens=larger("output_tokens"),
+            cache_read=larger("cache_read"),
+            cache_write=larger("cache_write"),
+        )
+
+    def hooked(self, params: dict) -> dict:
+        """A hook of its (`hooks.invoke`; `read` hands on every message's params, and only a hook's
+        say a hookType): whose tool call a preToolUse's is, where it names a sub-agent - its request
+        is that sub-agent's, whatever its envelope says. Its params, as they are."""
+        given = _dict(params.get("input"))
+        call, agent = given.get("toolCallId"), given.get("agentId") or params.get("agentId")
+        if params.get("hookType") == "preToolUse" and call and agent:
+            self.hooks[str(call)] = str(agent)
+        return params
+
+    def _agent(self, data: dict) -> str:
+        """The sub-agent a permission request is of: its envelope's agentId, else its hook's
+        (`hooked`); "" for its Lead's."""
+        call = str(_dict(data.get("permissionRequest")).get("toolCallId") or "")
+        return str(data.get("agentId") or self.hooks.get(call) or "")
 
     def translator(
         self, translate: Callable[[dict], list[dict]], ours: dict[str, str]
@@ -149,30 +218,29 @@ class OwnAgents:
                 ours.pop(call, None)
             if kind != "tool.execution_complete":
                 return said
-            if call in self.refused and data.get("success") is False:  # (on record so: `gate`)
+            if call in self.refused and data.get("success") is False and call not in self.tasks:
                 return [one for one in said if one["type"] == "busy"]
             return self._task_ended(call, data, said)
 
         return told
 
     def _sub_event(self, kind: object, agent: str, data: dict) -> list[dict]:
-        """A sub-agent started, or said it ended (`translator`). One started under no task call
-        KOLONİ let open that role is none of KOLONİ's: never registered, so it may use nothing
-        (`gate`)."""
+        """A sub-agent started, or said it ended (`translator`). One whose start names no task call
+        KOLONİ let open, still to start, as of that very role (its toolCallId and agentType:
+        measured, C5) is none of KOLONİ's: never registered, so it may use nothing (`gate`)."""
         if kind != "subagent.started":
             if call := self.agents.get(agent):
                 self.tasks[call]["ended"] = "failed" if kind == "subagent.failed" else "completed"
             return []
-        named = {data.get("agentName"), data.get("agentType")} - {None}
-        waiting = [
-            call
-            for call, task in self.tasks.items()
-            if task["agent"] is None and task["type"] in named
-        ]
         call = str(data.get("toolCallId") or "")
-        # (Its task call by its own word; else the first of that role still to start.)
-        call = call if call in waiting else (waiting[0] if waiting and not call else "")
-        if not agent or not call or agent in self.agents:
+        task = self.tasks.get(call)
+        if (
+            not agent
+            or agent in self.agents
+            or task is None
+            or task["agent"] is not None
+            or data.get("agentType") != task["type"]
+        ):
             return []
         self.agents[agent], self.tasks[call]["agent"] = call, agent
         return [
@@ -217,10 +285,12 @@ class OwnAgents:
         ]
 
     async def gate(self, data: dict, request: dict, use_id: str, on_item: OnItem) -> dict | None:
-        """KOLONİ's own answer to a request of its Lead's task call, or of a sub-agent's (`data`'s
-        `agentId`, its event's); None: one `_permit` judges as its Lead's are (`held`). Each of a
-        sub-agent KOLONİ let open hangs under its task call (announced so first)."""
-        agent = str(data.get("agentId") or "")
+        """KOLONİ's own answer to a request of its Lead's task call, or of a sub-agent's (`_agent`);
+        None: one `_permit` judges as its Lead's are (`held`). Each of a sub-agent KOLONİ let open
+        hangs under its task call (announced so first). A role KOLONİ's own rules would ask before
+        opening (`asks`: as spawn_agent's, `cards._asked_about`) is asked of `approve` first, as
+        Claude Code's Agent is: a card at Ask, its call the sub-agent's record once let."""
+        agent = self._agent(data)
         kind, name = request.get("kind"), request.get("toolName")
         if not agent and not (kind == "hook" and name == TASK):
             return None
@@ -237,7 +307,10 @@ class OwnAgents:
         if why is None and agent:
             return None
         if why is None:
-            self.tasks[use_id] = {"type": _dict(given)["agent_type"], "given": given, "agent": None}
+            role = _dict(given)["agent_type"]
+            if self.asks.get(role) and (refused := await self._asked(use_id, given, on_item)):
+                return refused
+            self.tasks[use_id] = {"type": role, "given": given, "agent": None}
             return APPROVE_ONCE
         self.refused.add(use_id)
         await on_item(
@@ -254,6 +327,17 @@ class OwnAgents:
         )
         return {"kind": "reject", "feedback": why}
 
+    async def _asked(self, use_id: str, given: object, on_item: OnItem) -> dict | None:
+        """`gate`'s question to `approve` of a task call whose role is asked about; its refusal,
+        or None where it is let."""
+        await on_item("announced", {"id": use_id})
+        asked = {"tool_name": TASK, "input": given, "tool_use_id": use_id}
+        _ok, said = await self.call_tool("approve", json.dumps(asked))
+        verdict = _dict(json.loads(said))
+        if verdict.get("behavior") == "allow":
+            return None
+        return {"kind": "reject", "feedback": str(verdict.get("message") or "rejected")}
+
     def _why(
         self, agent: str, parent: str | None, kind: object, name: object, given: object
     ) -> str | None:
@@ -265,6 +349,12 @@ class OwnAgents:
         held to its role in `_approve`)."""
         if not agent:
             role, mode = _dict(given).get("agent_type"), _dict(given).get("mode")
+            if not isinstance(given, dict) or set(given) - TASK_KEYS:
+                more = ", ".join(sorted(map(str, _dict(given).keys() - TASK_KEYS))) or "none"
+                return (
+                    "KOLONİ lets your task take only description, prompt, agent_type, name and "
+                    f"mode (not {more}): a role's model and level are KOLONİ's to choose"
+                )
             if not isinstance(role, str) or role not in self.offered:
                 offered = ", ".join(self.offered) or "none"
                 return (
@@ -292,18 +382,29 @@ class OwnAgents:
     def held(self, data: dict, on_item: OnItem, call_tool: CallTool) -> tuple[OnItem, CallTool]:
         """`_permit`'s on_item and call_tool for a request: a sub-agent's hangs what it announces
         under its task call, and tells `approve` its role (`_approve` holds it to its tools); its
-        Lead's as they are."""
-        parent = self.agents.get(str(data.get("agentId") or ""))
+        Lead's as they are. A sub-agent's command never runs where KOLONİ put it: its hook's
+        modifiedArgs is not applied (C6), so its folder is not known (no `new_shell`, whatever was
+        read) - judged so. A file it deletes is no edit: only a role that runs commands may (as
+        Claude Code's Edit deletes none) - else asked as a `Delete` its role does not give."""
+        parent = self.agents.get(self._agent(data))
         if parent is None:
             return on_item, call_tool
         role = self.tasks[parent]["type"]
+        runs = "powershell" in self.offered[role]
 
         async def told(phase: str, item: dict) -> None:
             await on_item(phase, {**item, "parent": parent} if phase == "announced" else item)
 
         async def asked(name: str, arguments: str) -> tuple[bool, str]:
             if name == "approve":
-                arguments = json.dumps({**_dict(json.loads(arguments)), "agent_type": role})
+                said = _dict(json.loads(arguments))
+                given, tool = _dict(said.get("input")), said.get("tool_name")
+                if "new_shell" in given:
+                    given = {**given, "new_shell": False}
+                if tool == "Edit" and given.get("kind") == "delete" and not runs:
+                    tool = "Delete"
+                said = {**said, "tool_name": tool, "input": given, "agent_type": role}
+                arguments = json.dumps(said)
             return await call_tool(name, arguments)
 
         return told, asked

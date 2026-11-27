@@ -262,7 +262,7 @@ class ApprovalsMixin:
                 transcript,
                 "run_command"
                 if tool in CLAUDE_RUNS
-                else re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                else re.sub(r"[^A-Za-z0-9_-]", "_", f"{cli}__{tool}")[:64],
                 given,
                 "denied",
                 CANARY_REFUSED,
@@ -957,7 +957,9 @@ class ApprovalsMixin:
             self._note(
                 ctx,
                 transcript,
-                re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                re.sub(
+                    r"[^A-Za-z0-9_-]", "_", f"{getattr(ctx.model, 'command', 'claude')}__{tool}"
+                )[:64],
                 given,
                 "denied",
                 f"the {ctx.role} role may only use tools that read",
@@ -997,7 +999,9 @@ class ApprovalsMixin:
                 self._note(
                     ctx,
                     transcript,
-                    re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                    re.sub(
+                        r"[^A-Za-z0-9_-]", "_", f"{getattr(ctx.model, 'command', 'claude')}__{tool}"
+                    )[:64],
                     given,
                     "denied",
                     why,

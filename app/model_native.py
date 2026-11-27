@@ -4842,7 +4842,7 @@ class CopilotNativeClient(CodexNativeClient):
         permits: set[int] = set()  # the ids of KOLONİ's answers to its permission requests
         numbers = iter(range(1, 10**9))
         asked: set[str] = set()  # the tool calls it asked about
-        own = OwnAgents(asked)  # (its own sub-agents, KOLONİ's roles)
+        own = OwnAgents(asked, call_tool)  # (its own sub-agents, KOLONİ's roles)
         answered: set[tuple[str, str]] = set()  # (tool call, kind) already answered
         heredocs = _ShellPatches()  # (B-389: its commands that were patches)
         translate = own.translator(self._translator(asked, heredocs), heredocs.ours)
@@ -4958,7 +4958,7 @@ class CopilotNativeClient(CodexNativeClient):
             try:
                 while (message := await _framed(stdout)) is not None:
                     heard = time.monotonic()
-                    method, params = message.get("method"), _dict(message.get("params"))
+                    method, params = message.get("method"), own.hooked(_dict(message.get("params")))
                     if method is None:  # an answer to a request of KOLONİ's
                         number = message.get("id")
                         future = replies.get(number) if isinstance(number, int) else None
@@ -5329,7 +5329,7 @@ class CopilotNativeClient(CodexNativeClient):
             broke, server, unasked, failure, idle, complaint, process, reported, usage, picked_why
         )
         return replace(
-            result,
+            own.counted(result),  # (its own sub-agents' spend: `OwnAgents.counted`)
             session={"id": session} if hooked and session else None,
             context_window=window,
             context_used=size["info"] if size["info"] is not None else size["call"],
