@@ -4,7 +4,9 @@ nothing by itself, at most 10 a turn; the user's OK and Change on it are theirs 
 
 from sqlalchemy import select
 
-from app.db.models import BacklogTask, Question, Run
+from app import status_now
+from app.api.decisions import JOB_CHAT
+from app.db.models import AwayRun, BacklogTask, Conversation, Question, Run
 from app.tools_at_work import NOTED_FULL
 from tests.conftest import Gate
 from tests.test_background_spawn import bg, said_in, tool_result
@@ -148,3 +150,35 @@ def test_change_after_its_turn_starts_a_turn_of_kolonis(make_client, wait_run, p
     assert '"Postgres"' in told
     with client.app.state.session_factory() as session:
         assert session.get_one(Run, later).by_user is False  # (KOLONİ's: not read as the user's)
+
+
+def test_change_of_a_jobs_decision_is_refused_and_read_status_names_it(
+    make_client, wait_run, project_dir
+):
+    client, model, cid, run_id = setup(
+        make_client, project_dir, {"Lead": [step(note("n1", what="Use SQLite")), text("done")]}
+    )
+    wait_run(client, cid, run_id)
+    (row,) = log(client, cid)
+    with client.app.state.session_factory() as session:
+        pid = session.get_one(Conversation, cid).project_id
+        night = AwayRun(project_id=pid, conversation_id=cid, run_id="r", status="ended")
+        session.add(night)
+        session.flush()
+        session.add(
+            BacklogTask(
+                project_id=pid,
+                title="job",
+                status="done",
+                position=0,
+                created_by="user",
+                conversation_id=cid,
+                away_run_id=night.id,
+            )
+        )
+        session.commit()
+        # (read_status, the Orchestrator's look at its project, names it as the log does)
+        assert 'the Orchestrator: Decided "Use SQLite"' in status_now.answer(session, pid)
+    changed = client.post(f"/api/decisions/{row['link']['id']}/change", json={"words": "Postgres"})
+    assert changed.status_code == 409 and changed.json()["detail"] == JOB_CHAT
+    assert log(client, cid) == [row]  # (nothing sent: not seen)

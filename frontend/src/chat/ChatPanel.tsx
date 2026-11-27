@@ -589,7 +589,7 @@ export function ChatPanel() {
         <WidthEdge open={open} />
         <ChatTabs tab={tab} handoffs={handoffs} notes={notes} count={count} onHide={toggle} />
         <ChatStoryStrip conv={conv} tab={tab} />
-        <AtWorkLine conv={conv} />
+        <AtWorkLine conv={open ? conv : null} />
         {/* Decided for you, in one line: Ready for you says each (karar defteri). */}
         <DecidedLine conv={conv} />
         {/* The tab's own content scrolls in what the tabs and the message box leave (base.css .chat-pane). */}

@@ -53,6 +53,10 @@ test('no plan, no step; no price, no money; nothing at work, no line', () => {
   expect(atWorkLine(one, { spent: null, currency: null, at_least: false })).toBe('1 agent at work · 1 waits for you')
   expect(atWorkLine(busy({ agents: [agent('r', 'running')], commands: [], live: {} }), null)).toBeNull()
   expect(atWorkLine(busy({ runs: [run('r', 'completed')] }), null)).toBeNull()
+  // (a turn waiting for your answer on a card still has its agents at work: the line stays)
+  expect(atWorkLine(busy({ runs: [run('r', 'waiting_approval')], live: {} }), null)).toBe(
+    '3 agents at work · 1 waits for you',
+  )
 })
 
 test('the line reads what the turn cost, and opens At work in this turn with Stop and Message on each agent', async () => {

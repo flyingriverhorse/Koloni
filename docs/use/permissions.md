@@ -403,6 +403,12 @@ get a card, at any level. You decide once, when their work comes back:
 
 Files that steer agents are held for your card at every level.
 
+The Orchestrator's own tools beside its agents - `agents_at_work`, `update_plan`, `stop_agent`,
+`ask_advisor`, `note_decision`, `read_pr_feedback` - ask no card at any level: they change nothing in
+the project. `ask_advisor` sends what it asks, masked, to your Advisor model (by default on another
+provider than the Orchestrator's), and `read_pr_feedback` reads with your own `gh`; see
+[Talking while agents work](talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
+
 Whether opening a sub-agent asks first is set under Settings › This project › When you're asked ›
 **Opening a sub-agent**: **Ask when it matters** (the default: a card at Ask before changes when
 the sub-agent can change things), **Always ask** or **Never ask**.

@@ -14,11 +14,8 @@ export interface Spent {
  *  a card, counted with what waits for you. */
 const WORKING: ReadonlySet<Agent['status']> = new Set(['queued', 'running', 'waiting', 'blocked'])
 
-/** The turn at work in the chat - only one that runs: a turn that waits for your approval has nobody at work. */
-export const runningTurn = (conv: ConvState): Run | null => {
-  const run = activeRun(conv)
-  return run?.status === 'running' ? run : null
-}
+/** The turn at work in the chat - also while it waits for your answer on a card: its agents work on. */
+export const runningTurn = (conv: ConvState): Run | null => activeRun(conv)
 
 /** The agents of the turn at work below its Orchestrator, oldest first. */
 export const agentsAtWork = (conv: ConvState, run: Run): Agent[] =>

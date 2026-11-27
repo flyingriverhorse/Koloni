@@ -64,6 +64,7 @@ CHANGE_LATER = (
     KOLONIS + ": the user changed your decision {what} (decision {id}): {words}. Take it into "
     "account and go on with the task."
 )
+JOB_CHAT = "it was decided in a job's chat while you were away: write your change in that chat"
 
 
 class NotedChangeIn(BaseModel):
@@ -91,7 +92,7 @@ async def noted_change(
 ):
     """The user's Change on a noted decision, in their own words: into its turn while that one is
     at work and takes a word - Send now's own way (`post_message`); else in a turn of KOLONİ's of
-    its chat, queued behind one at work. Seen either way."""
+    its chat, queued behind one at work - not a job's chat (`JOB_CHAT`). Seen once sent."""
     row, turn = _noted(session, decision_id)
     words = " ".join(body.words.split())
     if not words:
@@ -102,14 +103,21 @@ async def noted_change(
         raise HTTPException(409, away.AWAY_NOW)
     if over := over_budget(session, project, session.get_one(Conversation, cid)):
         raise HTTPException(409, f"The project is {over}.")
-    row.seen_at = row.seen_at or now()
-    session.commit()
     into, _why = request.app.state.runner.takes_word(cid, turn.topic_id)
     if into == turn.id:
         said = MessageIn(
             content=CHANGE_NOW.format(id=row.id, words=words), now=True, topic_id=turn.topic_id
         )
-        return await post_message(cid, said, request, session)
+        posted = await post_message(cid, said, request, session)
+        row.seen_at = row.seen_at or now()  # (once the word is on record)
+        session.commit()
+        return posted
+    if away.job_of(session, cid) is not None:
+        # shortcut: a job's chat goes on in a job's turn - its branch, its work kept for Take in
+        # (`app.redo`'s); a plain turn there would be none. Refused, said why; go on as redo does
+        # if a Change of a job's noted decision is seen wanted.
+        raise HTTPException(409, JOB_CHAT)
+    row.seen_at = row.seen_at or now()
     run = Run(conversation_id=cid, topic_id=turn.topic_id)
     queue_or_start(session, run)
     session.add(run)

@@ -46,7 +46,8 @@ export function AtWorkLine({ conv }: { conv: ConvState | null }) {
   const [open, setOpen] = useState(false)
   const run = conv && runningTurn(conv)
   const tokens = conv && run ? spentKey(conv, run.id) : 0
-  const spent = useSpent(run?.id ?? null, tokens)
+  // (read only while the line shows: a turn with nothing at work asks nothing)
+  const spent = useSpent(run && atWorkLine(conv, null) ? run.id : null, tokens)
   const line = conv && atWorkLine(conv, spent)
   if (!conv || !run || !line) return null
   return (
