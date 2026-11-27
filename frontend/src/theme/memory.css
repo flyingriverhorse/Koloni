@@ -273,6 +273,243 @@ a.btn {
   outline-offset: 2px;
 }
 
+/* 0.1.10, as cells: the page's head - its title and line, the search, the three ways - then its two parts' tabs. */
+.memory-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+
+.memory-top h2 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-title);
+}
+
+/* How memory reaches an agent: one quiet strip, read left to right. */
+.memory-ways {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.memory-ways li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  font-size: var(--text-note);
+}
+
+.memory-ways li + li {
+  border-left: 1px solid var(--border);
+}
+
+.memory-ways b {
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+}
+
+/* A part's tab says what waits in it, in words. */
+.memory-badge {
+  color: var(--accent);
+  font-size: var(--text-note);
+}
+
+.memory-part {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.memory-part[hidden] {
+  display: none;
+}
+
+/* What waits for your word: the page's one honey box, only while something waits. */
+.memory-waits {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--accent-soft);
+}
+
+.memory-waits h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+/* What the project knows: the core and the journal at the left, your own words at the right. */
+.memory-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.memory-col,
+.memory-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.memory-col {
+  gap: 22px;
+}
+
+.memory-area-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.memory-area h3,
+.memory-area-head h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+/* The core's room: ten cells, filled as its facts take room. */
+.memory-room {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.memory-room .cell {
+  width: 11px;
+  height: 12px;
+}
+
+.memory-room .memory-count {
+  margin-left: 6px;
+}
+
+/* An area's records: rows in one box, a line between them. */
+.memory-rows {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.memory-rows > * + * {
+  border-top: 1px solid var(--border);
+}
+
+.memory-rows > .memory-record {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.memory-rows > p {
+  margin: 0;
+  padding: 12px;
+}
+
+.memory-row-line > .cell {
+  margin-top: 3px;
+}
+
+.memory-addrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.memory-rows > .memory-addrow {
+  border-top-style: dashed;
+}
+
+/* History, folded under the journal. */
+.memory-history > summary {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+  cursor: pointer;
+}
+
+.memory-history > .memory-panel {
+  margin-top: 10px;
+}
+
+/* Your own words: a paper look, apart from what agents wrote. */
+.memory-words {
+  gap: 14px;
+}
+
+.memory-paper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.memory-paper h4 {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+}
+
+.memory-why {
+  margin: 0;
+  font-size: var(--text-note);
+}
+
+/* (Its box is the paper, and its label the paper's heading: kept for a screen reader, not shown twice.) */
+.memory-paper .memory-form {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.memory-paper .memory-form > .field > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.memory-paper textarea {
+  font-family: var(--mono);
+}
+
+@media (max-width: 940px) {
+  .memory-grid,
+  .memory-ways {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .memory-ways li + li {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}
+
 /* The tabs, each a tab's one line and its own filters and buttons at the right. */
 .memory-tabs {
   padding: 0;
@@ -506,32 +743,6 @@ a.btn {
 /* A note's kind: its word first, in the text's weight - no capitals. */
 .note-kind {
   font-weight: var(--weight-strong);
-}
-
-/* What waits for your word: one line above the tabs, its notes unfolded under it. */
-.memory-waiting {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--warn);
-}
-
-.memory-waiting-line {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--warn);
-  font: inherit;
-  font-size: var(--text-note);
-  cursor: pointer;
-}
-
-.memory-waiting > .memory-section {
-  margin-top: 0;
 }
 
 .memory-section > h3 {

@@ -34,8 +34,9 @@ export interface RoleTool {
   label: string
   line: string
   hint: string
-  /** It waits for the user's yes at the conversation's permission level (app.agent): writes, edits and a new role
-   * at Ask; a command (not on the allowed list) and the web below Full auto. */
+  /** It waits for the user's yes on a card (app.agent): writes, edits and a new role at Ask; a command (not on the
+   * allowed list), the web and a page off the browser's list below Full auto; a new skill and a folder outside the
+   * project always. */
   asks?: true
 }
 
@@ -118,6 +119,8 @@ export const ROLE_TOOLS: RoleTool[] = [
     label: 'Open a page',
     line: 'previews, sites you allow',
     hint: 'open a preview on this machine, a page of the project, or a site you allow, in its own headless browser',
+    // (A site off the list asks below Full auto, and an Ask-first site always.)
+    asks: true,
   },
   {
     name: 'browser_screenshot',
@@ -183,6 +186,8 @@ export const ROLE_TOOLS: RoleTool[] = [
     label: 'New skills',
     line: 'propose on a card',
     hint: 'propose a skill for you to add, on a card',
+    // (Always a card: app/agent/skills_mixin.py.)
+    asks: true,
   },
   { name: 'ask_user', group: 'Team', label: 'Ask you', line: 'a question, on a card', hint: 'ask you questions' },
   {
@@ -191,6 +196,8 @@ export const ROLE_TOOLS: RoleTool[] = [
     label: 'Ask for a folder',
     line: 'outside the project, on a card',
     hint: 'ask you, on a card, for a folder outside the project to read or write in',
+    // (Always a card: app/agent/__init__.py.)
+    asks: true,
   },
   {
     name: 'message_agent',

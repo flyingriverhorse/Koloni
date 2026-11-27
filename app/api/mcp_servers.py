@@ -34,6 +34,12 @@ STALE = (
     "(and say again which run without asking)"
 )
 CHANGED_WHILE_READ = "The server's command or variables changed while it was read: read it again."
+# What is trusted is the tools the user read (92): none read yet, or read for another command or
+# other variables, is nothing to trust.
+NOT_READ = (
+    "its tools have not been read for its command and variables as they are now: "
+    "read its tools first, then trust it"
+)
 
 
 def shown(server: McpServer) -> dict:
@@ -182,6 +188,8 @@ def patch_server(server_id: str, body: McpServerPatch, session: Session = Depend
     if server.command != started_as[0] or set(server.env) != set(started_as[1]):
         server.trusted = False
     elif body.trusted:
+        if server.read_at is None or any(tool.get("unusable") == STALE for tool in tools):
+            raise HTTPException(409, NOT_READ)
         server.trusted = True
     if body.enabled is not None:
         server.enabled = body.enabled

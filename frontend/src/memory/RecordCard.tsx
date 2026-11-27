@@ -98,15 +98,18 @@ interface Props {
   id?: string
   /** At the row's right end: its few buttons and ⋯. */
   actions?: ReactNode
+  /** At the row's left: how it stands, as a cell (a fact of the core). */
+  mark?: ReactNode
   children?: ReactNode
 }
 
 /** One record on the Memory page, one row: what can be done about it at its end, and what it unfolds under it. */
-export function RecordCard({ record, note, error, evidence, id, actions, children }: Props) {
+export function RecordCard({ record, note, error, evidence, id, actions, mark, children }: Props) {
   return (
     <article className="memory-record" id={id} tabIndex={id ? -1 : undefined}>
       {note && <div className="memory-meta mono muted">{note}</div>}
       <div className="memory-row-line">
+        {mark}
         <div className="memory-row-body">
           <RecordBody record={record} evidence={evidence} />
         </div>

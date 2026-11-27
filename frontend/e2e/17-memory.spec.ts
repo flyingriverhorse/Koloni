@@ -42,19 +42,19 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   await expect(memoryNodes).toHaveText('memory1 written')
   await expect(memoryNodes).toHaveAttribute('title', `Orchestrator: ${FACT} · settings.txt:2-2 · put forward`)
 
-  // The Memory page has it on the line of what waits for your word, with its source and how that stands.
+  // The Memory page has it in the box of what waits for your word, with its source and how that stands.
   await rail(page, 'Memory').click()
   const waiting = page.getByRole('region', { name: 'Waits for you' })
-  const core = page.getByRole('tabpanel', { name: /^Facts/ })
+  const core = page.getByRole('region', { name: 'Facts', exact: true })
   const proposal = waiting.getByRole('article')
+  await expect(page.getByRole('tab', { name: /^What the project knows/ })).toHaveText(
+    'What the project knows 1 waits for your word',
+  )
   // It is in the journal too, like any note.
-  await page.getByRole('tab', { name: /^Notes/ }).click()
-  await expect(page.getByRole('tab', { name: /^Notes/ })).toHaveText('Notes 1')
-  await expect(page.getByRole('tabpanel', { name: /^Notes/ }).getByRole('article')).toContainText(
+  await expect(page.getByRole('region', { name: 'Notes', exact: true }).getByRole('article')).toContainText(
     'put forward for the core',
   )
-  await page.getByRole('tab', { name: /^Facts/ }).click()
-  await page.getByRole('button', { name: '● 1 fact waits for your word' }).click()
+  await expect(waiting.getByRole('heading')).toHaveText('1 fact waits for your word')
   await expect(proposal).toHaveCount(1)
   await expect(proposal).toContainText(FACT)
   await expect(proposal).toContainText('noted by Orchestrator')
@@ -73,9 +73,10 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   await expect(fact).toContainText(FACT)
   await expect(fact).toContainText('settings.txt:2-2')
   await expect(fact).toContainText('source unchanged since noted')
-  // (its line stays while the page is open, saying so, with the focus on it)
+  // (its box stays while the page is open, saying so, with the focus on it; the fact's cell says it is given)
   await expect(waiting.getByText('Nothing waits for you.')).toBeFocused()
-  await expect(page.getByRole('button', { name: 'Nothing waits for your word' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: /^What the project knows/ })).toHaveText('What the project knows')
+  await expect(fact.getByRole('img', { name: 'given when the work names its subject' })).toBeVisible()
   await expect(core.getByText(`${FACT.length} / 4 000 characters`)).toBeVisible()
 
   // Turn 2: the lead opens a Reviewer. The request, and the task the lead writes, name the
@@ -162,13 +163,13 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   await expect(inspector.getByRole('group', { name: 'Given from memory' })).toHaveCount(0)
   await own.getByRole('button', { name: 'Close agent window' }).click()
 
-  // Removed from its ⋯, the fact is not deleted: it is under History and can be taken back.
+  // Removed from its ⋯, the fact is not deleted: it is under History (folded) and can be taken back.
   // (It also leaves the core empty for the tests that run after this one in the same project.)
   await rail(page, 'Memory').click()
   await fact.getByRole('button', { name: /^More for/ }).click()
   await page.getByRole('menuitem', { name: 'Remove' }).click()
   await expect(core.getByText(/Nothing is in the core yet/)).toBeVisible()
-  await page.getByRole('tab', { name: /^History/ }).click()
+  await page.locator('.memory-history > summary').click()
   const past = page
     .getByRole('region', { name: 'Removed / replaced' })
     .getByRole('article')

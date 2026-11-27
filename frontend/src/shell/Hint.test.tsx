@@ -234,7 +234,7 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
           onSearch={vi.fn()}
         />,
       )
-      await userEvent.click(screen.getByRole('tab', { name: /^Told/ }))
+      // (0.1.10: your words are beside the core, no tab to open.)
     },
     [/Added, it is told to every agent in every project as your instruction\./],
   ],

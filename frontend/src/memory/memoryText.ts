@@ -1,5 +1,6 @@
 import { titleOf } from '../agents/agentStatus'
 import type { MemoryRecord, ProjectMemory, SaidInTurn, ToolCall } from '../api/types'
+import type { CellFill, CellTone } from '../shell/Cell'
 
 /**
  * How a record's source stands, in the server's own words. "Unchanged" says only that the
@@ -135,14 +136,40 @@ export function hasWords(text: string, query: string): boolean {
     .every(word => hay.includes(word))
 }
 
-/** The page's tabs, by how a record reaches an agent. */
-export const TABS = [
-  ['told', 'Told'],
+/** One of the page's two parts (0.1.10): its tab's id, and its panel's with `-panel`. */
+export const partId = (sources: boolean) => `memory-part-${sources ? 'sources' : 'knows'}`
+
+/** The page's areas (0.1.10: side by side, History folded), by how a record reaches an agent: where a search hit is. */
+export const AREAS = [
+  ['told', 'Your words'],
   ['facts', 'Facts'],
   ['notes', 'Notes'],
   ['history', 'History'],
 ] as const
-export type Tab = (typeof TABS)[number][0]
+export type Area = (typeof AREAS)[number][0]
+
+/**
+ * How a fact of the core stands for agents: given, given to none until you look, or only found by looking - and one no
+ * work can name whose source changed, which looking again does not make given (`staleAsked`).
+ */
+export type FactStands = 'given' | 'stale' | 'asked' | 'staleAsked'
+
+/** Each one's cell (`shell/Cell.tsx`) and words: green says it is given, never that it is right. */
+export const FACT_CELL: Record<FactStands, { tone: CellTone; fill: CellFill; word: string }> = {
+  given: { tone: 'ok', fill: 'full', word: 'given when the work names its subject' },
+  stale: { tone: 'warn', fill: 'full', word: 'given to no agent until you look again' },
+  asked: { tone: 'plain', fill: 'none', word: 'only found by looking it up' },
+  staleAsked: { tone: 'warn', fill: 'full', word: 'its source changed: look again - only found by looking it up' },
+}
+
+/** The legend: one entry for each colour (`staleAsked` says its own words on its row). */
+export const FACT_LEGEND = [FACT_CELL.given, FACT_CELL.stale, FACT_CELL.asked]
+
+export function factStands(record: Pick<MemoryRecord, 'source_state' | 'given_unasked'>): FactStands {
+  const stale = record.source_state === 'changed' || record.source_state === 'moved'
+  if (record.given_unasked) return stale ? 'stale' : 'given'
+  return stale ? 'staleAsked' : 'asked'
+}
 
 /** The lines of your preferences or rules that say something. */
 export const linesOf = (text: string | null | undefined) => (text ?? '').split('\n').filter(line => line.trim())

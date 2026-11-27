@@ -155,14 +155,14 @@ def _gate_open(mode: str, check: bool, judgement: dict | None, judge: bool, line
     """Whether what the check of the user's words said of a command still holds: only while the
     chat is at Full auto and the project's check is on (`check`: its judge and the judge's box,
     §8) - a run or a refusal that comes back after either changed is its card, as if never checked
-    (the security review of K-yargic's slice 2). Full auto's judge's own (`kind` "risk") has none
-    where its "fine" lifts no card - its "risky" a card (`always`, its call's `why_asked`) or a
-    refusal -; on a line the list asks of (`line` with its folder, K3) the check's own: the judge on
-    (`judge`), the chat at Full auto."""
-    risk = judgement is not None and judgement.get("kind") == "risk"
-    if risk and danger(line, False):
+    (the security review of K-yargic's slice 2). Full auto's judge's "risk" and K5's quote
+    (`kind` "said", an ask at every level) have none - "risky" a card or a refusal -, but a risk
+    "fine" on a line the list asks of (`line` with its folder, K3): it holds as the check's run
+    does, the judge on (`judge`) and the chat at Full auto."""
+    kind = judgement.get("kind") if judgement is not None else None
+    if kind == "risk" and danger(line, False):
         return mode == "full_auto" and judge
-    return risk or mode == "full_auto" and check
+    return kind in ("risk", "said") or mode == "full_auto" and check
 
 
 def _refuses(judgement: dict | None, gate: bool) -> bool:

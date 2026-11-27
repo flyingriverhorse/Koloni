@@ -75,7 +75,10 @@ test('"asks" is on the tools that wait for your yes at the permission level, whe
     'run_command',
     'web_search',
     'http_request',
+    'browser_open',
     'create_role',
+    'add_skill',
+    'ask_folder',
     'add_task',
     'change_task',
   ])

@@ -1,7 +1,8 @@
 import { type KeyboardEvent, useState } from 'react'
 import type { MemoryRecord } from '../api/types'
+import { Cell } from '../shell/Cell'
 import { usePanel } from '../shell/usePanel'
-import { leftHow, rowId, waitId } from './memoryText'
+import { FACT_CELL, factStands, leftHow, rowId, waitId } from './memoryText'
 import { Evidence, RecordBody, RecordCard } from './RecordCard'
 import { MAX_ABOUT, MAX_TEXT, useAsk } from './useAsk'
 
@@ -88,6 +89,7 @@ export function CoreFact({ record, onCorrect, onReject, onConfirm }: CoreProps) 
     : record.about
       ? 'this subject is too general to be matched: only found by looking it up'
       : 'no subject: only found by looking it up'
+  const cell = FACT_CELL[factStands(record)]
   const stale = record.source_state === 'changed' || record.source_state === 'moved'
   const remove = () => void ask(() => onReject(record.id))
   return (
@@ -96,6 +98,7 @@ export function CoreFact({ record, onCorrect, onReject, onConfirm }: CoreProps) 
       error={error}
       note={note}
       id={rowId(record.id)}
+      mark={<Cell tone={cell.tone} fill={cell.fill} label={cell.word} />}
       actions={
         <div className="memory-actions">
           {stale && (
@@ -284,7 +287,7 @@ export function Proposal({ record, replaces, onApprove, onReject, onConfirm }: P
 
 /**
  * An agent's note in the journal, one row. It is the agent's word: not rewritten, but it can be
- * removed, or taken as the start of a fact of your own.
+ * taken as the start of a fact of your own (in sight), or removed (its ⋯).
  */
 export function JournalNote({
   record,
@@ -303,14 +306,12 @@ export function JournalNote({
       id={rowId(record.id)}
       note={record.wants_core ? 'put forward for the core' : undefined}
       actions={
-        <RowMenu
-          of={record.text}
-          disabled={busy}
-          items={[
-            ['Remove', () => void ask(() => onReject(record.id))],
-            ['Make it a fact', () => onMakeFact(record)],
-          ]}
-        />
+        <div className="memory-actions">
+          <button type="button" className="link-btn" onClick={() => onMakeFact(record)}>
+            Make it a fact
+          </button>
+          <RowMenu of={record.text} disabled={busy} items={[['Remove', () => void ask(() => onReject(record.id))]]} />
+        </div>
       }
     />
   )

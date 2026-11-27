@@ -1,32 +1,32 @@
-import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import type { MemoryRecord, MemorySearch, ProjectMemory } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
-import { Find } from './Find'
-import { FolderRules, type NewFact, ProjectNotes, RulesBox, WriteBox } from './forms'
+import { Cell } from '../shell/Cell'
+import { GUIDE } from '../shell/guide'
+import { Hint } from '../shell/Hint'
+import { Find, type Place } from './Find'
+import { type NewFact, WriteBox } from './forms'
+import { MemoryParts, Ways } from './MemoryParts'
 import {
   byTopic,
   decisionId,
   decisionOf,
+  FACT_LEGEND,
   lastAutoText,
-  linesOf,
   meter,
   moment,
+  partId,
   subject,
-  type Tab,
-  TABS,
+  waitId,
   wouldReplace,
   writerOf,
 } from './memoryText'
-import { CoreFact, JournalNote, PastRecord, Proposal, Suggestion } from './records'
-import { GUIDE } from '../shell/guide'
-import { Hint } from '../shell/Hint'
-import { KEPT_IN_FOLDER } from '../shell/ProjectSettings'
+import { CoreFact, JournalNote, PastRecord, Proposal } from './records'
+import { YourWords } from './YourWords'
 
 interface Props {
-  /** 0.1.10: the page's two parts (`MemoryParts`), under its heading. */
-  parts?: ReactNode
   /** The open project's memory; null until it has been read. */
   memory: ProjectMemory | null
   /** Why it could not be read, if it could not. */
@@ -52,6 +52,16 @@ interface Props {
   onExport?: () => Promise<void>
   /** Come from "Search in messages" (Ctrl+K), each time with a new count: the search box takes the focus, and searches the words deeper. */
   searchFor?: { words: string; n: number }
+  /** 0.1.10: the page's second part, its sources (`KnowledgePage`); left out, the page is its first part alone. */
+  sourcesPart?: ReactNode
+  /** Whether the sources are the part shown; and the way to the other part. */
+  sources?: boolean
+  onPart?: (sources: boolean) => void
+  /** How many sources may be old, on their part's tab; null while they are read. */
+  old?: number | null
+  /** The other projects Search deeper and Recall also look in, by name; and the way to change them. */
+  linked?: string[]
+  onLinked?: () => void
 }
 
 function Section({
@@ -78,8 +88,8 @@ function Section({
   )
 }
 
-/** A tab's one line of what it holds, its "?", and its own controls at the right. */
-function TabHead({ line, more, children }: { line: string; more: ReactNode; children?: ReactNode }) {
+/** An area's one line of what it holds, its "?", and its own controls at the right. */
+function AreaHead({ line, more, children }: { line: string; more: ReactNode; children?: ReactNode }) {
   return (
     <div className="memory-tab-head">
       <span className="muted memory-hint">
@@ -90,7 +100,7 @@ function TabHead({ line, more, children }: { line: string; more: ReactNode; chil
   )
 }
 
-/** A filter of a tab by subject: '' for all, otherwise '=' and the subject as compared. */
+/** A filter of an area by subject: '' for all, otherwise '=' and the subject as compared. */
 function TopicFilter({
   records,
   value,
@@ -112,8 +122,40 @@ function TopicFilter({
   )
 }
 
+/** How many notes that wait for your word the box shows before "Show N more". */
+const SHOWN = 3
+
 const ofTopic = (records: MemoryRecord[], topic: string) =>
   topic ? records.filter(record => `=${subject(record.about)}` === topic) : records
+
+/** The core's room: ten cells, filled as its facts take room, with the count beside them (a full core refuses more). */
+function Room({ chars, limit }: { chars: number; limit: number }) {
+  const said = meter(chars, limit)
+  // (Down: the tenth cell fills only when the core is full.)
+  const used = Math.min(10, Math.floor((10 * chars) / Math.max(limit, 1)))
+  return (
+    <span className="memory-room">
+      {Array.from({ length: 10 }, (_, at) => (
+        <Cell key={at} tone={at < used ? 'honey' : 'plain'} fill={at < used ? 'full' : 'none'} label={said} hidden />
+      ))}
+      <span className="mono muted memory-count">{said}</span>
+    </span>
+  )
+}
+
+/** What a fact's cell says, each colour in words. */
+function FactLegend() {
+  return (
+    <p className="cell-legend">
+      {FACT_LEGEND.map(one => (
+        <span key={one.word}>
+          <Cell tone={one.tone} fill={one.fill} label={one.word} hidden />
+          {one.word}
+        </span>
+      ))}
+    </p>
+  )
+}
 
 /**
  * Which turn the last notes made by themselves were of: one of the open conversation's, when it
@@ -126,19 +168,9 @@ function lastTurnOf(memory: ProjectMemory | null, conv: ConvState | null) {
     : 'a message of a conversation not open here'
 }
 
-/** The rules in the box: the folder's where it is read - but the saved ones where they differ, which Full auto's check reads (K-yargıç). */
-const boxRules = (memory: ProjectMemory) => (memory.rules_differ ? (memory.rules_saved ?? null) : memory.rules)
-
 const FACTS_MORE =
   'What agents are given: what you approved or wrote, each with its source. A fact is given to an agent whose work names its subject; any agent can look the rest up. Each rests on file lines: a fact whose source changed, or moved within its file, is given to no agent until you look at it again. “Source unchanged since noted” only means the file lines a record rests on read as they did when it was written. It does not mean the record is right.'
 
-/**
- * What this project remembers, in four tabs by how it reaches an agent: told to every agent
- * (your preferences, the project's rules), given when the work names its subject (the core's
- * facts), found only when looked for (the journal's notes), and what was decided and removed.
- * One search over all of it on top, and what waits for your word above the tabs. Nothing here is
- * shown as surer than its record: a source is unchanged, changed, or not there.
- */
 /** The core saved as MEMORY.md (`download`: the key in no address the browser keeps), and a refusal said beside it. */
 function ExportButton({ onExport }: { onExport: () => Promise<void> }) {
   const [failed, setFailed] = useState<string | null>(null)
@@ -165,52 +197,68 @@ function ExportButton({ onExport }: { onExport: () => Promise<void> }) {
   )
 }
 
-export function MemoryPage({ memory, error, onReload, onSearch, onExport, searchFor, parts, ...on }: Props) {
-  const [tab, setTab] = useState<Tab>('facts')
+/**
+ * What this project remembers (0.1.10, as cells): one search and the three ways memory reaches an agent on top, then the
+ * page's two parts. What the project knows: what waits for your word in one honey box; the core's facts, each with a
+ * cell for how it stands, and the journal's notes at the left, History folded under them; your own words at the right.
+ * Its sources are the second part. Nothing is shown as surer than its record: a source is unchanged, changed, or not
+ * there.
+ */
+export function MemoryPage({
+  memory,
+  error,
+  onReload,
+  onSearch,
+  onExport,
+  searchFor,
+  sourcesPart,
+  sources = false,
+  onPart,
+  old = null,
+  linked,
+  onLinked,
+  ...on
+}: Props) {
   const [factTopic, setFactTopic] = useState('')
   const [noteTopic, setNoteTopic] = useState('')
   const [writer, setWriter] = useState('')
   const [adding, setAdding] = useState(false)
   // A note made a fact: the box opens with its words (keyed, so it starts again each time).
   const [draft, setDraft] = useState<{ text: string; about: string; n: number } | undefined>(undefined)
-  // A row to go to once its tab is shown: a search hit, or the fact box.
+  // A row to go to once it is shown: a search hit, or the fact box.
   const [goTo, setGoTo] = useState<{ id: string; n: number } | null>(null)
-  const [waitOpen, setWaitOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  // The last row gone to: a hit clicked on the sources part is gone to once this part is shown, and only then.
+  const reached = useRef(0)
   useEffect(() => {
-    if (!goTo) return
+    if (!goTo || sources || reached.current === goTo.n) return
+    reached.current = goTo.n
     const row = document.getElementById(goTo.id)
     row?.scrollIntoView?.({ block: 'center' })
     // (Not from a question that took the focus: "Replace what you typed?")
     if (!document.activeElement?.closest('[role="alertdialog"]')) row?.focus()
-  }, [goTo])
+  }, [goTo, sources])
+  // (Once, as it is shown: the page is drawn again while it stands - a source learning on the other part.)
+  const focusOnce = useCallback((said: HTMLElement | null) => said?.focus(), [])
   const conv = useApp(s => s.conv)
   const lastTurn = lastTurnOf(memory, conv)
-  // Once something waited, its line stays while the page is open: deciding the last note does not take the place you were in.
+  // Once something waited, its box stays while the page is open: deciding the last note does not take the place you were in.
   const [waited, setWaited] = useState(false)
   if (!waited && memory && memory.proposals.length > 0) setWaited(true)
-  // Whether .koloni/rules.md was there before the last save of the rules: the save that put it there says so, once.
-  const [keptBefore, setKeptBefore] = useState(true)
-  if (!memory) {
-    return (
-      <div className="memory-page">
-        {error ? (
-          <div role="alert" className="alert">
-            {error}
-          </div>
-        ) : (
-          <p className="muted">Reading the project’s memory…</p>
-        )}
-      </div>
-    )
-  }
 
-  const go = (to: Tab | 'waiting', id: string) => {
-    if (to === 'waiting') setWaitOpen(true)
-    else setTab(to)
+  // Many notes waiting: the first few in the box, the rest behind "Show N more" - Facts and your words stay near the top.
+  const [allWaits, setAllWaits] = useState(false)
+
+  // A hit, or the fact box: History unfolded for one of its rows, every note that waits for one of them, and this part
+  // shown.
+  const go = (to: Place, id: string) => {
+    if (to === 'history') setHistoryOpen(true)
+    if (to === 'waiting') setAllWaits(true)
+    if (sources) onPart?.(false)
     setGoTo(was => ({ id, n: (was?.n ?? 0) + 1 }))
   }
   // A hit is shown whatever the filters said.
-  const open = (to: Tab | 'waiting', id: string) => {
+  const open = (to: Place, id: string) => {
     setFactTopic('')
     setNoteTopic('')
     setWriter('')
@@ -221,17 +269,44 @@ export function MemoryPage({ memory, error, onReload, onSearch, onExport, search
     setAdding(true)
     go('facts', 'new-fact')
   }
-  function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
-    const at = TABS.findIndex(([id]) => id === tab)
-    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: TABS.length - 1 } as Record<string, number>)[
-      event.key
-    ]
-    if (to === undefined) return
-    event.preventDefault()
-    const next = TABS[(to + TABS.length) % TABS.length][0]
-    setTab(next)
-    event.currentTarget.querySelector<HTMLElement>(`#memory-tab-${next}`)?.focus()
-  }
+  const panelOf = (part: boolean) =>
+    onPart
+      ? {
+          id: `${partId(part)}-panel`,
+          role: 'tabpanel',
+          'aria-labelledby': partId(part),
+          hidden: part !== sources,
+          className: 'memory-part',
+        }
+      : { className: 'memory-part' }
+  /** The page: its head, the search, the three ways and the two parts' tabs, then the part shown. */
+  const page = (knows: ReactNode) => (
+    <div className="memory-page">
+      <div className="memory-top">
+        <h2>Memory</h2>
+        <span className="muted memory-hint">
+          What the project carries from chat to chat; a job’s own notes are in its notebook.
+        </span>
+      </div>
+      {memory && (
+        <Find key={searchFor?.n} memory={memory} onOpen={open} onSearch={onSearch} searchFor={searchFor?.words} />
+      )}
+      <Ways />
+      {onPart && (
+        <MemoryParts sources={sources} onPart={onPart} waiting={memory ? memory.proposals.length : null} old={old} />
+      )}
+      <div {...panelOf(false)}>
+        {error && (
+          <div role="alert" className="alert">
+            {error}
+          </div>
+        )}
+        {knows}
+      </div>
+      {sourcesPart && <div {...panelOf(true)}>{sourcesPart}</div>}
+    </div>
+  )
+  if (!memory) return page(!error && <p className="muted">Reading the project’s memory…</p>)
 
   // A filter whose topic or writer is gone since (removed, corrected) shows all again.
   const factsOf = ofTopic(memory.core, factTopic).length ? factTopic : ''
@@ -242,139 +317,91 @@ export function MemoryPage({ memory, error, onReload, onSearch, onExport, search
   const notes = ofTopic(memory.journal, notesOf).filter(record => !by || writerOf(record) === by)
   const lastAuto = lastAutoText(memory.last_auto, lastTurn)
   const waiting = memory.proposals.length
-  const counts: Record<Tab, number> = {
-    told: linesOf(memory.preferences).length + linesOf(memory.rules).length + linesOf(memory.project_notes).length,
-    facts: memory.core.length,
-    notes: memory.journal.length,
-    history: memory.decisions.length + memory.past.length,
-  }
 
-  /** What waits for your word: one line that unfolds the notes put forward, in place. */
+  /** What waits for your word: the one honey box, on top, each note beside the fact it would replace. */
   const waits = () =>
     (waiting > 0 || waited) && (
-      <div className="memory-waiting">
-        <button
-          type="button"
-          className="memory-waiting-line"
-          aria-expanded={waitOpen}
-          aria-controls="memory-waits"
-          onClick={() => setWaitOpen(!waitOpen)}
-        >
-          {waiting > 0
-            ? `● ${waiting} ${waiting === 1 ? 'fact waits' : 'facts wait'} for your word`
-            : 'Nothing waits for your word'}
-        </button>
-        {/* shortcut: no "Open in Ready →" beside it - the Ready page is not on main yet; add the link when it is. */}
-        {waitOpen && (
-          <section id="memory-waits" className="memory-section" aria-label="Waits for you">
+      <section id="memory-waits" className="memory-waits" aria-label="Waits for you">
+        {waiting > 0 ? (
+          <>
+            <h3>
+              <Cell tone="honey" fill="soft" label="waits for your word" hidden />
+              {waiting} {waiting === 1 ? 'fact waits' : 'facts wait'} for your word
+            </h3>
             <p className="muted memory-hint">
               Notes agents put forward for the core. Nothing enters the core unless you approve it.
             </p>
-            {/* (Shown as the last note is decided: the focus goes here, not to the page.) */}
-            {waiting === 0 && (
-              <p className="muted" tabIndex={-1} ref={said => said?.focus()}>
-                Nothing waits for you.
-              </p>
-            )}
-            {memory.proposals.map(record => (
-              <Proposal
-                key={record.id}
-                record={record}
-                replaces={wouldReplace(memory, record)}
-                onApprove={on.onApprove}
-                onReject={on.onReject}
-                onConfirm={on.onConfirm}
-              />
-            ))}
-          </section>
-        )}
-      </div>
-    )
-
-  /** Told: your preferences, with what is suggested for them, and this project's rules. */
-  const toldPanel = () => (
-    <div
-      id="memory-panel-told"
-      role="tabpanel"
-      aria-labelledby="memory-tab-told"
-      className="memory-panel"
-      hidden={tab !== 'told'}
-    >
-      <TabHead
-        line="Said to every agent, always."
-        more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either. At Full auto, with Full auto’s judge’s box for your words on (Settings › This project › Asking and away - once its measurement has passed), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”"
-      />
-      <Section title="Your preferences">
-        {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
-        <RulesBox
-          key={memory.preferences ?? ''}
-          rules={memory.preferences ?? null}
-          what="preferences"
-          onSave={on.onSavePreferences}
-        />
-        {(memory.suggestions ?? []).length > 0 && (
-          <div role="group" aria-label="Suggested for your preferences" className="memory-section">
-            <div className="muted memory-hint">
-              {/* (What Add does is read before it is clicked: in sight, the rest behind the "?".) */}
-              <span className="tag">suggested</span> Added, it is told to every agent in every project as your
-              instruction.{' '}
-              <Hint doc={GUIDE.memoryKinds}>
-                What KOLONİ’s summariser took for a preference of yours from a finished message. Nothing enters your
-                preferences unless you add it.
-              </Hint>
-            </div>
-            {(memory.suggestions ?? []).map(record => (
-              <Suggestion key={record.id} record={record} onAdd={on.onAddPreference} onReject={on.onReject} />
-            ))}
-          </div>
-        )}
-      </Section>
-      <Section title="This project’s rules">
-        {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
-        <RulesBox
-          key={boxRules(memory) ?? ''}
-          rules={boxRules(memory)}
-          onSave={rules => {
-            setKeptBefore(memory.rules_kept ?? true)
-            return on.onSaveRules(rules)
-          }}
-        />
-        {memory.rules_differ && <FolderRules rules={memory.rules} onUse={on.onSaveRules} />}
-        {!keptBefore && memory.rules_kept && (
-          <p role="status" className="muted">
-            {KEPT_IN_FOLDER}
+          </>
+        ) : (
+          // (Shown as the last note is decided: the focus goes here, not to the page.)
+          <p className="muted" tabIndex={-1} ref={focusOnce}>
+            Nothing waits for you.
           </p>
         )}
-        {memory.rules_not_read && <p className="alert">{memory.rules_not_read}</p>}
-        <ProjectNotes text={memory.project_notes} onSave={on.onSaveProjectNotes} />
-      </Section>
-    </div>
-  )
+        {(allWaits ? memory.proposals : memory.proposals.slice(0, SHOWN)).map(record => (
+          <Proposal
+            key={record.id}
+            record={record}
+            replaces={wouldReplace(memory, record)}
+            onApprove={on.onApprove}
+            onReject={on.onReject}
+            onConfirm={on.onConfirm}
+          />
+        ))}
+        {!allWaits && waiting > SHOWN && (
+          // (Opened, the focus goes to the first that was folded: the button is gone.)
+          <button type="button" className="link-btn" onClick={() => go('waiting', waitId(memory.proposals[SHOWN].id))}>
+            Show {waiting - SHOWN} more
+          </button>
+        )}
+      </section>
+    )
 
-  /** Facts: the core, filtered by subject, and the box to add one. */
-  const factsPanel = () => (
-    <div
-      id="memory-panel-facts"
-      role="tabpanel"
-      aria-labelledby="memory-tab-facts"
-      className="memory-panel"
-      hidden={tab !== 'facts'}
-    >
-      <TabHead line="Given to an agent when its work names the subject." more={FACTS_MORE}>
-        <span className="mono muted memory-count">{meter(memory.core_chars, memory.core_limit)}</span>
+  /** Facts: the core, a cell for how each stands, filtered by subject, and the box to add one. */
+  const factsArea = () => (
+    <section className="memory-area" aria-label="Facts">
+      <div className="memory-area-head">
+        <h3>
+          Facts <span className="muted memory-hint">the core</span>
+        </h3>
+        <Room chars={memory.core_chars} limit={memory.core_limit} />
+      </div>
+      <AreaHead line="Given to an agent when its work names the subject." more={FACTS_MORE}>
         <TopicFilter records={memory.core} value={factsOf} onChange={setFactTopic} />
-        <button
-          type="button"
-          className="btn btn-small btn-primary"
-          aria-expanded={adding}
-          onClick={() => {
-            setAdding(!adding)
-            setDraft(undefined)
-          }}
-        >
-          ＋ Add a fact
+        <button type="button" className="btn btn-small" onClick={() => void onReload()}>
+          Look at the sources again
         </button>
-      </TabHead>
+        {onExport && <ExportButton onExport={onExport} />}
+      </AreaHead>
+      {memory.core.length > 0 && <FactLegend />}
+      <div className="memory-rows">
+        {memory.core.length === 0 && (
+          <p className="muted">Nothing is in the core yet. Agents are given only what you approve or write here.</p>
+        )}
+        {facts.map(record => (
+          <CoreFact
+            key={record.id}
+            record={record}
+            onCorrect={on.onCorrect}
+            onReject={on.onReject}
+            onConfirm={on.onConfirm}
+          />
+        ))}
+        <div className="memory-addrow">
+          <span className="muted memory-hint">A fact on a file’s lines is checked again each time it is read.</span>
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            aria-expanded={adding}
+            onClick={() => {
+              setAdding(!adding)
+              setDraft(undefined)
+            }}
+          >
+            ＋ Add a fact
+          </button>
+        </div>
+      </div>
       {adding && (
         <Section
           title="Add a fact"
@@ -383,31 +410,16 @@ export function MemoryPage({ memory, error, onReload, onSearch, onExport, search
           <WriteBox from={draft} onWrite={on.onWrite} />
         </Section>
       )}
-      {memory.core.length === 0 && (
-        <p className="muted">Nothing is in the core yet. Agents are given only what you approve or write here.</p>
-      )}
-      {facts.map(record => (
-        <CoreFact
-          key={record.id}
-          record={record}
-          onCorrect={on.onCorrect}
-          onReject={on.onReject}
-          onConfirm={on.onConfirm}
-        />
-      ))}
-    </div>
+    </section>
   )
 
   /** Notes: the journal, filtered by subject and by who wrote it, and how noting by itself last went. */
-  const notesPanel = () => (
-    <div
-      id="memory-panel-notes"
-      role="tabpanel"
-      aria-labelledby="memory-tab-notes"
-      className="memory-panel"
-      hidden={tab !== 'notes'}
-    >
-      <TabHead
+  const notesArea = () => (
+    <section className="memory-area" aria-label="Notes">
+      <h3>
+        Notes <span className="muted memory-hint">the journal</span>
+      </h3>
+      <AreaHead
         line="Found only when an agent looks."
         more="What agents noted, and, if the project’s settings say so, what a fast model noted of finished work, signed as its own. No agent is given these: an agent finds them only when it looks."
       >
@@ -425,104 +437,83 @@ export function MemoryPage({ memory, error, onReload, onSearch, onExport, search
             </option>
           ))}
         </select>
-      </TabHead>
+      </AreaHead>
       {lastAuto && <p className="muted memory-hint">{lastAuto}</p>}
       {memory.journal.length === 0 ? (
         <p className="muted hive-empty">Agents have noted nothing yet.</p>
       ) : (
         notes.length === 0 && <p className="muted">No note matches.</p>
       )}
-      {notes.map(record => (
-        <JournalNote key={record.id} record={record} onReject={on.onReject} onMakeFact={makeFact} />
-      ))}
-    </div>
-  )
-
-  /** History: the last decisions, and what was removed or replaced. */
-  const historyPanel = () => (
-    <div
-      id="memory-panel-history"
-      role="tabpanel"
-      aria-labelledby="memory-tab-history"
-      className="memory-panel"
-      hidden={tab !== 'history'}
-    >
-      <TabHead
-        line="Decisions and what was removed. Nothing is deleted."
-        more="The last decision on each record and the last change to your rules, newest first. KOLONİ only knows each came from this page’s address, not who made it. If one of them was not yours, look into it."
-      />
-      <Section title="Recent decisions">
-        {memory.decisions.length === 0 ? (
-          <p className="muted">Nothing has been decided yet.</p>
-        ) : (
-          <ul className="memory-list">
-            {memory.decisions.map(decision => (
-              <li key={decisionId(decision)} id={decisionId(decision)} tabIndex={-1} className="memory-decision">
-                <span>{decisionOf(decision)}</span>
-                {decision.text !== null && <span> · {decision.text}</span>}
-                <span className="mono muted"> · {moment(decision.at)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
-      <Section title="Removed / replaced" hint="Any of these can be taken back.">
-        {memory.past.length === 0 && <p className="muted">Nothing has been removed or replaced.</p>}
-        {memory.past.map(record => (
-          <PastRecord key={record.id} record={record} onRestore={on.onRestore} />
-        ))}
-      </Section>
-    </div>
-  )
-
-  return (
-    <div className="memory-page">
-      <div className="conv-head">
-        <h2>Memory</h2>
-        <div className="memory-actions">
-          <button type="button" className="btn btn-small" onClick={() => void onReload()}>
-            Look at the sources again
-          </button>
-          {onExport && <ExportButton onExport={onExport} />}
-        </div>
-      </div>
-      {parts}
-      {error && (
-        <div role="alert" className="alert">
-          {error}
+      {notes.length > 0 && (
+        <div className="memory-rows">
+          {notes.map(record => (
+            <JournalNote key={record.id} record={record} onReject={on.onReject} onMakeFact={makeFact} />
+          ))}
         </div>
       )}
+    </section>
+  )
 
-      <Find key={searchFor?.n} memory={memory} onOpen={open} onSearch={onSearch} searchFor={searchFor?.words} />
+  /** History, folded: the last decisions, and what was removed or replaced. */
+  const historyArea = () => (
+    <details
+      className="memory-area memory-history"
+      open={historyOpen}
+      onToggle={e => setHistoryOpen(e.currentTarget.open)}
+    >
+      <summary>
+        History <span className="mono muted">{memory.decisions.length + memory.past.length}</span>
+      </summary>
+      <section className="memory-panel" aria-label="History">
+        <AreaHead
+          line="Decisions and what was removed. Nothing is deleted."
+          more="The last decision on each record and the last change to your rules, newest first. KOLONİ only knows each came from this page’s address, not who made it. If one of them was not yours, look into it."
+        />
+        <Section title="Recent decisions">
+          {memory.decisions.length === 0 ? (
+            <p className="muted">Nothing has been decided yet.</p>
+          ) : (
+            <ul className="memory-list">
+              {memory.decisions.map(decision => (
+                <li key={decisionId(decision)} id={decisionId(decision)} tabIndex={-1} className="memory-decision">
+                  <span>{decisionOf(decision)}</span>
+                  {decision.text !== null && <span> · {decision.text}</span>}
+                  <span className="mono muted"> · {moment(decision.at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+        <Section title="Removed / replaced" hint="Any of these can be taken back.">
+          {memory.past.length === 0 && <p className="muted">Nothing has been removed or replaced.</p>}
+          {memory.past.map(record => (
+            <PastRecord key={record.id} record={record} onRestore={on.onRestore} />
+          ))}
+        </Section>
+      </section>
+    </details>
+  )
 
+  return page(
+    <>
       {waits()}
-
-      <div className="tabs memory-tabs" role="tablist" aria-label="Memory" onKeyDown={onTabKey}>
-        {TABS.map(([id, label]) => (
-          <button
-            key={id}
-            id={`memory-tab-${id}`}
-            type="button"
-            role="tab"
-            className="tab"
-            aria-selected={tab === id}
-            aria-controls={`memory-panel-${id}`}
-            tabIndex={tab === id ? 0 : -1}
-            onClick={() => setTab(id)}
-          >
-            {label} <span className="mono muted">{counts[id]}</span>
-          </button>
-        ))}
+      <div className="memory-grid">
+        <div className="memory-col">
+          {factsArea()}
+          {notesArea()}
+          {historyArea()}
+        </div>
+        <YourWords
+          memory={memory}
+          onSavePreferences={on.onSavePreferences}
+          onAddPreference={on.onAddPreference}
+          onReject={on.onReject}
+          onSaveRules={on.onSaveRules}
+          onSaveProjectNotes={on.onSaveProjectNotes}
+          linked={linked}
+          onLinked={onLinked}
+        />
       </div>
-
-      {/* Each is kept while another is open: what was typed in one is still there when you come back. */}
-      {toldPanel()}
-
-      {factsPanel()}
-
-      {notesPanel()}
-
-      {historyPanel()}
-    </div>
+    </>,
   )
 }

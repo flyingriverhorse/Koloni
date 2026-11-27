@@ -20,10 +20,45 @@ interface Props {
   onDecide: (decision: CommandDecision) => Promise<void>
 }
 
+/** K5: what a card quotes the user's own sentence for asks and runs, by the action the server read in its line
+ *  (`judge.action_of`). */
+const AS_YOU_SAID = {
+  push: ['push', 'Push'],
+  pr: ['open the pull request', 'Open the PR'],
+  merge: ['merge the pull request', 'Merge'],
+} as const
+
+interface Wording {
+  /** The user's sentence, where the card quotes it; null for the plain question. */
+  quote: string | null
+  verb: string
+  run: string
+}
+
+/** A card's question and its run button's words. K5 (decision 7): for a push, a pull request opened or merged that a
+ *  sentence of the user's own asked for, with no judge model measured to let it run, the question quotes them and the
+ *  button runs it "as you said". */
+function wording(command: Command): Wording {
+  const action = command.judged?.kind === 'said' ? command.judged.action : null
+  if (!action) return { quote: null, verb: '', run: 'Run once' }
+  const [verb, run] = AS_YOU_SAID[action]
+  return { quote: command.judged?.quote ?? '', verb, run: `${run}, as you said` }
+}
+
+/** The card's question: the user's sentence in its own reading order (`bdi`), where it is quoted. */
+function Question({ words }: { words: Wording }) {
+  if (words.quote === null) return <div className="kicker cmd-approval-kicker">Run this command?</div>
+  return (
+    <div className="kicker cmd-approval-kicker">
+      You said “<bdi>{words.quote}</bdi>” — {words.verb} now?
+    </div>
+  )
+}
+
 /** K-yargıç: Full auto's check of the user's words found no line of theirs that covers it. Not its own sentence: a model's
  *  words, which a command's text may have steered, are no reason shown on the card (kept on the record). */
 function NothingYouSaid({ judged }: { judged: Command['judged'] }) {
-  if (judged?.verdict !== 'ask') return null
+  if (judged?.verdict !== 'ask' || judged.kind === 'said') return null
   return (
     <div role="note" className="cmd-approval-note">
       Nothing you said covers this.
@@ -83,6 +118,7 @@ export function CommandApproval({ command, why, onDecide }: Props) {
   // The server offers a rule only for commands a rule can safely cover: none for one asked because web is off (K-web-komut).
   const rememberable = command.suggested_prefix !== ''
   const offers = useOffersDisposable(command)
+  const words = wording(command)
 
   async function decide(decision: CommandDecision) {
     setBusy(true)
@@ -98,7 +134,7 @@ export function CommandApproval({ command, why, onDecide }: Props) {
 
   return (
     <div className="cmd-approval">
-      <div className="kicker cmd-approval-kicker">Run this command?</div>
+      <Question words={words} />
       <pre className="mono cmd-approval-command">{command.command}</pre>
       {command.danger && (
         // (Deletes, overwrites a git remote or opens a secret file: no rule covers it.)
@@ -135,7 +171,7 @@ export function CommandApproval({ command, why, onDecide }: Props) {
           onClick={() => decide(keep ? 'line' : 'once')}
         >
           <Check size={13} />
-          Run once
+          {words.run}
         </button>
         {rememberable && (
           <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('always')}>

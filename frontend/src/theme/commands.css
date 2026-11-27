@@ -2826,25 +2826,214 @@ fieldset.choice > label .choice-note,
   padding: 0;
 }
 
-/* KOLONİ's own tools, each a row with its switch (slice 61): the text clear of the row's edge. */
-.tools-builtin {
-  margin-bottom: 12px;
-}
-
-/* Two by two where the page is wide, as the list grows (recall_output made it five): the
-   page stays as short as it was, and a field focused below them is not scrolled to (74b). */
-.tool-group.tools-builtin {
+/* KOLONİ's own tools (0.1.10): a box a group, as a role's Tools tab groups them; a row a tool - its cell, its name and
+   line, its switch or "by role". */
+.tools-groups {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
-  column-gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+  align-items: start;
 }
 
-.tool-group.tools-builtin > :not(.tool-row) {
+.tools-group {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.tools-tool {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-body);
+}
+
+.tools-group > h4 + .tools-tool {
+  border-top: 0;
+}
+
+.tools-tool-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tools-by-role {
+  font-size: var(--text-meta);
+}
+
+/* The heading's line, and the key of the cells under it, once for the three tabs. */
+.tools-sub {
+  margin: 2px 0 0;
+  font-size: var(--text-note);
+}
+
+.tools-key {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* A server's card (0.1.10): its head - switch, cell, name, command, state, roles -, its trust in sight while it is
+   not trusted, its editor under it while it is open. */
+.tools-servers > li {
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.tools-servers > li:hover {
+  border-color: var(--border-strong);
+}
+
+.tools-servers > li > .tools-row {
+  border: 0;
+  background: none;
+}
+
+.tools-row-text .tools-command {
+  flex: none;
+  font-size: var(--text-meta);
+}
+
+.tools-trust,
+.tools-found {
+  margin: 0;
+  padding: 0 12px 10px;
+}
+
+/* Skills (0.1.10): a card each, side by side where the page is wide - an open one across the page, its box under it;
+   above them the ones agents proposed. */
+.tools-skills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 10px;
+  align-items: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tools-skill {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.tools-skill:hover {
+  border-color: var(--border-strong);
+}
+
+.tools-skill.tools-open {
   grid-column: 1 / -1;
 }
 
-.tool-group.tools-builtin > .tool-row {
-  padding: 6px 10px;
+.tools-skill > .tools-row {
+  align-items: flex-start;
+  border: 0;
+  background: none;
+}
+
+.tools-skill .tools-row-sub {
+  white-space: normal;
+  font-size: var(--text-note);
+}
+
+.tools-skill .tools-row-text .chips {
+  margin-top: 4px;
+}
+
+.tools-reads {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: var(--text-meta);
+}
+
+.tools-read {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(40px, 1fr) max-content;
+  gap: 8px;
+  align-items: center;
+}
+
+.tools-read-given {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tools-proposed {
+  display: grid;
+  gap: 6px;
+}
+
+.tools-proposal {
+  gap: 6px;
+  padding: 10px 12px;
+  border-color: var(--accent);
+}
+
+.tools-trust {
+  flex-wrap: wrap;
+}
+
+/* A tool's three marks side by side, the one pressed: its check and weight say it, and its ground - green only on a
+   trusted server, where it does run without asking. Buttons: no arrow key changes a mark. */
+.tools-marks {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tools-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 9px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-note);
+  cursor: pointer;
+}
+
+.tools-mark + .tools-mark {
+  border-left: 1px solid var(--border-strong);
+}
+
+.tools-mark[aria-pressed='true'] {
+  background: var(--accent-soft);
+  font-weight: var(--weight-title);
+}
+
+.tools-mark-free[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.tools-mark-off[aria-pressed='true'] {
+  background: var(--hover);
+}
+
+.tools-mark:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tools-mark:disabled {
+  cursor: default;
 }
 
 /* 0.1.0-ui (layout A): three tabs, a line and its ⓘ atop each, a row a server or a skill that unfolds in place. */
@@ -2858,8 +3047,10 @@ fieldset.choice > label .choice-note,
   display: none;
 }
 
-.tools-count {
+/* What waits on a tab: the servers watched. */
+.tools-badge {
   margin-left: 4px;
+  color: var(--accent);
   font-size: var(--text-meta);
 }
 
@@ -2955,13 +3146,11 @@ fieldset.choice > label .choice-note,
   white-space: nowrap;
 }
 
-.tools-row-sub,
-.tools-row-use {
+.tools-row-sub {
   font-size: var(--text-meta);
 }
 
 .tools-row-open .chips,
-.tools-row-use,
 .tools-row-caret {
   flex: none;
 }
@@ -4502,6 +4691,64 @@ fieldset.choice > label .choice-note,
 .knowledge-kind[aria-checked='true'] {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+/* 0.1.10, as cells: Memory's sources part - its head, then a card for each knowledge in a grid, a cell for how fresh it
+   is; a card opened (or asked with Try it) goes across the row. */
+.knowledge-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.knowledge-lede {
+  flex: 1;
+  min-width: 220px;
+}
+
+.knowledge-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.knowledge-card-wide {
+  grid-column: 1 / -1;
+}
+
+.knowledge-card-head .knowledge-source {
+  flex-basis: 100%;
+}
+
+.knowledge-offer {
+  border: 1px dashed var(--border-strong);
+  box-shadow: none;
+}
+
+.knowledge-acts,
+.knowledge-roles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--text-note);
+}
+
+.knowledge-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+}
+
+/* (As small as a role's tick beside it.) */
+.knowledge-give {
+  width: auto;
+  padding: 2px 6px;
+  font-size: var(--text-note);
 }
 
 /* Ready for you (K-bekleyenler): the chat's one list of what waits for you, by kind. */

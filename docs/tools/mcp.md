@@ -6,7 +6,21 @@ KOLONİ's cards do not stand between a server and your machine; they stand betwe
 server's tools.
 
 Servers are on the Tools page, tab **Servers**: "Programs that give agents more tools. A new one asks
-before every call until you trust it."
+before every call until you trust it." The tab says how many servers are watched ("2 watching").
+
+![The Servers tab: one server whose trust a reading took back, one watched, one trusted, each a card with its cell](../images/tools-servers.png)
+
+Each server is a card. Its head has its on / off switch, its [cell](built-in.md#the-cells) - how far its
+tools may go without you -, its name and state (**trusted**, **watching**, **trust taken back** or **could
+not be read**), its command, how many tools it has and when they were read, and the roles that may use
+it. Click its name to open it under its head; one is open at a time.
+
+| Cell | The server |
+|---|---|
+| Green | Trusted, and at least one of its tools runs without asking - or, its tools not shown after a failed reading, may. |
+| Honey rim | Watched: every call asks. Or trusted, with every tool on Ask. |
+| Empty | Off, not read yet, or none of its tools on. |
+| Red-orange | A reading on this page took its trust back. |
 
 ## Adding a server
 
@@ -36,7 +50,7 @@ A project's own `.mcp.json` is not read.
 
 ## Reading its tools
 
-A new server offers no tools until it is read. Open its row and press **Read its tools**.
+A new server offers no tools until it is read. Open its card and press **Read its tools**.
 
 If the command may download a package first (`npx`, `uvx` and the like), a card says so before it
 starts. **First look for it in osv.dev's known-malware records** is on by default: a package osv.dev
@@ -49,27 +63,39 @@ when it is installed. Its dependencies are not read. "This is where to look, not
 
 ## Trust
 
-A server you have not trusted is **watching**: "Watching: every call asks". Every call of its tools
-asks you on a card, at every level, Full auto too. The card shows the server's own description of the
-tool.
+A server you have not trusted is **watching**: its cell is a honey rim and its card says "every call
+asks until you trust it". Every call of its tools asks you on a card, at every level, Full auto too. The
+card shows the server's own description of the tool.
 
-After its tools are read, **Trust this server** trusts it. If the package has no fixed version, the page
-warns that it updates itself and that trust covers future versions.
+After its tools are read, **Trust this server** on its card's head trusts it - the card can be closed.
+What is trusted is the tools you read: before the first reading, or after another command or other
+variables until its tools are read again, there is nothing to trust - KOLONİ refuses it ("read its tools
+first, then trust it"). The button also waits while its tools are being read or a change of it is
+saved. If the package has no fixed version, the page warns that it updates itself and that trust covers
+future versions.
 
 Trust is taken back by itself when the command or its variables change, or when a new reading finds
-new or changed tools.
+new or changed tools. When a reading you start on the page takes a trusted server's trust back, its cell
+turns red-orange and its state says **trust taken back**: **See the difference** lists what the reading
+found new, changed or gone - by name: a tool's words before are not kept - and **Trust it again** trusts
+it as it is now. A later reading adds what it finds to the difference. It is shown only until you leave
+the page: opened anew, such a server shows as watching. Another command or other variables saved since
+make it watched for themselves, not for that reading.
 
 ## When a tool runs
 
-For a trusted server, each tool has a choice under **When an agent calls it**:
+![A trusted server open: its tools, each with its three marks side by side](../images/tools-server-open.png)
+
+Each tool has three buttons side by side under **When an agent calls it**; the one it has is pressed,
+with a ✓. A choice changes only when you press another: arrow keys move nowhere.
 
 | Choice | What it does |
 |---|---|
-| **Ask** | A card asks you, below Full auto. At Full auto it runs. |
-| **Runs without asking** | It runs at every level. |
+| **Runs without asking** | For a trusted server, it runs at every level, where its tools are offered at all ([below](#giving-a-server-to-roles)). A watched server's still asks, and is not green. |
+| **Ask** | A card asks you first, at every level, Full auto too. |
 | **Off** | No agent is given it. |
 
-New tools come in as **Ask**. A tool whose description or inputs change goes back from **Runs without
+A choice is saved as it is made. New tools come in as **Ask**. A tool whose description or inputs change goes back from **Runs without
 asking** to **Ask**. **Set all to Ask** and **Set all to Off** change every tool of the server at once.
 
 ## Giving a server to roles
@@ -78,8 +104,9 @@ Under **Roles that may use it**, tick the roles whose agents get its tools. Ever
 sent to the model at every step, so a server with many tools makes each step bigger: the page says by
 about how much.
 
-Servers are not offered to CLIs that work with their own tools, or to projects
-whose commands run in Docker.
+No server's tool - one that runs without asking neither - is offered to CLIs that work with their own
+tools, in projects whose commands run in Docker, in a ☾ Away job, in a side of a comparison, or in a turn
+taken only to answer another agent.
 
 ## Switching off and deleting
 

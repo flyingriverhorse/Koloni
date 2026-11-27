@@ -650,8 +650,11 @@ yours names it". It works only:
   command run wrongly, in every run. None has yet: Claude Code's **haiku**, measured on 25 Nov 2026,
   passed one run of 70 cases, but in three repeats of all 171 one run let 2 commands run wrongly (a
   condition, "Pending review, you may push to main.", and a delete in another folder than the line
-  names). So the box says **(after its measurement)** and cannot be ticked (the level menu's line says
-  so too), and such a command waits for you on its card, as before. A model that passes counts only as
+  names). Claude Code's **Sonnet**, measured on 27 Nov 2026 with all 171 cases three times, let a
+  delete in another folder than the line names run in every run ("You may delete dist/." for `rm -rf
+  dist` in `packages/api`). So the box says **(after its measurement)** and cannot be ticked (the level menu's line says
+  so too), and such a command waits for you on its card, as before - a push, a pull request or a merge
+  you asked for with [your words quoted](#a-push-a-pull-request-or-a-merge-you-asked-for). A model that passes counts only as
   it was measured: on its own service (not a model server of yours, nor with your own Claude Code setup
   or a variable such as `ANTHROPIC_BASE_URL` pointing it elsewhere), run as a session or natively, and
   as the Judge model you chose - or, none chosen, the Fast tier's first; never one asked because your
@@ -699,6 +702,11 @@ messages in the chat - never anything an agent wrote - and then:
   Some wordings
   ("Keep build.", "Leave build alone.", "…but check with me first.") are not caught, and the measurement
   decides the rest. Two lines about a push, a branch or a remote are left to the model.
+- A command run in a folder of the project other than its root (`rm -rf dist` in `packages/api`):
+  it runs without a card only on a line that names that folder from the root ("You may delete
+  packages/api/dist."). A path in your line is read from the root - "You may delete dist/." is the root's
+  `dist` -, so a line that does not name the folder keeps the card, whatever the model said; and so does
+  one whose folder KOLONİ does not know.
 
 A command that ran or was not run this way also waits on Ready for you, in its **Decided for you**
 column, until you press **OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
@@ -714,6 +722,77 @@ for a one-line delete in the task's copy only: a command of more than one line o
 a git remote's branch, Docker's prune or volumes, a file that steers agents and a command that runs
 another through a shell or a wrapper keep their card. The
 same holds in the chat you went away from, while you're away. A plain chat has no judge's switch.
+
+### A push, a pull request or a merge you asked for
+
+A push, opening a pull request and merging one are yours to say. Once a Judge model has passed the
+measurement, Check what I said first can let one you asked for run with no card, as it does a delete.
+Until then the card stays, but it quotes you and asks for one click. When a sentence of the message
+that started the turn asks for it, its card says
+
+> **You said “Push it.” — push now?**
+
+with **Push, as you said** (**Open the PR, as you said**, **Merge, as you said**) and **Reject**. It is a
+card all the same: nothing runs until you press it. It shows at every level, in a turn you started from
+the app's own page; a To-do task's turn, a job while you're away and a side of a comparison keep the
+plain card.
+
+What asks for it - in English an order or a leave ("Push it.", "Commit and push.", "You may push now.",
+"Open a PR.", "Squash and merge."), in Turkish a request ("push et", "pushla", "push edebilirsin", "PR
+aç", "PR'ı merge et", "PR'ı birleştir"). Only:
+
+- the message you sent from the app's own page that started this turn - never an earlier turn's ("Push
+  it." yesterday does not cover today's push after "Fix the typo."), an agent's words, a tool's result, a
+  file, your preferences or the project's rules; nor code - a fence (in a list's item too) closes only
+  on a line of its own marks, at least as many, so what an agent wrote inside the quote **Ask about
+  this** makes stays code -, a quoted line (`>`) or a sentence with a backtick in it. A message over
+  4,000 characters is not read for it;
+- the last sentence of it that mentions it decides, and the whole message is read with it: anything in
+  it that says no, asks, waits, puts it off or calls it off ("Don't push.", "push etme", "Push it. Don't
+  merge.", "Push it. Actually no.", "Never mind.", "Scratch that.", "Hold off.", "Later.", "Revert
+  that.", "Or should we wait?", "Hayır, bekle.", "Yok, vazgeçtim.", "Boşver.", "İptal.", "Önce bana
+  göster."), that says what you do or will do ("I'll push it myself.", "I'll do it myself.", "push
+  ettim", "push edeceğim", "tomorrow" - a message with "I" or "we" in it at all), or sets a condition
+  ("after the review", "once CI passes", "testler geçince") leaves no quote - the plain card. Fewer
+  quotes, never a wrong one;
+- the sentence names no other branch or pull request than the line does: "Merge PR 5." (or "PR-5",
+  "PR #5", "#5", "5 numaralı PR") is no quote
+  for `gh pr merge 7`, nor "Push feature-a." for `git push origin feature-b`, nor "Push it to main." for a
+  push of another branch, nor "Open a PR into main." for `gh pr create -B develop`. A word counts as a
+  branch where your repository knows it - its branches, its remotes' and its tags - and `main` and
+  `master` always; a bare `git push` pushes a branch KOLONİ does not know, so a sentence that names one
+  gets the plain card there;
+- a line of your preferences or the project's rules that names it and forbids it or sets a condition
+  ("Never push to main.") leaves no quote for it at all.
+
+The quote is shown as you typed it, in its own reading order: marks that turn text around (right-to-left
+overrides and the like) are taken out of it.
+
+Which commands - one program on one line, run at the project's root, written with letters, digits,
+spaces and `. : / = + - _` alone, a value in double quotes (`-t "Fix the typo"`):
+
+- `git push`, alone or to `origin` with branches of your repository's own (or `HEAD`), and `-u`,
+  `--set-upstream`, `-q`, `-v`, `--progress`. A push to `main` or `master` by name is quoted only on a
+  sentence that names it ("Push to main.", "main'e push et"); a bare `git push` is quoted on "Push it."
+  whatever branch it pushes;
+- `gh pr create` with a title, a body, a base, a head (a branch of this repository: `owner:branch` is
+  not), one label, assignee, reviewer, milestone or project, `--draft` or `--fill`;
+- `gh pr merge` with a number or a branch, `--merge`, `--squash`, `--rebase`, `--auto`, a subject or a
+  body.
+
+An option's value never starts with `-`. KOLONİ reads your repository's branches and tags for it (read
+only); where it cannot - no git, or the project is not the repository's top folder - nothing is quoted.
+Anything else gets the plain card, unquoted: a force push, a branch deleted (`git push origin :x`,
+`--delete`, `gh pr merge --delete-branch`), a tag or any other ref than a branch (`refs/tags/…`,
+`refs/for/…`, the short names git reads so - `tags/v1.0.0`, `heads/main`, `remotes/origin/main` -, a tag
+by its bare name: `git push origin v1.0.0`), a name that is no branch of your repository's own (only
+another remote's, or none), another remote or repository (`upstream`, an address, `-R`),
+a file read in (`--body-file`), `--admin`, a push in a subfolder, any other option, more than one
+command (`&&`, `;`, `|`), a redirection, and any other character - `$`, a backtick, a bracket, single
+quotes, a comma (`-r a,b`), `@` (`@me`), `!`, `?`, `#`, `*`, `%`, a line break. So does a pull request
+whose body is written with a heredoc or on more lines (`--body "$(cat <<'EOF' …)"`, as Claude Code
+often writes one). "Open a PR." covers `gh pr create` alone, not the `git push` before it. A local
+`git merge` sends nothing: it is not quoted.
 
 ## Plan first
 

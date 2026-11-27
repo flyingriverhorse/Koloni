@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { api, download, keyRefused } from './api/client'
-import type { Board } from './api/types'
+import type { Board, Project } from './api/types'
 import { AgentsPage } from './agents/AgentsPage'
 import { type AgentAsks, AgentWindow } from './agents/AgentWindow'
 import { ChatTeams } from './agents/ChatTeams'
@@ -27,7 +27,7 @@ import { Inspector } from './inspector/Inspector'
 import { ConversationList } from './shell/ConversationList'
 import { ModelBanner } from './shell/ModelBanner'
 import { KnowledgePage } from './knowledge/KnowledgePage'
-import { MemoryParts } from './memory/MemoryParts'
+import { mayBeOld } from './knowledge/fresh'
 import { MemoryPage } from './memory/MemoryPage'
 import { ModelsPage } from './models/ModelsPage'
 import { FirstSteps } from './shell/FirstSteps'
@@ -340,9 +340,10 @@ export function App() {
     return () => clearInterval(timer)
   }, [projectId])
 
-  // K-bilgi: the project's knowledge is read when its page opens, and on Agents (a role's Knowledge tab).
+  // K-bilgi: the project's knowledge is read when Memory opens (either part: the sources' tab says how many may be old),
+  // and on Agents (a role's Knowledge tab).
   useEffect(() => {
-    if (projectId && (view === 'knowledge' || view === 'agents')) void useApp.getState().loadKnowledge()
+    if (projectId && ['memory', 'knowledge', 'agents'].includes(view)) void useApp.getState().loadKnowledge()
   }, [projectId, view])
 
   useEffect(() => {
@@ -784,6 +785,9 @@ export function App() {
         onSkillRecord: useApp.getState().skillRecord,
         onPatchRole: useApp.getState().patchRole,
       }}
+      // (The skills agents proposed: Ready for you's rows of them; their yes is on their card there.)
+      proposals={waiting.flatMap(item => (item.what === 'card' && item.row.what === 'skill' ? [item.row.item] : []))}
+      onReady={() => show('ready')}
     />
   )
   const readyPage = () => (
@@ -910,13 +914,19 @@ export function App() {
       }}
     />
   )
+  // 0.1.10: Memory's two parts are one page, the same for either view (what is typed in one stays as the other is shown).
   const memoryPage = () =>
     !project ? (
       noFolder('Memory')
     ) : (
       <MemoryPage
         key={project.id}
-        parts={<MemoryParts sources={false} onPart={sources => sources && setView('knowledge')} />}
+        sources={view === 'knowledge'}
+        onPart={sources => setView(sources ? 'knowledge' : 'memory')}
+        sourcesPart={knowledgePart(project)}
+        old={knowledge ? knowledge.filter(item => mayBeOld(item.state)).length : null}
+        linked={projects.filter(one => project.memory_links?.includes(one.id)).map(one => one.name)}
+        onLinked={() => useApp.getState().askSettings('memory')}
         searchFor={pick?.view === 'memory' ? { words: pick.id, n: pick.n } : undefined}
         memory={memory}
         error={memoryError}
@@ -938,28 +948,25 @@ export function App() {
         onExport={projectId ? () => download('GET', `/projects/${projectId}/memory/export`) : undefined}
       />
     )
-  const knowledgePage = () =>
-    !project ? (
-      noFolder('Memory')
-    ) : (
-      <KnowledgePage
-        key={project.id}
-        parts={<MemoryParts sources onPart={sources => !sources && setView('memory')} />}
-        items={knowledge}
-        error={knowledgeError}
-        projectName={project.name}
-        providers={providers}
-        otherProjects={projects.filter(one => one.id !== project.id)}
-        onReload={useApp.getState().loadKnowledge}
-        onAdd={useApp.getState().addKnowledge}
-        onSave={useApp.getState().saveKnowledge}
-        onDelete={useApp.getState().deleteKnowledge}
-        onLearn={useApp.getState().learnKnowledge}
-        onTry={useApp.getState().tryKnowledge}
-        onCopy={useApp.getState().copyKnowledge}
-        onReadFile={useApp.getState().knowledgeFile}
-      />
-    )
+  const knowledgePart = (project: Project) => (
+    <KnowledgePage
+      items={knowledge}
+      error={knowledgeError}
+      projectName={project.name}
+      providers={providers}
+      otherProjects={projects.filter(one => one.id !== project.id)}
+      roles={roles}
+      onUse={useApp.getState().useKnowledge}
+      onReload={useApp.getState().loadKnowledge}
+      onAdd={useApp.getState().addKnowledge}
+      onSave={useApp.getState().saveKnowledge}
+      onDelete={useApp.getState().deleteKnowledge}
+      onLearn={useApp.getState().learnKnowledge}
+      onTry={useApp.getState().tryKnowledge}
+      onCopy={useApp.getState().copyKnowledge}
+      onReadFile={useApp.getState().knowledgeFile}
+    />
+  )
   const conversationsPage = () => (
     <ConversationList
       conversations={conversations}
@@ -1124,7 +1131,7 @@ export function App() {
     ready: readyPage,
     usage: usagePage,
     memory: memoryPage,
-    knowledge: knowledgePage,
+    knowledge: memoryPage,
     conversations: conversationsPage,
   }
   /** The page shown: the one of its view, else the canvas. */
@@ -1221,7 +1228,8 @@ export function App() {
         {settingsPage()}
         {/* Hidden, not gone, under the settings: a message being typed and an open window stay. */}
         <div className="workspace" hidden={settingsOpen}>
-          <PageGuard key={view}>{page()}</PageGuard>
+          {/* (Memory's two parts are one page: what is typed in one stays as the other is shown.) */}
+          <PageGuard key={view === 'knowledge' ? 'memory' : view}>{page()}</PageGuard>
         </div>
       </div>
       {toasts()}

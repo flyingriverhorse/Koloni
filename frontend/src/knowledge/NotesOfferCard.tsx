@@ -4,7 +4,7 @@ import type { NotesOffer } from '../api/types'
 
 /**
  * K-bilgi 6: "Add to Project notes?" under a turn - what its agents fixed and the docs/ it changed, a tick each, in their
- * words; since 0.1.10 the Project notes are Memory's (Told tab, the rules' second box). Answered whenever you like: it never held the turn. Add sends the lines shown and those ticked - an offer a turn
+ * words; since 0.1.10 the Project notes are Memory's (Your words, under the rules). Answered whenever you like: it never held the turn. Add sends the lines shown and those ticked - an offer a turn
  * added to meanwhile is refused and shown again - Not now none. Once answered, a line says what came of it.
  */
 export function NotesOfferCard({

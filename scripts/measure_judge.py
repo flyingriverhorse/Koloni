@@ -140,16 +140,20 @@ def prompt(which: str, case: dict, variant: str = risk_judge.GATE_PROMPT) -> str
 
 def verdict(which: str, case: dict, answer: str, net: bool = True) -> dict | None:
     """The answer read as the gate reads it - a words "run" never beside a line that forbids
-    the delete's target (`_judging`'s `names`). `net` False: without `judge._conditional`,
-    wherever `judge.verdict` asks it (a run's line and heading, a line set against it, a
-    refusal's sentence)."""
+    the delete's target (`_judging`'s `names`), nor in a folder its line does not name
+    (`judge._elsewhere`, K5). `net` False: without `judge._conditional`, wherever
+    `judge.verdict` asks it (a run's line and heading, a line set against it, a refusal's
+    sentence), nor the folder's net."""
     if which == "risk":
         return risk_judge.verdict(answer)
     line, cwd = case["command"]["command"], case["command"]["where"]
     off = mock.patch.object(judge, "_conditional", lambda _plain: False)
     with nullcontext() if net else off:  # (no await inside: no other case reads it meanwhile)
         return judge.verdict(
-            answer, said(case), lambda one: bool(cards.mentioned([one], line, cwd))
+            answer,
+            said(case),
+            lambda one: bool(cards.mentioned([one], line, cwd)),
+            cwd if net else ".",
         )
 
 
