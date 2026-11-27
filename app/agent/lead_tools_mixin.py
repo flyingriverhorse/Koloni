@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, literal_column, select
 
-from app import advisor, git, injection, masking, model_native, pr_feedback
+from app import advisor, git, injection, masking, model_native, pr_feedback, push_judge
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
 from app.db.models import Conversation, Project, ToolCall
@@ -125,7 +125,9 @@ class LeadToolsMixin:
         which will is not known yet as it begins.
         Task 11 (0.1.11, moved here from `LoopMixin` to make room there): and, where gh is
         installed, whether the project's origin is on GitHub - read_pr_feedback is offered by it,
-        the same all through the turn (`_pr_offered`)."""
+        the same all through the turn (`_pr_offered`). At Full auto, what a push goes by as it
+        begins ("push", `push_judge.at_start`): a push of the feature branch the judge decides
+        is compared with it (`_push_takes`) - a turn begun at another level has none: a card."""
         if ctx.root is None or ctx.run_id in self._git_at:
             return
         self._git_at[ctx.run_id] = None  # (None: no git, or not read - nothing to compare)
@@ -133,6 +135,10 @@ class LeadToolsMixin:
             self._git_at[ctx.run_id] = await asyncio.to_thread(git.where, Path(ctx.root))
         if self._git_at[ctx.run_id] is not None and not ctx.depth:  # (Task 11, `_pr_offered`)
             self._on_github[ctx.run_id] = await asyncio.to_thread(_on_github, Path(ctx.root))
+        # shortcut: at Full auto alone (a few git calls a turn); a turn moved to Full auto later
+        # has none, and its pushes are cards - read it at every level if that is met often.
+        if (seen := self._git_at[ctx.run_id]) is not None and self._full_auto(ctx):
+            seen["push"] = await asyncio.to_thread(push_judge.at_start, Path(ctx.root))
 
     async def _read_pr_feedback(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> str:
         """read_pr_feedback: one pull request's reviews, comments, line comments and checks, read

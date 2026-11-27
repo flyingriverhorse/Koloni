@@ -16,7 +16,9 @@ way, and where that ends.
   sending data off the machine) is a courtesy for honest commands, not a wall: a command written to hide
   what it does is not seen. [Full auto's judge](../use/permissions.md#full-autos-judge), on by default,
   also asks a small model about each command that list does not stop - since 0.1.10 a delete in the
-  project, git work thrown away and a stop by name too, which the list asked of before - and refuses one
+  project, git work thrown away and a stop by name too, which the list asked of before, and since
+  0.1.11 [a plain push of your feature branch](../use/permissions.md#a-push-of-your-feature-branch) to
+  its origin (never `main`, `master` or origin's default branch, never forced) - and refuses one
   it finds risky, or puts it on a card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
   then it runs. Use Full auto only for work you are ready to let run.
 - For a wall against a deliberate attacker on your own account, run agents' commands in Docker, or run
@@ -139,7 +141,11 @@ level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vs
 (`gradle-wrapper.properties`, `gradle-wrapper.jar`), `.bazelrc`, `.bazelversion`, `.mcp.json`,
 commit-hook settings (`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's `.pth` files
 in `site-packages`, and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except at Full
-auto. A project's own `gradlew` or `mvnw` does not: `./gradlew test` is ordinary work. One written
+auto. So does setting git's settings (`git config` with a value), and since 0.1.11 a `git remote` that
+changes `origin` - `add`, `set-url`, `remove` / `rm`, `rename`, `set-head`, `set-branches` -, where a
+push of your feature branch goes ([Full auto's judge](../use/permissions.md#a-push-of-your-feature-branch));
+another remote's (`git remote add upstream …`) does not. A project's own `gradlew` or `mvnw` does not:
+`./gradlew test` is ordinary work. One written
 without being named is put back after the command - but in `.idea/`, which a JetBrains IDE rewrites
 itself: there only a write or a command that names it asks. On Windows, device names (`CON`, `COM1`) and
 file streams (`a.txt:x`) are never written.

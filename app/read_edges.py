@@ -124,6 +124,61 @@ def rejoined(words: list[str]) -> str:
     )
 
 
+# `git remote`'s verbs that change a remote in `.git/config` - its address, name, default or
+# branches. For origin, where a push the judge decides goes (`push_judge`: compared within a turn,
+# not across turns), they set git's config as `git config` does: asked at every level. Another
+# remote's (`git remote add upstream x`) stay as they were.
+_REMOTE_CHANGES = frozenset(
+    {"add", "set-url", "remove", "rm", "rename", "set-head", "set-branches"}
+)
+_CONFIG_WRITES = ("--unset", "--add", "--replace", "--rename", "--remove", "--edit", "-e")
+# A remote's name as it is written plainly: any other (a quote inside it, an escape, a backtick, a
+# variable) may be origin to the shell (`ori''gin`), and is read as origin.
+_PLAIN_REMOTE = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def sets_git_config(parts: list[tuple[str | None, list[str]]]) -> bool:
+    """Whether a line's parts (each git's command and its words past it, `commands._git_sub`) set
+    git's config: `git config` setting or taking off a value - not one that only reads (`--get…`,
+    `--list`, `-l`, a key alone, git 2.46's `get` and `list`) - or a `git remote` verb that changes
+    origin (`_changes_origin`). git's words in any case (`git REMOTE Set-Url`: a case-blind disk
+    finds its program)."""
+    for sub, rest in parts:
+        sub = (sub or "").casefold()
+        if sub == "remote" and _changes_origin(rest):
+            return True
+        if sub != "config" or rest[:1] in (["get"], ["list"]):
+            continue
+        if not any(w.startswith(("--get", "--list", "-l")) for w in rest) and (
+            len([w for w in rest if not w.startswith("-")]) > 1
+            or any(w.startswith(_CONFIG_WRITES) for w in rest)
+        ):
+            return True
+    return False
+
+
+def _changes_origin(rest: list[str]) -> bool:
+    """Whether `git remote`'s words (past `remote`) are a verb of `_REMOTE_CHANGES` whose remote -
+    the first name past it (`add`'s past the values of its `-t` and `-m`), both of `rename`'s - is
+    origin with every quote taken out, or no plain name (`_PLAIN_REMOTE`)."""
+    at = next((n for n, word in enumerate(rest) if not word.startswith("-")), len(rest))
+    verb = rest[at].casefold() if at < len(rest) else ""
+    if verb not in _REMOTE_CHANGES:
+        return False
+    names, value = [], False
+    for word in rest[at + 1 :]:
+        if value:
+            value = False
+        elif word.startswith("-"):
+            value = verb == "add" and word in ("-t", "-m")
+        else:
+            names.append(word)
+    return any(
+        not _PLAIN_REMOTE.fullmatch(name) or re.sub(r"['\"]", "", name) == "origin"
+        for name in names[: 2 if verb == "rename" else 1]
+    )
+
+
 def looks_bare(root: Path) -> bool:
     """Whether a folder with no `.git` holds a `HEAD`: git may take it for a repository of its
     own - a bare one, one whose `objects` is a file, or whose `commondir` leads elsewhere -,

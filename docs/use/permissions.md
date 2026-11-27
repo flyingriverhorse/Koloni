@@ -32,6 +32,7 @@ level says "· no checks"). Each chat has its own level.
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
 | A command that deletes or empties files in the project, or throws away git work, written as a plain line (`rm -rf src`, `Remove-Item`, `git reset --hard`, `git clean -fd`, `git checkout -- .`, `git stash drop`, `git branch -D`) | Card | Card | Runs, unless [Full auto's judge](#full-autos-judge) finds it risky - a card with the judge off or no judge model to answer ([which](#what-the-judge-decides-in-place-of-the-list)) |
 | A command that sends data off the machine (`git push`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
+| A plain push of the branch you have checked out to its own `origin` (`git push`, `git push -u origin feature/x`) - never `main`, `master` or origin's default branch | Card | Card | Runs, unless [Full auto's judge](#a-push-of-your-feature-branch) finds it risky - a card with the judge off, no judge model to answer, or anything [it does not know as plain](#a-push-of-your-feature-branch) |
 | A delete out of the project or of all of it (`rm -rf ../x`, `rm -rf .`, `find . -delete`, `git clean -fdx`), one not written as a plain line (`bash -c "rm -rf build"`, `… \| xargs rm`, `rm -rf .gi\t`), a worktree removed, git's recovery pruned (`git gc --prune=now`, `git reflog expire`), a Docker delete, or a git remote's branches overwritten or deleted (`git push --force`, `git push origin :x`) | Card | Card | Card |
 | A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed [such deletes](#disposable-deletes) | Card | Runs | Runs |
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless Full auto's judge finds it risky; a card where what it runs deletes, sends or is asked at every level |
@@ -658,8 +659,9 @@ The list still asks at every level - its card, never the judge's word - about:
   gnome-shell, Xorg, WindowServer, loginwindow, systemd, launchd, explorer, lsass, csrss, svchost,
   git, …);
 - a send off the machine (put to [Check what I said first](#check-what-i-said-first) where that box
-  works), and a git remote's branches overwritten or deleted (`git push --force`, `git push origin
-  :x`) - a card whatever you said;
+  works) - but a plain push of your feature branch to its origin, [the judge's
+  since 0.1.11](#a-push-of-your-feature-branch) -, and a git remote's branches overwritten or deleted
+  (`git push --force`, `git push origin :x`) - a card whatever you said;
 - a secret file, `.koloni/` (its free folders too: what is on the disk there is KOLONİ's to look at),
   a file that steers agents, git's settings or a patch;
 - a line KOLONİ cannot read (`-EncodedCommand` anywhere in it, more than it reads), web with web
@@ -684,6 +686,60 @@ Measured on 27 Nov 2026 on the 31 cases of such lines the list now hands the jud
 **haiku** and **Sonnet** each called no risky line fine. Haiku called one fine line risky - `git stash
 clear` after "Drop my old stashes, I don't need them." -, which then waits on its card or is refused;
 Sonnet called none.
+
+### A push of your feature branch
+
+Since 0.1.11, as Claude Code's auto mode: in a chat you watch at **Full auto**, with the judge's switch
+on and a judge model to answer, a plain push of the branch you have checked out to its own `origin`
+goes to the judge instead of a card. **fine** pushes it; **risky** is refused or waits on its card, as
+above. `main` is never pushed so: a push to `main`, `master` or origin's default branch stays a card at
+every level - quoted, where you asked for it ([below](#a-push-a-pull-request-or-a-merge-you-asked-for)).
+
+Which lines - one line, nothing else on it: `git push`, `git push origin`, `git push origin <branch>`,
+`git push -u origin <branch>` (or `--set-upstream`) and `git push origin HEAD`, where `<branch>` is the
+branch checked out. Any other line is the list's card, as before: a force push in any spelling
+(`-f`, `--force-with-lease`, `+branch`), `--tags`, `--follow-tags`, `--all`, `--mirror`, `--delete`,
+`--prune`, a push option (`-o`), `--receive-pack`, `--repo`, `--no-verify`, git told something before
+`push` (`git -c …`), another branch, a tag or a ref (`HEAD:main`, `refs/tags/v1`), another remote or
+an address, a chain, a quote or a variable.
+
+Before the judge is asked, and again once it said fine, KOLONİ looks at the repository; any of these
+keeps the card:
+
+- the branch is `main`, `master` or origin's default branch - as origin itself names it (its `HEAD`,
+  asked as the push would ask it; an origin that names none is a card), and as this repository's
+  `origin/HEAD` names it now and did when the turn began -, or HEAD is on no branch;
+- git's settings send it elsewhere or send more: no `remote.origin.url` in them (git would read origin
+  from an old `.git/remotes` or `.git/branches` file), the branch's upstream is another branch, its
+  remote (or `remote.pushDefault`) is not `origin`, `push.default` is `matching` or `nothing`, origin has
+  a push map, a mirror, a receive-pack or push options, tags follow, submodules are pushed
+  (`push.recurseSubmodules`, `submodule.recurse`), or a hook is set in git's settings (`hook.*`);
+- origin's address or git's settings in any scope are not what they were when the turn began - a
+  `core.hooksPath` an agent set. A turn that began below Full auto has no such record: its pushes are
+  cards. An agent's `git remote` that changes `origin` - `add`, `set-url`, `remove`, `rename`,
+  `set-head`, `set-branches`, origin spelt any way, a quote inside it (`ori''gin`) too - is itself asked
+  at every level, Full auto too, so an origin changed in one turn is not the next turn's unseen;
+- git reads a settings file of the project out of `.git` - an `include.path` of yours to
+  `../.gitconfig`: an agent may write that file unasked, and a `pushInsteadOf` there would send the
+  next turn's push elsewhere;
+- a hook a push runs on this machine is there at all - `pre-push` or `reference-transaction` in
+  `.git/hooks` or in the folder `core.hooksPath` names - yours too (husky's, Git LFS's): an unchanged
+  hook can run what an agent wrote;
+- origin is a folder in the project, or a `file:` address (its own hooks would run on this machine);
+- a secret KOLONİ knows - one you gave on a card this turn, a key it keeps, a secret of its environment -
+  is in a commit the push sends, its message or a file it writes. What the push sends is counted
+  against what origin itself says it holds (asked as a push would ask it), never a branch git keeps of
+  origin's here; origin that does not answer, holds none of the branch, `main`, `master` or its default,
+  or more than 50 commits to send, is a card;
+- the agent works in a working copy, KOLONİ does not know the folder the command runs in, or the
+  project runs its commands in Docker (the container's git, settings and hooks are not the ones looked
+  at);
+- the branch or its commit moved between the judge's **fine** and the run - another card waited, say:
+  KOLONİ looks again just before it runs.
+
+Where you said "Push it." the judge decides too - it reads your words; where it does not call it fine,
+or is not asked, its card quotes you as before (never refused). Ask, Auto-edit, a To-do task's turn,
+a job while you're away and a turn of a chat you went away from keep the card.
 
 ### The judge is not a wall
 

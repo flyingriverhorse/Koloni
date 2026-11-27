@@ -28,6 +28,7 @@ from app.read_edges import (
     git_writes,
     globs_an_option,
     looks_bare,
+    sets_git_config,
 )
 from app.workspace import (
     FREE,
@@ -4041,23 +4042,11 @@ def _led(words: list[str]) -> list[str]:
 
 
 def _sets_git_config(command: str) -> bool:
-    """Whether a part of a command is `git config` setting or taking off a value - not one
-    that only reads (`--get…`, `--list`, `-l`, a key alone)."""
-    for words in _parts(command):
-        sub, rest = _git_sub(words)
-        if sub != "config" or rest[:1] in (["get"], ["list"]):  # (git 2.46's words for a read)
-            continue
-        if not any(w.startswith(("--get", "--list", "-l")) for w in rest) and (
-            len([w for w in rest if not w.startswith("-")]) > 1
-            or any(
-                w.startswith(
-                    ("--unset", "--add", "--replace", "--rename", "--remove", "--edit", "-e")
-                )
-                for w in rest
-            )
-        ):
-            return True
-    return False
+    """Whether a part of a command sets git's config (`read_edges.sets_git_config`): `git config`
+    setting or taking off a value, or a `git remote` that changes origin - each part as the shell
+    splits it, and as written, its quotes kept: `"ori"gin` is origin to the shell, not `ori`."""
+    written = [_git_sub(_words(piece.strip())) for piece in _CHAIN.split(command)]
+    return sets_git_config([*(_git_sub(words) for words in _parts(command)), *written])
 
 
 def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
