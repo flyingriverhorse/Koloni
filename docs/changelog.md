@@ -22,6 +22,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Changed
 
 - **CLIs**: GitHub Copilot CLI run Native hears your word while it works: its Tell box is there again, and Send now goes into a Copilot Orchestrator's running turn (measured with Copilot 1.0.114). An agy agent's box says it can't hear messages while it works and sends your words to the Orchestrator instead ([docs](reference/known-limits.md#clis)).
+- **CLIs**: a word written into a CLI's running turn - Send now, an agent's Tell box, another agent's message - comes to one of three ends, read from the CLI's own sign (measured on 27 Nov 2026): **taken** (Claude Code echoes it before its result, Codex answers with its turn, Copilot names it as taken before it goes idle), **not sent** (its turn was over, or it could not be written: Send now is read at the Orchestrator's next step or run, as before) or **unknown** (written, and no sign by its turn's end) - never sent again, since it may have been read, and said in the chat: "Lead may not have read your word before its turn ended: … - it is not sent again; say it once more if it still matters". An agent that sent the message is told which, in its answer or in a note. Claude Code is started with `--replay-user-messages` for it, and a run whose word it echoed in its turn ends at its result, without the 30 seconds' wait for a turn on it ([docs](use/talk-while-agents-work.md#what-came-of-a-word-sent-into-a-clis-turn)).
 
 ### Fixed
 
