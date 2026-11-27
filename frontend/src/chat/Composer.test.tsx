@@ -60,20 +60,20 @@ test('while the Orchestrator asks, the message box says to answer above - open, 
   const { rerender } = render(<Composer {...props} running scope="c" />)
   expect(screen.getByLabelText('Message')).toHaveAttribute(
     'placeholder',
-    'Answer the question above, or queue a message…',
+    'Answer the question above, or write to the Orchestrator…',
   )
   // (Closed, nothing above the box asks: its line says what the Orchestrator asks.)
   rerender(<Composer {...props} running scope="c" compact />)
   expect(screen.getByLabelText('Message')).not.toHaveAttribute(
     'placeholder',
-    'Answer the question above, or queue a message…',
+    'Answer the question above, or write to the Orchestrator…',
   )
   // Nor on the Talk or Notes tab, over which the same box stands: the question is on the Chat tab.
   act(() => useApp.getState().showChatTab('Notes'))
   rerender(<Composer {...props} running scope="c" />)
   expect(screen.getByLabelText('Message')).not.toHaveAttribute(
     'placeholder',
-    'Answer the question above, or queue a message…',
+    'Answer the question above, or write to the Orchestrator…',
   )
 })
 
@@ -869,7 +869,7 @@ test('the placeholder says what a message does now: ask, write into this turn, a
   rerender(<Composer {...props} scope="c" running />)
   expect(screen.getByLabelText('Message')).toHaveAttribute(
     'placeholder',
-    'Answer the question above, or queue a message…',
+    'Answer the question above, or write to the Orchestrator…',
   )
 })
 

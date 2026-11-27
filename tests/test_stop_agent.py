@@ -271,3 +271,30 @@ def test_tell_to_a_copilot_child_goes_to_the_orchestrator(make_client, wait_run,
     )
     assert said_in(model.calls_of["Lead"][-1], note) == 1
     assert said_in(model.calls_of["Coder"][-1], "use blue") == 0  # never the agent's
+
+
+def test_a_word_to_the_orchestrator_about_an_agent_wakes_it_while_it_waits(
+    make_client, wait_run, project_dir
+):
+    a = Gate()
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [step(bg("Coder", "do A", "s1")), text("asked"), text("heard"), text("read")],
+            "Coder": [a.step(text("A done"))],
+        },
+    )
+    snap = until(client, cid, lambda s: statuses(s) == {"Lead": "waiting", "Coder": "running"})
+    coder = agent(snap, "Coder")["id"]
+    told = client.post(
+        f"/api/agents/{coder}/tell", json={"words": "stop at A", "to_lead": True}, headers=ORIGIN
+    )
+    assert told.status_code == 204
+    # It wakes for it - as for a word of the user's - while the Coder still works.
+    until(client, cid, lambda s: len(model.calls_of["Lead"]) >= 3)
+    assert said_in(model.calls_of["Lead"][2], "stop at A") == 1
+    assert statuses(client.get(f"/api/conversations/{cid}").json())["Coder"] == "running"
+    a.release()
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]

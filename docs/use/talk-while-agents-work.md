@@ -45,8 +45,11 @@ word, as any message of yours is - Full auto's judge reads it as yours.
 
 | CLI | Send now |
 |---|---|
-| Claude Code, Codex, Copilot | goes into its turn at once (measured 27 Nov 2026: Claude Code 2.1.332, Codex 0.172, Copilot 1.0.114) |
-| agy | read when its current run ends, in one more run of the same turn |
+| Claude Code, Codex, Copilot run **Native** | goes into its turn at once (measured 27 Nov 2026: Claude Code 2.1.332, Codex 0.172, Copilot 1.0.114) |
+| agy, and any CLI run **One session per agent** | read when its current run ends, in one more run of the same turn |
+
+A word to the Orchestrator about an agy agent (its window's box) wakes the Orchestrator as your own
+word does, while it waits for its agents.
 
 ## Agents in the background
 

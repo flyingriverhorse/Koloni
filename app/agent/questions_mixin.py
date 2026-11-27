@@ -728,9 +728,8 @@ class QuestionsMixin:
             if (lead := self._lead_of(ctx.run_id)) is None or lead.agent_id == agent_id:
                 return "the Orchestrator is not at work"
             name = ctx.name or ctx.role
-            self._send(
-                lead, lead, LEAD_TOLD_ABOUT.format(name=name, words=quoted(words)), False, True
-            )
+            said = LEAD_TOLD_ABOUT.format(name=name, words=quoted(words))
+            self._word_waits(lead.run_id, self._send(lead, lead, said, False, True))  # (as a word)
             return None
         told = USER_TOLD.format(words=quoted(words))
         door = agent_id in self._doors

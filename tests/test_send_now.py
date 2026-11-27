@@ -471,3 +471,18 @@ def test_the_turns_request_stays_its_first_message(make_client, wait_run, projec
             .limit(1)
         )
     assert first == "go"
+
+
+def test_the_door_stays_shut_once_the_turn_is_at_its_end(make_client, wait_run, project_dir):
+    # (A second Stop may leave the turn before it is on record as over: no word gets in then.)
+    gate = Gate()
+    client, model, cid, run_id = setup(
+        make_client, project_dir, {"Lead": [gate.step(text("done"))]}
+    )
+    gate.wait_partial()
+    runner = client.app.state.runner
+    topic = client.get(f"/api/conversations/{cid}").json()["runs"][0]["topic_id"]
+    client.portal.call(runner._shut_door, run_id, None)
+    assert runner.takes_word(cid, topic) == (None, "the turn was ending")
+    gate.release()
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"

@@ -446,11 +446,17 @@ class AtWorkMixin:
         Orchestrator reads it at its next step (`_history`: a step that is taken now, or one
         that a wait of its gives way to), and its turn does not end before one has
         (`_door_closes`). Into the turn of a CLI that takes it while it works, at once."""
-        self._unheard.setdefault(run_id, []).append(message_id)
-        self._word.setdefault(run_id, asyncio.Event()).set()
+        self._word_waits(run_id, message_id)
         lead = self._lead_of(run_id)
         if lead is not None and lead.agent_id in self._doors:
             asyncio.ensure_future(self._steer_word(lead, message_id, words))
+
+    def _word_waits(self: "AgentRunner", run_id: str, message_id: str) -> None:
+        """A word of the user's for the turn's Orchestrator is on record (`word_came`, or one
+        about an agent that hears nothing: `tell_at_work`): read at its next step, its waits
+        woken for it, the turn held open till then."""
+        self._unheard.setdefault(run_id, []).append(message_id)
+        self._word.setdefault(run_id, asyncio.Event()).set()
 
     async def _steer_word(self: "AgentRunner", lead: Ctx, message_id: str, words: str) -> None:
         """`word_came`'s word into the Orchestrator's CLI turn as it runs, as the user's own
@@ -540,7 +546,10 @@ class AtWorkMixin:
         in a turn of their own (`_requeue`)."""
         unheard = self._unheard.pop(run_id, [])
         self._word.pop(run_id, None)
-        self._door_shut.discard(run_id)
+        # (Shut for good: a second Stop may leave the turn before it is on record as over.)
+        # shortcut: a turn's id stays in the set for KOLONİ's life - drop it once the turn is over
+        # on record if that is ever felt.
+        self._door_shut.add(run_id)
         self._listening -= {one for one, known in self._ctxs.items() if known.run_id == run_id}
         if unheard and cid:
             self._requeue(run_id, cid, unheard)

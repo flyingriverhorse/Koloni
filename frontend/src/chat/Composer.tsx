@@ -109,7 +109,7 @@ interface Props {
 
 /**
  * What the empty box says. While the Orchestrator's question is open in the open chat, on its Chat tab, that it is
- * answered on its card and a message sent now is queued (0.1.4); closed, the chat's line says what it asks, and the
+ * answered on its card and a message sent now goes into the turn (0.1.11); closed, the chat's line says what it asks, and the
  * Talk and Notes tabs, over which the same box stands, do not show it.
  */
 function placeholderOf(
@@ -120,7 +120,8 @@ function placeholderOf(
   running: boolean,
   away: boolean,
 ): string {
-  if (!compact && tab === 'Chat' && conv && leadQuestion(conv)) return 'Answer the question above, or queue a message…'
+  if (!compact && tab === 'Chat' && conv && leadQuestion(conv))
+    return 'Answer the question above, or write to the Orchestrator…'
   // (☾ Away: a message of yours ends it.)
   if (away) return 'Write to come back…'
   if (running) return 'Write to the Orchestrator - it reads it in this turn…'
@@ -204,7 +205,7 @@ export function Composer({
   const links = linksIn(text)
   const canSend = sendable(text, files.length, sending || going)
   // D2: where a message sent now waits in the queue instead, why (the server's words).
-  const [queued, setQueued] = useState<string | null>(null)
+  const [queued, setQueued] = useState<{ key: string; said: string } | null>(null)
   const { noted, setPasted, asPlain, caret } = usePasted(key, draft, input)
 
   function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
@@ -258,7 +259,7 @@ export function Composer({
     try {
       const added = files.length ? { attachments: files.map(one => one.id), save_to_project: save } : undefined
       const why = await sendWith(onSend, content, fresh, overBudget, added, now)
-      if (typeof why === 'string') setQueued(`Queued: ${why}`)
+      if (typeof why === 'string') setQueued({ key: from, said: `Queued: ${why}` })
       // Only what was sent is cleared: words written meanwhile stay. (The files go with their message.)
       if (useApp.getState().drafts[from] === draft) useApp.getState().setDraft(from, '')
       setFreshIn(null)
@@ -418,9 +419,9 @@ export function Composer({
             onSend={() => void send()}
             onLater={() => void send(false, false)}
           />
-          {queued && (
+          {queued?.key === key && (
             <div role="status" className="composer-queued muted">
-              {queued}
+              {queued.said}
             </div>
           )}
         </div>
