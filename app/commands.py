@@ -1719,7 +1719,7 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
         )
     ):
         return "Makes a link, which can point anywhere."
-    if program == "find" and "-delete" in map(_as_word, rest):  # (`-de""lete`: one to the shell)
+    if program == "find" and any(_as_word(w) == "-delete" or "$'" in w for w in rest):  # (unread)
         return "Deletes files (find -delete)."
     if program in ("docker", "docker-compose"):
         # `docker volume rm x`, `docker --context x rm web`: the task is in the first two words
@@ -2864,7 +2864,7 @@ def _through_links(words: list[str], own: re.Pattern | None = None) -> str:
         return REBUILDS_THROUGH_LINKS
     if (
         program == "find"
-        and "-delete" in map(_as_word, rest)
+        and any(_as_word(w) == "-delete" or "$'" in w for w in rest)  # (`$'…'`: unread)
         or program == "robocopy"
         and any(w.casefold() in ("/mir", "/purge") for w in rest)
         or program == "git"
@@ -3539,10 +3539,10 @@ def _looks_only(command: str) -> bool:
     entered = _ENTERS.match(command)
     rest = command[entered.end() :] if entered else command
     lines = [words for words in _parts(rest) if words]
-    looks = _LOOKERS | _SEARCHERS | {"find"}
+    looks = _LOOKERS | _SEARCHERS - {"ag", "ack"} | {"find"}  # (theirs take `--pag=`: review)
     return (
-        bool(lines)  # (an option as the shell joins it too: `-fpr""intf`, `-de\lete` - review)
-        and not ("<" in rest or ">" in rest or _SEARCH_DOES.search(_as_word(rest) + " " + rest))
+        bool(lines)  # (an option as the shell joins it too: `-fpr""intf`, `$'-de\x6cete'` - review)
+        and not (re.search(r"[<>$]", rest) or _SEARCH_DOES.search(_as_word(rest) + " " + rest))
         and all(_program(words[0]) in looks for words in lines)
     )
 

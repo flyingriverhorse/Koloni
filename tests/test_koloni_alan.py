@@ -103,6 +103,13 @@ HOOK = ".koloni/worktrees/abc/n/no-hooks/pre-commit"
         "rg --hostname-bin=.koloni/tmp/evil.sh x .koloni/worktrees",
         "cd .koloni/worktrees; find . -fpr\"\"intf abc/n/no-hooks/pre-commit 'x'",
         'find src -de""lete',  # (outside the trees too: a delete)
+        # (last round: bash's ANSI-C quoting, `$'…'`, which no reading here decodes - unread)
+        r"find .koloni/worktrees/abc/n/tree $'-de\x6cete'",
+        r"find .koloni/worktrees/abc/n/tree $'\055delete'",
+        rf"find .koloni/worktrees/abc/n/tree -maxdepth 0 $'-fpr\x69ntf' {HOOK} 'x'",
+        "find src $'-delete'",
+        "ag --pag=.koloni/tmp/evil.sh x .koloni/worktrees",  # (ag and ack: no look of a tree)
+        "ack --pag=.koloni/tmp/evil.sh x .koloni/worktrees",
     ],
 )
 def test_a_search_told_to_write_run_or_delete_is_no_look_however_its_option_is_split(line):
