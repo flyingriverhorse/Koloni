@@ -313,8 +313,9 @@ def test_a_cost_is_a_models_own_and_rows_come_most_spent_first(make_client, wait
         ("fake-model", {"amount": 3.0, "currency": "USD"}),
         ("mute", None),  # a price, and nothing known to price
     ]
-    # money is a model's row's, and a starter's its models' added up: never two currencies
-    assert all("cost" not in row for row in told["by_conversation"])
+    # money is a model's row's, and a starter's or a chat's its models' added up: never two
+    # currencies
+    assert [row["cost"] for row in told["by_conversation"]] == [None]
     assert [row["cost"] for row in told["by_start"]] == [None]
     (talk,) = told["by_conversation"]
     assert (talk["runs"], talk["agents"], talk["input_tokens"], talk["unknown_agents"]) == (
@@ -323,6 +324,63 @@ def test_a_cost_is_a_models_own_and_rows_come_most_spent_first(make_client, wait
         5_000_000,
         1,
     )
+
+
+def test_a_day_and_a_chat_cost_what_their_models_did_and_copilots_own_units_add_up(
+    make_client, wait_run, project_dir
+):
+    # (0.1.10's Usage page: a strip of days, the chats that spent most, Copilot's AI credits)
+    client, model, pid, cid = began(
+        make_client, project_dir, [text("a", 1_000_000, 0), text("b", 2_000_000, 0)]
+    )
+    first = turn(client, wait_run, cid)
+    second = turn(client, wait_run, cid, "again")
+    earlier = datetime.now(UTC) - timedelta(days=10)
+    with client.app.state.session_factory() as session:
+        session.get_one(Run, first["id"]).created_at = earlier
+        # (kept in UTC with no zone: the turn's own moment, not the test's clock)
+        second_at = session.get_one(Run, second["id"]).created_at.replace(tzinfo=UTC)
+        for nano in (1_500_000_000, 500_000_000):
+            session.add(
+                Agent(
+                    run_id=second["id"],
+                    role_name="Copilot",
+                    tools=[],
+                    provider_name="Copilot",
+                    model_id="auto",
+                    nano_aiu=nano,
+                    started_at=datetime.now(UTC),
+                )
+            )
+        session.commit()
+    assert (
+        client.put(
+            "/api/prices",
+            json={"model_id": "fake-model", "input": 1, "output": 1, "currency": "USD"},
+        ).status_code
+        == 200
+    )
+    told = usage(client, project_id=pid)
+    day = lambda at: at.astimezone().date().isoformat()  # noqa: E731  (this machine's day)
+    # each day by this machine's clock, the first first; Copilot's agents have no price: the least
+    assert [(row["day"], row["runs"], row["cost"]) for row in told["by_day"]] == [
+        (day(earlier), 1, {"amount": 1.0, "currency": "USD"}),
+        (day(second_at), 1, {"amount": 2.0, "currency": "USD", "at_least": True}),
+    ]
+    (talk,) = told["by_conversation"]
+    assert talk["cost"] == {"amount": 3.0, "currency": "USD", "at_least": True}
+    copilot = next(row for row in told["by_model"] if row["provider_name"] == "Copilot")
+    # what it said in its own unit, added up; what it never said is not a zero
+    assert (copilot["nano_aiu"], copilot["premium_requests"], copilot["cost"]) == (
+        2_000_000_000,
+        None,
+        None,
+    )
+    # a period has only its own days
+    since = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    assert [row["day"] for row in usage(client, project_id=pid, since=since)["by_day"]] == [
+        day(second_at)
+    ]
 
 
 # --- the fixes after the review (design §10) ----------------------------------

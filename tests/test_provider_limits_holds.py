@@ -158,7 +158,7 @@ def test_a_requests_limits_read_the_record_once(team, monkeypatch):  # noqa: F81
         assert client.patch(f"/api/providers/{provider}", json={"day_limit": 5}).status_code == 200
     read = []
     sums = usage._sums
-    monkeypatch.setattr(usage, "_sums", lambda *args: read.append(1) or sums(*args))
+    monkeypatch.setattr(usage, "_sums", lambda *args, **kw: read.append(1) or sums(*args, **kw))
     assert client.get("/api/roles/models").status_code == 200  # where each of 20-odd roles runs
     assert len(read) == 1
 

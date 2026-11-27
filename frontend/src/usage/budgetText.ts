@@ -14,3 +14,7 @@ export function budgetWarning(budget: Budget) {
   const used = `This project has used ${budget.at_least ? 'at least ' : ''}${usedPercent(budget)}% of its monthly budget`
   return budget.over ? `${used}: a new message asks before its work starts` : used
 }
+
+/** The days of this month after today: the budget counts this calendar month. */
+export const daysLeft = (now = new Date()) =>
+  new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate()

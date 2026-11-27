@@ -1,12 +1,303 @@
 /* --- usage page ------------------------------------------------------------ */
 
+/* The head: the page's name and its line, the period and the projects on the right; wrapped under it where narrow. */
+.usage-head {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+
 .usage-filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.usage-filters .input {
-  width: auto;
+/* A choice of one as joined buttons; the pressed one in honey, its weight saying it too. */
+.usage-seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+}
+
+.usage-seg button {
+  padding: 5px 12px;
+  border: 0;
+  border-left: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@media (max-width: 520px) {
+  .usage-seg button {
+    padding: 5px 8px;
+  }
+}
+
+/* (Inside its rim: the group clips what is outside it.) */
+.usage-seg button:focus-visible {
+  outline-offset: -3px;
+}
+
+.usage-seg button:first-child {
+  border-left: 0;
+}
+
+.usage-seg button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  font-weight: var(--weight-title);
+}
+
+/* The summary: a sentence first, as Ready's report; the numbers under it, then the budget's cells and the plans. */
+.usage-lede {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-left: 4px solid var(--accent-fill);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.usage-big {
+  max-width: 60ch;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.usage-lede .usage-two > .memory-section {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.usage-lede .usage-stats > div {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.usage-lede .usage-stats .usage-stat {
+  font-size: var(--text-heading);
+}
+
+/* The month's budget as ten cells, a tenth each, set as a honeycomb's row. */
+.budget-comb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding-bottom: 6px;
+}
+
+.budget-comb .cell:nth-child(even) {
+  margin-top: 6px;
+  margin-bottom: -6px;
+}
+
+/* A share as a bar (usage/Bar.tsx): its fill in the honey's text colour, orange where its row says why; the line on it
+   is where a plan's picks go a tier lower. */
+.usage-bar {
+  position: relative;
+  display: block;
+  height: 9px;
+  margin: 4px 0 6px;
+  border-radius: 5px;
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.usage-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 5px;
+  background: var(--accent);
+}
+
+.usage-bar-hot .usage-bar-fill {
+  background: var(--warn);
+}
+
+.usage-bar-mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+}
+
+/* Day by day: the last 30 days in one quiet strip, today in honey; a day that ran with nothing known is a dashed stub. */
+.usage-days h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+.usage-days h3 .memory-hint {
+  font-weight: var(--weight-body);
+}
+
+.usage-strip-box {
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.usage-strip {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  gap: 3px;
+  height: 84px;
+  margin: 0;
+  padding: 8px 10px 0;
+  list-style: none;
+}
+
+.usage-strip li {
+  display: flex;
+  align-items: flex-end;
+}
+
+.usage-strip i {
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--border-strong);
+}
+
+.usage-strip-today i {
+  background: var(--accent);
+}
+
+.usage-strip i.usage-strip-unknown {
+  height: 4px;
+  border-top: 2px dashed var(--muted);
+  border-radius: 0;
+  background: none;
+}
+
+.usage-axis {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 4px 10px 8px;
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+/* By model on the left; the chats, who started it and the decisions on the right. A fold opened there takes the page's
+   width: its table is as wide as the others. */
+.usage-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.usage-grid:has(.usage-side details[open]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 920px) {
+  .usage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.usage-grid > .memory-section,
+.usage-side > .memory-section {
+  margin-top: 0;
+}
+
+.usage-grid h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+.usage-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.usage-side-box {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  font-size: var(--text-body);
+  list-style: none;
+}
+
+.usage-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+
+/* Who started it: its name, a bar of its share, its amount. */
+.usage-who li {
+  display: grid;
+  grid-template-columns: minmax(0, 9em) minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.usage-share {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--hover);
+}
+
+.usage-share i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--border-strong);
+}
+
+.usage-more > summary {
+  color: var(--accent);
+  font-size: var(--text-note);
+}
+
+.usage-more[open] > summary {
+  margin-bottom: 10px;
+}
+
+/* The period's decisions, a line in a box of its own, its way to Ready for you at its end. */
+.usage-side > .decided-today,
+.memory-page > .decided-today {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* The page's last word: nothing is estimated. */
+.usage-honest {
+  max-width: 80ch;
 }
 
 .usage-table {
@@ -224,10 +515,6 @@ th[aria-sort='descending'] > .sort-head::after {
 
 .usage-two .usage-table th:first-child {
   padding-left: 0;
-}
-
-.usage-limits .budget-meter {
-  margin-bottom: 4px;
 }
 
 /* A table folded under its heading, with what it holds counted beside the heading. */

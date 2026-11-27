@@ -20,7 +20,7 @@ const row = (over: Partial<Usage['by_model'][number]> = {}): Usage['by_model'][n
   cost: null,
   ...over,
 })
-const usage = (rows: Usage['by_model']): Usage => ({ by_model: rows, by_conversation: [], by_start: [] })
+const usage = (rows: Usage['by_model']): Usage => ({ by_model: rows, by_conversation: [], by_start: [], by_day: [] })
 const WORK = 'What it did'
 const coder = (runId: string, over = {}) => agent(runId, 'completed', { id: `k-${runId}`, depth: 1, ...over })
 
