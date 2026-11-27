@@ -207,12 +207,21 @@ const CHECKS_MARK: Record<string, string> = { green: '✓', red: '✗' }
 
 /**
  * 0.1.9: where a job's work is - on its own branch in the project's repository (its commits, files and checks, what
- * moved outside it meanwhile), or in a copy and why where git is there.
+ * moved outside it meanwhile), or in a copy and why where git is there. N12: once git deleted it at its Take in or
+ * Discard, only that - no commits, nor "merge it with git", of a branch that is gone.
  */
 function BranchLine({ job }: { job: AwayJob }) {
   const branch = job.branch
   if (job.mode === 'copy' && job.mode_why) return <div className="muted away-line">In a copy: {job.mode_why}</div>
   if (!branch) return null
+  if (branch.gone) {
+    return (
+      <div className="muted away-line">
+        Its branch <span className="mono">{branch.name}</span> was deleted: its work was{' '}
+        {job.taken.length ? 'taken in' : 'discarded'}.
+      </div>
+    )
+  }
   return (
     <>
       <div className="muted away-line">

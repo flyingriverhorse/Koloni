@@ -38,7 +38,7 @@ class AwayBranchOut(BaseModel):
     """0.1.9: a job's branch as its turn left it (`away_branch.row`) - its name, its commit and
     the branch it was made from, its commits and files since, KOLONİ's checks' verdict, origin's
     address (never its password) and what moved outside it meanwhile (H2); `why`: what git said
-    where it could not look at the branch."""
+    where it could not look at the branch; `gone`: git deleted it at its Take in or Discard."""
 
     name: str | None
     from_head: str | None = None
@@ -50,6 +50,7 @@ class AwayBranchOut(BaseModel):
     checks: Literal["green", "red", "not complete"] | None
     origin: str | None
     moved: list[str] = []
+    gone: bool = False
 
 
 class AwayJobOut(BaseModel):

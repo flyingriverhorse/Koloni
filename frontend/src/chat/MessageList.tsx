@@ -487,7 +487,7 @@ export function SubtreeRequests({
       {state.merges
         .filter(m => inside.has(m.agent_id))
         .map(m => (
-          <NotApplied key={m.id} merge={m} name={inside.get(m.agent_id)?.name || 'Agent'} />
+          <NotApplied key={m.id} merge={m} name={who(m.agent_id)} />
         ))}
     </>
   )

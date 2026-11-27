@@ -393,4 +393,5 @@ def row(session: Session, cid: str) -> dict | None:
             *([CONFIG_MOVED] if away.get("config_moved") else []),
             *([HOOKS_MOVED] if away.get("hooks_moved") else []),
         ],
+        "gone": bool(away.get("gone")),  # (N12: git deleted it at its Take in or Discard)
     }

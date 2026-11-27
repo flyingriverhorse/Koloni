@@ -644,12 +644,23 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
     checks: 'green' as const,
     origin: 'https://***@example.com/x.git',
     moved: [],
+    gone: false,
     ...over,
   })
   const night = card({
     status: 'ended',
     jobs: [
       job({ title: 'one', task_id: 't1', state: 'done', mode: 'push', branch: branch({}) }),
+      // N12: taken in, its branch deleted - no commits of it, nor "merge it with git"
+      job({
+        title: 'four',
+        task_id: 't4',
+        state: 'done',
+        mode: 'branch',
+        taken: ['t.txt'],
+        branch: branch({ gone: true }),
+      }),
+      job({ title: 'five', task_id: 't5', state: 'done', mode: 'branch', branch: branch({ gone: true }) }),
       job({
         title: 'two',
         task_id: 't2',
@@ -670,4 +681,8 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
     'away-shared',
   )
   expect(row(/^three/)).toHaveTextContent('In a copy: HEAD is detached')
+  expect(row(/^four/)).toHaveTextContent('taken in: t.txt')
+  expect(row(/^four/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was taken in.')
+  expect(row(/^four/)).not.toHaveTextContent(/On branch|commits|No remote/)
+  expect(row(/^five/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was discarded.')
 })

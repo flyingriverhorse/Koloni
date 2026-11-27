@@ -111,9 +111,11 @@ every job:
   not a wall: see [Known limits](../reference/known-limits.md#away-on-a-branch).
 - **Where git will not** when the job starts (HEAD detached since Go away, say), it works in a copy;
   its Orchestrator is told why, and its row says "In a copy: …".
-- **At its end** KOLONİ commits what the job left on the branch and keeps the worktree for your Take in -
-  the same card as a copy's, file by file. Nothing of it goes into your project by itself, at Full auto
-  too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
+- **At its end** KOLONİ commits what the job left on the branch ("Orchestrator: fix the login") and keeps
+  the worktree for your Take in - the same card as a copy's, file by file. Taking all of it in, or
+  Discard, deletes the worktree and the branch, and the row says so instead of its commits: "Its branch
+  koloni/fix-login-3f2a was deleted: its work was taken in." Nothing of it goes into your project by
+  itself, at Full auto too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
   an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
   on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
   token or password it holds alone - is left out of that commit and stays in the job's worktree only;
