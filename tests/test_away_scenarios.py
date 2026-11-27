@@ -290,8 +290,8 @@ def test_a_place_kept_out_is_refused_at_night_and_said_in_the_morning(
     done = ended(client, pid)
     assert [job["state"] for job in done["jobs"]] == ["done", "done"]
     assert [t["what"] for t in done["tried"]] == [
-        "Lead: edit_file secret/pay.py",
-        "Lead: run del secret\\pay.py",
+        "Orchestrator: edit_file secret/pay.py",
+        "Orchestrator: run del secret\\pay.py",
     ]
     results = [
         t["result"]

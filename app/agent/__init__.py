@@ -3129,7 +3129,7 @@ class AgentRunner(
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
                 copies.remove(runtime, name)
-            self._kept_branch_gone(Path(root), held, on_branch, decision)
+            self._kept_branch_gone(ctx, Path(root), held, on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         self._kept_said(ctx, payloads)  # (N3: its line of where its work is, too)
         if applied:
@@ -3882,12 +3882,14 @@ class AgentRunner(
             if kind == "new" and state == "conflict"
         }
         held = self._named_out(ctx, copy, changed) | held
+        with self._factory() as session:  # (N11: as the screen calls it; the trailer is its record)
+            who = self._title(session, ctx.cid, ctx.name)
         await asyncio.to_thread(
             git.commit_branch,
             copy.root,
             copy.branch or "",
             [path for path in changed if path not in held],
-            f"{ctx.name}: {first}\n\nKoloni-Agent: {ctx.name}",
+            f"{who}: {first}\n\nKoloni-Agent: {ctx.name}",
             self.settings.runtime_root / "no-hooks",
         )
         return held

@@ -114,7 +114,7 @@ def test_a_qoder_provider_from_before_is_shown_off_fails_a_chat_and_can_be_delet
         client.patch(f"/api/conversations/{cid}", json={"provider_id": "q", "model_id": None})
         run = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()
         ended = wait_run(client, cid, run["run"]["id"])["runs"][-1]
-        assert (ended["status"], ended["error"]) == ("failed", f"Lead: Qoder: {WHY}")
+        assert (ended["status"], ended["error"]) == ("failed", f"Orchestrator: Qoder: {WHY}")
         assert len(model.calls) == 2  # (none on Qoder)
 
         assert client.delete("/api/providers/q", headers=OWN).status_code == 204

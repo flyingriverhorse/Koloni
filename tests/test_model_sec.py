@@ -63,7 +63,7 @@ def test_an_anthropic_provider_with_no_model_is_refused_before_the_turn_with_why
     error = run["error"]
     # which agent, which provider, and what to do - not the client's own bare words
     assert "choose a model for this provider" not in error
-    assert error.startswith("Lead: ") and NAME in error and "Models page" in error
+    assert error.startswith("Orchestrator: ") and NAME in error and "Models page" in error
     assert KEY not in error and default.calls == [] and fast.calls == []
     # and it is said before any turn: in the table of who uses what
     row = lead_row(client, cid)

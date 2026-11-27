@@ -273,7 +273,7 @@ def test_a_command_run_in_a_place_kept_out_is_refused(make_client, wait_run, pro
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
-    assert [t["what"] for t in done["tried"]] == ["Lead: run echo hi in secret"]
+    assert [t["what"] for t in done["tried"]] == ["Orchestrator: run echo hi in secret"]
     assert job_chat(client, pid)["commands"] == []
 
 

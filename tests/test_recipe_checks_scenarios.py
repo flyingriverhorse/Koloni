@@ -7,8 +7,11 @@
 - REA's B-100, B-101, B-102 (read-only part) for teams side by side.
 """
 
+import os
+
 import pytest
 
+from app import copies
 from app import memory as kept
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import OWN, no_recipe, teams_of
@@ -1588,7 +1591,11 @@ def test_the_leads_command_runs_in_the_recipes_copy_it_reads(make_client, wait_r
     )
     assert "built here" in read["result"]
     assert ran["status"] == "succeeded" and "built here" in ran["result"], ran["result"]
-    assert str(project_dir) not in ran["result"]
+    # It ran in the copy, not the project's root (a git-less project's copy is in its `.koloni/`).
+    lines = ran["result"].splitlines()
+    cwd = lines[lines.index("built here") + 1]
+    assert os.path.realpath(cwd) != os.path.realpath(project_dir), ran["result"]
+    assert os.path.basename(cwd) == copies.TREE, ran["result"]
     answer(client, asked(snap), "Take in")
     wait_run(client, cid, run_id)
 
