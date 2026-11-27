@@ -378,6 +378,7 @@ class NativeMixin:
                 keep=keeps,
                 level=level,
             )
+            self._heard(ctx)  # (D2)
             self._slow_off(ctx)  # (what follows may wait for the user)
             left = usage.session
             self._window_said(ctx, model, usage.context_window)

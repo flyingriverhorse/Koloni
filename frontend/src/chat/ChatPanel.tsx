@@ -606,13 +606,18 @@ export function ChatPanel() {
         unseen={unseenOn(chosen)}
         running={conv !== null && activeRun(conv) !== null}
         permissionMode={conv?.conversation.permission_mode ?? 'ask'}
-        onSend={async (content, fresh, overBudget, files) => {
+        onSend={async (content, fresh, overBudget, files, now) => {
           // Auto-read of a short summary: the Lead is asked for the line to say, in the language and manner chosen.
-          await useApp
-            .getState()
-            .send(content, { ...topicOf(fresh), ...spokenOf(), ...(overBudget && { over_budget: true }), ...files })
+          const why = await useApp.getState().send(content, {
+            ...topicOf(fresh),
+            ...spokenOf(),
+            ...(overBudget && { over_budget: true }),
+            ...files,
+            ...(now && { now: true }),
+          })
           // Writing into a trigger's topic was chosen for that one message.
           setInto(null)
+          return why
         }}
         topic={goesTo}
         other={other}

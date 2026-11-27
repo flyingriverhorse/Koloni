@@ -12,13 +12,16 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import recipe_run
-from app.agent.ctx import Ctx
+from app import away, recipe_run
+from app.agent.ctx import TERMINAL, Ctx
+from app.agent.questions_mixin import USER_TOLD
 from app.agent.spawn_mixin import INTERNAL, SPAWN_ENDED, SPAWN_ENDED_SEE, SPAWN_REJECTED
 from app.agent.words import (
     AGENT_TERMINAL,
+    LISTEN,
     NOT_HEARD,
     STEERED,
+    STILL_AT_WORK,
     STOP_ASKED,
     STOP_DONE,
     STOP_FINISHED,
@@ -27,12 +30,17 @@ from app.agent.words import (
     STOP_NOT_YOURS,
     STOPPED_BY,
     USER_STOPPED,
+    WHY_ENDING,
+    WHY_NOT,
+    WHY_TOPIC,
     YOU_STOPPED,
 )
-from app.db.models import Agent, Message, Run, ToolCall, now
+from app.db.models import Agent, Message, Question, Run, ToolCall, now
 from app.model_client import OwnStop, ToolCallRequest
 from app.proof import PROOF_CALL
-from app.tools import ToolError, parse_arguments
+from app.serialize import message_out, run_out
+from app.team import quoted
+from app.tools import WRITE_TOOLS, ToolError, parse_arguments
 from app.tools_at_work import SPAWN_BACKGROUND_PROPERTY, STOP_AGENT_SCHEMA
 
 if TYPE_CHECKING:
@@ -59,6 +67,15 @@ class AtWorkMixin:
         # stopped alone was (`stop_agent`).
         self._own_work: dict[str, asyncio.Task] = {}
         self._stopped_one: dict[str, str] = {}
+        # D2: the user's words sent into a turn that no step of its Orchestrator read yet (by
+        # the turn), what wakes its waits for them, the turns whose door is shut, the
+        # Orchestrators that answer one now (no writes), and what each was sent at its step.
+        self._unheard: dict[str, list[str]] = {}
+        self._word: dict[str, asyncio.Event] = {}
+        self._door_shut: set[str] = set()
+        self._listening: set[str] = set()
+        self._seen_by: dict[str, list[str]] = {}
+        self._steered_word: dict[str, tuple[str, str]] = {}
 
     def _at_work_offered(self: "AgentRunner", ctx: Ctx, schemas: list[dict]) -> None:
         """`_offered`'s schemas, with what goes on beside the turn's agents where it is this
@@ -140,8 +157,10 @@ class AtWorkMixin:
         of its own, which one Stop ends alone (`stop_agent`): then it ended "cancelled", and its
         opener goes on with that as with an agent that stopped unfinished. The turn's Stop goes
         through it as ever."""
-        work = self._own_work[child.agent_id] = asyncio.ensure_future(
-            self._see_through_place(ctx, child)
+        # (Started at once, as the call it was: work that never waits is over before its
+        # opener goes on, as before it had a task of its own.)
+        work = self._own_work[child.agent_id] = asyncio.Task(
+            self._see_through_place(ctx, child), loop=asyncio.get_running_loop(), eager_start=True
         )
         try:
             return await work
@@ -214,19 +233,184 @@ class AtWorkMixin:
             return await self._cli_call(ctx, call_id, request)
         return await self._run_call(ctx, call_id, request)
 
-    async def _held_for_work(self: "AgentRunner", ctx: Ctx) -> str | None:
+    async def _held_for_work(self: "AgentRunner", ctx: Ctx, listens: bool = True) -> str | None:
         """B-376: the Lead answered with agents of its turn still at work (a team's group just
         opened, one opened by a CLI that did not wait): it waits for them as for its own
         sub-agents, its place free, and what it is told then is returned. None: none was.
+        D2, `listens`: a word of the user's into the turn wakes it too - to answer it, told
+        who is still at work (not at its step limit: B-382 holds it to the end, no step more).
         shortcut: looked at every HOLD_LOOK seconds, not woken by their ends; an agent left
         at work on record by a bug holds the turn till Stop."""
         said = self._still_at_work(ctx)
         if said is None:
             return None
         async with self._handing_over(ctx):
-            while self._still_at_work(ctx) is not None:
-                await asyncio.sleep(HOLD_LOOK)
+            while self._still_at_work(ctx) is not None and not (listens and self._word_in(ctx)):
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self._word_comes(ctx), HOLD_LOOK)
+        if listens and self._word_in(ctx):
+            self._listening.add(ctx.agent_id)  # (its next step answers the word)
+            if (now := self._still_at_work(ctx)) is not None:
+                return STILL_AT_WORK.format(what=now)
         return HELD_FOR_WORK.format(what=said)
+
+    # --- D2: the user's word into the open turn (Send now) ---------------------------------
+
+    def takes_word(self: "AgentRunner", cid: str, topic_id: str | None) -> tuple[str | None, str]:
+        """D2: the turn of this chat a word of the user's sent now enters - (its id, "") - or
+        (None, why it waits in the queue instead); (None, "") where no turn is open: it starts
+        its own. Read from the turn's record only (the runner's own sets of it are filled after
+        waits of its start), with nothing awaited: `post_message` puts the word on record and
+        `word_came` in the same block, so a turn that closes its door meanwhile has it or not."""
+        with self._factory() as session:
+            run = session.scalar(
+                select(Run)
+                .where(Run.conversation_id == cid, Run.status.not_in((*TERMINAL, "queued")))
+                .order_by(Run.created_at, literal_column("runs.rowid"))
+                .limit(1)
+            )
+            if run is None:
+                return None, ""
+            task = self._tasks.get(run.id)
+            why = (
+                WHY_ENDING
+                if task is None or task.done() or run.id in self._door_shut
+                else WHY_NOT.format(what="a job while you were away")
+                if away.job_turn(session, run)
+                else WHY_NOT.format(what="a To-do task's turn")
+                if run.task_id
+                else WHY_NOT.format(what="a plan turn")
+                if run.plan_turn
+                else WHY_NOT.format(what="a comparison")
+                if run.compare_id
+                else WHY_NOT.format(what="not one you started")
+                if not run.by_user
+                else WHY_TOPIC
+                if run.topic_id != topic_id
+                else ""
+            )
+        return (None, why) if why else (run.id, "")
+
+    def word_came(self: "AgentRunner", run_id: str, message_id: str, words: str) -> None:
+        """D2: a word of the user's is on record in the open turn (`takes_word`): its
+        Orchestrator reads it at its next step (`_history`: a step that is taken now, or one
+        that a wait of its gives way to), and its turn does not end before one has
+        (`_door_closes`). Into the turn of a CLI that takes it while it works, at once."""
+        self._unheard.setdefault(run_id, []).append(message_id)
+        self._word.setdefault(run_id, asyncio.Event()).set()
+        lead = self._lead_of(run_id)
+        if lead is not None and lead.agent_id in self._doors:
+            asyncio.ensure_future(self._steer_word(lead, message_id, words))
+
+    async def _steer_word(self: "AgentRunner", lead: Ctx, message_id: str, words: str) -> None:
+        """`word_came`'s word into the Orchestrator's CLI turn as it runs, as the user's own
+        (`steer`) - measured 27 Nov 2026: Claude Code 2.1.332 (a second user line) and Codex
+        0.172 (`turn/steer`) read it in that turn. Heard once sent, unless its turn ends before it
+        reads it (`_word_unread`)."""
+        told = USER_TOLD.format(words=quoted(words))
+        if await self.steer(lead, told, kept=True) is None:
+            self._steered_word[lead.agent_id] = (message_id, told)
+            self._drop_heard(lead.run_id, [message_id])
+
+    def _word_unread(self: "AgentRunner", ctx: Ctx, words: str) -> None:
+        """`_observe_unread`: its CLI's turn ended before it read the word steered in: unheard
+        again - one more run reads it."""
+        steered = self._steered_word.pop(ctx.agent_id, None)
+        if steered is not None and steered[1] == words:
+            self._unheard.setdefault(ctx.run_id, []).append(steered[0])
+
+    def _word_in(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether a word of the user's waits in this Orchestrator's turn, unread."""
+        return not (ctx.depth or ctx.answering or ctx.discussion) and bool(
+            self._unheard.get(ctx.run_id)
+        )
+
+    def _word_comes(self: "AgentRunner", ctx: Ctx) -> "asyncio.Future[bool]":
+        """What is done when a word of the user's comes into this turn from now on (looked at
+        and armed in one block: none slips in between)."""
+        came = self._word.setdefault(ctx.run_id, asyncio.Event())
+        came.clear()
+        return asyncio.ensure_future(came.wait())
+
+    def _hearing(self: "AgentRunner", ctx: Ctx) -> None:
+        """D2: the Orchestrator's model is asked now (`_slow`, arm): what it is sent was read
+        in the same block (`_history`), with the user's words of its turn so far - heard once
+        the step comes back (`_heard`). Never its answer's or its speech's, beside its work."""
+        if not (ctx.depth or ctx.answering or ctx.discussion):
+            self._seen_by[ctx.agent_id] = list(self._unheard.get(ctx.run_id, ()))
+
+    def _heard(self: "AgentRunner", ctx: Ctx) -> None:
+        """The Orchestrator's step came back: the words it was sent are heard (`_hearing`)."""
+        if not (ctx.depth or ctx.answering or ctx.discussion):
+            self._drop_heard(ctx.run_id, self._seen_by.pop(ctx.agent_id, []))
+
+    def _drop_heard(self: "AgentRunner", run_id: str, ids: list[str]) -> None:
+        left = [one for one in self._unheard.get(run_id, ()) if one not in ids]
+        if left:
+            self._unheard[run_id] = left
+        else:
+            self._unheard.pop(run_id, None)
+
+    def _door_closes(self: "AgentRunner", ctx: Ctx, status: str) -> bool:
+        """D2, as the Orchestrator's loop would end (`_loop`): a word of the user's came that
+        no step of its read - False, one step more, in which it answers it (`_listening`); else
+        the door is shut: a word from now on starts its own turn. With nothing awaited from
+        here to the turn's end on record that a word could come in by. Not its answer's loop."""
+        if ctx.depth or ctx.answering or ctx.discussion:
+            return True
+        if status == "completed" and self._word_in(ctx):
+            self._listening.add(ctx.agent_id)
+            return False
+        self._door_shut.add(ctx.run_id)
+        return True
+
+    async def _listen_steps(self: "AgentRunner", ctx: Ctx, info) -> tuple[str, str | None]:
+        """`_loop`: its steps for a word that came as its loop ended. Where it only answered
+        (no call), what was checked at its end stands; any call goes on as its loop does."""
+        calls = self._calls_of(ctx)
+        status, error = await self._steps_held(ctx, info)
+        self._listening.discard(ctx.agent_id)
+        if status != "completed" or self._calls_of(ctx) == calls:
+            return status, error
+        return await self._loop_steps(ctx, info, (status, error))
+
+    def _listen_refuses(self: "AgentRunner", ctx: Ctx, name: str) -> str | None:
+        """D2: a step that answers the user's word during the turn writes nothing - new work
+        goes to an agent. shortcut: a CLI's own tools are only told so (its word); hold them in
+        its hook too if a CLI Orchestrator is seen writing as it answers."""
+        if ctx.agent_id in self._listening and (
+            name in WRITE_TOOLS or name in ("run_command", "run_skill_script")
+        ):
+            return LISTEN
+        return None
+
+    def _shut_door(self: "AgentRunner", run_id: str, cid: str | None) -> None:
+        """`execute`'s end, however the turn ended (the turn is on record as over by now): the
+        words no step read - a Stop, a failure, a turn that never came to its loop - each go on
+        in a turn of their own (`_requeue`)."""
+        unheard = self._unheard.pop(run_id, [])
+        self._word.pop(run_id, None)
+        self._door_shut.discard(run_id)
+        self._listening -= {one for one, known in self._ctxs.items() if known.run_id == run_id}
+        if unheard and cid:
+            self._requeue(run_id, cid, unheard)
+
+    def _requeue(self: "AgentRunner", run_id: str, cid: str, ids: list[str]) -> None:
+        """Words of a turn none of its steps read, each into a turn of its own (`requeued`),
+        started where nothing else of the chat is at work."""
+        from app.api.conversations import requeued  # (it imports this package)
+
+        with self._factory() as session:
+            words = list(session.scalars(select(Message).where(Message.id.in_(ids))))
+            runs = requeued(session, session.get_one(Run, run_id), words)
+            session.commit()
+            sent = [
+                (run_out(run), message_out(word)) for run, word in zip(runs, words, strict=True)
+            ]
+        for run_said, message_said in sent:
+            self.bus.emit(cid, run_said["id"], "run.started", run_said)
+            self.bus.emit(cid, run_said["id"], "message.created", message_said)
+        self.start_next(cid)
 
     def _still_at_work(self: "AgentRunner", ctx: Ctx) -> str | None:
         """The turn's agents at work but its Lead, by team and where its recipe is - "Web app
@@ -574,3 +758,65 @@ class AtWorkMixin:
                 watch.end(OwnStop("you stopped its command"))
                 return True
         return False
+
+    async def _ready_at_end(self: "AgentRunner", ctx: Ctx) -> str:
+        """B-415 (live): Ready for you is asked as the Lead hears back from an agent - with
+        another still in the copy then (a lead's agent outliving it, one answering a message)
+        it was asked never: it is, before the Lead's answer ends the turn. In the call of the
+        last lead it opened, else of the last agent it opened - a card is always in a call;
+        with none, no recipe ran."""
+        mine = [one for one in self._ctxs.values() if one.run_id == ctx.run_id and one.depth == 1]
+        with self._factory() as session:
+            called = set(
+                session.scalars(
+                    select(Agent.id).where(
+                        Agent.id.in_([one.agent_id for one in mine]),
+                        Agent.tool_call_id.is_not(None),
+                    )
+                )
+            )
+        opened = [one for one in reversed(mine) if one.agent_id in called]
+        under = next(
+            (one for one in opened if one.agent_id in self._leads), opened[0] if opened else None
+        )
+        return "" if under is None else await self._ready_for_you(ctx, under)
+
+    def _halt(
+        self: "AgentRunner", run_id: str, agents: list[str], why: str, word: str = "Stop"
+    ) -> None:
+        """Agents of a turn - and the helpers they opened, at any depth - stop at their next
+        step (`_hold_to_role`), saying `why`: a wait for a limit's reset ends (`_go_on_again`),
+        and a card they wait on is answered `word`."""
+        line = set(agents)
+        while more := {
+            a for a, known in self._ctxs.items() if known.parent_id in line and a not in line
+        }:
+            line |= more
+        if not line:
+            return
+        self._halted.update(line)
+        self._halt_why.update(dict.fromkeys(line, why))
+        for agent_id in line:
+            if woken := self._at_reset.get(agent_id):
+                woken.set()
+        self._close_cards(run_id, list(line), word)
+
+    def _close_cards(self: "AgentRunner", run_id: str, agents: list[str], word: str) -> None:
+        """The recipe cards these agents' calls wait on, answered `word` by KOLONİ - not the
+        user's answer (`_who_answered`)."""
+        if not agents:
+            return
+        with self._factory() as session:
+            asked = session.scalars(
+                select(Question.id)
+                .join(Agent, Agent.tool_call_id == Question.tool_call_id)
+                .where(
+                    Question.status == "pending",
+                    Question.leave,
+                    Agent.id.in_(agents),
+                    Agent.run_id == run_id,
+                )
+            ).all()
+        for question_id in asked:
+            if self.answer_question(question_id, word):  # (not one the user answered first)
+                self._closed_cards.add((run_id, question_id))

@@ -38,7 +38,9 @@ import type {
   Suggestion,
   PermissionMode,
   FileChange,
+  BranchSaid,
   Health,
+  PostMessageOut,
   FolderBrowse,
   InjectionWarning,
   ListedConversation,
@@ -89,12 +91,12 @@ import type { RoleValues } from '../agents/AgentsPage'
 import type { RoleChange } from '../agents/RolePanel'
 import type { RecipeActions } from '../agents/RecipesTab'
 import type { TeamActions } from '../agents/TeamsBoard'
+import type { MemoryActions } from '../memory/memoryActions'
 import type { CategoryActions } from '../agents/RoleLibrary'
 import type { TeamsChange } from '../agents/ChatTeams'
 import type { ModelChoice } from '../models/ModelPicker'
 import type { OfferedModels } from '../models/ModelNameInput'
 import type { NewProvider, ProviderChange } from '../models/ModelsPage'
-import type { NewFact } from '../memory/forms'
 import type { ProjectSettingsValues } from '../shell/ProjectSettings'
 import type { SettingsPlace } from '../shell/Settings'
 import { startsNewTurn } from '../canvas/turns'
@@ -106,16 +108,12 @@ import { waitCount } from '../board/waiting'
 import { activeRun, applyEvent, fromSnapshot, type ConvState } from './applyEvent'
 import { TURNS_PAGE, earlierPage, reachTurn, turnsOf, withEarlier } from './earlier'
 
-/** K-dal-takim D2: what else Merge says on a branch's card - keep the branch after it, and which way finished work goes. */
-export interface BranchSaid {
-  keep_branch?: boolean
-  way?: 'merge' | 'pull_request'
-}
+export type { BranchSaid }
 
 /** The tabs of the chat panel. */
 export type ChatTab = 'Chat' | 'Talk' | 'Notes'
 
-export interface AppStore extends TeamActions, RecipeActions, CategoryActions {
+export interface AppStore extends TeamActions, RecipeActions, CategoryActions, MemoryActions {
   ready: boolean
   /** Why the first load failed, if it did. */
   loadError: string | null
@@ -191,20 +189,6 @@ export interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Why the memory could not be read, if it could not. */
   memoryError: string | null
   loadMemory(): Promise<void>
-  /** The user's decisions on the memory; each throws ApiError, and the memory is read again. */
-  approveMemory(memoryId: string, text?: string): Promise<void>
-  rejectMemory(memoryId: string): Promise<void>
-  restoreMemory(memoryId: string): Promise<void>
-  /** Of a source that moved: these are the same lines. */
-  confirmMemory(memoryId: string): Promise<void>
-  correctMemory(memoryId: string, changes: { text: string; about: string | null }): Promise<void>
-  writeFact(fact: NewFact): Promise<void>
-  saveRules(rules: string): Promise<void>
-  /** Your own preferences (22b), one text for every project; and a suggested line into them. Each throws ApiError. */
-  savePreferences(text: string): Promise<void>
-  addPreference(memoryId: string): Promise<void>
-  /** What an agent's `recall` would find for these words, in the open project. Throws ApiError. */
-  searchMemory(query: string): Promise<MemorySearch>
   /** The open project's backlog, in order, once its page asked for it; null until then. */
   backlog: BacklogTask[] | null
   backlogError: string | null
@@ -435,8 +419,9 @@ export interface AppStore extends TeamActions, RecipeActions, CategoryActions {
       over_budget?: boolean
       attachments?: string[]
       save_to_project?: boolean
+      now?: boolean
     },
-  ): Promise<void>
+  ): Promise<string | null>
   /** A file added to the next message (slice 85b), shown at once: its event may come a moment later. */
   attached(attachment: Attachment): void
   /** The ×: a file taken off the next message, with its frames. Throws ApiError. */
@@ -1792,8 +1777,12 @@ export const useApp = create<AppStore>()((set, get) => {
       if (!get().conv) await get().newConversation()
       const conv = get().conv
       if (!conv) return
-      await api.post(`/conversations/${conv.conversation.id}/messages`, { content, ...where })
+      const sent = await api.post<PostMessageOut>(`/conversations/${conv.conversation.id}/messages`, {
+        content,
+        ...where,
+      })
       void refreshConversations()
+      return sent.queued_why ?? null
     },
 
     async compare(content, second, where = {}) {

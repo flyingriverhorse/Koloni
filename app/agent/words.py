@@ -378,3 +378,18 @@ LEAD_TOLD_ABOUT = (
     "KOLONİ: the user's word to you about {name}, which can't hear messages while it works "
     "- their own word: {words}"
 )
+
+# D2 (0.1.11): the user's word into the open turn (Send now). Why it waits in the queue instead:
+WHY_ENDING = "the turn was ending"
+WHY_NOT = "this turn takes no message now ({what})"
+WHY_TOPIC = "it is for another topic"
+# What a step that answers the word may not do, and what the Orchestrator is told when the word
+# wakes it while its agents work (B-376's wait).
+LISTEN = (
+    "not while you answer the user during the turn: hand new work to an agent "
+    "(spawn_agent / message_agent), or say it in your answer."
+)
+STILL_AT_WORK = (
+    "KOLONİ: the user wrote while your agents work ({what}). Answer them now; say what is still "
+    "at work, never what it found before it reports - you are woken again when it is back."
+)

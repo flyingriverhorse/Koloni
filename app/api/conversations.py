@@ -56,13 +56,12 @@ from app.schemas import (
     ConversationPatch,
     ConversationsDeletedOut,
     ConversationsDeleteIn,
-    PostMessageOut,
     SnapshotOut,
     TopicOut,
     TopicPatch,
     WarningOut,
 )
-from app.schemas_at_work import MessageIn
+from app.schemas_at_work import MessageIn, PostMessageOut
 from app.serialize import (
     agent_out,
     allowed_command_out,
@@ -967,6 +966,26 @@ def new_turn(
     return run, message
 
 
+def requeued(session: Session, turn: Run, words: list[Message]) -> list[Run]:
+    """D2: words the user sent now into a turn none of whose steps read them (its Stop, its
+    failure, a turn that never came to its loop: `AtWorkMixin._shut_door`), each into a turn of
+    its own - queued, as After this turn would have put it, in the turn's topic, the user's own
+    as the turn was (a word is sent now only from their own page). Not committed."""
+    runs = []
+    for word in words:
+        run = Run(
+            conversation_id=turn.conversation_id,
+            topic_id=turn.topic_id,
+            by_user=turn.by_user,
+            status="queued",
+        )
+        session.add(run)
+        session.flush()
+        word.run_id = run.id
+        runs.append(run)
+    return runs
+
+
 def queue_or_start(session: Session, run: Run) -> None:
     """A turn the user sends: running, or queued behind a turn of its conversation that is
     not over yet (`new_turn`, `app.api.runs.send_again`)."""
@@ -1041,6 +1060,68 @@ def _users_own_message(
         run.by_user = True
 
 
+def _attached(session: Session, added, message: Message, keep: bool) -> None:
+    """The files added to a message (slice 85b), with their frames, on it. (Not committed.)"""
+    if added:
+        session.flush()  # (the message's id)
+        ids = [one.id for one in added]
+        for one in session.scalars(
+            select(Attachment).where(Attachment.id.in_(ids) | Attachment.frame_of.in_(ids))
+        ):
+            one.message_id, one.keep_in_project = message.id, keep
+
+
+def _titled(session: Session, conversation: Conversation, said: str) -> None:
+    """A chat named by its first message (`said`): not one named already - by the user, or by a
+    PATCH before its first message (R194). (Not committed.)"""
+    first = (
+        session.scalar(
+            select(Message.id).where(Message.conversation_id == conversation.id).limit(1)
+        )
+        is None
+    )
+    if first and conversation.title == NEW_CONVERSATION:
+        # (A message of nothing but what does not print leaves it as it was named.)
+        conversation.title = title_from(said) or conversation.title
+
+
+def _users_turn(
+    request: Request,
+    session: Session,
+    conversation: Conversation,
+    project: Project | None,
+    topic_id: str,
+    body: MessageIn,
+) -> tuple[Run, Message, str | None, str]:
+    """`post_message`'s turn, and its message (not committed): D2's Send now (`now`) - the user's
+    own word (an agent's would be taken for theirs) - into the turn at work where it takes one
+    (`takes_word`: from there to `word_came` nothing is awaited), else a turn of its own, with
+    why where it was sent now. (run, message, the open turn's id or None, why or "")."""
+    if body.now:
+        require_own_origin(request)
+    content = body.content.strip()
+    into, why = (
+        request.app.state.runner.takes_word(conversation.id, topic_id) if body.now else (None, "")
+    )
+    if into is not None:
+        message = Message(
+            conversation_id=conversation.id, run_id=into, role="user", content=content
+        )
+        session.add(message)
+        return session.get_one(Run, into), message, into, ""
+    run, message = new_turn(
+        session,
+        conversation.id,
+        topic_id,
+        content,
+        spoken=body.spoken.model_dump(exclude_none=True) if body.spoken else None,
+        # Only here, from the user's own message: a trigger's turn and the work turn of an
+        # approved plan never plan first - nor a plain chat, with no project to plan in.
+        plan_turn=conversation.plan_first and project is not None,
+    )
+    return run, message, None, why
+
+
 @router.post(
     "/conversations/{conversation_id}/messages",
     response_model=PostMessageOut,
@@ -1081,12 +1162,7 @@ async def post_message(
             )
         # Spending past the user's own limit is the user's word: not an agent's request.
         require_own_origin(request)
-    first = (
-        session.scalar(
-            select(Message.id).where(Message.conversation_id == conversation_id).limit(1)
-        )
-        is None
-    )
+    _titled(session, conversation, content or ", ".join(one.name for one in added))
     try:
         topic, new = topics.for_message(
             session,
@@ -1098,43 +1174,25 @@ async def post_message(
     except topics.Refused as exc:
         raise HTTPException(422, str(exc)) from None
     back = _back(request, session, project)  # (a message refused above ends nothing)
-    run, message = new_turn(
-        session,
-        conversation_id,
-        topic.id,
-        content,
-        spoken=body.spoken.model_dump(exclude_none=True) if body.spoken else None,
-        # Only here, from the user's own message: a trigger's turn and the work turn
-        # of an approved plan never plan first - nor a plain chat, with no project to plan in.
-        plan_turn=conversation.plan_first and project is not None,
-    )
-    if added:
-        session.flush()  # (the message's id)
-        ids = [one.id for one in added]
-        for one in session.scalars(
-            select(Attachment).where(Attachment.id.in_(ids) | Attachment.frame_of.in_(ids))
-        ):
-            one.message_id, one.keep_in_project = message.id, body.save_to_project
-    # (Not one named already - by the user, or by a PATCH before its first message, R194.)
-    if first and conversation.title == NEW_CONVERSATION:
-        # (A message of nothing but what does not print leaves it as it was named.)
-        conversation.title = (
-            title_from(content or ", ".join(one.name for one in added)) or conversation.title
-        )
+    run, message, into, why = _users_turn(request, session, conversation, project, topic.id, body)
+    _attached(session, added, message, body.save_to_project)
     _users_own_message(request, project, conversation, run, content)
     conversation.updated_at = now()
     session.commit()
 
     bus = request.app.state.bus
     run_payload, message_payload = run_out(run), message_out(message)
-    bus.emit(conversation_id, run.id, "run.started", run_payload)
+    if into is None:
+        bus.emit(conversation_id, run.id, "run.started", run_payload)
     if new:
         bus.emit(conversation_id, None, "topic.created", topic_out(topic))
     bus.emit(conversation_id, run.id, "message.created", message_payload)
     for one in added:
         bus.emit(conversation_id, run.id, "attachment.updated", attachment_out(one))
     bus.emit(conversation_id, None, "conversation.updated", conversation_out(conversation))
-    if run.status == "running":
+    if into is not None:  # (D2: in the same block as its record - nothing awaited since)
+        request.app.state.runner.word_came(into, message.id, content)
+    elif run.status == "running":
         request.app.state.runner.start(run.id)
     _queues_go_on(request, session, conversation.project_id, back)
-    return {"message": message_payload, "run": run_payload}
+    return {"message": message_payload, "run": run_payload, "queued_why": why or None}

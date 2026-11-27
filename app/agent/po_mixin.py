@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
+from sqlalchemy import literal_column, select
 
 from app import backlog, earlier, injection, raw, stories, topics
 from app.agent.cards import _answer
@@ -346,6 +346,7 @@ class PoMixin:
                         Message.role == "user",
                         Message.agent_id.is_(None),
                     )
+                    .order_by(Message.created_at, literal_column("messages.rowid"))
                     .limit(1)
                 )
             )

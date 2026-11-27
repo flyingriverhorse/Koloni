@@ -153,6 +153,7 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "read_notes",
         "remember",
         "recall",
+        "stop_agent",  # (0.1.11: one it opened, alone)
         "recall_output",
         "command_output",  # (0.1.8: a session is given its tools once, before it serves any)
         "stop_command",

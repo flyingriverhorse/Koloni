@@ -11,7 +11,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import literal_column, select
 
 from app import earlier, web
 from app import memory as kept
@@ -113,7 +113,10 @@ class TiersMixin:
             would = would_run(session, find_role(session, LEAD), conversation, tools=ctx.tools)
             fast = asked_how_hard(session, would, self.providers)
             message = session.scalar(
-                select(Message.content).where(Message.run_id == ctx.run_id, Message.role == "user")
+                select(Message.content)
+                .where(Message.run_id == ctx.run_id, Message.role == "user")
+                .order_by(Message.created_at, literal_column("messages.rowid"))
+                .limit(1)
             )
             if fast is None or not message:
                 return ctx

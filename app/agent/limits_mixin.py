@@ -611,6 +611,8 @@ class LimitsMixin:
         shortcut: its own answer to a message and its speech in a discussion, beside its work,
         neither touch the clock nor have one (`_slow_off` too); give them one if a slow speech is
         felt."""
+        if arm:
+            self._hearing(ctx)  # (D2: what its model is sent now holds the user's words so far)
         if ctx.depth or ctx.answering or ctx.discussion:
             return
         slow = self._slow_turns.get(ctx.run_id)

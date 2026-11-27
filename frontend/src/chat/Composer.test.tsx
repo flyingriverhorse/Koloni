@@ -38,14 +38,14 @@ test('an empty or blank draft cannot be sent', async () => {
   expect(onSend).not.toHaveBeenCalled()
 })
 
-test('while running, Stop appears and a new message can still be queued', async () => {
+test('while running, Stop appears and a new message can still be queued, After this turn', async () => {
   const onStop = vi.fn()
   const onSend = vi.fn().mockResolvedValue(undefined)
   render(<Composer {...props} running onStop={onStop} onSend={onSend} />)
   await userEvent.click(screen.getByRole('button', { name: 'Stop' }))
   expect(onStop).toHaveBeenCalled()
   await userEvent.type(screen.getByLabelText('Message'), 'also do this')
-  await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+  await userEvent.click(screen.getByRole('button', { name: 'After this turn' }))
   expect(onSend).toHaveBeenCalledWith('also do this', false)
 })
 
@@ -77,14 +77,14 @@ test('while the Orchestrator asks, the message box says to answer above - open, 
   )
 })
 
-test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More keeps its name', () => {
+test('while running, Stop is a square with no words on the status line over the box, Send now in Send’s place; More keeps its name', () => {
   const { container } = render(<Composer {...props} running />)
   const stop = screen.getByRole('button', { name: 'Stop' })
-  const queue = screen.getByRole('button', { name: 'Queue' })
+  const queue = screen.getByRole('button', { name: 'Send now' })
   expect(stop).toHaveTextContent(/^$/)
   expect(stop).toHaveAttribute('title')
   expect(stop.closest('.composer-status')).toBe(container.querySelector('.composer-box')!.firstElementChild)
-  expect(queue).toHaveAttribute('title', 'Queue')
+  expect(queue).toHaveAttribute('title', 'Send now: the Orchestrator reads it in this turn')
   // Where their words are not shown, the names stay (and a tooltip says them).
   expect(screen.getByRole('button', { name: 'More' })).toHaveAttribute('title', 'More')
 })
@@ -847,7 +847,7 @@ test('one box: status line, message, one row - Attach, level, Auto-read, Dictate
   ).toBeTruthy()
 })
 
-test('the placeholder says what a message does now: ask, queue for after this turn, answer the question above', () => {
+test('the placeholder says what a message does now: ask, write into this turn, answer the question above', () => {
   useApp.setState({
     conv: convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')] }),
     projectId: 'p',
@@ -855,7 +855,10 @@ test('the placeholder says what a message does now: ask, queue for after this tu
   const { rerender } = render(<Composer {...props} scope="c" />)
   expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Ask about this project or request a change…')
   rerender(<Composer {...props} scope="c" running />)
-  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Queue a message for after this turn…')
+  expect(screen.getByLabelText('Message')).toHaveAttribute(
+    'placeholder',
+    'Write to the Orchestrator - it reads it in this turn…',
+  )
   useApp.setState({
     conv: convState({
       runs: [run('r', 'waiting_approval')],

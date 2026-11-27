@@ -812,6 +812,7 @@ class ObserveMixin:
     ) -> None:
         """`_observe`: its turn ended before it read what `steer` sent it (89d)."""
         words = str(item.get("text") or "").removeprefix(f"{STEERED}\n\n")
+        self._word_unread(ctx, words)  # (D2: the user's word, steered in: one more run reads it)
         self._note(
             ctx,
             transcript,

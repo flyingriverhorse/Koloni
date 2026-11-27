@@ -4,6 +4,8 @@ what is asked of its spoken answer) and a word to one agent (`TellIn`) - moved h
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas import MessageOut, RunOut
+
 
 class SpokenIn(BaseModel):
     """What a message asks of the lead's answer when the user listens to it (slice 32a)."""
@@ -30,6 +32,16 @@ class MessageIn(BaseModel):
     attachments: list[str] = Field(default=[], max_length=10)  # attachments.MAX_FILES
     # "Save these to the project too" (slice 23): into docs/attachments/, no card.
     save_to_project: bool = False
+    # D2 (0.1.11), Send now: into the turn at work, its Orchestrator reads it in it - the
+    # user's own word, from the app's own page; where that turn takes none, queued, with why.
+    now: bool = False
+
+
+class PostMessageOut(BaseModel):
+    message: MessageOut
+    run: RunOut
+    # D2: why a message sent now waits in the queue instead (`AtWorkMixin.takes_word`).
+    queued_why: str | None = None
 
 
 class TellIn(BaseModel):

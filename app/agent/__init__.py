@@ -1874,6 +1874,7 @@ class AgentRunner(
             if t.cid:
                 self.start_next(t.cid)
         finally:
+            self._shut_door(run_id, t.cid)  # (D2: a word no step read goes on in its own turn)
             ended_later = [*t.later, *self._forget_turn(run_id, t.cid)]
             if t.idle is not None:
                 t.idle.set()
@@ -6155,6 +6156,8 @@ class AgentRunner(
             raise ToolError(f"{request.name} is not available")
         if request.name in HANDED and self._hands_code(ctx):
             raise ToolError(HANDS_CODE_REFUSED.format(tool=request.name))
+        if refused := self._listen_refuses(ctx, request.name):  # (D2)
+            raise ToolError(refused)
         return args
 
     async def _call_where(
@@ -9351,44 +9354,6 @@ class AgentRunner(
                 self._apart(cid, run_id, apart)
             self._halt(run_id, stopping, TEAM_STOPPED)
         return why[0]
-
-    def _halt(self, run_id: str, agents: list[str], why: str, word: str = "Stop") -> None:
-        """Agents of a turn - and the helpers they opened, at any depth - stop at their next
-        step (`_hold_to_role`), saying `why`: a wait for a limit's reset ends (`_go_on_again`),
-        and a card they wait on is answered `word`."""
-        line = set(agents)
-        while more := {
-            a for a, known in self._ctxs.items() if known.parent_id in line and a not in line
-        }:
-            line |= more
-        if not line:
-            return
-        self._halted.update(line)
-        self._halt_why.update(dict.fromkeys(line, why))
-        for agent_id in line:
-            if woken := self._at_reset.get(agent_id):
-                woken.set()
-        self._close_cards(run_id, list(line), word)
-
-    def _close_cards(self, run_id: str, agents: list[str], word: str) -> None:
-        """The recipe cards these agents' calls wait on, answered `word` by KOLONİ - not the
-        user's answer (`_who_answered`)."""
-        if not agents:
-            return
-        with self._factory() as session:
-            asked = session.scalars(
-                select(Question.id)
-                .join(Agent, Agent.tool_call_id == Question.tool_call_id)
-                .where(
-                    Question.status == "pending",
-                    Question.leave,
-                    Agent.id.in_(agents),
-                    Agent.run_id == run_id,
-                )
-            ).all()
-        for question_id in asked:
-            if self.answer_question(question_id, word):  # (not one the user answered first)
-                self._closed_cards.add((run_id, question_id))
 
     async def _ask_folder(self, ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """An agent asks, with why, for a folder outside the project to read in or to read

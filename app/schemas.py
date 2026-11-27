@@ -2383,11 +2383,6 @@ class SnapshotOut(BaseModel):
     older_from: str | None = None
 
 
-class PostMessageOut(BaseModel):
-    message: MessageOut
-    run: RunOut
-
-
 def _words(value: str, most: int, what: str, empty: bool = False) -> str:
     """A kind of work or a team's name: one printable line, tidy spacing, 1 to `most` long
     (`empty`: or none, said elsewhere)."""
