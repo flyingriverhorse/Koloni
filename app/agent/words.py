@@ -417,3 +417,8 @@ WORD_MAYBE_UNREAD = (
     "{name} may not have read your word before its turn ended: {words} - it is not sent again; "
     "say it once more if it still matters"
 )
+# ...and one its CLI said no to once its turn was over: kept for its next step, if it takes one.
+WORD_NOT_SENT = (
+    "{name}'s turn was over before your word reached it: {words} - it is handed to {name} at "
+    "its next step, if it takes one; say it once more if it still matters"
+)

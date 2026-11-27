@@ -2,6 +2,7 @@
 message - comes to one of three outcomes, said once: taken (its CLI showed it took it into that
 turn), not sent (refused before it was written, or its CLI said no), or unknown (written, and no
 sign by the turn's end that it was taken). Unknown is never sent again: it may have been read.
+A no is "not sent" only as measured (Codex's -32600); any other error of a CLI's is unknown.
 
 What each CLI shows, measured 27 Nov 2026: Claude Code 2.1.332 echoes the line it takes before
 its turn's result (`--replay-user-messages`; its echo carries no id of KOLONİ's, so the words
@@ -19,6 +20,7 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 TAKEN, NOT_SENT, UNKNOWN = "taken", "not sent", "unknown"
+NO_TURN = -32600  # (Codex 0.172's "no active turn to steer": the one no measured as not sent)
 
 
 class Delivery:
@@ -44,6 +46,14 @@ class Delivery:
         waiting, self._waiting = self._waiting, []
         for do in waiting:
             _tell(do, outcome)
+
+
+def _id(key: object) -> bool:
+    return isinstance(key, str) and bool(key)
+
+
+def _dict(value: object) -> dict:
+    return value if isinstance(value, dict) else {}
 
 
 def _tell(do: Callable[[str], None], outcome: str) -> None:
@@ -82,9 +92,9 @@ class Deliveries:
 
     def took(self, key: object = None, text: object = None) -> None:
         """A sign of its CLI's that it took one into its turn: by the `key` it was answered
-        with, else by its words - the oldest open one of them. (An id is a string: what else a
-        CLI's line holds is no sign.)"""
-        if key is not None and not isinstance(key, str):
+        with, else by its words - the oldest open one of them. (An id is a string, not empty:
+        what else a CLI's line holds is no sign.)"""
+        if (key is None and not isinstance(text, str)) or (key is not None and not _id(key)):
             return
         one = next(
             (one for one in self.open if (one.key == key if key is not None else one.text == text)),
@@ -98,19 +108,31 @@ class Deliveries:
     def answered(self, number: object, message: dict) -> None:
         """Its answer to a request of `steer_asked`'s, as its read loop reads it - before a line
         after it (its turn's end) is: a no is not sent; a yes taken, or named by its `named`."""
-        if not isinstance(number, int) or (one_named := self.asked.pop(number, None)) is None:
-            return  # (not one of its: a request's number is KOLONİ's own, an int)
+        if type(number) is not int or (one_named := self.asked.pop(number, None)) is None:
+            return  # (not one of its: a request's number is KOLONİ's own, an int - not a bool)
         one, named = one_named
-        result = message.get("result")
-        if "result" not in message:
-            self.settle(one, NOT_SENT)
+        result, error = message.get("result"), message.get("error")
+        if "result" not in message:  # (another no may have come after it took it: unknown)
+            code = error.get("code") if isinstance(error, dict) else None
+            self.settle(one, NOT_SENT if code == NO_TURN else UNKNOWN)
         elif named is None:
             self.settle(one, TAKEN)
         else:
             key = result.get(named) if isinstance(result, dict) else None
-            one.key = key if isinstance(key, str) else None
+            one.key = key if _id(key) else None
             if one.key is not None and one.key in self.seen:
                 self.settle(one, TAKEN)
+
+    def echoed(self, lines: list[dict]) -> bool:
+        """Claude Code's echo of the user lines it took (`isReplay`): each a sign, by its words.
+        True where these lines are only that - none of its stream's (the prompt again, long)."""
+        echoes = [one for one in lines if one.get("type") == "user" and one.get("isReplay")]
+        for echo in echoes:
+            content = _dict(echo.get("message")).get("content")
+            if isinstance(content, list):  # (blocks: their words)
+                content = "".join(str(_dict(block).get("text") or "") for block in content)
+            self.took(text=content)
+        return bool(echoes) and len(echoes) == len(lines)
 
     def over(self) -> bool:
         """Its turn is over: those still open are unknown - never sent again. Whether any was."""

@@ -54,6 +54,7 @@ async def writing(fails: bool = False):
     [
         ({"result": {"turnId": "t1"}}, None, TAKEN),  # (Codex's answer names its turn)
         ({"error": {"code": -32600, "message": "no active turn to steer"}}, None, NOT_SENT),
+        ({"error": {"code": -32603, "message": "internal"}}, None, UNKNOWN),  # (not measured)
         ({"result": {"messageId": "m1"}}, "messageId", None),  # (Copilot's: once it shows it)
     ],
 )
@@ -103,3 +104,26 @@ async def test_ids_that_are_no_ids_are_no_sign_and_break_nothing():
     deliveries.took(key=["m8"])
     assert sent.outcome is None and sent.key is None
     assert deliveries.over() is True and sent.outcome == UNKNOWN
+
+
+@pytest.mark.anyio
+async def test_an_empty_id_or_a_bool_for_a_number_is_no_sign():
+    deliveries = Deliveries()
+    deliveries.took(key="")  # (a user.message with no id: the prompt's, say)
+    named = await steer_asked(deliveries, "use blue", writing(), 8, 0.01, "messageId")
+    deliveries.answered(8, {"result": {"messageId": ""}})
+    first = await steer_asked(deliveries, "y", writing(), 1, 0.01)
+    deliveries.answered(True, {"result": {}})  # (JSON's true is no request's number)
+    assert (named.outcome, named.key, first.outcome) == (None, None, None)
+    deliveries.over()
+
+
+def test_its_echo_is_taken_by_its_words_and_only_an_echo_is_kept_from_its_stream():
+    deliveries = Deliveries()
+    plain, blocks = deliveries.sent("use blue"), deliveries.sent("and green")
+    echo = {"type": "user", "isReplay": True, "message": {"content": "use blue"}}
+    assert deliveries.echoed([echo]) is True  # (not its stream's: the prompt again, long)
+    listed = {**echo, "message": {"content": [{"type": "text", "text": "and green"}]}}
+    assert deliveries.echoed([listed, {"type": "assistant"}]) is False  # (one of its stream's)
+    assert deliveries.echoed([{"type": "user", "message": {"content": "use blue"}}]) is False
+    assert (plain.outcome, blocks.outcome) == (TAKEN, TAKEN)

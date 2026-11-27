@@ -2525,8 +2525,9 @@ CLAUDE_NEVER = (
 START_SECONDS = 30.0
 # How long it may stay silent after a turn's end that came before it read a steer (`_control`).
 LATE_SECONDS = 30.0
-# C2: the longest prompt it is asked to echo (`--replay-user-messages`): half the line KOLONİ reads.
-REPLAY_AT_MOST = 2**23
+# C2: the longest prompt it is asked to echo (`--replay-user-messages`): half the line KOLONİ reads;
+# and the version its echo was measured on (27 Nov 2026): an older one is not asked for it.
+REPLAY_AT_MOST, REPLAY_FROM = 2**23, (2, 1, 332)
 # What of its init line is its own (where its memory, its socket and its session are):
 # kept nowhere.
 CLAUDE_OWN = frozenset({"memory_paths", "messaging_socket_path", "session_id"})
@@ -2976,9 +2977,9 @@ class ClaudeNativeClient(CodexNativeClient):
             {f"{PLUGIN}:{p.name}" for p in Path(plugin, "skills").iterdir()} if plugin else set()
         )
         own = await asyncio.to_thread(own_names, self._env) if plugin else set()
-        # C2: its echo of each user line it takes (`steer`) - not where the prompt's own echo
-        # could pass the line KOLONİ reads (pictures): what is steered in is then unknown.
-        if len(json.dumps(prompt)) < REPLAY_AT_MOST:
+        # C2: its echo of each user line it takes (`steer`) - not where the prompt's own echo could
+        # pass the line read (pictures), nor older than measured: what it is steered is unknown.
+        if len(json.dumps(prompt)) < REPLAY_AT_MOST and await self._from(REPLAY_FROM):
             argv = [*argv, "--replay-user-messages"]
         try:
             process, job = await self._start(argv, shim, root, env)
@@ -3155,6 +3156,8 @@ class ClaudeNativeClient(CodexNativeClient):
                     heard = time.monotonic()
                     written = raw.decode("utf-8", errors="replace")
                     lines = _events(written)
+                    if deliveries.echoed(lines):  # (C2: its echo of a line of KOLONİ's, `steer`)
+                        continue  # (not its stream's: the prompt again, and long)
                     # What it and KOLONİ say to each other is kept nowhere: its answer to
                     # `initialize` can say whose account it is, a hook where its transcripts are.
                     # Nor where its own memory, socket and session are (its init line).
@@ -3191,9 +3194,6 @@ class ClaudeNativeClient(CodexNativeClient):
                             )
                             measures.add(task)
                             task.add_done_callback(measures.discard)
-                        if line.get("type") == "user" and line.get("isReplay"):  # (C2: taken)
-                            echoed = _dict(line.get("message")).get("content")
-                            deliveries.took(text=_result_text(echoed))  # (a string, measured)
                         for event in translate(line):
                             kind, item = event.get("type"), _dict(event.get("item"))
                             if kind == "model":
@@ -5050,7 +5050,7 @@ class CopilotNativeClient(CodexNativeClient):
                         task.add_done_callback(answering.discard)
                         continue
                     if kind == "user.message":  # (C2: one steered in, taken into its work)
-                        deliveries.took(key=_dict(event.get("data")).get("messageId") or "")
+                        deliveries.took(key=_dict(event.get("data")).get("messageId"))
                     if kind == "session.idle" and sent:
                         if _dict(event.get("data")).get("aborted"):
                             failure = failure or "its turn was aborted"

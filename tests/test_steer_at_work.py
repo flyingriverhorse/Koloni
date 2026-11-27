@@ -22,7 +22,7 @@ from app.agent import (
     ToolError,
 )
 from app.agent.talk_mixin import NO_REPLY
-from app.agent.words import STEER_UNKNOWN, WORD_MAYBE_UNREAD
+from app.agent.words import STEER_UNKNOWN, WORD_MAYBE_UNREAD, WORD_NOT_SENT
 from app.delivery import NOT_SENT, TAKEN, UNKNOWN, Delivery
 from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
@@ -32,6 +32,7 @@ from tests.test_spawn import begin, call, role_id, spawn, step
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 QUOTED = '"use blue"'
+ECHOES = "2.1.332"  # (C2: the stand-in Claude Code's version, from which it echoes a line)
 LEADS = AGENT_STEERED.format(message='Message from Lead (the agent you work for):\n\n"use blue"')
 
 
@@ -91,6 +92,7 @@ def test_the_leads_message_goes_into_claude_codes_turn_as_its_word_not_the_users
     client, provider, model = claude_app(
         [{"say": "working"}, {"await_steer": 10}, {"say": "done"}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
+        version=ECHOES,
     )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
@@ -134,7 +136,8 @@ def test_the_leads_message_goes_into_codexs_turn_also_where_codex_answers_late(
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (steer,) = native_app.record()["steers"]
     assert steer["input"][0]["text"] == f"{STEERED}\n\n{LEADS}"
-    assert len(on_record(client, cid, coder)) == 1
+    (kept,) = on_record(client, cid, coder)  # (its no after STEER_SECONDS: put back, C2)
+    assert (kept["delivered_at"] is None) == (outcome == NOT_SENT)
     noted = [m["content"] for m in model.calls_of["Lead"][-1]].count(f"KOLONİ: {went}.")
     assert noted == (0 if answers is None else 1)
 
@@ -218,6 +221,7 @@ def test_the_users_word_goes_into_claude_codes_turn_as_theirs_and_not_once_it_fi
     client, provider, _model = claude_app(
         [{"say": "working"}, {"await_steer": 10}, {"say": "done"}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
+        version=ECHOES,
     )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
@@ -326,6 +330,8 @@ def test_what_came_of_the_users_word_told_into_a_cli_turn_is_kept_to(
     ]
     unknown = WORD_MAYBE_UNREAD.format(name="Coder", words='"use blue"')
     assert said.count(unknown) == int(outcome == UNKNOWN)
+    late_no = WORD_NOT_SENT.format(name="Coder", words='"use blue"')  # (never lost silently)
+    assert said.count(late_no) == int(outcome == NOT_SENT)
     gate.release()
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
 

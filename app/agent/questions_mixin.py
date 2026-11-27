@@ -22,6 +22,7 @@ from app.agent.words import (
     LEAD_TOLD_ABOUT,
     READY_FOR_YOU,
     WORD_MAYBE_UNREAD,
+    WORD_NOT_SENT,
 )
 from app.api.usage import over_month, past_its_limit
 from app.db.models import (
@@ -35,7 +36,7 @@ from app.db.models import (
     project_of,
     settings_of,
 )
-from app.delivery import NOT_SENT, UNKNOWN
+from app.delivery import NOT_SENT, TAKEN, UNKNOWN
 from app.providers import ask_once, mode_of
 from app.serialize import file_change_out, question_out
 from app.team import quoted
@@ -760,18 +761,15 @@ class QuestionsMixin:
     def _told_went(self: "AgentRunner", ctx: Ctx, note: str, words: str, outcome: str) -> None:
         """C2: the user's word steered into an agent's CLI turn from its window - unknown: the
         user is told so in the chat, and it is never sent again; not sent (its CLI's no came
-        after STEER_SECONDS): put back - handed to it at its next step, or with its next KOLONİ
-        tool result (`_deliver`)."""
-        if outcome == UNKNOWN:
-            name = ctx.name or ctx.role
-            self._koloni_line(
-                ctx.cid, ctx.run_id, WORD_MAYBE_UNREAD.format(name=name, words=quoted(words))
-            )
-        elif outcome == NOT_SENT:
-            with self._factory() as session:
-                session.get_one(Message, note).delivered_at = None
-                session.commit()
-            self._notes[note] = ctx.run_id
+        after STEER_SECONDS: its turn was over): put back (`_put_back`), and said in the chat
+        too - a CLI whose turn is over may take no step to be handed it in."""
+        if outcome == TAKEN:
+            return
+        if outcome == NOT_SENT:
+            self._put_back(ctx, note)
+        said = WORD_MAYBE_UNREAD if outcome == UNKNOWN else WORD_NOT_SENT
+        name = ctx.name or ctx.role
+        self._koloni_line(ctx.cid, ctx.run_id, said.format(name=name, words=quoted(words)))
 
     def _change_heard(self: "AgentRunner", ctx: Ctx, change_id: str) -> Callable[[str, bool], None]:
         """What goes on a change's record the moment the user has spoken, where its

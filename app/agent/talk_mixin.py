@@ -89,7 +89,10 @@ SENT_WHILE_IT_WORKS = (
 # KOLONİ never sends one again.
 MESSAGE_WENT = {
     TAKEN: "{name} took your message ({words}) into its turn: it is read in its turn",
-    NOT_SENT: "your message ({words}) was not delivered to {name}; you may send it again",
+    NOT_SENT: (
+        "your message ({words}) did not reach {name}'s turn: it is handed to {name} at its next "
+        "step, if it takes one"
+    ),
     UNKNOWN: (
         "{name}'s turn ended before it showed it took your message ({words}): it may not have "
         "read it; it is not sent again"
@@ -694,21 +697,24 @@ class TalkMixin:
                 f"{self._not_taken(target, sent, door=True)}"
             )
         self._hand_files(ctx, files, target.agent_id)
-        self._send(ctx, target, body, delivered=True)
+        note = self._send(ctx, target, body, delivered=True)
         self._channel(ctx, ctx.agent_id, target.agent_id, "note", body)
         if sent is not None and sent.outcome is not None:  # (known by now: Codex answers at once)
             went = MESSAGE_WENT[sent.outcome].format(name=target.name, words=quoted(body[:200]))
             return "succeeded", f"{went}. {NO_REPLY}"
         if sent is not None:
-            sent.then(lambda outcome: self._message_went(ctx.agent_id, target, body, outcome))
+            sent.then(lambda outcome: self._message_went(ctx.agent_id, target, body, note, outcome))
         return "succeeded", SENT_WHILE_IT_WORKS.format(name=target.name)
 
     def _message_went(
-        self: "AgentRunner", sender_id: str, target: Ctx, body: str, outcome: str
+        self: "AgentRunner", sender_id: str, target: Ctx, body: str, note: str, outcome: str
     ) -> None:
         """C2: what came of a message steered into a CLI's turn, once known - told to the agent
         that sent it while it is at work (B: never left believing it was acted on). Taken is
-        only said from its next step on (`_nudge`): a note would wake it for a step of its own."""
+        only said from its next step on (`_nudge`): a note would wake it for a step of its own.
+        Not sent (its CLI's no after STEER_SECONDS): its `note` is put back (`_put_back`)."""
+        if outcome == NOT_SENT:
+            self._put_back(target, note)
         if (sender := self._ctxs.get(sender_id)) is None:
             return
         went = (
@@ -716,7 +722,7 @@ class TalkMixin:
         )
         if outcome == TAKEN:
             self._nudge(sender, went)
-        else:  # (it may want to send it again: a note, read as it comes)
+        else:  # (a note, read as it comes: it may act on it)
             self._send(sender, sender, went, delivered=False, koloni=True)
 
     @staticmethod
@@ -778,6 +784,15 @@ class TalkMixin:
             self._notes[inbound_id] = target.run_id
         self.bus.emit(target.cid, target.run_id, "message.created", payload)
         return inbound_id
+
+    def _put_back(self: "AgentRunner", ctx: Ctx, note: str) -> None:
+        """C2: a message on its record as delivered that its CLI's turn said no to after
+        STEER_SECONDS: undelivered again - handed at its next step, or with its next KOLONİ
+        tool result (`_deliver`)."""
+        with self._factory() as session:
+            session.get_one(Message, note).delivered_at = None
+            session.commit()
+        self._notes[note] = ctx.run_id
 
     def _deliver(self: "AgentRunner", ctx: Ctx) -> list[str]:
         """Hand an agent the notes left for it and what is new to it on the turn's notebook;

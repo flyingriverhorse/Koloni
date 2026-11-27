@@ -868,9 +868,9 @@ async def test_a_steer_it_echoes_in_its_turn_is_taken_and_none_after_it_ended_is
     # C2: its echo before its result (--replay-user-messages, measured on 2.1.332): taken - and
     # its run ends at that result, waiting for no turn on it (a wait would outlast the test).
     monkeypatch.setattr(model_native, "LATE_SECONDS", 600.0)
+    script = [{"say": "working"}, {"await_steer": 5}, {"say": "done"}]
     client = ClaudeNativeClient(
-        launcher=FAKE_CLAUDE,
-        **plan(tmp_path, [{"say": "working"}, {"await_steer": 5}, {"say": "done"}], linger=True),
+        launcher=FAKE_CLAUDE, **plan(tmp_path, script, linger=True, version="2.1.332")
     )
     took, usage, _said, _items, steer = await asyncio.wait_for(
         steered(client, tmp_path), scaled(60)
@@ -924,15 +924,17 @@ async def test_a_steer_it_never_echoes_is_unknown_and_its_work_stands(tmp_path, 
 
 
 @pytest.mark.anyio
-async def test_a_prompt_too_long_to_echo_is_not_asked_for_one_and_a_steer_is_unknown(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize(("version", "longest"), [("2.1.332", 10), ("2.1.331", 2**23)])
+async def test_a_prompt_too_long_to_echo_or_an_older_cli_is_not_asked_for_it_a_steer_unknown(
+    tmp_path, monkeypatch, version, longest
 ):
-    # (Its echo of the prompt could pass the line KOLONİ reads: pictures.)
-    monkeypatch.setattr(model_native, "REPLAY_AT_MOST", 10)
+    # (Its echo of the prompt could pass the line KOLONİ reads: pictures. Older than its echo was
+    # measured on, it is not asked for one.)
+    monkeypatch.setattr(model_native, "REPLAY_AT_MOST", longest)
     monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
+    script = [{"say": "working"}, {"await_steer": 5}, {"say": "done"}]
     client = ClaudeNativeClient(
-        launcher=FAKE_CLAUDE,
-        **plan(tmp_path, [{"say": "working"}, {"await_steer": 5}, {"say": "done"}], linger=True),
+        launcher=FAKE_CLAUDE, **plan(tmp_path, script, linger=True, version=version)
     )
     took, usage, _said, _items, _steer = await steered(client, tmp_path)
     assert "--replay-user-messages" not in record(tmp_path)["argv"]

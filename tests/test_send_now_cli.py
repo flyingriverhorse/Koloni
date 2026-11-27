@@ -17,7 +17,7 @@ from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_parallel import until
 from tests.test_send_now import now
 from tests.test_session_agent import session_app  # noqa: F401  (a fixture)
-from tests.test_steer_at_work import at_work
+from tests.test_steer_at_work import ECHOES, at_work
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 WORD = "use blue"
@@ -44,7 +44,7 @@ def started(client, project_dir, provider):
 
 def test_send_now_into_claude_codes_turn_once(claude_app, wait_run, project_dir):  # noqa: F811
     client, provider, _model = claude_app(
-        [{"say": "working"}, {"await_steer": 10}, {"say": "done"}]
+        [{"say": "working"}, {"await_steer": 10}, {"say": "done"}], version=ECHOES
     )
     cid, run_id = started(client, project_dir, provider)
     at_work(client, cid, name="Lead")

@@ -1001,7 +1001,10 @@ class AtWorkMixin:
         self: "AgentRunner", ctx: Ctx, words: str, kept: bool = False
     ) -> "str | Delivery | None":
         """`steer`, with what was written into its CLI's turn where it was: what comes of it,
-        once its CLI shows it (C2: `Delivery`) - one it refused is why it cannot hear them."""
+        once its CLI shows it (C2: `Delivery`) - one it refused is why it cannot hear them.
+        shortcut: what waits on it (`then`) is added once the door returns - one settled before
+        that is told at once, after its door's own record; hand `then` to the door if a waiter
+        must ever be told before the run's next line is read."""
         name = ctx.name or ctx.role
         if ctx.agent_id in self._changing:  # (one at a time while it is written: each is settled)
             return f"can't be sent now: another message to {name} is on its way"

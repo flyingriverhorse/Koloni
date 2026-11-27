@@ -131,10 +131,13 @@ messages.
   long live turn: Claude Code's echo of the line before its result (`--replay-user-messages`; the
   echo names no id of KOLONİ's, so two words alike in one turn are matched oldest first), Codex's
   answer to `turn/steer`, Copilot's `user.message` naming the id its send was answered with, before
-  its idle. An unknown word is never sent again: one Claude Code takes in one more turn after its
-  result is still said unknown (that turn is read to its end), and one Copilot would take after its
-  idle is not read (its run has ended). A prompt over 8 MB (pictures) starts Claude Code without its
-  echo: a word steered into that turn is unknown.
+  its idle. Only Codex's "no active turn to steer" (-32600) is read as not sent; any other no of a
+  CLI's is unknown. An unknown word of Send now, Tell or an agent's message is never sent again: one
+  Claude Code takes in one more turn after its result is still said unknown (that turn is read to
+  its end), and one Copilot would take after its idle is not read (its run has ended); a Change of
+  a decision or an answer is given again from the agent's next step. Claude Code is asked for its
+  echo only from 2.1.332 on, the version it was measured on (`--version`, asked at each run), and
+  not for a prompt over 8 MB (pictures): a word steered into such a turn is unknown.
 - Talking while agents work: the Orchestrator's steps that answer your word are refused KOLONİ's
   Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and any MCP
   server's tool; a CLI Orchestrator's own tools are only told so. While it answers your word the
