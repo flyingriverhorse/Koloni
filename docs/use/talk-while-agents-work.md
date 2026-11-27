@@ -77,10 +77,11 @@ and your word is still said unknown - it was not taken in the turn it was sent i
 record says the same: *Lead may not have read this before its turn ended; it is not sent again*.
 
 An agent that messages a CLI agent at work is told what came of it the same way - in the message's
-answer where it is known at once (Codex), else in a note of KOLONİ's once it is: *Coder took your
-message ("use blue") into its turn: it is read in its turn*; *your message ("use blue") was not
-delivered to Coder; you may send it again*; or *Coder's turn ended before it showed it took your
-message ("use blue"): it may not have read it; it is not sent again*.
+answer where it is known at once (Codex), else by KOLONİ once it is: *Coder took your message ("use
+blue") into its turn: it is read in its turn* (from its next step on - it takes no step of its own
+for it); *your message ("use blue") was not delivered to Coder; you may send it again* or *Coder's
+turn ended before it showed it took your message ("use blue"): it may not have read it; it is not
+sent again* (a note, read at once).
 
 ## Agents in the background
 

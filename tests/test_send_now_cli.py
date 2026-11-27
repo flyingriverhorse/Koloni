@@ -6,6 +6,8 @@ end before its Orchestrator read it: one that took none is run once more, the wo
 C2: as its CLI shows it - taken: heard; not sent: a run more reads it; unknown: said in the chat,
 never sent again."""
 
+import pytest
+
 from app import model_native
 from app.agent import STEERED, USER_TOLD
 from app.agent.words import WORD_MAYBE_UNREAD
@@ -73,6 +75,32 @@ def test_send_now_claude_code_never_echoes_is_unknown_said_and_never_sent_again(
     said = [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
     assert said == [WORD_MAYBE_UNREAD.format(name="Lead", words=f'"{WORD}"')]
     assert client.app.state.runner._unheard.get(run_id) is None
+
+
+@pytest.mark.parametrize("ends", ["stop", "crash"])
+def test_send_now_written_before_a_stop_or_a_crash_is_unknown_and_never_queued_again(
+    claude_app, wait_run, project_dir, ends
+):  # noqa: F811
+    # C2: what is open as the run ends is unknown before the turn's end puts back what no step
+    # read (`_shut_door`): written into its turn, it is said, never a turn of its own.
+    end = {"sleep": 30} if ends == "stop" else {"die": 7}
+    client, provider, _model = claude_app(
+        [{"say": "working"}, {"await_steer": 10}, end], echo="none"
+    )
+    cid, run_id = started(client, project_dir, provider)
+    at_work(client, cid, name="Lead")
+    assert now(client, cid, WORD).json()["run"]["id"] == run_id
+    until(client, cid, lambda _s: claude_app.record().get("steered"))
+    if ends == "stop":
+        assert client.post(f"/api/runs/{run_id}/cancel", headers=OWN).status_code == 202
+    snap = wait_run(client, cid, run_id, timeout=30)
+    runner = client.app.state.runner
+    until(client, cid, lambda _s: run_id in runner._door_shut)
+    snap = client.get(f"/api/conversations/{cid}").json()  # (after its door shut: no queue)
+    assert [r["status"] for r in snap["runs"]] == ["cancelled" if ends == "stop" else "failed"]
+    said = [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+    assert WORD_MAYBE_UNREAD.format(name="Lead", words=f'"{WORD}"') in said, said
+    assert runner._unheard.get(run_id) is None
 
 
 def test_send_now_to_codex_by_turn_steer(native_app, wait_run, project_dir):  # noqa: F811

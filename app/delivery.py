@@ -82,7 +82,10 @@ class Deliveries:
 
     def took(self, key: object = None, text: object = None) -> None:
         """A sign of its CLI's that it took one into its turn: by the `key` it was answered
-        with, else by its words - the oldest open one of them."""
+        with, else by its words - the oldest open one of them. (An id is a string: what else a
+        CLI's line holds is no sign.)"""
+        if key is not None and not isinstance(key, str):
+            return
         one = next(
             (one for one in self.open if (one.key == key if key is not None else one.text == text)),
             None,
@@ -95,16 +98,17 @@ class Deliveries:
     def answered(self, number: object, message: dict) -> None:
         """Its answer to a request of `steer_asked`'s, as its read loop reads it - before a line
         after it (its turn's end) is: a no is not sent; a yes taken, or named by its `named`."""
-        one, named = self.asked.pop(number, (None, None))
-        if one is None:
-            return
+        if not isinstance(number, int) or (one_named := self.asked.pop(number, None)) is None:
+            return  # (not one of its: a request's number is KOLONİ's own, an int)
+        one, named = one_named
         result = message.get("result")
         if "result" not in message:
             self.settle(one, NOT_SENT)
         elif named is None:
             self.settle(one, TAKEN)
         else:
-            one.key = result.get(named) if isinstance(result, dict) else None
+            key = result.get(named) if isinstance(result, dict) else None
+            one.key = key if isinstance(key, str) else None
             if one.key is not None and one.key in self.seen:
                 self.settle(one, TAKEN)
 

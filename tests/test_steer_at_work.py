@@ -115,7 +115,8 @@ def test_the_leads_message_goes_into_codexs_turn_also_where_codex_answers_late(
 ):  # noqa: F811
     from app import model_native
 
-    monkeypatch.setattr(model_native, "STEER_SECONDS", 0.5)
+    if answers:  # (its late answer comes after a second: past these; one in time, by far not)
+        monkeypatch.setattr(model_native, "STEER_SECONDS", 0.5)
     client, provider, model = native_app(
         [{"say": "working"}, {"await_steer": True}, {"say": "done"}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},

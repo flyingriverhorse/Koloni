@@ -707,10 +707,17 @@ class TalkMixin:
         self: "AgentRunner", sender_id: str, target: Ctx, body: str, outcome: str
     ) -> None:
         """C2: what came of a message steered into a CLI's turn, once known - told to the agent
-        that sent it while it is at work (B: never left believing it was acted on)."""
-        if (sender := self._ctxs.get(sender_id)) is not None:
-            went = MESSAGE_WENT[outcome].format(name=target.name, words=quoted(body[:200]))
-            self._send(sender, sender, f"KOLONİ: {went}.", delivered=False, koloni=True)
+        that sent it while it is at work (B: never left believing it was acted on). Taken is
+        only said from its next step on (`_nudge`): a note would wake it for a step of its own."""
+        if (sender := self._ctxs.get(sender_id)) is None:
+            return
+        went = (
+            f"KOLONİ: {MESSAGE_WENT[outcome].format(name=target.name, words=quoted(body[:200]))}."
+        )
+        if outcome == TAKEN:
+            self._nudge(sender, went)
+        else:  # (it may want to send it again: a note, read as it comes)
+            self._send(sender, sender, went, delivered=False, koloni=True)
 
     @staticmethod
     def _not_taken(ctx: Ctx, why: str, door: bool) -> str:

@@ -90,3 +90,16 @@ async def test_one_never_written_is_not_sent_and_one_never_answered_is_unknown()
     deliveries.answered(7, {"error": {"message": "it ended"}})  # (after its end: too late)
     await asyncio.wait({asking}, timeout=5)
     assert never.outcome == UNKNOWN and asking.cancelled()  # (its ask is not left at work)
+
+
+@pytest.mark.anyio
+async def test_ids_that_are_no_ids_are_no_sign_and_break_nothing():
+    # (A CLI's line read as it came: a list or a map where an id stands must not end its run.)
+    deliveries = Deliveries()
+    sent = await steer_asked(deliveries, "use blue", writing(), 8, 0.01, "messageId")
+    deliveries.answered([8], {"result": {"messageId": "m8"}})
+    deliveries.took(key={"m": 8})
+    deliveries.answered(8, {"result": {"messageId": ["m8"]}})
+    deliveries.took(key=["m8"])
+    assert sent.outcome is None and sent.key is None
+    assert deliveries.over() is True and sent.outcome == UNKNOWN
