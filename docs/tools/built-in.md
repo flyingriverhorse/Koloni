@@ -93,6 +93,14 @@ lines are left out and a last line says how many. A sub-agent is not given it, n
 comparison, nor an Orchestrator
 whose role has no To-do tools.
 
+While its agents work (0.1.11), the Orchestrator also has **stop_agent**: it stops one agent it opened
+in this turn with Open sub-agents, alone - its work so far kept for your **Take in**, nothing of it in the
+project; any other is refused ("… is not one you opened in this turn", "… has finished"). The
+Orchestrator of an API model may open an agent **in the background** (Open sub-agents with `background`)
+and run a command in the background (Run commands with `background`, where it has the two tools for a
+command that keeps running): it goes on at once and is told when each ends. See
+[Talking while agents work](../use/talk-while-agents-work.md).
+
 A role needs at least one tool. Tools from MCP servers and skills are given to roles on the Tools page;
 see [MCP servers](mcp.md) and [Skills](skills.md).
 

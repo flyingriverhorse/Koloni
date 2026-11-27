@@ -6,6 +6,17 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **Chat**: talk to the Orchestrator while its agents work. While a turn runs the message box has **Send now** (Enter) - "the Orchestrator reads it in this turn": your message goes into the turn at work, and the Orchestrator answers it then, from where it waits for its agents or at its next step - and **After this turn**, which queues it as before. The box says "Write to the Orchestrator - it reads it in this turn…". Where the turn takes no message (a plan turn, a comparison, a To-do task's or a night job's turn, one not started from your page, another topic) or was ending, the message is queued and the box says why under it ("Queued: the turn was ending"). A message is never lost or read twice: a turn stopped or failed before the Orchestrator read it puts it in a turn of its own. The step that answers it writes no file and runs no command - new work goes to an agent ([docs](use/talk-while-agents-work.md#send-now-and-after-this-turn)).
+- **Agents**: **Stop** and **Message** on an agent at work - on its node on the canvas and in its window's head - for one an agent opened. Stop ends that agent alone: the chat says "You stopped Coder. Its work so far is kept for your Take in; nothing of it is in the project.", the Orchestrator is told not to open it again unless you ask, and the rest of the turn goes on. Message opens its window at its Tell box. KOLONİ's own checks and a team recipe's agents keep their own Stop ([docs](use/talk-while-agents-work.md#stop-and-message-on-one-agent)).
+- **Agents**: the Orchestrator of an API model can open an agent in the background: it goes on at once - talks to you, opens others, messages or stops it with its new **stop_agent** - and takes a step for each agent's report as it comes, saying an agent is still at work until then. It can run a command in the background too (`run_command` with `background`), read it with `command_output`, stop it with `stop_command`, and is told when it ends. The chat's limits hold them as any agent ([docs](use/talk-while-agents-work.md#agents-in-the-background)).
+- **Notifications**: when an agent nobody waited for ends while its chat is not open, a desktop notice says so - "Reviewer finished: 2 findings", "Coder stopped" - where the project has Desktop notifications on; it holds only the agent's name and how it ended ([docs](use/talk-while-agents-work.md#when-an-agent-ends-and-nobody-is-looking)).
+
+### Changed
+
+- **CLIs**: GitHub Copilot CLI run Native hears your word while it works: its Tell box is there again, and Send now goes into a Copilot Orchestrator's running turn (measured with Copilot 1.0.114). An agy agent's box says it can't hear messages while it works and sends your words to the Orchestrator instead ([docs](reference/known-limits.md#clis)).
+
 ## [0.1.10] - 2026-11-27
 
 ### Changed

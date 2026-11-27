@@ -103,6 +103,16 @@ messages.
 - Copilot's thinking levels on a model server of your own are not measured.
 - An agy model whose name ends in its level takes no other level. Only a name ending in `-low` was seen
   to refuse one; the other endings are read the same way, not measured.
+- A word sent while a CLI works (**Send now**, an agent's Tell box) goes into its running turn on
+  Claude Code (a second user line; 2.1.332), Codex (`turn/steer`; 0.172) and GitHub Copilot CLI run
+  **Native** (`session.send` with mode "immediate"; 1.0.114) - each measured on 27 Nov 2026. agy
+  takes it only after its turn (1.5.18): an agy agent's box sends your word to the Orchestrator, and
+  an agy Orchestrator reads it in one more run of the same turn. A CLI run as a session reads it at
+  its next run too. That a CLI Orchestrator wakes for each of its agents' ends is not done: it reads
+  their reports once all are back (each wake would be a run of its CLI).
+- Talking while agents work: the Orchestrator's step that answers your word writes no file and runs
+  no command through KOLONİ's tools; a CLI Orchestrator's own tools are only told so. A chat open in a
+  hidden browser tab counts as watched: no desktop notice comes when a background agent ends.
 
 ## Git
 
