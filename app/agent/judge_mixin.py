@@ -97,11 +97,10 @@ class JudgeMixin:
         project's root, in a turn the user started from the app's own page (`Run.by_user`: not a
         To-do task's, a trigger's nor a job's while they are away) and not a side of a
         comparison, which no measured judge model let run: the record that its card quotes the
-        sentence of the user's own messages in this chat that asked for it (`judge.asked_for`) -
-        `kind` "said", an ask: a card all the same, one click. None where none asks for it.
-        shortcut: the newest sentence that names it decides, in the words check's last messages -
-        a "Push it." of an earlier turn is quoted on a push of this one that none mentions; read
-        this turn's message alone if such a quote is seen to mislead."""
+        sentence of the user's message that started this turn - an earlier turn's never: a
+        later push is not its - that asked for it (`judge.asked_for`; one over MOST_CHARS is not
+        read, never cut: its condition may stand past the cut) - `kind` "said", an ask: a card
+        all the same, one click. None where none asks for it."""
         doing = judge.action_of(command)
         if (
             doing is None
@@ -116,6 +115,16 @@ class JudgeMixin:
                 return None
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             texts = self._users_words(session, ctx.cid, project.rules if project else None)
+            started = session.scalars(
+                select(Message.content).where(
+                    Message.run_id == ctx.run_id,
+                    Message.role == "user",
+                    Message.agent_id.is_(None),
+                )
+            ).all()
+        if sum(map(len, started)) > judge.MOST_CHARS:
+            return None
+        texts["message"] = [raw.hidden(one) for one in started]
         quote = judge.asked_for(doing[0], texts, doing[1])
         return (
             {"kind": "said", "verdict": "ask", "quote": quote, "source": "message"}

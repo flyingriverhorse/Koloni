@@ -651,8 +651,8 @@ same holds in the chat you went away from, while you're away. A plain chat has n
 
 A push, opening a pull request and merging one are yours to say. Once a Judge model has passed the
 measurement, Check what I said first can let one you asked for run with no card, as it does a delete.
-Until then the card stays, but it quotes you and asks for one click. When a sentence of your own message
-in this chat asks for it, its card says
+Until then the card stays, but it quotes you and asks for one click. When a sentence of the message
+that started the turn asks for it, its card says
 
 > **You said “Push it.” — push now?**
 
@@ -665,12 +665,12 @@ What asks for it - in English an order or a leave ("Push it.", "Commit and push.
 "Open a PR.", "Squash and merge."), in Turkish a request ("push et", "pushla", "push edebilirsin", "PR
 aç", "PR'ı merge et", "PR'ı birleştir"). Only:
 
-- your own messages in this chat, sent from the app's own page - never an agent's words, a tool's
-  result, a file, your preferences or the project's rules; nor code, a quoted line (`>`) or a sentence
-  with a backtick in it;
-- the newest sentence that mentions it decides, in your last 6 messages: "Push it." and after it
-  "Wait, don't push yet." is no quote, and the other way round it is. A "Push it." of an earlier turn
-  is quoted on a push of a later one whose message does not mention it - read the line on the card;
+- the message you sent from the app's own page that started this turn - never an earlier turn's ("Push
+  it." yesterday does not cover today's push after "Fix the typo."), an agent's words, a tool's result, a
+  file, your preferences or the project's rules; nor code, a quoted line (`>`) or a sentence with a
+  backtick in it. A message over 4,000 characters is not read for it;
+- the last sentence of it that mentions it decides: "Push it. … Wait, don't push yet." is no quote, and
+  the other way round it is;
 - not a sentence that says no ("Don't push.", "push etme") or anything else on its line that does ("Push
   it. Don't merge."), one that asks ("Push it?", "push eder misin"), one that says what you do or will
   do ("I'll push it myself.", "push ettim", "push edeceğim", "tomorrow"), nor a message that sets a

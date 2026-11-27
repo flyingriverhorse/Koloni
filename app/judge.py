@@ -557,8 +557,9 @@ def _plain_options(args: list[str], takes: set[str], flags: set[str], most: int)
 
 
 def asked_for(action: str, said: dict[str, list[str]], branches: list[str]) -> str:
-    """K5: the sentence of the user's own messages in this chat (`said`'s "message", newest first)
-    that asks for `action` (`action_of`), as they wrote it, cut to QUOTE_CHARS; "" for none. The
+    """K5: the sentence of the user's own messages in this chat (`said`'s "message", newest first:
+    the gate gives the one that started the turn alone, `JudgeMixin._said_so`) that asks for
+    `action` (`action_of`), as they wrote it, cut to QUOTE_CHARS; "" for none. The
     newest sentence that names it at all decides (`MENTIONS`, in code and quotes too: "Push it."
     and after it "Wait, `git push` later." is none). Their preferences and the project's rules ask
     for none, and a line of them that names it and forbids it or sets a condition (`set_against`:

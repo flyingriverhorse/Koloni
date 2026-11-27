@@ -10,6 +10,7 @@ import pytest
 from app import judge
 from app.model_client import StepResult, ToolCallRequest
 from tests.fakes import Script, ScriptedExecutor
+from tests.keyed import OWN
 from tests.test_agent_commands import approve, cmd
 from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
@@ -332,6 +333,37 @@ def test_a_turn_the_user_did_not_start_from_the_page_quotes_no_earlier_message(
     ).json()["run"]["id"]
     asked = carded(client, cid, run_id, wait_run)
     assert asked["command"] == "git push" and asked["judged"] is None
+
+
+@pytest.mark.parametrize(
+    "later, quote",
+    [
+        ("Fix the typo.", None),  # (the earlier turn's "Push it." is not this push's)
+        ("Fix the typo, then push it.", "Fix the typo, then push it."),
+    ],
+)
+def test_only_the_message_that_started_the_turn_is_quoted(
+    make_client, wait_run, project_dir, later, quote
+):
+    client, _ = make_client([text("ok"), cmd("git push"), text("left it")])
+    _, cid, first = begin(client, project_dir, "Push it.", check="ask")
+    wait_run(client, cid, first)
+    run_id = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": later}, headers=OWN
+    ).json()["run"]["id"]
+    asked = carded(client, cid, run_id, wait_run)
+    assert asked["judged"] == ({**QUOTED, "quote": quote} if quote else None)
+
+
+def test_a_message_over_the_words_checks_length_is_not_read_nor_cut(
+    make_client, wait_run, project_dir
+):
+    # (its condition may stand past where a cut would end it)
+    client, _ = make_client([cmd("git push"), text("left it")])
+    message = "Push it.\n" + "Fix the typo in hello.py. " * 170 + "\nOnly after the review."
+    assert len(message) > judge.MOST_CHARS
+    _, cid, run_id = begin(client, project_dir, message, check="ask")
+    assert carded(client, cid, run_id, wait_run)["judged"] is None
 
 
 @pytest.mark.parametrize(
