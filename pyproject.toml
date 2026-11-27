@@ -12,7 +12,7 @@ requires-python = ">=3.12,<3.15"
 dependencies = [
   "fastapi>=0.141,<0.142",
   "pydantic>=2.13,<3",
-  "uvicorn[standard]>=0.53,<0.54",
+  "uvicorn[standard]>=0.53,<0.55",
   "httpx>=0.28,<0.29",
   "httpx2>=2,<3",
   "starlette>=1.6,<2",
