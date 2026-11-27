@@ -242,7 +242,8 @@ KOLONİ's own words, as they appear on screen.
   for you.
 
 **Working copy**
-: A copy of your project, outside your folder, where a sub-agent makes its changes. Its work comes
+: A copy of your project, outside your folder (in its `.koloni/copies/` where it has no git), where a
+  sub-agent makes its changes. Its work comes
   back to you on a card to take in or discard.
 
 ## How a CLI runs

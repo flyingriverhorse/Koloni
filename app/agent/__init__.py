@@ -444,6 +444,7 @@ from app.workspace import (
     WorkspaceError,
     home_of,
     is_kept_code,
+    judged_in,
     listed_folder,
     secret_in_push,
     secret_named,
@@ -3124,10 +3125,11 @@ class AgentRunner(
         )
         await self._kept_some(merge_id, copy if left else None, files)
         if not left:
+            held = copies.place(runtime, name)  # (K-koloni-alan: once gone, no folder says where)
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
                 copies.remove(runtime, name)
-            self._kept_branch_gone(Path(root), copies.place(runtime, name), on_branch, decision)
+            self._kept_branch_gone(Path(root), held, on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         self._kept_said(ctx, payloads)  # (N3: its line of where its work is, too)
         if applied:
@@ -5836,7 +5838,7 @@ class AgentRunner(
         # Where it runs in a working copy, why it is asked at every level there
         # (`_in_copy_asks`) - for one this command makes, with the links it will have.
         owner = None if review else self._works_in(ctx)
-        made = self._copies.get(owner) if owner else None
+        judged_in((made := self._copies.get(owner) if owner else None) and made.root)  # (its tree)
         linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args, self.commands.longest(cid))
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"

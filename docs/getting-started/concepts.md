@@ -67,8 +67,8 @@ how they hang together.
 ## Your say
 
 **Working copy and Take in**
-: A sub-agent changes files in a copy of your project, outside your folder, so your folder does not
-  change until you say so. Its work comes back on a card: **Take in** or **Discard**. A team's recipe keeps
+: A sub-agent changes files in a copy of your project (outside your folder, or in its `.koloni/copies/`
+  where it has no git), so your folder does not change until you say so. Its work comes back on a card: **Take in** or **Discard**. A team's recipe keeps
   its work in one copy until you press **Take in**. See
   [Working copies and Take in](../use/workspace.md).
 

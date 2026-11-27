@@ -20,7 +20,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import git, raw, secret_set
+from app import copies, git, raw, secret_set
 from app.commands import _TOKENS, _commands_in, _git_sub, _program
 from app.db.models import Agent, Run
 
@@ -173,7 +173,16 @@ def refs(project: Path) -> dict[str, str] | None:
     digests["stash-list"].update(stashes)
     for name in GIT_FILES:
         with contextlib.suppress(OSError):
-            digests["git-files"].update(name.encode() + b"\0" + (folder / name).read_bytes())
+            data = (folder / name).read_bytes()
+            if name == "info/exclude":  # (K-koloni-alan: KOLONİ's own lines, `copy_git.exclude`)
+                data = b"".join(
+                    line
+                    for line in data.splitlines(keepends=True)
+                    if line.rstrip(b"\r\n").decode("utf-8", "replace") not in copies.EXCLUDED
+                )
+                if not data:  # (as no file: one KOLONİ made for its own lines alone)
+                    continue
+            digests["git-files"].update(name.encode() + b"\0" + data)
     code, out, _said = git._in(project, exe, "symbolic-ref", "-q", "HEAD")
     if code != 0:
         code, out, _said = git._in(project, exe, "rev-parse", "-q", "--verify", "HEAD")

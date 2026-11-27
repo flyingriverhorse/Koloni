@@ -37,7 +37,7 @@ level says "· no checks"). Each chat has its own level.
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
 | Writing a file that steers agents' later turns (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.mcp.json`, …) | Card | Card | Card |
 | Writing `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` | Card | Card | Runs |
-| Writing in the folder's `.koloni/` | Card | Card | Card |
+| Writing in the folder's `.koloni/` - or a command that names it - but in its scratch `tmp/`, and a look into `worktrees/` or `copies/` ([which](#the-folders-koloni)) | Card | Card | Card |
 | A web search | Card, unless you allowed searching in this chat | Card, unless you allowed searching in this chat | Runs |
 | A web request that only fetches a page (a plain GET) | Card, unless you allowed that site | Card, unless you allowed that site | Runs |
 | Any other web request (one that sends data) | Card | Card | Card |
@@ -54,6 +54,30 @@ project holds no secret file.
 
 The secret-file rows have exceptions for CLIs run with their own tools (Codex's own safe commands,
 agy's reads): see [Known limits](../reference/known-limits.md#secrets).
+
+### The folder's `.koloni/`
+
+| In `.koloni/` | A command naming it, or a write there |
+|---|---|
+| `tmp/` - the agents' scratch | Judged as any path: no card of `.koloni`'s, at every level |
+| `worktrees/`, `copies/` - KOLONİ's worktrees and copies ([where](workspace.md#where-copies-and-worktrees-are)) | A look - `ls`, `cat`, a search, the Files window - is judged as any; a write, a delete or a program run there is a card at every level |
+| Everything else: `rules.md`, `settings.json`, `recipes/`, `knowledge/`, the teams' `shared/` folder | Card at every level, Full auto too |
+
+- Each worktree and copy is one agent's work. That agent works in it as its own folder - by its full
+  path too (`cd C:/…/.koloni/worktrees/<id>/<agent>/tree`, Git Bash's `/c/…`) - with no card of
+  `.koloni`'s; any other agent, or a command at the project's root, only reads there. A write, a
+  `tee`, `cp` or `mv` into one, a file tool's write (also at Auto-edit and Full auto), a delete, a
+  program run from one, or pytest's `--basetemp` there is asked at every level.
+- What is inside the scratch is still judged as any path: a `.claude/settings.json` there asks as it
+  does anywhere, and a `git` line that names a free folder (`git add -f .koloni/tmp/x`) asks.
+- A line that climbs from a free folder into the rest - `cat .koloni/tmp/../rules.md`, `cd
+  .koloni/worktrees; echo x > ../rules.md`, a path built from where it stands - asks at every level, its
+  card saying "Climbs out of .koloni/tmp…".
+- A delete is a card at Ask and Auto-edit as any delete is; at Full auto a plain delete inside `tmp/`
+  runs with no card - inside `worktrees/` or `copies/` it is a card.
+- The teams' `shared/` folder is not free: who writes where there is the teams' own rule (`write_shared`
+  writes a team's folder only, and each file says who wrote it); agents read and write it with their
+  `read_shared` and `write_shared` tools.
 
 ## The cards
 

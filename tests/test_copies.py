@@ -45,12 +45,18 @@ def test_the_scratch_under_koloni_tmp_is_neither_copied_nor_offered(project, run
 
 
 def tree(top: Path) -> dict[str, bytes]:
-    """Every file under a folder with what it holds, links followed."""
+    """Every file under a folder with what it holds, links followed - but KOLONİ's copies in its
+    `.koloni/copies/` (K-koloni-alan: a project with no git holds them there)."""
     return {
         path.relative_to(top).as_posix(): path.read_bytes()
         for path in sorted(top.rglob("*"))
-        if path.is_file()
+        if path.is_file() and not path.relative_to(top).as_posix().startswith(".koloni/copies/")
     }
+
+
+def own(project: Path) -> dict[str, bytes]:
+    """`tree` of a project but its `.koloni/`: a project with no git holds its copies there."""
+    return {path: data for path, data in tree(project).items() if not path.startswith(".koloni/")}
 
 
 # --- deleting: what a link leads to is never touched --------------------------------------
@@ -83,7 +89,7 @@ def test_a_removal_that_fails_half_way_has_taken_the_links_out_first(project, ru
         copies.remove(runtime, "a1")
     # what is left of the copy leads nowhere, and the project has lost nothing
     assert copy.root.is_dir() and not (copy.root / "node_modules").exists()
-    assert tree(project) == before
+    assert own(project) == before
     monkeypatch.setattr(copies, "_unlink_file", real)
     copies.clear(runtime)  # the next start deletes what was left
     assert not copy.root.exists() and tree(project) == before
@@ -97,7 +103,7 @@ def test_a_file_held_open_stops_the_removal_and_nothing_of_the_project_is_lost(p
         with pytest.raises(OSError):
             copies.remove(runtime, "a1")
         assert not (copy.root / "node_modules").exists()
-        assert tree(project) == before
+        assert own(project) == before
     copies.remove(runtime, "a1")
     assert not copy.root.exists() and tree(project) == before
 
@@ -537,7 +543,7 @@ def test_a_copy_that_is_kept_at_the_start_loses_its_links_and_nothing_else(proje
     copies.clear(runtime, keep=lambda name: name == "a1")
     assert not gone.root.exists()
     assert sorted(tree(kept.root)) == ["hello.py", "mine.txt", "src/app.py"]
-    assert not (kept.root / "node_modules").exists() and tree(project) == before
+    assert not (kept.root / "node_modules").exists() and own(project) == before
 
 
 def test_what_a_copy_was_made_from_is_kept_beside_its_tree_and_read_again(project, runtime):

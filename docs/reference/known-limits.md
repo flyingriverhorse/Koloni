@@ -128,6 +128,25 @@ messages.
   secret (`secrets/README`, `k8s/secrets/deployment.yaml`), and so is a test's
   `tests/fixtures/credentials.json`. A team's or a story's branch commits what its agents wrote under
   such a name: its merge stays on this machine. A file left out is never deleted.
+- A branch's worktree, and in a project with no git a copy, is in the project's own `.koloni/`
+  ([where](../use/workspace.md#where-copies-and-worktrees-are)): a CLI started there reads your
+  project's `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` from the folders above it as well as the copy's own -
+  the same words twice (a `.claude/` folder of the project's above it is not measured). A copy of a
+  project that gets git after the copy was made has no `.git` of its own: git started there as KOLONİ
+  starts it finds no repository (it looks no higher than the copies folder; measured with git 2.53),
+  but a command that clears git's environment would reach the new one. The next copy is made outside
+  the project.
+- A command a script runs in your project's root (`rg x`, `grep -r x .`) reads KOLONİ's copies and
+  worktrees in `.koloni/` too, where your search tools do not: a secret file in one counts as the
+  project's for such a search's card.
+- `git clean -fdx` in the project removes KOLONİ's records of its worktrees under `.koloni/` (what
+  each was made from, its hooks folder); `-ffdx` removes the worktrees themselves. A worktree whose
+  record is gone is left as it is at the next start - with its uncommitted work, and git's record
+  of it - for you to look at and delete. An agent that deletes that record of its own worktree
+  (a command in it can reach the folder beside it) keeps it there the same way.
+- A command row that names an agent's own tree by its full path may still say "Names .koloni…" on
+  the page, though it ran with no card: the page reads the line again without knowing whose tree it
+  is.
 
 ## GitHub
 
@@ -196,6 +215,13 @@ messages.
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.
+- `.koloni/`'s free folders (`tmp/`, `worktrees/`, `copies/`) are told apart by how a path is spelt:
+  `.koloni/t*`, a short name (`KOLONI~1`) or `.koloni/./tmp` is `.koloni`, and asked; and a `cd` into
+  one is free only plainly spelt, by a relative path, at the line's start - `git -C <a tree>` or `cd
+  /d …` is asked. A look into a worktree or copy from outside it is told from a write by the programs
+  the line runs (readers, listers, searches, no redirection). An agent's own tree by its full path is
+  known by how it is spelt there (a short name is not). A link inside a free folder is written through
+  as it is spelt: KOLONİ does not resolve it when it reads the line.
 - Commands cannot be given input while they run.
 - In Docker on Linux and macOS, commands run as your user, not as root. A command that needs root in
   the container, such as `apt-get install`, fails. On Linux, files an older version of KOLONİ made as

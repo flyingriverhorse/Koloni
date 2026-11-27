@@ -431,6 +431,7 @@ class StrongerMixin:
                         Path(ctx.folder),
                         self.settings.runtime_root,
                         copies.named(self.settings.runtime_root, merge.kept_in),
+                        at=merge.kept_in,  # (K-koloni-alan: nowhere else of that name)
                     )
                     copies.relink(copy)
                 except (OSError, ValueError) as exc:

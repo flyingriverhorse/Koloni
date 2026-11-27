@@ -527,7 +527,7 @@ def test_200_files_an_agent_writes_in_the_scratch_run_unasked_and_no_reader_of_c
     # Ignored by git through KOLONİ's own `.koloni/.gitignore`, which no look took back.
     assert (project_dir / ".koloni" / ".gitignore").read_text(
         encoding="utf-8"
-    ) == "tmp/\n.gitignore\n"
+    ) == "tmp/\n.gitignore\nworktrees/\ncopies/\n"
     assert snap["questions"] == [] and snap["file_changes"] == []
     assert (
         subprocess.run(
@@ -564,7 +564,7 @@ def test_a_scratch_an_agents_command_makes_empty_is_ignored_by_git(
     assert snap["commands"][0]["status"] == "exited", snap["commands"]
     assert (project_dir / ".koloni" / ".gitignore").read_text(
         encoding="utf-8"
-    ) == "tmp/\n.gitignore\n"
+    ) == "tmp/\n.gitignore\nworktrees/\ncopies/\n"
     (project_dir / ".koloni" / "tmp" / "dump.txt").write_text("x", encoding="utf-8")
     assert (
         subprocess.run(
@@ -587,7 +587,7 @@ def test_the_scratchs_ignore_lines_are_added_once_and_the_files_other_lines_kept
     koloni.scratch(str(project_dir))
     assert (project_dir / ".koloni" / "tmp").is_dir()
     assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == (
-        "*.log\ntmp/\n.gitignore\n"
+        "*.log\ntmp/\n.gitignore\nworktrees/\ncopies/\n"
     )
 
 
@@ -808,7 +808,7 @@ def test_a_clis_write_in_the_scratch_is_on_no_record_nor_is_the_ignore_koloni_wr
     assert (project_dir / ".koloni" / "tmp" / "p" / "Cookies").exists()
     assert (project_dir / ".koloni" / ".gitignore").read_text(
         encoding="utf-8"
-    ) == "tmp/\n.gitignore\n"
+    ) == "tmp/\n.gitignore\nworktrees/\ncopies/\n"
     assert snap["file_changes"] == []
 
 
@@ -825,7 +825,7 @@ def test_an_agents_own_write_in_the_scratch_leaves_git_status_clean(
     assert (project_dir / ".koloni" / "tmp" / "x.txt").exists() and snap["questions"] == []
     assert (project_dir / ".koloni" / ".gitignore").read_text(
         encoding="utf-8"
-    ) == "tmp/\n.gitignore\n"
+    ) == "tmp/\n.gitignore\nworktrees/\ncopies/\n"
     assert (
         subprocess.run(
             ["git", "status", "--porcelain"],

@@ -86,6 +86,8 @@ Instructions for the agent.
 | `knowledge/` | Knowledge topics: each one's guide; the pages read are kept out of git. |
 | `shared/` | Files teams share while they work; kept out of git. |
 | `tmp/` | The agents' scratch space; kept out of git. The copies of images an agent looked at (`tmp/images/`) and the browser's screenshots go after a week, as new ones come. |
+| `worktrees/` | KOLONİ's git worktrees for a branch's agents (a ☾ Away job, a team on a branch), each KOLONİ's in a folder of its own; kept out of git by the repository's `.git/info/exclude` and by `.koloni/.gitignore` ([where](../use/workspace.md#where-copies-and-worktrees-are)). |
+| `copies/` | Sub-agents' working copies, in a project with no git only; likewise. |
 
 `settings.json` holds only these keys:
 

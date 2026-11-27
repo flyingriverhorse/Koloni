@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from app import commands
+from app import commands, scratch_delete
 from app.model_native import _unwrapped
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
@@ -738,11 +738,11 @@ def test_a_delete_in_the_scratch_is_no_card_but_still_harm_with_no_rule_offered(
     (tmp_path / ".koloni" / "tmp" / "a.png").write_text("x")
     # (Off Windows `.koloni\tmp\a.log` is one file of that name beside .koloni: asked.)
     windows_only = "\\" in line
-    assert commands.scratch_delete_only(line, str(tmp_path)) is (
+    assert scratch_delete.scratch_delete_only(line, str(tmp_path)) is (
         sys.platform == "win32" or not windows_only
     )
     assert commands.harms(line) and commands.suggest_prefix(line) == ""
-    assert not commands.scratch_delete_only(line, None)  # (a copy's, a CLI's own: asked)
+    assert not scratch_delete.scratch_delete_only(line, None)  # (a copy's, a CLI's own: asked)
 
 
 # The review of B-336: each of these deleted, or wrote, outside the scratch with no card.
@@ -846,7 +846,7 @@ BYPASSES = [
 @pytest.mark.parametrize("line", BYPASSES)
 def test_a_delete_that_may_leave_the_scratch_is_a_card_with_no_rule(line, tmp_path):
     (tmp_path / ".koloni" / "tmp").mkdir(parents=True)
-    assert not commands.scratch_delete_only(line, str(tmp_path))
+    assert not scratch_delete.scratch_delete_only(line, str(tmp_path))
     assert commands.harms(line) and commands.suggest_prefix(line) == ""
 
 
@@ -854,13 +854,15 @@ def test_a_recursive_delete_of_a_path_too_long_to_look_into_is_a_card_not_an_err
     tmp_path, monkeypatch
 ):
     (tmp_path / ".koloni" / "tmp" / "out").mkdir(parents=True)
-    assert not commands.scratch_delete_only("rm -rf .koloni/tmp/" + "a" * 40_000, str(tmp_path))
+    assert not scratch_delete.scratch_delete_only(
+        "rm -rf .koloni/tmp/" + "a" * 40_000, str(tmp_path)
+    )
 
     def too_long(path):
         raise ValueError("scandir: path too long for Windows")
 
     monkeypatch.setattr(commands.os, "scandir", too_long)
-    assert not commands.scratch_delete_only("rm -rf .koloni/tmp/out", str(tmp_path))
+    assert not scratch_delete.scratch_delete_only("rm -rf .koloni/tmp/out", str(tmp_path))
 
 
 def test_the_links_looked_for_under_a_recursive_delete_are_counted_for_the_line(tmp_path):
@@ -898,20 +900,20 @@ def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_p
         "rm -rf .koloni/tmp/l",
         "Remove-Item -Recurse -Force .koloni/tmp/l/",
     ):
-        assert not commands.scratch_delete_only(line, str(tmp_path)), line
+        assert not scratch_delete.scratch_delete_only(line, str(tmp_path)), line
     # (a recursive delete of a folder with a link anywhere below it: Windows PowerShell's
     # deletes through a junction)
     deep = tmp_path / ".koloni" / "tmp" / "out" / "a"
     deep.mkdir(parents=True)
     (deep / "kept.txt").write_text("x")
-    assert commands.scratch_delete_only("rm -rf .koloni/tmp/out", str(tmp_path))
+    assert scratch_delete.scratch_delete_only("rm -rf .koloni/tmp/out", str(tmp_path))
     if os.name == "nt":
         _winapi.CreateJunction(str(away), str(deep / "j"))
     else:
         os.symlink(away, deep / "j")
     for line in ("rm -rf .koloni/tmp/out", "Remove-Item -Recurse -Force .koloni/tmp/out/a"):
-        assert not commands.scratch_delete_only(line, str(tmp_path)), line
-    assert commands.scratch_delete_only("rm .koloni/tmp/out/a/kept.txt", str(tmp_path))
+        assert not scratch_delete.scratch_delete_only(line, str(tmp_path)), line
+    assert scratch_delete.scratch_delete_only("rm .koloni/tmp/out/a/kept.txt", str(tmp_path))
     os.rmdir(deep / "j") if os.name == "nt" else os.unlink(deep / "j")
     # (a dot-folder junction a wildcard of PowerShell's would find: no wildcard is card-free)
     dotted = tmp_path / ".koloni" / "tmp" / ".j"
@@ -920,7 +922,7 @@ def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_p
     else:
         os.symlink(away, dotted)
     for line in ("Remove-Item -Force .koloni/tmp/*/file", "Remove-Item .koloni/tmp/.j/file"):
-        assert not commands.scratch_delete_only(line, str(tmp_path)), line
+        assert not scratch_delete.scratch_delete_only(line, str(tmp_path)), line
     os.rmdir(dotted) if os.name == "nt" else os.unlink(dotted)
     # (and a scratch that is itself a link is none of the project's)
     os.rmdir(link) if os.name == "nt" else os.unlink(link)
@@ -930,7 +932,7 @@ def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_p
         _winapi.CreateJunction(str(away), str(other / ".koloni" / "tmp"))
     else:
         os.symlink(away, other / ".koloni" / "tmp")
-    assert not commands.scratch_delete_only("rm .koloni/tmp/file", str(other))
+    assert not scratch_delete.scratch_delete_only("rm .koloni/tmp/file", str(other))
     assert (away / "file").read_text() == "keep"
 
 
@@ -951,8 +953,8 @@ def test_a_project_folder_with_a_bracket_in_its_name_is_read_as_a_name(tmp_path)
     # (its second review: `[` in the root made a glob of it, which found nothing and passed)
     root = tmp_path / "a[b]"
     (root / ".koloni" / "tmp").mkdir(parents=True)
-    assert commands.scratch_delete_only("rm .koloni/tmp/x", str(root))
-    assert not commands.scratch_delete_only("rm .koloni/tmp/*", str(root))
+    assert scratch_delete.scratch_delete_only("rm .koloni/tmp/x", str(root))
+    assert not scratch_delete.scratch_delete_only("rm .koloni/tmp/*", str(root))
 
 
 # B-339 (live): what climbs out of the scratch said "Names .koloni"; a link said so too.

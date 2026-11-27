@@ -15,7 +15,7 @@ import os
 import stat
 from pathlib import Path
 
-from app import commands, git, git_looks
+from app import git, git_looks
 from app.commands import (
     DISPOSABLE_NAMES,
     POSIX,
@@ -26,7 +26,7 @@ from app.commands import (
     secret_files,
 )
 from app.copies import LINKED
-from app.workspace import Workspace
+from app.workspace import Workspace, _held
 
 NAMES = {"folder": "build folder", "worktree": "worktree", "branch": "branch"}
 # Why a delete found disposable is asked all the same: its second look, just before it runs (a
@@ -231,7 +231,7 @@ def _holds_nothing_else(real: str) -> bool:
     """Whether a worktree's folder holds nothing but its commits and whole build and cache
     folders git ignores, holding no repository or link of their own: git deletes what it
     ignores with the worktree. No link anywhere in it, no secret file."""
-    commands._held.pop(Path(real), None)  # (walked anew: a walk kept for 10 s misses a new one)
+    _held.pop(Path(real), None)  # (walked anew: a walk kept for 10 s misses a new one)
     left = git_looks.left_out(Path(real))
     return (
         left is not None

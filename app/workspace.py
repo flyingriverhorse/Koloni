@@ -2,6 +2,7 @@
 
 import codecs
 import contextlib
+import contextvars
 import difflib
 import fnmatch
 import functools
@@ -950,7 +951,9 @@ class Workspace:
                     matches.append((self.rel(path), number, line.strip()[:300]))
         return matches, False, secrets, big
 
-    def _walk(self, folder: Path) -> Iterator[Path]:
+    def _walk(self, folder: Path, trees: bool = False) -> Iterator[Path]:
+        """Every file below `folder` - not KOLONİ's worktrees and copies in `.koloni/` (`TREES`:
+        whole checkouts) but where `trees` (a look for secret files)."""
         for child in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
             # Links and junctions are not followed: they may lead out of the project. Out
             # of it, a place KOLONİ never opens is not walked into either.
@@ -961,11 +964,15 @@ class Workspace:
                 or (not self.is_own(child) and (_kept_out(child) or is_secret(str(child))))
                 or self.koloni_s(child)
                 or self.is_own(child)
-                and is_kept_code(child.relative_to(self.root).parts)
+                and (
+                    is_kept_code(parts := child.relative_to(self.root).parts)
+                    or not trees
+                    and in_tree(parts)
+                )
             ):
                 continue
             if child.is_dir():
-                yield from self._walk(child)
+                yield from self._walk(child, trees)
             elif child.is_file():
                 yield child
 
@@ -1184,15 +1191,116 @@ def secret_named(given: str, rel: str) -> bool:
     return secret_in_project(rel) or not Path(given).is_absolute() and secret_in_project(given)
 
 
+# K-koloni-alan, from `commands` (for its size): `secret_files` of a folder.
+# How long a folder's answer is kept: the commands of one turn do not each walk it.
+HELD_SECONDS = 10.0
+_held: dict[Path, tuple[float, list[str]]] = {}
+
+
+def secret_files(root: Path) -> list[str]:
+    """The secret files (`secret_in_project`) in a folder, by their paths in it - a secret
+    folder (.ssh) as itself - walked as KOLONİ's own search walks one: not into .git, .venv
+    or node_modules, nor through a link. shortcut: `grep -r` reads `.git/config` too, whose
+    remote may hold a token; counting it would card every search in every repository -
+    count it if a token turns up there. shortcut: a folder it may not open stops the walk,
+    and what was not reached counts as no secret (fails open) - walk on past it if that is
+    met. shortcut: one made after the walk (kept HELD_SECONDS) is not among them; walk again
+    for each command if that matters. Blocking: call it off the event loop."""
+    at, found = _held.get(root, (float("-inf"), []))
+    if time.monotonic() - at >= HELD_SECONDS:
+        folder, found = Workspace(root), []
+        with contextlib.suppress(OSError):  # a folder it may not open: what it holds is not known
+            # (KOLONİ's worktrees and copies in `.koloni/` too: a search of the whole folder
+            # reads them, and a secret an agent made in its copy is there alone)
+            for path in folder._walk(folder.root, trees=True):
+                if secret_in_project(rel := folder.rel(path)):
+                    parts = rel.split("/")
+                    inside = next(
+                        (
+                            n
+                            for n, part in enumerate(parts[:-1])
+                            if part.casefold() in SECRET_FOLDERS
+                        ),
+                        None,
+                    )
+                    found.append(rel if inside is None else "/".join(parts[: inside + 1]))
+        # KOLONİ's own checkout or record in the folder: not walked, but a search of the
+        # whole folder reads its .env and its CLIs' logins - a secret folder of its own.
+        found = list(dict.fromkeys([*found, *folder.koloni_places()]))
+        _held[root] = (time.monotonic(), found)
+    return found
+
+
+def secret_held(root: Path) -> str | None:
+    """The first of `secret_files`, or None."""
+    return next(iter(secret_files(root)), None)
+
+
 # The agents' scratch in a project (K-koloni-klasor, `koloni.scratch`).
 SCRATCH = ".koloni/tmp"
+# K-koloni-alan: the folders of `.koloni/` that are no settings, by their names there - named in a
+# command with no card of `.koloni`'s, at every level (`commands._path_parts`): the agents'
+# scratch, and where KOLONİ keeps its worktrees and a project's copies where it has no git
+# (`copies.in_project`). Not the teams' shared folder: who writes there is `shared.may`'s to say.
+FREE = ("tmp", "worktrees", "copies")
+# ... and of those, the ones that hold whole checkouts, each its own agent's: no look of the
+# project walks, copies, lists or searches them (as Claude Code's own `.claude/worktrees/`), and
+# from outside them they are only read - a write or a delete there is `.koloni`'s, asked at every
+# level (`standing_names`, `commands._looks_only`): the review of K-koloni-alan. Their own agent
+# works in one as its folder (`Workspace.root`), and by its full path as well (`OWN_TREE`).
+TREES = ("worktrees", "copies")
+# The tree of the agent whose command is judged now, where it is one of KOLONİ's in `.koloni/`
+# (`judged_in`, set where its command is judged: `_command_call`, `_approve_command`): its own
+# files by their full path are its own, as by their relative ones (`as_own`).
+# shortcut: a command row's card text, made again from its line when the page reads it
+# (`serialize`), knows no tree: an agent's own full path there says "Names .koloni"; keep the
+# reason of its card on record if that misleads.
+OWN_TREE: contextvars.ContextVar[str | None] = contextvars.ContextVar("own_tree", default=None)
+_TREE = re.compile(r"[\\/]\.koloni[\\/](?:worktrees|copies)[\\/][0-9a-f]{12}[\\/][^\\/]+[\\/]tree$")
+
+
+def judged_in(root: object) -> None:
+    """The folder an agent's commands are judged in now - its tree where that is one of KOLONİ's
+    in a project's `.koloni/` (`OWN_TREE`); any other (the project, a copy elsewhere): none."""
+    tree = str(root) if root is not None else ""
+    OWN_TREE.set(tree if _TREE.search(tree.casefold()) else None)
+
+
+@functools.lru_cache(maxsize=32)
+def _spelt(tree: str) -> re.Pattern:
+    """A tree's full path as a command may spell it: either slash, Git Bash's `/c/...` for a
+    drive, as given and as it really is - not a longer name it begins, nor one with a `..` later
+    in its word (review: `<own>/x/../../base.json` keeps `.koloni`'s card, and `copy_reason`'s)."""
+    forms = []
+    for one in dict.fromkeys((os.path.abspath(tree), os.path.realpath(tree))):
+        drive, rest = os.path.splitdrive(one)
+        parts = [re.escape(part) for part in re.split(r"[\\/]+", rest) if part]
+        start = f"(?:{re.escape(drive)}|/{re.escape(drive[:1])})" if drive else ""
+        forms.append(start + "".join(rf"[\\/]+{part}" for part in parts))
+    up = r"(?![\w.-])(?![^\s;|&<>]*?[\\/][\"'`^]*\.[\"'`^]*\.)"
+    return re.compile("(?:" + "|".join(forms) + ")" + up, re.I if os.name == "nt" else 0)
+
+
+def as_own(command: str) -> str:
+    """`command` with the full path of the tree it is judged in (`OWN_TREE`) as `.` - not in a line
+    that climbs with `..` anywhere (`cd <own>; echo x > ../base.json`): judged as it is spelt."""
+    tree = OWN_TREE.get()
+    climbs = ".." in re.sub(r"[`^'\"]", "", command)
+    return command if tree is None or climbs else _spelt(tree).sub(".", command)
+
+
+def in_tree(parts: Sequence[str]) -> bool:
+    """Whether a path of the project, by its parts, is one of `.koloni`'s `TREES` or in one."""
+    return len(parts) >= 2 and _name(parts[0]) == ".koloni" and _name(parts[1]) in TREES
 
 
 def in_scratch(rel: str) -> bool:
     """Whether a path in the project (as KOLONİ records it: posix, from its root) is in the
-    agents' scratch. Its changes stay on record for their card and undo, but no list of what a
-    turn changed shows them - to the user or to an agent."""
-    return rel.replace("\\", "/").removeprefix("./").casefold().startswith(f"{SCRATCH}/")
+    agents' scratch - or in a worktree or copy KOLONİ keeps in `.koloni/` (`FREE`). Its changes
+    stay on record for their card and undo, but no list of what a turn changed shows them - to
+    the user or to an agent."""
+    path = rel.replace("\\", "/").removeprefix("./").casefold()
+    return any(path.startswith(f".koloni/{name}/") for name in FREE)
 
 
 def is_kept_code(parts: Sequence[str]) -> bool:
@@ -1232,7 +1340,8 @@ def stray_in_koloni(rel: str) -> bool:
 def standing_names(parts: Sequence[str]) -> list[str]:
     """The names of `NOT_WRITTEN_UNATTENDED` among a path's parts (as `_name` gives them), in
     order - but not `.koloni` where `tmp` follows it: `.koloni/tmp/` is the agents' scratch in
-    the project (K-koloni-klasor), no standing name; what is under it is judged as any path."""
+    the project (K-koloni-klasor), no standing name; what is under it is judged as any path.
+    (KOLONİ's worktrees and copies there are `.koloni`'s to a write from outside: `TREES`.)"""
     return [
         _name(part)
         for at, part in enumerate(parts)
@@ -1248,6 +1357,11 @@ def stands_over_later_turns(ws: Workspace, rel: object) -> str | None:
     if not isinstance(rel, str):
         return None
     chains = [re.split(r"[\\/]", rel)]
+    # (K-koloni-alan: a full path into the folder itself, as from its root - an agent's tree in
+    # `.koloni/` is its own; one elsewhere, or spelt another way, is judged whole)
+    with contextlib.suppress(ValueError):
+        if PurePath(rel).is_absolute():
+            chains = [list(PurePath(rel).relative_to(ws.root).parts)]
     # (A path that is not inside the project is refused as that, by whoever writes it.)
     with contextlib.suppress(WorkspaceError, ValueError, OSError):
         real = ws.resolve(rel)

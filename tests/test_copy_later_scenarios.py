@@ -111,7 +111,9 @@ def test_after_a_restart_the_kept_work_can_be_put_in_the_project(settings_env, p
         assert snap["merges"][0]["status"] == "applied"
         assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
         assert [f["status"] for f in snap["file_changes"]] == ["applied"]
-        assert list((load_settings(settings_env).runtime_root / "copies").iterdir()) == []
+        assert not list(
+            app.copies.folder(load_settings(settings_env).runtime_root, project_dir).iterdir()
+        )
         # and it is taken once
         assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
 
@@ -138,7 +140,9 @@ def test_after_a_restart_discard_removes_the_kept_folder_and_nothing_else(
         assert snap["merges"][0]["status"] == "rejected"
         assert not (project_dir / "a.txt").exists()
         assert (project_dir / "hello.py").read_text(encoding="utf-8") == "print('hi')\n"
-        assert list((load_settings(settings_env).runtime_root / "copies").iterdir()) == []
+        assert not list(
+            app.copies.folder(load_settings(settings_env).runtime_root, project_dir).iterdir()
+        )
     # the next start has nothing left to offer
     with again(settings_env) as client:
         assert client.get(f"/api/conversations/{cid}").json()["merges"][0]["status"] == "rejected"

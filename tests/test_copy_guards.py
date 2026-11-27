@@ -653,7 +653,9 @@ def test_a_reading_agy_below_an_agent_with_a_copy_reads_in_that_copy(
     assert agent(snap, "Helper")["status"] == "completed"
     assert agent(snap, "Coder")["copy"] == {"state": "own"}
     seen = agy_app.record()
-    assert Path(seen["cwd"]).is_relative_to(copies.folder(load_settings(settings_env).runtime_root))
+    assert Path(seen["cwd"]).is_relative_to(
+        copies.folder(load_settings(settings_env).runtime_root, project_dir)
+    )
     assert Path(seen["cwd"]).name == copies.TREE
     assert "--dangerously-skip-permissions" not in seen["argv"]
 
@@ -897,6 +899,7 @@ def test_a_copy_kept_in_the_users_data_folder_is_still_found_once_copies_live_in
     """Where copies are made is told by what is above the runtime root now; where a kept
     one is, by where it was made."""
     mark(tmp_path / "runtime", "AGENTS.md")  # copies are made in the user's data
+    (project_dir / ".git").mkdir()  # (K-koloni-alan: a project in git: its copies outside it)
     cid = interrupted(settings_env, project_dir)
     (folder,) = kept_folders(settings_env)
     assert folder.is_relative_to(tmp_path / "user-data")
