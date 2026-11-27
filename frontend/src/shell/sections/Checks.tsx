@@ -21,7 +21,7 @@ const COMMIT_REST =
  * reaches git; under More, the checks by kind of work, the test command KOLONİ found, and the measure command.
  */
 export function useChecks(project: Project, shown: boolean) {
-  const [measureCommand, setMeasureCommand] = useState(project.measure_command ?? '')
+  const measure = useMeasure(project)
   const [gitCommit, setGitCommit] = useState(project.git_commit)
   // D2: how finished branches reach the user's - and, read when the section opens, why a pull request cannot be chosen.
   const [finishWay, setFinishWay] = useState(project.finish_way ?? null)
@@ -38,12 +38,11 @@ export function useChecks(project: Project, shown: boolean) {
   const patch = {
     ...after.patch,
     ...kinds.patch,
-    ...(measureCommand.trim() !== (project.measure_command ?? '') && { measure_command: measureCommand.trim() }),
+    ...measure.patch,
     ...(gitCommit !== project.git_commit && { git_commit: gitCommit }),
     ...(finishWay && finishWay !== project.finish_way && { finish_way: finishWay }),
   }
   const now = { ...after.now, git_commit: gitCommit, finish_way: finishWay }
-  const measured = measureCommand.trim() !== (project.measure_command ?? '')
   // (What KOLONİ found is listed under More only once it found something.)
   const found = Object.keys(project.tests_found ?? {}).length > 0
   return part(
@@ -82,31 +81,45 @@ export function useChecks(project: Project, shown: boolean) {
         </label>
       </Marked>
       <FinishWay finishWay={finishWay} setFinishWay={setFinishWay} prOff={prOff} saved={project.finish_way ?? null} />
-      <More count={found ? 3 : 2} set={Number(kinds.set) + Number(!!project.measure_command)}>
+      <More count={found ? 3 : 2} set={Number(kinds.set) + measure.set}>
         {kinds.view}
         {after.found}
-        <Row
-          label="Measure command"
-          htmlFor="measure-command"
-          whyId="measure-command-more"
-          doc={GUIDE.settingsChecks}
-          from={measured ? 'dirty' : project.measure_command ? 'here' : 'usual'}
-          why="The last line of its output is a number from 0 to 100: the score of a sub-agent’s work, measured in its working copy. Empty: nothing is measured."
-        >
-          <input
-            id="measure-command"
-            className="input mono"
-            value={measureCommand}
-            maxLength={500}
-            placeholder="python measure.py"
-            aria-describedby="measure-command-more"
-            onChange={e => setMeasureCommand(e.target.value)}
-          />
-        </Row>
+        {measure.row}
       </More>
       <Legend />
     </>,
   )
+}
+
+/** K-evrim's measure command: the last line of its output scores a sub-agent's work, 0-100; empty, none. */
+function useMeasure(project: Project) {
+  const kept = project.measure_command ?? ''
+  const [text, setText] = useState(kept)
+  const changed = text.trim() !== kept
+  return {
+    patch: changed ? { measure_command: text.trim() } : {},
+    set: Number(kept !== ''),
+    row: (
+      <Row
+        label="Measure command"
+        htmlFor="measure-command"
+        whyId="measure-command-more"
+        doc={GUIDE.settingsChecks}
+        from={changed ? 'dirty' : kept ? 'here' : 'usual'}
+        why="The last line of its output is a number from 0 to 100: the score of a sub-agent’s work, measured in its working copy. Empty: nothing is measured."
+      >
+        <input
+          id="measure-command"
+          className="input mono"
+          value={text}
+          maxLength={500}
+          placeholder="python measure.py"
+          aria-describedby="measure-command-more"
+          onChange={e => setText(e.target.value)}
+        />
+      </Row>
+    ),
+  }
 }
 
 /** How a team's finished branch reaches yours; a pull request greyed out with why, where it cannot be one. */

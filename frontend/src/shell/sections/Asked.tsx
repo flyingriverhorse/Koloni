@@ -299,26 +299,27 @@ function Rules({
   }
   return (
     <>
-      {/* (No cell: a list of its own, each removed at once - the empty place keeps it in line with the rows.) */}
-      <div className="set-row set-row-marked">
-        <span aria-hidden="true" />
-        <span className="set-name">Runs without asking</span>
-        <span className="set-value">
-          <button
-            type="button"
-            className="btn btn-small"
-            aria-expanded={open}
-            aria-controls="rules-without-asking"
-            onClick={() => setOpen(!open)}
-          >
-            {open ? 'Hide the rules' : 'Show the rules'}
-          </button>
+      {/* (No cell: a list of its own, each removed at once - its place keeps the row in line with those that have one.) */}
+      <Row
+        label="Runs without asking"
+        from={null}
+        warn={
           <span className="choice-note">
             The project’s sites, for every chat, and each chat’s own “Always run” commands and requests: each is removed
             there at once.
           </span>
-        </span>
-      </div>
+        }
+      >
+        <button
+          type="button"
+          className="btn btn-small"
+          aria-expanded={open}
+          aria-controls="rules-without-asking"
+          onClick={() => setOpen(!open)}
+        >
+          {open ? 'Hide the rules' : 'Show the rules'}
+        </button>
+      </Row>
       {open && (
         <div id="rules-without-asking" className="set-rules">
           <ProjectSites projectId={projectId} onCount={setSiteCount} />

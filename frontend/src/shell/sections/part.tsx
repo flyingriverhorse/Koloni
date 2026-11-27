@@ -71,7 +71,8 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a === '' ? null : a) ===
 
 /**
  * One setting on one line (tek-ev): its cell (where its value comes from), its name, the why behind ⓘ, its control -
- * and what it runs or spends in sight under the control, never behind ⓘ.
+ * and what it runs or spends in sight under the control, never behind ⓘ. `from` null: a row with no value of its own
+ * (a list saved row by row), in line with those that have a cell.
  */
 export function Row({
   label,
@@ -89,12 +90,12 @@ export function Row({
   whyId?: string
   doc?: GuidePlace
   warn?: ReactNode
-  from?: From
+  from?: From | null
   children: ReactNode
 }) {
   return (
-    <div className={`set-row${from ? ' set-row-marked' : ''}`}>
-      {from && <Mark from={from} />}
+    <div className={`set-row${from === undefined ? '' : ' set-row-marked'}`}>
+      {from === null ? <span aria-hidden="true" /> : from && <Mark from={from} />}
       <span className="set-name">
         {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}
         {why && (
