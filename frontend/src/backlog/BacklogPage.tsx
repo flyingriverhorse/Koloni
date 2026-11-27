@@ -1093,7 +1093,8 @@ export function BacklogPage({
   tree = NO_TREE,
   asked,
   pushes = NO_PUSH,
-}: Props & { asked?: TodoAsked | null; pushes?: Set<string> }) {
+  covered,
+}: Props & { asked?: TodoAsked | null; pushes?: Set<string>; covered?: boolean }) {
   const [dragged, setDragged] = useState<BacklogTask | null>(null)
   const listed = backlog?.filter(task => task.status !== 'proposed') ?? []
   const view = useTreeView(listed, stories, tree.onNewStory)
@@ -1174,6 +1175,7 @@ export function BacklogPage({
           onSelect={view.select}
           onOpenChat={onOpen}
           onClose={close}
+          covered={covered}
         >
           {rows(card)}
           {dock}

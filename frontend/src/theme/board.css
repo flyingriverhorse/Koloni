@@ -124,6 +124,139 @@
   width: auto;
 }
 
+/* The Chats page (0.1.10): the chats by folder on the left, Now on the right - as Ready for you's halves, about 1.35
+   to 1; one under the other on a narrow screen. */
+.conv-sub {
+  margin: -8px 0 0;
+}
+
+.conv-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.conv-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* A chat's row: its cell, its name with one line of how it stands under it, when; one frame for a group's rows. */
+.conv-main .conv-list {
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.conv-main .conv-item {
+  flex-wrap: nowrap;
+  padding: 0 10px;
+}
+
+.conv-main .conv-item + .conv-item {
+  border-top: 1px solid var(--border);
+}
+
+.conv-main .conv-row {
+  align-items: flex-start;
+  background: transparent;
+  box-shadow: none;
+}
+
+.conv-main .conv-row:hover {
+  background: var(--hover);
+}
+
+/* The open chat: a honey line on its row's left edge. */
+.conv-main .conv-row[aria-current='true'] {
+  box-shadow: none;
+}
+
+.conv-main .conv-item:has(.conv-row[aria-current='true']) {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.conv-cell-none {
+  flex: none;
+  width: 14px;
+}
+
+.conv-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.conv-row-said {
+  color: var(--muted);
+  font-size: var(--text-note);
+  overflow-wrap: anywhere;
+}
+
+.conv-is-yours {
+  color: var(--accent);
+  font-weight: var(--weight-strong);
+}
+
+.conv-is-stuck {
+  color: var(--warn);
+  font-weight: var(--weight-strong);
+}
+
+.conv-folder-count {
+  font-size: var(--text-note);
+  font-weight: normal;
+}
+
+/* Now: what is at work and what waits for your word, in every folder - in view while the list scrolls. */
+.conv-now {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.conv-now h3 {
+  margin: 0;
+  font-size: var(--text-heading);
+}
+
+.conv-now h3 .muted {
+  font-size: var(--text-note);
+  font-weight: normal;
+}
+
+.conv-now-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.conv-now-box p {
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .conv-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .conv-now {
+    position: static;
+  }
+}
+
 /* Under an answer whose message did work (slice 107): one quiet line, the summary under "details". */
 .turn-summary {
   margin: 2px 0 4px;
@@ -354,6 +487,12 @@
 
 .todo-half {
   flex: 1;
+}
+
+/* An empty To-do's long line: its faint hive reaches 32px past it, which the half's padding (28px) does not hold - the
+   half would scroll sideways. */
+.todo-half p.hive-empty {
+  max-width: calc(100% - 32px);
 }
 
 .ready-greet {

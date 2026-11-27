@@ -509,7 +509,7 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Ready', 'ready-page', `Ready for you ${greeting()}`],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', 'Reading the project’s memory…'],
-    ['Chats', 'conv-page', 'Conversations'],
+    ['Chats', 'conv-page', 'Chats'],
     ['Canvas', 'stage', 'First steps'],
   ])
   await userEvent.click(rail('Usage'))
@@ -525,7 +525,7 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Ready', 'ready-page', `Ready for you ${greeting()}`],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
-    ['Chats', 'conv-page', 'Conversations'],
+    ['Chats', 'conv-page', 'Chats'],
     ['Canvas', 'stage', 'First steps'],
   ])
   // (To-do, Ready for you's right half since 0.1.10, asks for one there.)

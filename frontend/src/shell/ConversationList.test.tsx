@@ -2,7 +2,8 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { Board, ListedConversation, Project, Run } from '../api/types'
-import { boardTurn, convState } from '../test-fixtures'
+import { type ReadyItem, readyItems } from '../ready/ready'
+import { boardTurn, command, conversation, convState, question, run } from '../test-fixtures'
 import { ConversationList, dayOf } from './ConversationList'
 
 type BoardConversation = Board['conversations'][number]
@@ -119,12 +120,23 @@ test('each row says how it stands - waits for you, working, done - and those tha
   )
   const rows = screen.getAllByRole('button', { name: /^(Docs|Tests|Asks|Fresh)/ })
   expect(rows.map(row => row.querySelector('.conv-row-title')!.textContent)).toEqual(['Asks', 'Docs', 'Tests', 'Fresh'])
-  expect(rows[0]).toHaveTextContent('waits for you · 2')
-  expect(within(rows[0]).getByText('waits for you · 2')).toHaveStyle({ color: 'var(--warn)' })
-  expect(rows[1]).toHaveTextContent('done')
-  expect(rows[2]).toHaveTextContent('working')
+  // (Its chat not read for Ready for you yet: the Board says it waits.)
+  expect(rows[0]).toHaveTextContent('Waits for your word')
+  expect(within(rows[0]).getByText('Waits for your word')).toHaveClass('conv-is-yours')
+  expect(rows[1]).toHaveTextContent('Done')
+  expect(rows[2]).toHaveTextContent('Orchestrator working')
   // never run: nothing made up
-  expect(rows[3]).not.toHaveTextContent(/done|working|waits/)
+  expect(rows[3]).toHaveTextContent('No turn yet')
+  expect(rows[3]).not.toHaveTextContent(/done|working|waits/i)
+  // Each row's cell, beside its button: its label says how it stands - its colour never alone.
+  const cells = rows.map(row => within(row.closest('li')!).getByRole('img'))
+  expect(cells.map(cell => cell.getAttribute('aria-label'))).toEqual(['waits for your word', 'done', 'at work', 'idle'])
+  expect(cells.map(cell => cell.className)).toEqual([
+    'cell cell-honey cell-soft',
+    'cell cell-ok cell-full',
+    'cell cell-honey cell-full',
+    'cell cell-plain cell-none',
+  ])
   // the last activity is the turn's end where that is later than the conversation's last change
   expect(rows[1]).toHaveTextContent(
     new Date('2026-10-16T12:30:00Z').toLocaleString(undefined, {
@@ -177,7 +189,8 @@ test('a To-do list task’s chat has its symbol and its task’s state, unless t
   // its turn already says "working": not twice
   expect(row('Pin notes').textContent!.match(/working/g)).toHaveLength(1)
   expect(within(row('Fix the module')).getByText('stuck')).toHaveClass('tag-warn')
-  expect(within(row('Export to CSV')).getByText('waits for you')).toHaveClass('tag-warn')
+  // (your word in honey, as its cell would be; stuck red-orange)
+  expect(within(row('Export to CSV')).getByText('waits for you')).toHaveClass('tag-accent')
   expect(within(row('Plan sharing')).getByText('done?')).not.toHaveClass('tag-warn')
 })
 
@@ -341,7 +354,7 @@ test('an archived conversation that waits for you stands on top, said to be arch
   )
   const top = screen.getAllByRole('list')[0]
   const first = within(top).getAllByRole('button', { name: /^(Docs|Nightly)/ })[0]
-  expect(first).toHaveTextContent(/^Nightly.*waits for you · 1.*archived/)
+  expect(first).toHaveTextContent(/^Nightly.*Waits for your word.*archived/)
   expect(within(top).getByRole('button', { name: 'Unarchive Nightly' })).toBeInTheDocument()
   const archived = screen.getByRole('region', { name: 'Archived' })
   expect(within(archived).queryByText('Nightly')).toBeNull()
@@ -426,7 +439,8 @@ test('the chats are grouped by folder: the open chat’s first and open, the oth
     )
   let { unmount } = shown('mermaid')
   const groups = () => screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)
-  expect(groups()).toEqual(['Skyulf-Agent', 'oyun-projesi', 'No folder'])
+  // Each folder says how many chats it holds; Now is the last heading.
+  expect(groups()).toEqual(['Skyulf-Agent 2 chats', 'oyun-projesi 1 chat', 'No folder 1 chat', 'Now every folder'])
   const titles = (name: string) =>
     within(screen.getByRole('region', { name }))
       .queryAllByRole('listitem')
@@ -445,13 +459,13 @@ test('the chats are grouped by folder: the open chat’s first and open, the oth
   // In a plain chat its group is the first and open.
   unmount()
   ;({ unmount } = shown('plain talk'))
-  expect(groups()).toEqual(['No folder', 'oyun-projesi', 'Skyulf-Agent'])
+  expect(groups()).toEqual(['No folder 1 chat', 'oyun-projesi 1 chat', 'Skyulf-Agent 2 chats', 'Now every folder'])
   expect(titles('No folder')).toEqual(['plain talk'])
   expect(titles('Skyulf-Agent')).toEqual([])
   // With no chat open, all of them are open.
   unmount()
   shown(null)
-  expect(groups()).toEqual(['oyun-projesi', 'Skyulf-Agent', 'No folder'])
+  expect(groups()).toEqual(['oyun-projesi 1 chat', 'Skyulf-Agent 2 chats', 'No folder 1 chat', 'Now every folder'])
   expect(titles('oyun-projesi')).toEqual(['enemy AI'])
 })
 
@@ -589,12 +603,16 @@ test('a chat that waits for you stays under its folder, its row saying so - no g
     within(screen.getByRole('region', { name }))
       .queryAllByRole('listitem')
       .map(item => item.querySelector('.conv-row-title')!.textContent)
-  expect(screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual(['Skyulf-Agent', 'oyun-projesi'])
+  expect(screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual([
+    'Skyulf-Agent 1 chat',
+    'oyun-projesi 2 chats',
+    'Now every folder',
+  ])
   expect(screen.getByRole('button', { name: 'oyun-projesi' })).toHaveAttribute('aria-expanded', 'false')
   await userEvent.click(screen.getByRole('button', { name: 'oyun-projesi' }))
   expect(titles('oyun-projesi')).toEqual(['enemy AI', 'pathing'])
   expect(within(screen.getByRole('region', { name: 'oyun-projesi' })).getAllByRole('listitem')[0]).toHaveTextContent(
-    'waits for you · 1',
+    'Waits for your word',
   )
 })
 
@@ -711,4 +729,236 @@ test('the open chat is the current one, and each row’s button says Archive or 
   expect(screen.getByRole('button', { name: /^Watch the build/ })).not.toHaveAttribute('aria-current')
   expect(screen.getByRole('button', { name: 'Unarchive Watch the build' })).toHaveTextContent(/^Unarchive$/)
   expect(screen.getByRole('button', { name: 'Archive Fix the greeting' })).toHaveTextContent(/^Archive$/)
+})
+
+/** Chat "x", whose agent asks to run a command and asks a question: two rows of Ready for you, as the pill counts them. */
+const asks = () =>
+  readyItems({
+    conv: null,
+    chats: {
+      x: convState({
+        conversation: { ...conversation, id: 'x', title: 'Fix the login' },
+        runs: [run('rx', 'waiting_approval', { conversation_id: 'x' })],
+        commands: [command('cmd', 'rx', { status: 'proposed', created_at: '2026-10-05T09:00:00Z' })],
+        questions: [question('q', 'rx', { created_at: '2026-10-05T09:05:00Z' })],
+      }),
+    },
+    projectId: null,
+    backlog: null,
+    memory: null,
+    away: null,
+  })
+
+test('a chat’s row says what waits for your word in it - Ready for you’s own rows of it - and stands first; Now counts them as the pill does and goes to Ready', async () => {
+  const items = asks()
+  // (Both today: one group, the one that waits first in it.)
+  const at = new Date().toISOString()
+  expect(items).toHaveLength(2)
+  const onReady = vi.fn()
+  const board: Board = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 0,
+    conflicts: [],
+    // (The Board says nothing waits in "x": Ready for you's rows of it are what is said.)
+    conversations: [
+      onBoard('x', { turn: boardTurn('r1', 'completed', '2026-10-05T09:10:00Z') }),
+      onBoard('y', { turn: boardTurn('r2', 'completed', at) }),
+    ],
+  }
+  render(
+    <ConversationList
+      conversations={[
+        { ...listed('y', 'Docs', false), updated_at: at },
+        { ...listed('x', 'Fix the login', false), updated_at: at },
+      ]}
+      board={board}
+      waiting={items}
+      onReady={onReady}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  const rows = screen.getAllByRole('button', { name: /^(Docs|Fix the login)/ })
+  expect(rows.map(row => row.querySelector('.conv-row-title')!.textContent)).toEqual(['Fix the login', 'Docs'])
+  expect(rows[0]).toHaveTextContent('2 wait for your word · Command, Question')
+  expect(within(rows[0].closest('li')!).getByRole('img', { name: 'waits for your word' })).toBeInTheDocument()
+  expect(rows[1]).toHaveTextContent('Done')
+  const now = screen.getByRole('complementary', { name: 'Now every folder' })
+  expect(now).toHaveTextContent(
+    'Nothing at work; 2 things wait for your word. Today 1 done. What waits is on Ready for you.',
+  )
+  expect(
+    within(now)
+      .getAllByRole('img')
+      .slice(0, 3)
+      .map(cell => cell.getAttribute('aria-label')),
+  ).toEqual([
+    'Command in “Fix the login”: waits for your word',
+    'Question in “Fix the login”: waits for your word',
+    '“Docs”: done today',
+  ])
+  // What the cells mean, in words.
+  expect(within(now).getByLabelText('What the cells say')).toHaveTextContent(
+    'done at work waits for your word stuck idle',
+  )
+  await userEvent.click(within(now).getByRole('button', { name: 'Go to Ready' }))
+  expect(onReady).toHaveBeenCalledOnce()
+})
+
+test('Now before the Board is read: what waits is counted, how the chats stand is not said', () => {
+  render(
+    <ConversationList
+      conversations={[listed('a', 'Docs', false)]}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  const now = screen.getByRole('complementary', { name: 'Now every folder' })
+  expect(now).toHaveTextContent('How the chats stand is not read yet; nothing waits for your word.')
+  expect(within(now).queryByRole('button', { name: 'Go to Ready' })).toBeNull()
+  // Its row has no cell to say what is not known.
+  expect(within(screen.getByRole('button', { name: /^Docs/ }).closest('li')!).queryByRole('img')).toBeNull()
+})
+
+test('a chat Ready for you has read waits only for what it lists: the Board, read before your answer, is not believed', () => {
+  const board: Board = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 0,
+    conflicts: [],
+    conversations: [
+      onBoard('a', { merges_pending: 1, turn: boardTurn('r1', 'completed', '2026-10-16T12:30:00Z') }),
+      onBoard('b', { merges_pending: 1, turn: boardTurn('r2', 'completed', '2026-10-16T12:30:00Z') }),
+    ],
+  }
+  render(
+    <ConversationList
+      conversations={[listed('a', 'Answered', false), listed('b', 'Not read yet', false)]}
+      board={board}
+      readChats={['a']}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  const cell = (name: string) =>
+    within(screen.getByRole('button', { name: new RegExp(`^${name}`) }).closest('li')!).getByRole('img')
+  expect(cell('Answered')).toHaveAccessibleName('done')
+  expect(cell('Not read yet')).toHaveAccessibleName('waits for your word')
+})
+
+test('Now: a chat that waits for your word while another of its agents works is at work too; done and stuck today go by when its turn ended, not a rename', () => {
+  const now = new Date().toISOString()
+  const board: Board = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 1,
+    conflicts: [],
+    conversations: [
+      onBoard('a', { agents: [asking, { ...asking, id: 'c', name: 'Coder', status: 'running' }] }),
+      // Renamed today, its turn over long ago: not today's.
+      onBoard('b', { turn: boardTurn('r2', 'completed', '2026-10-16T12:30:00Z') }),
+      onBoard('c', { turn: boardTurn('r3', 'failed', now) }),
+    ],
+  }
+  render(
+    <ConversationList
+      conversations={[
+        listed('a', 'Asks and works', false),
+        { ...listed('b', 'Renamed', false), updated_at: now },
+        listed('c', 'Broke', false),
+      ]}
+      board={board}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  const nowPart = screen.getByRole('complementary', { name: 'Now every folder' })
+  expect(nowPart).toHaveTextContent('1 chat at work; nothing waits for your word. Today 1 stuck.')
+  expect(
+    within(nowPart)
+      .getAllByRole('img')
+      .map(cell => cell.getAttribute('aria-label')),
+  ).toEqual(['“Asks and works”: at work', '“Broke”: stuck today'])
+})
+
+test('Show goes by what a row says: a chat Ready for you read, its card answered, is Done though the Board still says it waits', async () => {
+  const board: Board = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 0,
+    conflicts: [],
+    conversations: [onBoard('a', { merges_pending: 1, turn: boardTurn('r1', 'completed', '2026-10-16T12:30:00Z') })],
+  }
+  render(
+    <ConversationList
+      conversations={[listed('a', 'Answered', false)]}
+      board={board}
+      readChats={['a']}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  await userEvent.selectOptions(screen.getByLabelText('Show'), 'Done')
+  expect(screen.getByRole('button', { name: /^Answered/ })).toHaveTextContent('Done')
+})
+
+test('a To-do task’s chat with no turn yet keeps its "to do": the idle line says less', () => {
+  render(
+    <ConversationList
+      conversations={[
+        { ...listed('a', 'Pin notes', false), backlog_task: { id: 't', status: 'todo', waiting: false } },
+      ]}
+      board={{ backlog_waiting: 0, limit: null, running: 0, conflicts: [], conversations: [onBoard('a')] }}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  const row = screen.getByRole('button', { name: /^(From the to-do list )?Pin notes/ })
+  expect(row).toHaveTextContent('No turn yet')
+  expect(within(row).getByText('to do')).toHaveClass('tag')
+})
+
+test('Now’s legend is one named group, its cells said once by their words; a comb of more than 30 says how many more', () => {
+  const items = Array.from(
+    { length: 32 },
+    (_, at) =>
+      ({
+        what: 'task',
+        key: `todo:t${at}:done?`,
+        source: 'todo',
+        at: '',
+        task: { id: `t${at}`, conversation_id: null },
+        kind: 'done?',
+      }) as unknown as ReadyItem,
+  )
+  render(
+    <ConversationList
+      conversations={[listed('a', 'Docs', false)]}
+      waiting={items}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  const nowPart = screen.getByRole('complementary', { name: 'Now every folder' })
+  const legend = within(nowPart).getByRole('group', { name: 'What the cells say' })
+  expect(within(legend).queryAllByRole('img')).toHaveLength(0)
+  expect(legend).toHaveTextContent('done at work waits for your word stuck idle')
+  expect(within(nowPart).getAllByRole('img')).toHaveLength(30)
+  expect(nowPart).toHaveTextContent('+2 more')
+  expect(within(nowPart).getAllByRole('img')[0]).toHaveAccessibleName('Done?: waits for your word')
 })

@@ -968,6 +968,119 @@ test('while a story is open what it lies over is inert; on a narrow window it is
   }
 })
 
+/** A narrow window while `run` runs: a story's panel is a modal dialog. */
+async function narrowWindow(run: () => Promise<void>) {
+  const was = window.matchMedia
+  window.matchMedia = ((query: string) => ({
+    matches: query === '(max-width: 980px)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia
+  try {
+    await run()
+  } finally {
+    window.matchMedia = was
+  }
+}
+
+test('what comes in beside an open story after it opened is inert too; as it closes only what it made inert is put back', async () => {
+  const { rerender } = render(<BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} />)
+  const panel = await open('Şifre sıfırlama')
+  // Another's inert, there before: left as it is.
+  const theirs = document.createElement('p')
+  theirs.setAttribute('inert', '')
+  panel.parentElement!.append(theirs)
+  // What comes in later - here a failed read's alert - is shut as it comes.
+  rerender(<BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} error="down" />)
+  const alert = screen.getByText(/^The To-do list could not be read/)
+  await vi.waitFor(() => expect(alert).toHaveAttribute('inert'))
+  await userEvent.keyboard('{Escape}')
+  expect(panel).not.toBeInTheDocument()
+  expect(alert).not.toHaveAttribute('inert')
+  expect(theirs).toHaveAttribute('inert')
+  theirs.remove()
+})
+
+test('the settings opened over a narrow window’s story: the page around it is not shut while they are over it', async () => {
+  const shown = (covered: boolean) => (
+    <>
+      <div className="ready-left">
+        <button type="button">left</button>
+      </div>
+      <BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} covered={covered} />
+    </>
+  )
+  await narrowWindow(async () => {
+    const { rerender, container } = render(shown(false))
+    await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: 0 of 1 done' }))
+    expect(screen.getByRole('dialog', { name: 'Şifre sıfırlama' })).toBeInTheDocument()
+    const left = container.querySelector('.ready-left')!
+    expect(left).toHaveAttribute('inert')
+    rerender(shown(true))
+    expect(left).not.toHaveAttribute('inert')
+    // (To-do under it is still shut.)
+    expect(screen.getByRole('list', { name: 'Stories' }).closest('[inert]')).not.toBeNull()
+    rerender(shown(false))
+    expect(left).toHaveAttribute('inert')
+  })
+})
+
+test('a narrow window’s story: what opens over the page after it - Ctrl+K, a portal in the body - is not shut; what was there is', async () => {
+  // (As App lays it out: the page in .main, Ctrl+K beside .main in .app.)
+  const shown = (palette: boolean) => (
+    <div className="app">
+      <nav aria-label="Rail">
+        <button type="button">Chats</button>
+      </nav>
+      <div className="main">
+        <BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} />
+      </div>
+      {palette && (
+        <div role="dialog" aria-label="Go to">
+          <input aria-label="Go to" />
+        </div>
+      )}
+    </div>
+  )
+  await narrowWindow(async () => {
+    const { rerender } = render(shown(false))
+    await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: 0 of 1 done' }))
+    expect(screen.getByRole('dialog', { name: 'Şifre sıfırlama' })).toBeInTheDocument()
+    expect(document.querySelector('nav[aria-label="Rail"]')).toHaveAttribute('inert')
+    rerender(shown(true))
+    const portal = document.createElement('div')
+    document.body.append(portal)
+    await new Promise(done => setTimeout(done, 0))
+    const box = screen.getByRole('textbox', { name: 'Go to' })
+    expect(box.closest('[inert]')).toBeNull()
+    expect(portal).not.toHaveAttribute('inert')
+    await userEvent.type(box, 'chats')
+    expect(box).toHaveValue('chats')
+    portal.remove()
+  })
+})
+
+test('a narrow window’s story: its Tab goes round what can be seen, not what is hidden in it', async () => {
+  await narrowWindow(async () => {
+    render(<BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: 0 of 1 done' }))
+    const dialog = screen.getByRole('dialog', { name: 'Şifre sıfırlama' })
+    const ghost = document.createElement('div')
+    ghost.hidden = true
+    ghost.innerHTML = '<button type="button">ghost</button>'
+    dialog.append(ghost)
+    const close = within(dialog).getByRole('button', { name: 'Close Şifre sıfırlama' })
+    close.focus()
+    await userEvent.tab({ shift: true })
+    const last = document.activeElement as HTMLElement
+    expect(dialog).toContainElement(last)
+    expect(last.closest('[hidden]')).toBeNull()
+    await userEvent.tab()
+    expect(close).toHaveFocus()
+    ghost.remove()
+  })
+})
+
 test('Esc in a task’s Edit closes the form, not the story', async () => {
   render(<BacklogPage {...page()} backlog={[task({ title: 'lone' })]} />)
   await loose()

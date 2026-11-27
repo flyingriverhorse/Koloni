@@ -175,6 +175,8 @@ export function App() {
   const away = useApp(s => s.away)
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
   const waiting = useReady()
+  // The chats it has read: the open one and the others that wait (what Chats says waits in them is its rows alone).
+  const readyChats = useApp(s => s.readyChats)
   const readyPanel = useApp(s => s.readyPanel)
   const { decided, where: decidedWhere } = useDecided(conv)
   const [view, setView] = useState<View>('canvas')
@@ -834,6 +836,8 @@ export function App() {
         key={project.id}
         asked={todoAsked}
         pushes={pushes}
+        // (The settings over it: a narrow window's story leaves the rail and the top bar within reach.)
+        covered={settingsOpen}
         backlog={backlog}
         error={backlogError}
         drafter={drafter}
@@ -965,6 +969,10 @@ export function App() {
       onDelete={useApp.getState().deleteConversations}
       currentId={conv?.conversation.id ?? null}
       onRefresh={useApp.getState().loadConversations}
+      // (What waits for your word: the pill's own rows - each chat's on its row, all of them counted in Now.)
+      waiting={waiting}
+      readChats={[...(conv ? [conv.conversation.id] : []), ...Object.keys(readyChats)]}
+      onReady={() => show('ready')}
       onOpen={id => {
         void useApp.getState().openConversation(id)
         setView('canvas')

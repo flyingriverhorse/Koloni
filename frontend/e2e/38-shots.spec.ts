@@ -157,7 +157,7 @@ for (const theme of ['light', 'dark'] as const) {
     })
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Chats', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Conversations' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Chats', exact: true })).toBeVisible()
     await snap('conversations')
     await rail(page, 'Memory').click()
     await expect(page.getByRole('tabpanel', { name: /^Facts/ })).toBeVisible()

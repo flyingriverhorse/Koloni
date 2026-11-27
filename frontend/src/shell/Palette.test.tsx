@@ -221,9 +221,9 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
   // 0.1.10: Knowledge is the Memory page's sources
   await pick('knowledge')
   expect(await screen.findByText(/^Sources: what agents can look things up in/)).toBeInTheDocument()
-  // the Conversations page by the rail's word for it, too
+  // the Chats page by the rail's word for it
   await pick('chats')
-  expect(await screen.findByRole('heading', { name: 'Conversations' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Chats' })).toBeInTheDocument()
   // To-do, Ready for you's right half (0.1.10): that page, its To-do heading taking the focus
   await pick('to-do')
   expect(await screen.findByRole('heading', { name: /^To-do/ })).toHaveFocus()

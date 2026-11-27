@@ -88,7 +88,7 @@ it, and the rough note the Hive keeper splits into tasks.
 ### The cells
 
 A small hexagon - a cell of the hive - says how a thing stands, the same way in the report, in
-**Waiting for your word** and on To-do. Its colour never says it alone: a word stands beside it, and
+**Waiting for your word**, on To-do and on [Chats](chats.md#how-each-chat-stands). Its colour never says it alone: a word stands beside it, and
 the cell's own name (its tooltip, and what a screen reader says) is its state.
 
 | Cell | Means |
