@@ -8,7 +8,7 @@
 2242 app/agent/context_mixin.py
 1521 app/agent/loop_mixin.py
 1602 app/agent/merge.py
-3306 app/agent/spawn_mixin.py
+3211 app/agent/spawn_mixin.py
 1696 app/browser.py
 6594 app/commands.py
 1779 app/db/models.py

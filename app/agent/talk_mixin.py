@@ -351,6 +351,7 @@ class TalkMixin:
             # K-dal-takim: only where it can be had - offered as it was elsewhere.
             for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
                 spawn["parameters"]["properties"]["on_branch"] = ON_BRANCH_PROPERTY
+        self._at_work_offered(ctx, schemas)  # (0.1.11: background, stop_agent)
         if (
             getattr(ctx.model, "collaborates", True)
             and not ctx.answering

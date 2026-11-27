@@ -6,18 +6,25 @@ turn (`_unread_messages`) - `AtWorkMixin`.
 
 import asyncio
 import contextlib
+import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
 from app import recipe_run
 from app.agent.ctx import Ctx
+from app.agent.spawn_mixin import INTERNAL, SPAWN_ENDED, SPAWN_ENDED_SEE, SPAWN_REJECTED
 from app.agent.words import AGENT_TERMINAL
 from app.db.models import Agent, Message, Run, now
 from app.model_client import ToolCallRequest
+from app.tools import ToolError, parse_arguments
+from app.tools_at_work import SPAWN_BACKGROUND_PROPERTY
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
+
+log = logging.getLogger(__name__)
 
 # B-376 (live): a Copilot Lead gave its last answer while a team's "All at once" group had just
 # opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
@@ -31,6 +38,44 @@ HOLD_LOOK = 0.5  # seconds between looks at whether they are back
 
 
 class AtWorkMixin:
+    def _at_work_offered(self: "AgentRunner", ctx: Ctx, schemas: list[dict]) -> None:
+        """`_offered`'s schemas, with what goes on beside the turn's agents where it is this
+        agent's: spawn_agent's `background` (D1)."""
+        if self._background_offered(ctx):
+            for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
+                spawn["parameters"]["properties"]["background"] = SPAWN_BACKGROUND_PROPERTY
+
+    def _background_offered(self: "AgentRunner", ctx: Ctx) -> bool:
+        """D1: whether this agent may open one in the background - the Orchestrator of an API
+        model at its own work (a plan turn and a comparison's side have no spawn_agent). A CLI's
+        always goes on (`_cli_call`); one under the Orchestrator waits for its own."""
+        return not (
+            ctx.depth
+            or ctx.answering
+            or ctx.discussion
+            or getattr(ctx.model, "native", False)
+            or getattr(ctx.model, "session", False)
+        )
+
+    def _background(self: "AgentRunner", ctx: Ctx, request: ToolCallRequest) -> bool:
+        """Whether this call is a spawn_agent asked for in the background by one it is offered
+        to (`_background_offered`) - else it waits as ever, whoever asks."""
+        if request.name != "spawn_agent" or not self._background_offered(ctx):
+            return False
+        try:
+            return parse_arguments(request.arguments).get("background") is True
+        except ToolError:
+            return False  # (its call refuses it with the reason)
+
+    async def _call_or_later(
+        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
+    ) -> tuple[str, str]:
+        """`_run_tools`' call: a background spawn_agent of the API Orchestrator is answered as
+        a CLI's is - "started" at once, its report a note later (`_cli_call`)."""
+        if self._background(ctx, request):
+            return await self._cli_call(ctx, call_id, request)
+        return await self._run_call(ctx, call_id, request)
+
     async def _held_for_work(self: "AgentRunner", ctx: Ctx) -> str | None:
         """B-376: the Lead answered with agents of its turn still at work (a team's group just
         opened, one opened by a CLI that did not wait): it waits for them as for its own
@@ -132,7 +177,7 @@ class AtWorkMixin:
         self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
     ) -> tuple[str, str]:
         try:
-            return await self._run_call(ctx, call_id, request)
+            return await self._call_or_later(ctx, call_id, request)
         finally:
             self._arrive(call_id)  # (refused before it opened: the others go on)
 
@@ -206,3 +251,121 @@ class AtWorkMixin:
             if status not in AGENT_TERMINAL:
                 with contextlib.suppress(Exception):
                     self._set_agent(cid, child_id, status="cancelled", ended_at=now())
+
+    async def _cli_call(
+        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
+    ) -> tuple[str, str]:
+        """`_run_from_cli`'s call. K-paralel-spawn (measured 27 Oct): Claude Code runs the
+        MCP calls of one message one after another, so its two spawn_agent calls ran one after
+        the other. A spawn_agent is answered as soon as `_see_through` says so - "proposed"
+        while its card waits for the user, "started" once it may start - and the CLI goes on;
+        what came of it comes later as a note, as a request not waited for does
+        (`team_requests`): with the CLI's next tool result (`_deliver`), or - its turn over -
+        in one step more, which `team_requests.woken` holds the turn open for until every one
+        is back. The call's own record still ends with the report. One refused before it is
+        proposed, or one its opener waits for (`_see_through`), is answered as it ends."""
+        if request.name != "spawn_agent" or ctx.answering or ctx.discussion:
+            return await self._run_call(ctx, call_id, request)
+        told = self._opening[call_id] = asyncio.get_running_loop().create_future()
+        work = asyncio.ensure_future(
+            self._said_at_once(ctx, call_id, request, told)
+            if self._background_offered(ctx)
+            else self._run_call(ctx, call_id, request)
+        )
+        try:
+            await asyncio.wait((work, told), return_when=asyncio.FIRST_COMPLETED)
+        except asyncio.CancelledError:
+            work.cancel()
+            raise
+        finally:
+            self._opening.pop(call_id, None)
+        if work.done() or not told.done():
+            return await work
+        with self._factory() as session:
+            child_id, name = session.execute(
+                select(Agent.id, Agent.name).where(Agent.tool_call_id == call_id)
+            ).one()
+        later = asyncio.ensure_future(self._comes_later(ctx, child_id, name, work))
+
+        def settled(done: asyncio.Future) -> None:
+            if done.cancelled():  # stopped before its first step, it never awaited the work
+                work.cancel()
+            elif done.exception() is not None:  # (retrieved: whoever dropped it, it is said)
+                log.warning(
+                    "agent %s: the report of %s was not left for it: %r",
+                    ctx.agent_id,
+                    name,
+                    done.exception(),
+                )
+
+        later.add_done_callback(settled)
+        self._answers_out.setdefault(ctx.agent_id, []).append(later)
+        self._later_work.setdefault(ctx.run_id, []).append((ctx.agent_id, child_id, ctx.cid, work))
+        self._lend_slot(ctx)
+        if self._background_offered(ctx):  # (D1: its next step reads its history from the record)
+            self._set_call(ctx.cid, call_id, status="succeeded", result=told.result())
+        return "succeeded", told.result()
+
+    async def _said_at_once(
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        request: ToolCallRequest,
+        told: asyncio.Future,
+    ) -> tuple[str, str]:
+        """D1: the API Orchestrator's background spawn, whose record stays what it was told at
+        once ("started", "proposed"): its steps read their history from the record, and the
+        report comes as a note (`_comes_later`) - not twice. (A CLI's call record ends with the
+        report: its CLI reads the call's own answer, not the record.)"""
+        try:
+            return await self._run_call(ctx, call_id, request)
+        finally:
+            if told.done() and not told.cancelled():
+                self._set_call(ctx.cid, call_id, status="succeeded", result=told.result())
+
+    async def _comes_later(
+        self: "AgentRunner",
+        ctx: Ctx,
+        child_id: str,
+        name: str,
+        work: "asyncio.Future[tuple[str, str]]",
+    ) -> tuple[str, str, str]:
+        """What came of a sub-agent its CLI opener did not wait for, left for it as a note:
+        (who, what it is told, the note's id), as `team_requests.woken` reads it.
+
+        Whose word it is goes by where the text came from, never by what it says: KOLONİ's
+        own only where the sub-agent never ran and the text is KOLONİ's fixed wording with
+        nothing attached (the user's no, an internal error). Anything else - a report, and a
+        no with other leads' reports after it (`_spawn`) - is the sub-agent's note, handed as
+        data (`_from`), under a short KOLONİ word where the sub-agent did not finish."""
+        try:
+            status, said = await work
+        except Exception as exc:  # (a bug of the call's: its opener hears of it, not nothing)
+            log.warning("agent %s: spawn_agent %s failed: %r", ctx.agent_id, child_id, exc)
+            status, said = "failed", INTERNAL
+        await self._take_slot_back(ctx)
+        opener = self._ctxs.get(ctx.agent_id, ctx)
+        with self._factory() as session:
+            child = session.get(Agent, child_id)
+            ran = child is None or child.started_at is not None
+            fixed = (
+                said == INTERNAL
+                or child is not None
+                and said == SPAWN_REJECTED.format(role=child.role_name)
+            )
+        if status != "succeeded" and not ran and fixed:
+            said = SPAWN_ENDED.format(name=name, status=status, said=said)
+            return name, said, self._send(ctx, opener, said, delivered=False, koloni=True)
+        if status != "succeeded":
+            self._send(
+                ctx,
+                opener,
+                SPAWN_ENDED_SEE.format(name=name, status=status),
+                delivered=False,
+                koloni=True,
+            )
+        return (
+            name,
+            said,
+            self._send(replace(ctx, agent_id=child_id), opener, said, delivered=False),
+        )

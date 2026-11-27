@@ -1504,7 +1504,7 @@ class LoopMixin:
                     _role_asked(request) for _id, request in group
                 )
             if len(group) == 1:
-                await self._run_call(ctx, *group[0])
+                await self._call_or_later(ctx, *group[0])
             else:
                 # K-rol-cogul: none starts work before all are opened or refused - one done at
                 # once would end its recipe step with the others still to come. Nothing before
