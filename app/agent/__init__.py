@@ -353,7 +353,6 @@ from app.commands import (
     POWERSHELL,
     OutputMask,
     copy_reason,
-    disposable_targets,
     hide_keys,
     installs,
     is_allowed,
@@ -5752,7 +5751,7 @@ class AgentRunner(
             root is None
             or cwd is None
             or ctx.root is None
-            or not any(disposable_targets(command, one) for one in (POSIX, POWERSHELL))
+            or not any(disposable.disposable_targets(command, one) for one in (POSIX, POWERSHELL))
         ):
             return None
         seen = self._git_at.get(ctx.run_id) or {}
@@ -5891,6 +5890,7 @@ class AgentRunner(
             place or ws.root,
             (night, judged),
             exempt=unasked or free or bool(in_a_copy),
+            shell=self._own_shell(ctx),
         )
         in_a_copy = in_a_copy or night
         self._never_asked(review, planned.command, in_a_copy)

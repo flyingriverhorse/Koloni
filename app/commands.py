@@ -1277,21 +1277,19 @@ _RUNS_PACKAGE = {
 _STOP_SWITCHES = ("-force", "-passthru", "-whatif", "-confirm", "-verbose", "-debug")
 # What KOLONİ itself runs as, and the CLIs its agents run on: a stop by a name that may be one is
 # never soft (`_named`) - nor one not written out (a wildcard, a bracket, a variable).
-_KOLONIS_PROGRAMS = (
-    "python",
-    "pythonw",
-    "py",
-    "uvicorn",
-    "node",
-    "claude",
-    "codex",
-    "copilot",
-    "qodercli",
-    "agy",
+# What may be KOLONİ itself, an agent's CLI, or what KOLONİ and its terminals stand on - the host,
+# the shell, the system, the session (the review of K3).
+_KOLONIS_WORDS = (
+    "python pythonw py uvicorn node claude codex copilot qodercli agy windowsterminal conhost"
+    " openconsole powershell pwsh cmd bash zsh tmux screen sshd terminal iterm2 gnome-shell xorg"
+    " windowserver loginwindow launchd systemd init explorer dwm smss lsass csrss svchost wininit"
+    " winlogon services git"
 )
+_KOLONIS_PROGRAMS = tuple(_KOLONIS_WORDS.split())
 _KOLONIS_NAMES = re.compile(
-    r"(?i)(?:python|uvicorn|node|claude|codex|copilot|qodercli|agy)"
-    r"[\w.-]*|py(?:\.exe)?|.*[*?$(@`%\[\]].*"
+    "(?i)(?:"
+    + "|".join(re.escape(name) for name in _KOLONIS_PROGRAMS if name not in ("pythonw", "py"))
+    + r")[\w.-]*|py(?:\.exe)?|.*[*?$(@`%\[\]].*"
 )
 # What a line sets a variable to: PowerShell's `$p = x`, `foreach ($p in x)`, and sh's `P=x`.
 _PS_SETS = re.compile(r"(?i)\$(\w+)\s*=(?!=)\s*([^;\r\n]*)")
@@ -1694,6 +1692,14 @@ def _after_options(rest: list[str], takes_value: frozenset[str]) -> list[str]:
     return rest[at:]
 
 
+# The review of K3: what git could still bring back a dropped branch or stash by - not in
+# `_SOFT`: asked at every level, never let by your words or Full auto's judge.
+PRUNES = (
+    "Prunes what git could still bring back (git gc --prune, git prune, git reflog expire): a "
+    "dropped branch or stash is gone for good."
+)
+
+
 def _danger_of(words: list[str]) -> str:  # noqa: C901
     program = _program(words[0])
     if program == UNREAD:
@@ -1780,6 +1786,14 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
         return "Throws away uncommitted changes to files (git checkout / switch / restore)."
     if sub == "stash" and args[:1] in (["drop"], ["clear"]):
         return "Throws away stashed work (git stash drop / clear)."
+    if (
+        sub == "gc"
+        and any(re.fullmatch(r"(?i)--prune=(?:now|all)", a) for a in args)
+        or sub == "prune"
+        or sub == "reflog"
+        and args[:1] in (["expire"], ["delete"])
+    ):
+        return PRUNES
     if sub == "worktree" and args[:1] == ["remove"]:
         return "Deletes a git worktree's folder (git worktree remove)."
     if sub == "worktree" and args[:1] == ["add"] and _outside_here(_worktree_path(args[1:])):
@@ -3331,7 +3345,7 @@ def _copy_reason(
     it is not seen - nor a delete in a script, or by a program `_through_links` does not list.
     shortcut: a line PowerShell is handed encoded (`-EncodedCommand`), a name spliced by
     backticks (`ki`ll`), and what code handed to `python -c` / `node -e` does are not read;
-    `runs_another` and `runs_inline` ask of those where a night's rules hold."""
+    `runs_another` asks of a shell or a wrapper where a night's rules hold."""
     own = str(own) if own is not None else None
     # (K-koloni-alan: the copy's own tree is taken out first too - it is in the project's
     # `.koloni/` where that has no git, and a worktree always is: `copies.in_project`)
@@ -3473,12 +3487,12 @@ def _passed_by(part: str) -> str:
 
 def _path_names(command: str) -> set[str]:
     """Each part of each path in a command, as Windows opens the name (`_name`), but those a
-    search is told to pass by (`_passed_by`)."""
-    return set(_path_parts(command))
+    search is told to pass by (`_passed_by`) - and as sh reads it (`sh`)."""
+    return set(_path_parts(command, sh=True))
 
 
-def _path_parts(command: str) -> list[str]:
-    """`_path_names` in the order they are written."""
+def _path_parts(command: str, sh: bool = False) -> list[str]:
+    """`_path_names` in the order they are written; `sh`: each word's sh reading after it."""
     command = as_own(command)  # (K-koloni-alan: an agent's own tree by its full path is its own)
     # Quotes and escapes taken out first: `.ko`loni`, `.ko""loni` and `.k^oloni` are the name
     # to PowerShell and cmd. (Split at `:` too: `-Path:.koloni\x`, `.koloni::$DATA`.)
@@ -3503,14 +3517,20 @@ def _path_parts(command: str) -> list[str]:
     )
     parts: list[str] = []
     for word in re.split(r"[\s=:<>,;|&()]", re.sub(r"[`^'\"]", "", kept)):
-        pieces = [_name(piece) for piece in re.split(r"[\\/]", word)]
-        if scratch:
-            pieces = [
-                piece
-                for at, piece in enumerate(pieces)
-                if not (piece == ".koloni" and (pieces[at + 1 : at + 2] or [""])[0] in free)
-            ]
-        parts += pieces
+        # (and as sh reads it: a backslash escapes - `.k\oloni`, `.gi\t` are `.koloni`, `.git`
+        # to Git Bash; the review of K3)
+        readings = [re.split(r"[\\/]", word)]
+        if sh and "\\" in word:
+            readings.append(_unescaped(word).split("/"))
+        for split in readings:
+            pieces = [_name(piece) for piece in split]
+            if scratch:
+                pieces = [
+                    piece
+                    for at, piece in enumerate(pieces)
+                    if not (piece == ".koloni" and (pieces[at + 1 : at + 2] or [""])[0] in free)
+                ]
+            parts += pieces
     return parts
 
 
@@ -3731,7 +3751,8 @@ def names_standing(command: str) -> str:
     }
     named |= {".git"} if _sets_git_config(command) else set()
     named |= {PATCH} if applies_patch(command) else set()
-    return min(named) if named else ""
+    # (one that steers before an instruction file: `rm -f AGENTS.md lefthook.yml` is lefthook's)
+    return min(named, key=lambda name: (name in INSTRUCTION_FILES, name)) if named else ""
 
 
 # A chain's commands, a pipeline one of them: `_PARTS` less a single `|`.
@@ -4121,15 +4142,9 @@ def joined(line: str) -> str:
     at a line's very end as a space between words, sh's backslash and cmd's `^` as nothing
     (`gi\\⏎t` is `git`). KOLONİ judges a line both so and as written (`_readings`): reading it
     joined may only add. Joined alone it misses what a line's end that continues nothing hands
-    on (`rm x # done `⏎`npm publish`): a caller judges each of `readings(line)`, not this
+    on (`rm x # done `⏎`npm publish`): a caller judges each of `_readings(line)`, not this
     alone."""
     return _CONTINUED.sub(lambda found: " " if found[0][0] == "`" else "", line)
-
-
-def readings(line: str) -> list[str]:
-    """Every way KOLONİ reads a command line (`_readings`): joined, as written and what its
-    backtick pairs hold - a caller outside this module judges each (review round 4)."""
-    return _readings(line)
 
 
 def _readings(line: str) -> list[str]:
@@ -4436,12 +4451,13 @@ _ENCODED = re.compile(
 def _harm(command: str) -> str:
     """`danger` but for a file that steers later turns: what `only_reads` cannot have. What a
     shell is handed is looked at too (`_commands_in`): B-339's `cmd /c mklink /J .koloni\\tmp\\x
-    ..` is a link before it names `.koloni`."""
+    ..` is a link before it names `.koloni`. A line PowerShell is handed encoded is unread
+    first, whatever else it does (the review of K3: a delete before it hid it)."""
+    if _ENCODED.search(command):  # (what it runs is not read: k-okuyucu-2)
+        return _danger_of([UNREAD])
     for words in _commands_in(command, at=_BLOCKS):
         if words and (said := _danger_of(words)):
             return said
-    if _ENCODED.search(command):  # (what it runs is not read: k-okuyucu-2)
-        return _danger_of([UNREAD])
     if _stops_by_name(command):  # (by a name, or an id the line does not know: `_stop_kind`)
         return KILLS_BY_NAME
     if _DOTNET_DELETE.search(command):
@@ -5881,13 +5897,8 @@ _INSTALLERS = {
 }
 
 
-def sends_off(command: str) -> str:
-    """What of a command sends something off this machine, in one sentence; "" for none."""
-    return next((said for words in _parts(command) if words and (said := _sends(words))), "")
-
-
 def _sends(words: list[str]) -> str:
-    """`sends_off` for one part of a command."""
+    """What one part of a line sends off this machine (a fetch too), in a sentence; "" for none."""
     program = _program(words[0])
     said = {w.lower().lstrip("-") for w in words[1:]}
     if program in _SENDING_PROGRAMS:
@@ -5978,7 +5989,7 @@ def _only_fetches(words: list[str]) -> bool:
     wget or Invoke-WebRequest/RestMethod with nothing on the line that sends, `gh` with a read
     subcommand (`gh pr list`, `gh api` with nothing to send). K-fullauto-sorma: a watched Full
     auto turn does not ask about one (`harms`); a job while the user is away asks about any
-    (`sends_off`). shortcut: what a config file (`curl -K`, `--config`) or a variable makes it
+    (`_sends`). shortcut: what a config file (`curl -K`, `--config`) or a variable makes it
     send is not seen; look inside if a POST gets through one."""
     program = _program(words[0])
     line = " ".join(
@@ -5999,14 +6010,14 @@ def _only_fetches(words: list[str]) -> bool:
 
 def harms(command: str, instructions: bool = True) -> str:
     """What of a command cannot be taken back - it deletes or overwrites (`danger`), or sends
-    something off this machine (`sends_off`, but for a line that only fetches: `_only_fetches`)
+    something off this machine (`_sends`, but for a line that only fetches: `_only_fetches`)
     - in one sentence; "" for none; what a shell or a wrapper is handed is looked at too
     (`_commands_in`: `cmd /c "git push"`, `sh -c 'rm -rf x'`). K-fullauto-sorma: the user's
     rule is that Full auto asks about nothing but harm, so this is asked at every level in a
     watched turn as in a job while the user is away, and no rule is offered for it; there an
     instruction file alone is no harm (`instructions` False, `standing_asked`).
     shortcut: `robocopy /MIR`, `mail` / `sendmail` and `ssh host 'cmd'` are in neither `danger`
-    nor `sends_off` today; add them there when the user meets one. shortcut: a shell nested in
+    nor `_sends` today; add them there when the user meets one. shortcut: a shell nested in
     a shell with escaped quotes (`cmd /c "powershell -c \\"git push\\""`) is not looked into
     (`_commands_in` opens one quoted level; a night job still asks through `runs_another`).
     shortcut: at Full auto this check is a courtesy for honest commands, not a wall against
@@ -6016,7 +6027,7 @@ def harms(command: str, instructions: bool = True) -> str:
     shortcut (security review of K-yargic): no harm is seen in `powershell -enc <base64>`,
     `ssh host 'rm -rf /'`, `find . -exec rm {} ;` or `python -c "shutil.rmtree('..')"` - they run
     at Full auto as before, and are never put to the check of the user's words (no harm, no
-    check); add them to `danger` / `sends_off` when the user meets one. A continued line is read
+    check); add them to `danger` / `_sends` when the user meets one. A continued line is read
     joined too (`_readings`)."""
     return next(
         filter(
@@ -6043,9 +6054,9 @@ def _reasons(command: str, instructions: bool) -> Iterator[str]:
 
 HarmClass = Literal["", "soft", "always"]
 # K-yargic: what a check of the user's own words may let run - any other sentence (one added
-# later too) is asked as before.
+# later too, and since 0.1.10 a git remote's branches overwritten or deleted) is asked as before.
 _SOFT = re.compile(
-    r"(?:Deletes|Empties|Overwrites or deletes|Throws away|Stops programs by their"
+    r"(?:Deletes(?! a git worktree)|Empties|Throws away|Stops programs by their"
     r" name|It reaches beyond this machine|It sends work off this machine)\b"
 )
 
@@ -6054,10 +6065,10 @@ def harm_class(command: str, instructions: bool = True) -> HarmClass:
     """K-yargic: whether a harm (`harms`) is one a check of the user's own words may let run
     ("soft": each part only deletes, throws away, stops programs by name or sends off, `_SOFT`;
     from a copy stopping by name is asked at every level, `copy_reason`) or one asked at every
-    level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
-    path out of the folder, a line handed to another program); "" for no harm. Every part is
-    looked at, not the first sentence `harms` gives: `rm -rf build && cat .env` deletes first,
-    and opens a secret too. A continued line is read joined too (`_readings`): the higher."""
+    level ("always": any other sentence - `push --force` too -, a secret, `.koloni`, a file that
+    steers later turns, a path out of the folder, a line handed to another program); "" for none.
+    Every part is looked at, not the first sentence `harms` gives: `rm -rf build && cat .env`
+    deletes first, and opens a secret too. A continued line is read joined too: the higher."""
     classes = [_harm_class(line, instructions) for line in _readings(command)]
     return "always" if "always" in classes else "soft" if "soft" in classes else ""
 
@@ -6073,13 +6084,15 @@ def _harm_class(command: str, instructions: bool) -> HarmClass:
     return "always" if _asked_anyway(command, instructions) else "soft"
 
 
-def _asked_anyway(command: str, instructions: bool) -> bool:
+def _asked_anyway(command: str, instructions: bool, judged: bool = False) -> bool:
     """`harm_class`: what makes a harm one asked at every level - a secret (named after an `@`
     too: `-F f=@id_rsa`), `.koloni`, a file that steers later turns, a line handed to another
     program (`runs_another`: a variable set before it, `xargs`, `sudo`, a shell), a path out of
     the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
     dot-name (`.k*`, `.[k]oloni`, `.env*`), a harm over all of the folder (`_sweeps`), or a stop
-    of what may be KOLONİ itself (`_stops_koloni`)."""
+    of what may be KOLONİ itself (`_stops_koloni`), or a place a harm's line builds where it runs
+    (`_UNSEEN`: `(Split-Path (pwd))`, `[Environment]::GetFolderPath(...)`). `judged` (K3,
+    `risk_judge.judges`): not git's revert of all of the folder - the judge reads that one."""
     words = re.split(
         r"[\s;&|(){}]+", _TASKKILL.sub(lambda part: _SWITCH.sub(" ", part[0]), command)
     )
@@ -6089,13 +6102,17 @@ def _asked_anyway(command: str, instructions: bool) -> bool:
         or names_koloni(command)
         or standing_asked(command, instructions)
         or runs_another(command)
+        or bool(_UNSEEN.search(command))
         or _stops_koloni(command)
         or any(map(_leads_out, words))
         or any(_DOT_GLOB.search(_as_read(word)) for word in words)
-        or _sweeps(command)
+        or _sweeps(command, reverts=not judged)
     )
 
 
+# The review of K3: a place a line works out as it runs - a subexpression or a group, a .NET
+# type's member (`(Split-Path (pwd))`, `[Environment]::GetFolderPath('UserProfile')`): not seen.
+_UNSEEN = re.compile(r"[()]|\[[\w.]+\]\s*::")
 # A glob or a bracket on a name that starts with a dot: it may reach `.git`, `.koloni` or a secret.
 _DOT_GLOB = re.compile(r"(?:^|[\\/=@,:])\.[^\\/]*[*?\[]")
 # A part of a line taskkill runs, and its switches (`/IM`, `/F`, Git Bash's `//PID`): no path out
@@ -6106,28 +6123,61 @@ _TASKKILL = re.compile(
 _SWITCH = re.compile(r"(?<!\S)/{1,2}[A-Za-z]+(?::\S*)?(?!\S)")  # (`/IM:x.exe` too)
 
 
-def _sweeps(command: str) -> bool:
+def _sweeps(command: str, reverts: bool = True) -> bool:
     """`_asked_anyway`: a part of a harmful line that reaches all of the folder - `.git` and
-    `.koloni` with it: a delete or a revert of the folder itself or all in it (`.`, `*`,
-    `sub/..`; `git checkout .` takes back a change to `.koloni/rules.md` too), or of a
+    `.koloni` with it: a delete or (`reverts`) a revert of the folder itself or all in it (`.`,
+    `*`, `sub/..`; `git checkout .` takes back a change to `.koloni/rules.md` too), or of a
     line that sends, any part but git's (`git add .` is no send of the folder) that takes it
     (`scp -r .`, `zip -r x.zip . && curl ...`); git told what to run (`-c`, `--config-env`), or
-    `git clean` of the ignored files too (`-x`, `-X`)."""
+    `git clean` of the ignored files too (`-x`, `-X`, an exclude pattern that starts with `!`:
+    `-e '!*'`) or a stash of them (`git stash --all`, then dropped); a `find` with no folder
+    before its first option (`find -delete`: `.`)."""
+    lost = ("Deletes", "Throws away") if reverts else ("Deletes",)
     parts = [words for words in _commands_in(command, at=_BLOCKS) if words]
     sends = any(_sends(words) for words in parts)
     for words in parts:
         git = _program(words[0]) == "git"
-        if git and (
-            any(word == "-c" or word.startswith("--config-env") for word in words)
-            or (
-                _git_sub(words)[0] == "clean"
-                and any(_cluster(word, "x") or _cluster(word, "X") for word in words[2:])
+        if (
+            git
+            and (
+                any(word == "-c" or word.startswith("--config-env") for word in words)
+                or (
+                    _git_sub(words)[0] == "clean"
+                    and (
+                        any(_cluster(word, "x") or _cluster(word, "X") for word in words[2:])
+                        or _excludes_back(words[2:])
+                        # (`-ff`: other repositories inside it too - their history with them)
+                        or sum(w.count("f") for w in words[2:] if re.fullmatch(r"-[a-zA-Z]+", w))
+                        + words[2:].count("--force")
+                        > 1
+                    )
+                )
+                # (a stash of the ignored files: `git stash --all && git stash drop` is `clean -x`)
+                or _git_sub(words)[0] == "stash"
+                and any(_cluster(word, "a") or _long(word, "all") for word in words[2:])
             )
         ):
             return True
-        if any(map(_whole, words[1:])) and (
-            _danger_of(words).startswith(("Deletes", "Throws away")) or sends and not git
+        bare = _program(words[0]) == "find" and (len(words) < 2 or words[1].startswith("-"))
+        if (bare or any(map(_whole, words[1:]))) and (
+            _danger_of(words).startswith(lost) or sends and not git
         ):
+            return True
+    return False
+
+
+def _excludes_back(args: list[str]) -> bool:
+    """`_sweeps`: whether `git clean` is told an exclude pattern that starts with `!` (`-e '!*'`,
+    `--exclude=!.env`, `-e!x`): it then cleans what `.gitignore` keeps, as `-x` does."""
+    for at, arg in enumerate(args):
+        plain, after = _as_read(arg), _as_read(args[at + 1]) if at + 1 < len(args) else ""
+        if plain.startswith("--exclude"):
+            value = plain.partition("=")[2] if "=" in plain else after
+        elif plain.startswith("-") and not plain.startswith("--") and "e" in plain:
+            value = plain[plain.index("e") + 1 :] or after  # (`-e!x`, `-fde '!x'`)
+        else:
+            continue
+        if value.startswith("!"):
             return True
     return False
 
@@ -6262,16 +6312,6 @@ _INLINE = re.compile(
     r"""rscript|julia)[\d.]*w?(?:\.exe)?\s+(?:-\w+\s+)*?(?:-c|-e|-p|--eval|--print)"""
     r"""|php[\d.]*(?:\.exe)?\s+(?:-\w+\s+)*?-r|deno(?:\.exe)?\s+eval)(?=\s|$)"""
 )
-
-
-def runs_inline(command: str) -> str:
-    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none -
-    in any reading (`_readings`: `python `⏎`-c "x"` too, k-okuyucu)."""
-    return (
-        "It runs code written on the line: what it does is not seen."
-        if any(map(_INLINE.search, _readings(command)))
-        else ""
-    )
 
 
 def _module_run(words: list[str]) -> list[str]:
@@ -6549,125 +6589,6 @@ def web_off_reason(command: str, off: Iterable[str]) -> str:
     return WEB_OFF.format(tool=tool, what=what) if what else ""
 
 
-# Coordination §4: the deletes KOLONİ can check by itself, where the user allowed them in the
-# project (`Project.disposable_deletes`) - a build or cache folder, a worktree, a branch. Read
-# from a line this plain only: words of ASCII letters, digits and `_ . / -`, one space between
-# them - no quote, backslash, drive, comment, splat, variable, wildcard or other space a shell
-# reads past a plain word - and no option that is not read here.
-DISPOSABLE_NAMES = frozenset(
-    {
-        "build",
-        "dist",
-        "__pycache__",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".mypy_cache",
-        "coverage",
-        ".next",
-        ".turbo",
-        "target",
-    }
-)
-_DISPOSABLE_LINE = re.compile(r"[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*")
-# The shells a folder's delete is read for (`disposable_targets`' `shell`): KOLONİ's own command
-# runs in PowerShell on Windows and in sh elsewhere and in Docker (`executors.host.shell_argv`); a
-# CLI's, in the one it says (`disposable.cli_shell`). Each its own forms, as each reads them -
-# measured in Windows PowerShell 5.1 (22 Nov 2026): Remove-Item and its aliases, `-r` its
-# -Recurse, `-fo` its -Force, one path (`-rf`, `-f` and a second path are errors, nothing
-# deleted); sh's rm by its own name and options, as many paths as it is given.
+# The shells KOLONİ reads a line for (`disposable.disposable_targets`, `risk_judge.judges`):
+# its own command's - PowerShell on Windows, sh elsewhere and in Docker - or a CLI's.
 POWERSHELL, POSIX = "powershell", "posix"
-_DELETE_FORMS = {  # (its deleters, its recursions, its other flags, its forcings, most paths)
-    POWERSHELL: (
-        frozenset({"remove-item", "ri", "rm", "del", "erase"}),
-        frozenset({"-recurse", "-r"}),
-        frozenset({"-force", "-fo", "-path", "-literalpath"}),
-        frozenset({"-force", "-fo"}),
-        1,
-    ),
-    POSIX: (
-        frozenset({"rm"}),
-        frozenset({"-r", "-R", "-rf", "-fr", "-Rf", "-fR"}),
-        frozenset({"-f", "--force"}),
-        frozenset({"-f", "--force", "-rf", "-fr", "-Rf", "-fR"}),
-        None,
-    ),
-}
-
-
-def disposable_targets(command: str, shell: str | None) -> list[tuple[str, str, bool]] | None:
-    """What a line deletes where it is nothing but a delete KOLONİ can check: ("folder", its
-    path, forced) for each build or cache folder of the `shell`'s own recursive delete (`rm -r`
-    in sh, `Remove-Item -Recurse` in PowerShell; a shell not known: none); ("worktree", its path,
-    False) for `git worktree remove <path>`; ("branch", its name, forced) for each of `git branch
-    -d|-D` (git's, every shell's alike). None for any other line. What it names only: whether
-    each is disposable is for the checks of its folder."""
-    if not _DISPOSABLE_LINE.fullmatch(command):
-        return None
-    words = command.split(" ")
-    if words[0] == "git":
-        return _worktree_target(words[1:]) or _branch_targets(words[1:])
-    return _folder_targets(words, shell)
-
-
-def _plain_name(part: str) -> bool:
-    """A path's or a branch's part as every shell and file system reads it: not empty, no
-    dot-name, nothing Windows opens as another (`node_modules.` is `node_modules`)."""
-    return bool(part) and not part.startswith(".") and not part.endswith(".")
-
-
-def _folder_targets(words: list[str], shell: str | None) -> list[tuple[str, str, bool]] | None:
-    """A bare deleter's recursive delete of build or cache folders below where it runs, in the
-    shell's own form (PowerShell's names and options in any case, sh's as spelt; no trailing
-    slash: `build/` is where a link named build leads)."""
-    if shell not in _DELETE_FORMS:
-        return None
-    deleters, recursions, others, forcings, most = _DELETE_FORMS[shell]
-    read: Callable[[str], str] = str.casefold if shell == POWERSHELL else str
-    flags = {read(word) for word in words[1:] if word.startswith("-")}
-    paths = [word for word in words[1:] if not word.startswith("-")]
-    if (
-        read(words[0]) not in deleters
-        or not paths
-        or not flags & recursions
-        or not flags <= recursions | others
-        or most is not None
-        and len(paths) > most
-    ):
-        return None
-    for path in paths:
-        *above, name = path.split("/")
-        if name not in DISPOSABLE_NAMES or not all(
-            _plain_name(part) and part.casefold() not in LINKED for part in above
-        ):
-            return None
-    return [("folder", path, bool(flags & forcings)) for path in paths]
-
-
-def _worktree_target(rest: list[str]) -> list[tuple[str, str, bool]] | None:
-    """`git worktree remove <path>` alone - never forced; up and absolute paths too (a
-    worktree is registered where it is)."""
-    if len(rest) != 3 or rest[:2] != ["worktree", "remove"] or rest[2].startswith("-"):
-        return None
-    parts = rest[2].split("/")
-    if all(
-        part == ".." or _plain_name(part) and part.casefold() not in LINKED
-        for part in (parts if parts[0] else parts[1:])
-    ):  # (`/x/wt`: from the root)
-        return [("worktree", rest[2], False)]
-    return None
-
-
-def _branch_targets(rest: list[str]) -> list[tuple[str, str, bool]] | None:
-    """`git branch -d|-D <name>...`: none of KOLONİ's own (`koloni/…` - Windows and macOS find
-    `Koloni/x`'s ref file as `koloni/x`'s)."""
-    if len(rest) < 3 or rest[0] != "branch" or rest[1] not in ("-d", "-D"):
-        return None
-    for name in rest[2:]:
-        parts = name.split("/")
-        if (
-            name.startswith("-")
-            or parts[0].casefold() == "koloni"
-            or not all(map(_plain_name, parts))
-        ):
-            return None
-    return [("branch", name, rest[1] == "-D") for name in rest[2:]]

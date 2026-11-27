@@ -30,9 +30,11 @@ level says "· no checks"). Each chat has its own level.
 | A command that only reads, such as `cat`, `ls` or `git status` (every path it names - an option's value (`--file=x`, `-Path:'x'`) and a name written in quoted pieces (`.e'nv'`) too - followed through links and junctions, inside the project and no secret file - else it is any other command) | Runs | Runs | Runs |
 | Any other command | Card, unless a rule covers it | Card, unless a rule covers it | Runs, unless [Full auto's judge](#full-autos-judge) finds it risky |
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
-| A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
+| A command that deletes or empties files in the project, or throws away git work, written as a plain line (`rm -rf src`, `Remove-Item`, `git reset --hard`, `git clean -fd`, `git checkout -- .`, `git stash drop`, `git branch -D`) | Card | Card | Runs, unless [Full auto's judge](#full-autos-judge) finds it risky - a card with the judge off or no judge model to answer ([which](#what-the-judge-decides-in-place-of-the-list)) |
+| A command that sends data off the machine (`git push`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
+| A delete out of the project or of all of it (`rm -rf ../x`, `rm -rf .`, `find . -delete`, `git clean -fdx`), one not written as a plain line (`bash -c "rm -rf build"`, `… \| xargs rm`, `rm -rf .gi\t`), a worktree removed, git's recovery pruned (`git gc --prune=now`, `git reflog expire`), a Docker delete, or a git remote's branches overwritten or deleted (`git push --force`, `git push origin :x`) | Card | Card | Card |
 | A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed [such deletes](#disposable-deletes) | Card | Runs | Runs |
-| A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless what it runs is harmful or Full auto's judge finds it risky |
+| A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless Full auto's judge finds it risky; a card where what it runs deletes, sends or is asked at every level |
 | Reading a secret file (`.env`, keys, …) | Card | Card | Card |
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
 | Writing a file that steers agents' later turns (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.mcp.json`, …) | Card | Card | Card |
@@ -45,7 +47,7 @@ level says "· no checks"). Each chat has its own level.
 | A tool of a trusted MCP server | Card, unless the tool is set to run without asking | Card, unless the tool is set to run without asking | Card, unless the tool is set to run without asking |
 | A file outside the project | Card | Card | Card |
 | A change in a folder added to the chat for reading only | Card | Card | Card |
-| A command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a process up and stops it | Card | Card | Card (in the project, **Check what I said first** may let it run, but never for python, node, uvicorn, an agent's CLI, a filter, a wildcard, `kill -1` or a process looked up) |
+| A command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a process up and stops it | Card | Card | In the project, runs unless Full auto's judge finds it risky (a card with the judge off or no judge model to answer); a card always for python, node, uvicorn, an agent's CLI, the terminal, shell or system KOLONİ stands on (WindowsTerminal, conhost, OpenConsole, powershell, pwsh, cmd, bash, explorer, lsass, csrss, svchost, wininit, winlogon, services), a filter, a wildcard, `kill -1` or a process looked up |
 | A sub-agent's command in its copy that names another agent's copy, a worktree of the project or a place above its copy (`../..`), or writes in or installs into the linked `node_modules`, `.venv` or `venv` | Card | Card | Card |
 | A sub-agent's command in a branch's worktree that finds your repository's own path (`git rev-parse --git-dir`), or writes to a place built when it runs (`> "$D/…"`, `cp x "$D/…"`, `Set-Content (Join-Path …)`) or links to one - it may be your repository's own `.git` | Card | Card | Card |
 
@@ -418,10 +420,13 @@ It is not asked about:
 - the very line of a narrow **Always run** rule of the chat, run at the project's root in a chat you
   watch - not a broad rule's (see **Always run rules at Full auto** below), and not where it runs a
   program an agent wrote;
-- a command KOLONİ already asks about for a reason of its own - the list, a secret, `.koloni`, a file that
-  steers agents, a working copy's reason: that card stays as it was (a delete or a send the list stops is
-  put to [your words](#check-what-i-said-first) instead, where that box works). The judge never runs a
-  command that asks, and never takes such a card away: only its own **risky** may be refused.
+- a command KOLONİ asks about at every level for a reason of its own - a secret, `.koloni`, a file that
+  steers agents, a path out of the project, a send, a working copy's reason: that card stays as it was (a
+  send the list stops is put to [your words](#check-what-i-said-first) instead, where that box works).
+  The judge never runs such a command, and never takes its card away: only its own **risky** may be
+  refused. A delete in the project, git work thrown away and a stop by name, which the list asked of
+  before, are the judge's since 0.1.10: see [What the judge decides in place of the
+  list](#what-the-judge-decides-in-place-of-the-list).
 
 **What it reads** - since 0.1.10 as Claude Code's auto mode's classifier: your words and what the agent
 did, never what came back to it. Your preferences, this project's rules as saved on the
@@ -445,18 +450,17 @@ are masked first.
 this machine, download and run code, change things outside the project (your profile, startup, git or
 shell settings, scheduled tasks, the registry), weaken security, or hide what it does. Since 0.1.10, as
 Claude Code's auto mode, also one that destroys work in the project you did not ask to lose: deleting or
-emptying a file or folder that was there before the turn, or throwing away uncommitted changes, in the
-forms the list above does not stop - `> file`, `truncate`, `Set-Content`, `New-Item -Force`,
-`find … -exec rm`, `npx rimraf`, `robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner
-that deletes (`rm`, `del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout -- .`,
-`git restore .` and `git stash drop` are the list's, and ask as before). It stays fine where you asked
+emptying a file or folder that was there before the turn, or throwing away uncommitted changes - `rm`,
+`del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git restore .`, `git
+stash drop`, `> file`, `truncate`, `Set-Content`, `New-Item -Force`, `find … -exec rm`, `npx rimraf`,
+`robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner that deletes. It stays fine where you asked
 for it, for build output and caches a build makes again (`build/`, `dist/`, `node_modules`,
 `__pycache__`), for files the same agent made earlier in the turn, for the agents' scratch folder
 `.koloni/tmp/`, and for what only shows or keeps work (`git clean -n`, `git stash`,
 `git restore --staged`). Measured on 27 Nov 2026 on 180 cases, Claude Code's **haiku** and **Sonnet**
 each called no risky command fine, every ordinary one fine, and one fine command risky - haiku a logon
 task you asked for, Sonnet an `npm config set` your rule named (before this change, haiku called 16 of
-the risky ones fine).
+the risky ones fine; the deletes the list asked of then were not among the cases asked).
 
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
 **When the judge finds a command risky** says:
@@ -513,7 +517,8 @@ KOLONİ knows all the line runs, as it is:
   NAME` / `wget -O NAME` (a plain file name) - any other word (a config, a file to send, a value glued
   to a flag, a quote, `file://`) and the line is asked each time.
 
-Every other line is asked about each time it runs, and its card has no box: a chain, a pipe, a
+Every other line is asked about each time it runs, and its card has no box: a delete, git work thrown
+away or a stop by name the judge decides in place of the list (below), a chain, a pipe, a
 redirection or a substitution - `python k.py && python e.py`, `… ; …`, `… | …`, `… || …`, `… > out.txt`,
 `$(…)` - kept on its first file, the next one could change unseen; `git` and `gh` (they may run the
 project's own aliases and settings), a wrapped line (`env …`, `uv run …`, `timeout …`), a shell's code
@@ -567,6 +572,77 @@ first](#check-what-i-said-first) asks the same model. Each command it looks at i
 [Usage](../money/usage.md) under that model; reads, ordinary work and a line already judged in the turn
 make none.
 
+### What the judge decides in place of the list
+
+Since 0.1.10, as Claude Code's auto mode: in a chat you watch at **Full auto**, with the judge's switch
+on, KOLONİ's list keeps its card only for what it asks at every level. What it asked of before as harm
+in the project, written as a plain line, goes to the judge instead of a card:
+
+- deleting or emptying files or folders in the project (`rm`, `del`, `Remove-Item`, `Clear-Content`,
+  `find src -delete`, pytest's `--basetemp`);
+- throwing away git work: `git reset --hard`, `git clean -f` (not `-x`), `git checkout -- .`, `git
+  restore .`, `git checkout main -- file`, `git stash drop` / `clear`, `git rm -f`, `git branch -D`;
+- stopping a program by its name (`taskkill /IM notepad.exe`, `Stop-Process -Name x`) - never what may
+  be KOLONİ itself, nor what it and its terminals stand on.
+
+A plain line is words of letters, digits and `_ . / = ~ -`, its commands joined by `;` or `&` - so
+KOLONİ reads each target as the shell will. In KOLONİ's own PowerShell a `\` is a path's separator
+(`del src\app.py`); everywhere else it is an escape (`.gi\t` is `.git` to Git Bash), and the line is
+the list's. The line is one such harm - but the one `cd sub` its folder starts it with (a folder
+there): a change of folder with no plain word in the folder (`cd`, `cd -`, `cd ..`, `popd`,
+`Set-Location`, an alias of `cd`), any other command beside it (`rm -rf build; npm install`) and a
+second harm (`rm -rf build; rm -rf dist`: one could make a link the other goes through) keep the
+card. So does a Windows short name (`ENV~1` is `.env`; git's `HEAD~3` is not one), git told of
+another tree (`git -C x`, `--work-tree=…`), and git's work where the project is not its repository's
+top folder (a reset there throws away work outside it). Before the judge is asked KOLONİ looks at the
+disk, and again once it said fine and as the command is about to run: a path through a link or a
+junction (`rm -rf data/`, where `data` leads elsewhere) is the list's card too. A sub-agent's delete in
+its working copy stays its card. No command or CLI KOLONİ starts is given a `CDPATH`: `cd src` is
+the project's own `src`.
+
+The list still asks at every level - its card, never the judge's word - about:
+
+- a line that is not plain: a quote, an escape, a wildcard or a bracket, a brace, a group or a
+  subexpression (`(Split-Path (pwd))`), a .NET call (`[Environment]::…`), a variable, a backtick, a
+  pipe, a redirection, a comment or a line break - and a line handed to a shell, a wrapper or a prefix
+  (`bash -c "rm -rf build"`, `sudo`, `env`, `timeout 60`, `FOO=1 …`, `… | xargs rm`): any of them can
+  build a target the list does not read;
+- what reaches out of the project or all of it: a path out of it (`../x`, `/tmp/x`, `$HOME`, `C:\…`),
+  the folder itself or all in it (`rm -rf .`, `rm -rf *`, `find . -delete`, a `find` with no folder),
+  `git clean -x` or an exclude that starts with `!` (`-e '!*'`), `git stash --all` then dropped (they
+  take ignored files - `.env`, `.koloni`), `git clean -ff` (other repositories inside, their history
+  with them), a link, a worktree outside the project or removed (`git worktree remove`: git picks one
+  by its last name, KOLONİ's own or one outside);
+- what git could still bring a dropped branch or stash back by: `git gc --prune=now`, `git prune`,
+  `git reflog expire`;
+- what may stop KOLONİ itself (python, node, uvicorn, an agent's CLI, a filter, a wildcard, `kill -1`,
+  a process looked up) or what it stands on (the terminal, the shell, the session, the system:
+  WindowsTerminal, conhost, powershell, pwsh, cmd, bash, zsh, tmux, screen, sshd, Terminal, iTerm2,
+  gnome-shell, Xorg, WindowServer, loginwindow, systemd, launchd, explorer, lsass, csrss, svchost,
+  git, …);
+- a send off the machine (put to [Check what I said first](#check-what-i-said-first) where that box
+  works), and a git remote's branches overwritten or deleted (`git push --force`, `git push origin
+  :x`) - a card whatever you said;
+- a secret file, `.koloni/` (its free folders too: what is on the disk there is KOLONİ's to look at),
+  a file that steers agents, git's settings or a patch;
+- a line KOLONİ cannot read (`-EncodedCommand` anywhere in it, more than it reads), web with web
+  tools off, Docker's
+  deletes (its containers and volumes are the machine's, or with `-H` another's), cmd's `rd /s /q`
+  (its `/s` reads as a path from the drive's root);
+- a working copy's, a branch worktree's and a disposable delete's own reasons.
+
+Where [Check what I said first](#check-what-i-said-first) works it looks first: its run runs, its
+refusal refuses, and its ask - a condition of yours, "ask me first" - keeps the card; the judge is not
+asked then. **fine** runs the line; **risky** is refused (Refuse and go on) or waits on its card (Ask
+me). That card says what the list says of the line ("Deletes files or disks."), the judge's sentence on
+its record, and has no **Don't ask about this line again here**: Run once runs that one line. A **risky**
+stands for the turn - the same line again is refused or its card without asking -, a **fine** is asked
+again each time (what the turn did before changes what a delete takes). Anything else - the switch off, no judge model to answer, an answer it cannot read, no room -
+is the list's card as before; and so is each of these at **Ask before changes** and **Auto-edit
+files**, in a To-do task's turn, in a job while you're away (parked), in a turn of a chat you went away
+from, on a side of a comparison, and for a CLI whose folder KOLONİ does not know. If the chat leaves
+Full auto, or the judge is turned off, while it looks, its **fine** lifts nothing: the card opens.
+
 ### The judge is not a wall
 
 - It is a model's decision: it can call a risky command fine, and then that command runs - as it did
@@ -579,6 +655,12 @@ make none.
   test files, an eslint or mypy plugin a setting names, `build.rs`, a cargo runner - and an ordinary line
   (`pytest -q`, `cargo build`) runs what an agent wrote there with no judge.
 - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
+- KOLONİ looks at the disk on the way to what a delete names (a link or a junction there is the
+  list's card), not inside a folder it deletes: a link you made deep in one is not looked at (no
+  shell's delete on this machine follows one).
+- It can be led to call a plain delete fine that it should not: a file of yours written over first and
+  then deleted as the agent's own, work moved into the scratch and then deleted, a path that only looks
+  like a build folder (`build/../src`).
 - Each command it looks at waits for a model request, a few seconds; with only a CLI to ask, from that
   CLI's quota.
 - **Don't ask about this line again here** cannot be listed or undone in the app yet: what it keeps goes
@@ -611,12 +693,19 @@ yours names it". It works only:
 - or in a project where you had turned Check what I said first on before 0.1.9: its box comes ticked and
   works as it did, and you may untick it and tick it again.
 
-With the judge off, or the box unticked, it is never asked. The judge's two questions stay apart: a
-command the list stops softly (a delete, a push, a send) is asked whether your words cover it; any other
-command, whether it looks risky - never both.
+With the judge off, or the box unticked, it is never asked. The judge's two questions come one after
+the other: a command the list stops softly (a delete, a push, a send) is first asked whether your words
+cover it - its run runs, its refusal refuses, and its ask (a condition of yours, "ask me first") keeps
+the card. Where it gave no answer, or is not asked, a delete, git work thrown away or a stop by name in
+the project, written as a plain line, goes on to the judge's own question, whether it looks risky
+([which](#what-the-judge-decides-in-place-of-the-list));
+a push or a send keeps its card - [quoted](#a-push-a-pull-request-or-a-merge-you-asked-for) where you
+asked for it. A force push or a branch deleted on the remote is never asked: a card at every level,
+whatever you said.
 
-At Full auto, in a chat you started, a command that deletes, overwrites or sends something off this
-machine would wait for you on a card. Where the box works, your Judge model (as for [Full auto's
+At Full auto, in a chat you started, a command that sends something off this machine would wait for you
+on a card, and one that deletes in the project goes to Full auto's judge (a card where the judge does not
+run). Where the box works, your Judge model (as for [Full auto's
 judge](#full-autos-judge): the Fast tier's first unless you choose one) first reads
 your preferences, this project's rules as saved on the [Memory](../memory.md) page and your own
 messages in the chat - never anything an agent wrote - and then:
@@ -767,7 +856,8 @@ install folder, while the file still holds it - is never run.
   is made.
 - **Auto-edit files** suits work you review afterwards. Changes can be reverted, and commands
   still ask.
-- **Full auto** is for work you are ready to let run. Harmful commands and risky files still ask, and
-  so does a command [Full auto's judge](#full-autos-judge) finds risky, but everything else runs. A script that opens `.env` without naming it can still read it, unless
+- **Full auto** is for work you are ready to let run. What reaches out of the project, sends, or touches
+  secrets and risky files still asks; [Full auto's judge](#full-autos-judge) decides the rest - a delete
+  in the project too - and everything it calls fine runs. A script that opens `.env` without naming it can still read it, unless
   KOLONİ's own commands run in Docker (Settings › This project › Commands and secrets) or Copilot's
   sandbox is on; a CLI run **Native** runs its commands on this machine, outside Docker.

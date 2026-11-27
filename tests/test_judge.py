@@ -10,9 +10,7 @@ from app.judge import prompt, said, verdict
 from tests.test_full_auto_harm import ASKED
 
 
-@pytest.mark.parametrize(
-    "command", ASKED + ["git reset --hard", "git branch -D x", "[IO.File]::Delete('a')"]
-)
+@pytest.mark.parametrize("command", ASKED + ["git reset --hard", "git branch -D x"])
 def test_a_delete_or_a_send_alone_is_soft(command):
     assert harm_class(command, False) == "soft"
 
@@ -72,6 +70,8 @@ def test_what_is_asked_at_every_level_is_always(command):
         "bash -c 'rm -rf build'",
         "cmd /c del build",
         "GIT_SSH_COMMAND=x git push origin main",
+        # (the review of K3: a .NET call works its place out as it runs - not seen)
+        "[IO.File]::Delete('a')",
     ],
 )
 def test_a_path_out_of_the_folder_anywhere_on_the_line_or_a_line_handed_on_is_always(command):

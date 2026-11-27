@@ -1,4 +1,4 @@
-"""Coordination §4: whether what a plain delete names (`commands.disposable_targets`) is
+"""Coordination §4: whether what a plain delete names (`disposable_targets`) is
 disposable - a build or cache folder git ignores, a clean worktree of the user's, a merged local
 branch nobody stands on - checked against the folder it runs in and the project's git. Any doubt
 (git that does not answer, a link, a folder not read) is no: its card, as before. Blocking: call
@@ -12,21 +12,141 @@ neither a junction inside the folder nor a folder that is one; older Windows 10 
 PowerShell 5.1 follow both. Look as it runs, in the shell, if such a build is met."""
 
 import os
+import re
 import stat
+from collections.abc import Callable
 from pathlib import Path
 
 from app import git, git_looks
 from app.commands import (
-    DISPOSABLE_NAMES,
     POSIX,
     POWERSHELL,
     _holds_link,
-    _plain_name,
-    disposable_targets,
     secret_files,
 )
 from app.copies import LINKED
 from app.workspace import Workspace, _held
+
+# Coordination §4: the deletes KOLONİ can check by itself, where the user allowed them in the
+# project (`Project.disposable_deletes`) - a build or cache folder, a worktree, a branch. Read
+# from a line this plain only: words of ASCII letters, digits and `_ . / -`, one space between
+# them - no quote, backslash, drive, comment, splat, variable, wildcard or other space a shell
+# reads past a plain word - and no option that is not read here.
+DISPOSABLE_NAMES = frozenset(
+    {
+        "build",
+        "dist",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        "coverage",
+        ".next",
+        ".turbo",
+        "target",
+    }
+)
+_DISPOSABLE_LINE = re.compile(r"[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*")
+# Each shell's own forms, as each reads them - measured in Windows PowerShell 5.1 (22 Nov
+# 2026): Remove-Item and its aliases, `-r` its -Recurse, `-fo` its -Force, one path (`-rf`, `-f`
+# and a second path are errors, nothing deleted); sh's rm by its own name and options, as many
+# paths as it is given. (its deleters, its recursions, its other flags, its forcings, most paths)
+_DELETE_FORMS = {
+    POWERSHELL: (
+        frozenset({"remove-item", "ri", "rm", "del", "erase"}),
+        frozenset({"-recurse", "-r"}),
+        frozenset({"-force", "-fo", "-path", "-literalpath"}),
+        frozenset({"-force", "-fo"}),
+        1,
+    ),
+    POSIX: (
+        frozenset({"rm"}),
+        frozenset({"-r", "-R", "-rf", "-fr", "-Rf", "-fR"}),
+        frozenset({"-f", "--force"}),
+        frozenset({"-f", "--force", "-rf", "-fr", "-Rf", "-fR"}),
+        None,
+    ),
+}
+
+
+def disposable_targets(command: str, shell: str | None) -> list[tuple[str, str, bool]] | None:
+    """What a line deletes where it is nothing but a delete KOLONİ can check: ("folder", its
+    path, forced) for each build or cache folder of the `shell`'s own recursive delete (`rm -r`
+    in sh, `Remove-Item -Recurse` in PowerShell; a shell not known: none); ("worktree", its path,
+    False) for `git worktree remove <path>`; ("branch", its name, forced) for each of `git branch
+    -d|-D` (git's, every shell's alike). None for any other line. What it names only: whether
+    each is disposable is for the checks of its folder."""
+    if not _DISPOSABLE_LINE.fullmatch(command):
+        return None
+    words = command.split(" ")
+    if words[0] == "git":
+        return _worktree_target(words[1:]) or _branch_targets(words[1:])
+    return _folder_targets(words, shell)
+
+
+def _plain_name(part: str) -> bool:
+    """A path's or a branch's part as every shell and file system reads it: not empty, no
+    dot-name, nothing Windows opens as another (`node_modules.` is `node_modules`)."""
+    return bool(part) and not part.startswith(".") and not part.endswith(".")
+
+
+def _folder_targets(words: list[str], shell: str | None) -> list[tuple[str, str, bool]] | None:
+    """A bare deleter's recursive delete of build or cache folders below where it runs, in the
+    shell's own form (PowerShell's names and options in any case, sh's as spelt; no trailing
+    slash: `build/` is where a link named build leads)."""
+    if shell not in _DELETE_FORMS:
+        return None
+    deleters, recursions, others, forcings, most = _DELETE_FORMS[shell]
+    read: Callable[[str], str] = str.casefold if shell == POWERSHELL else str
+    flags = {read(word) for word in words[1:] if word.startswith("-")}
+    paths = [word for word in words[1:] if not word.startswith("-")]
+    if (
+        read(words[0]) not in deleters
+        or not paths
+        or not flags & recursions
+        or not flags <= recursions | others
+        or most is not None
+        and len(paths) > most
+    ):
+        return None
+    for path in paths:
+        *above, name = path.split("/")
+        if name not in DISPOSABLE_NAMES or not all(
+            _plain_name(part) and part.casefold() not in LINKED for part in above
+        ):
+            return None
+    return [("folder", path, bool(flags & forcings)) for path in paths]
+
+
+def _worktree_target(rest: list[str]) -> list[tuple[str, str, bool]] | None:
+    """`git worktree remove <path>` alone - never forced; up and absolute paths too (a
+    worktree is registered where it is)."""
+    if len(rest) != 3 or rest[:2] != ["worktree", "remove"] or rest[2].startswith("-"):
+        return None
+    parts = rest[2].split("/")
+    if all(
+        part == ".." or _plain_name(part) and part.casefold() not in LINKED
+        for part in (parts if parts[0] else parts[1:])
+    ):  # (`/x/wt`: from the root)
+        return [("worktree", rest[2], False)]
+    return None
+
+
+def _branch_targets(rest: list[str]) -> list[tuple[str, str, bool]] | None:
+    """`git branch -d|-D <name>...`: none of KOLONİ's own (`koloni/…` - Windows and macOS find
+    `Koloni/x`'s ref file as `koloni/x`'s)."""
+    if len(rest) < 3 or rest[0] != "branch" or rest[1] not in ("-d", "-D"):
+        return None
+    for name in rest[2:]:
+        parts = name.split("/")
+        if (
+            name.startswith("-")
+            or parts[0].casefold() == "koloni"
+            or not all(map(_plain_name, parts))
+        ):
+            return None
+    return [("branch", name, rest[1] == "-D") for name in rest[2:]]
+
 
 NAMES = {"folder": "build folder", "worktree": "worktree", "branch": "branch"}
 # Why a delete found disposable is asked all the same: its second look, just before it runs (a

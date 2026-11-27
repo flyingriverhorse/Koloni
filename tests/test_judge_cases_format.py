@@ -12,14 +12,15 @@ import pytest
 
 from app import judge, risk_judge
 from app.commands import (
+    POWERSHELL,
     harm_class,
     harms,
     names_secret,
     only_reads,
-    scratch_delete_only,
     standing_asked,
     with_cwd,
 )
+from app.scratch_delete import scratch_delete_only
 
 DATA = Path(__file__).parent / "data"
 RISK = json.loads((DATA / "full_auto_judge_cases.json").read_text(encoding="utf-8"))["cases"]
@@ -54,17 +55,23 @@ def test_full_auto_judges_cases_are_each_of_a_kind_with_enough_of_each():
 def test_each_of_them_reaches_the_judge_but_those_marked_stopped(tmp_path):
     # One a gate stops before the judge - the list, a read, the ordinary lines' short way, a
     # secret, what is asked at every level, or what is a card unasked - measures nothing: it is
-    # marked "stopped" and the measurement leaves it out. (K4, 26 Nov: in-project destructive
-    # lines the list stops today - `git reset --hard`, `rm` - kept for when K3 sends them to the
-    # judge; then this fails on each, and its mark goes.) The list as a watched Full auto turn
+    # marked "stopped" and the measurement leaves it out. The list as a watched Full auto turn
     # reads it (`AgentRunner._night_asks`): no instruction file alone, no delete only in the
-    # agents' scratch (B-336).
+    # agents' scratch (B-336) - and since K3 (0.1.10) no harm the judge decides there
+    # (`risk_judge.judges`: a plain line's in-project delete, git's throw-away, a stop by name), as
+    # KOLONİ's own command in PowerShell has it (a `\` a path's separator); what stays stopped is
+    # what is asked at every level (`git clean -fdx`, `find . -delete`, cmd's `/s`) or no plain line
+    # (a delete handed to a shell).
     stopped = {}
     for case in RISK:
         line, program = case["command"]["command"], _program(case)
         unasked = risk_judge.risky_unasked(line, program and program[1], case["earlier"])
         command = with_cwd(line, case["command"]["where"])
-        listed = bool(harms(command, False)) and not scratch_delete_only(command, str(tmp_path))
+        listed = (
+            bool(harms(command, False))
+            and not risk_judge.judges(command, POWERSHELL)
+            and not scratch_delete_only(command, str(tmp_path))
+        )
         why = [
             name
             for name, stops in (
@@ -148,8 +155,11 @@ def test_check_what_i_said_cases_hold_each_trap():
 def test_a_words_case_reaches_the_check_and_its_quote_is_the_users(case):
     said, line = _said(case), case["command"]["command"]
     # (the check is asked only of a command the list stops softly - a delete, a push, a send -
-    # in its folder, at a watched Full auto turn: `JudgeMixin._judging`)
-    assert harm_class(with_cwd(line, case["command"]["where"]), False) == "soft", line
+    # in its folder, at a watched Full auto turn: `JudgeMixin._judging`; one marked "stopped" is
+    # asked at every level - since 0.1.10 a git remote's branches overwritten, `push --force` -
+    # and the measurement leaves it out)
+    reached = "always" if case.get("stopped") == ["list"] else "soft"
+    assert harm_class(with_cwd(line, case["command"]["where"]), False) == reached, line
     # A run or a refuse rests on a whole line of the user's, as the check's code finds one.
     assert ("quote" in case) == (case["want"] != "ask")
     if "quote" in case:

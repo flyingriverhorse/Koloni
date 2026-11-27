@@ -333,7 +333,7 @@ def test_agys_risky_run_command_is_refused(agy_app, wait_run, project_dir):  # n
         ("pytest -q", "full_auto"),  # (ordinary)
         ("git status", "full_auto"),
         ("python check.py", "full_auto"),  # (the user's own test command)
-        ("rm -rf build", "full_auto"),  # (the list's own card)
+        ("rm -rf ../build", "full_auto"),  # (the list's own card: out of the folder - K3)
     ],
 )
 def test_never_asked_of(judging, wait_run, project_dir, line, mode):

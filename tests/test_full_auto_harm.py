@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from app.commands import danger, harms, runs_another, sends_off, suggest_prefix
+from app.commands import _parts, _sends, danger, harms, runs_another, suggest_prefix
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import approve, cmd
 from tests.test_agent_writes import wait_status
@@ -93,6 +93,11 @@ IN_A_SHELL = [
     "sh -c 'rm -rf x'",
     "cmd /c del x",
 ]
+
+
+def sends_off(command: str) -> str:
+    """What of a line sends something off this machine, a fetch too (`_sends` of each part)."""
+    return next((said for words in _parts(command) if words and (said := _sends(words))), "")
 
 
 def why_asked(snap, asked):

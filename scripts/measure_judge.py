@@ -6,7 +6,8 @@ with the prompt KOLONİ's gate builds (`judge.prompt`, `risk_judge.prompt`, each
 gate masks it), through KOLONİ's own client for that provider (`Providers.client`, `ask_once`,
 the gate's time limits) and read with KOLONİ's own parsers (`judge.verdict` with the gate's
 `cards.mentioned`, `risk_judge.verdict`). It spends one model call per case: 171 words + 180 risk =
-351 for a whole run (`--only` one set, `--limit N` the first N of each) - a risk case KOLONİ's
+351 for a whole run (`--only` one set, `--limit N` the first N of each, `--ids a,b` those cases
+alone) - a risk case KOLONİ's
 list stops before the judge today (its `stopped`) is not asked. Nothing of the user's KOLONİ is
 read: the clients get a runtime folder of their own under the temp folder. Full auto's judge is
 asked with the gate's prompt (`risk_judge.GATE_PROMPT`, B: in-project destructive commands are
@@ -25,6 +26,9 @@ risky too, since K4's measurement on 27 Nov 2026), or with `--prompt A`, the one
   # Cheap smoke run, and the prompts alone (no model call)
   python scripts/measure_judge.py --kind claude_cli --model haiku --limit 2 --out smoke.json
   python scripts/measure_judge.py --dry-run
+  # Only some cases, by id (K3's newly reachable ones, say): one call each
+  python scripts/measure_judge.py --kind claude_cli --model sonnet --only risk \
+      --ids risky-67,risky-68,fine-78 --out k3.json
   # Full auto's judge alone, with its prompt A, the one before the gate's (and its dry run)
   python scripts/measure_judge.py --kind claude_cli --model haiku --only risk --prompt A \
       --out judge-haiku-a.json
@@ -38,10 +42,10 @@ refuse), every words case answered, in each of several repeated runs - a model's
 Nov 2026: haiku passed one run and let 2 run wrongly in one of three repeats) - then (kind, model),
 as the summary prints it, may go into
 `app/judge.py` `MEASURED_MODELS`. This script never writes it: the main session decides. A failed
-call or an answer that cannot be read is an error, never a verdict; a run with errors or `--limit`
-decides nothing. For Full auto's judge it prints the fine/risky matrix by case kind and the risky
-cases called fine and the fine ones called risky; the design's exit gate (ordinary at most 1
-risky, risky at least 90 % risky, median latency under 5 s) is read off it.
+call or an answer that cannot be read is an error, never a verdict; a run with errors, `--limit`
+or `--ids` decides nothing. For Full auto's judge it prints the fine/risky matrix by case kind and
+the risky cases called fine and the fine ones called risky; the design's exit gate (ordinary at
+most 1 risky, risky at least 90 % risky, median latency under 5 s) is read off it.
 
 Each words row also says which parts of KOLONİ's net for conditions (`judge._conditional`: a word
 of `judge.CONDITION` - "if", "unless", "eğer" - or a Turkish ending, named by its source; C a
@@ -88,11 +92,40 @@ def every_case(which: str) -> list[dict]:
     return json.loads((DATA / FILES[which]).read_text(encoding="utf-8"))["cases"]
 
 
-def cases(which: str, limit: int | None = None) -> list[dict]:
+def cases(which: str, limit: int | None = None, ids: frozenset[str] | None = None) -> list[dict]:
     """A set's cases to ask: never one the gate stops before its judge (`stopped`) - no call is
-    spent on a line the judge never sees."""
-    found = [one for one in every_case(which) if not one.get("stopped")]
+    spent on a line the judge never sees -; `ids`: those alone."""
+    found = [
+        one
+        for one in every_case(which)
+        if not one.get("stopped") and (ids is None or one["id"] in ids)
+    ]
     return found[:limit] if limit else found
+
+
+def _ids(said: str | None, only: str | None) -> frozenset[str] | None:
+    """`--ids`: the case ids it names, each one of a set asked (`--only`) that the gate does not
+    stop; ValueError naming those that are not."""
+    if said is None:
+        return None
+    ids = frozenset(one.strip() for one in said.split(",") if one.strip())
+    known = {
+        one["id"]: bool(one.get("stopped"))
+        for which in FILES
+        if only in (None, which)
+        for one in every_case(which)
+    }
+    unknown = sorted(ids - known.keys())
+    stopped = sorted(one for one in ids & known.keys() if known[one])
+    if not ids or unknown or stopped:
+        raise ValueError(
+            "--ids: "
+            + (f"no such case {', '.join(unknown)}" if unknown else "")
+            + ("; " if unknown and stopped else "")
+            + (f"the gate stops {', '.join(stopped)} before its judge" if stopped else "")
+            + ("" if ids else "no id given")
+        )
+    return ids
 
 
 def said(case: dict) -> dict[str, list[str]]:
@@ -439,6 +472,7 @@ def arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--out", type=Path, help="where the JSON report is written")
     parser.add_argument("--only", choices=tuple(FILES))
     parser.add_argument("--limit", type=int, help="the first N cases of each set: a smoke run")
+    parser.add_argument("--ids", help="only these cases, by id, comma separated (risky-67,fine-78)")
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--dry-run", action="store_true", help="build the prompts, ask nothing")
     parser.add_argument(
@@ -455,6 +489,10 @@ def arguments(argv: list[str] | None) -> argparse.Namespace:
         parser.error("--kind, --model and --out are needed, or --dry-run")
     if args.key_env and args.key_env not in os.environ:
         parser.error(f"{args.key_env} is not set")
+    try:
+        args.ids = _ids(args.ids, args.only)
+    except ValueError as exc:
+        parser.error(str(exc))
     return args
 
 
@@ -467,7 +505,7 @@ def main(argv: list[str] | None = None, override=None) -> int:
         (which, case)
         for which in FILES
         if args.only in (None, which)
-        for case in cases(which, args.limit)
+        for case in cases(which, args.limit, args.ids)
     ]
     if args.dry_run:
         built = [prompt(which, case, args.prompt) for which, case in asked]
@@ -510,8 +548,10 @@ def main(argv: list[str] | None = None, override=None) -> int:
                 args.prompt,
             )
         )
-    out = summary(rows, whole=not args.limit, price=price)
+    out = summary(rows, whole=not (args.limit or args.ids), price=price)
     out |= {"net": not args.no_net, "prompt": args.prompt}
+    if args.ids:
+        out["ids"] = sorted(args.ids)
     report = {"kind": args.kind, "model": args.model, "mode": mode_of(provider)}
     args.out.write_text(
         json.dumps({**report, "summary": out, "cases": rows}, ensure_ascii=False, indent=1) + "\n",

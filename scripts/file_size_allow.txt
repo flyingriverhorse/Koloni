@@ -10,7 +10,7 @@
 1602 app/agent/merge.py
 3344 app/agent/spawn_mixin.py
 1696 app/browser.py
-6673 app/commands.py
+6594 app/commands.py
 1785 app/db/models.py
 4112 app/git.py
 2950 app/knowledge.py
@@ -28,7 +28,7 @@
 2392 tests/test_agy_agent.py
 1726 tests/test_claims.py
 1777 tests/test_claude_native.py
-2005 tests/test_coordination.py
+2002 tests/test_coordination.py
 1675 tests/test_copy_runner.py
 2814 tests/test_dal_takim.py
 1733 tests/test_lead_decides.py

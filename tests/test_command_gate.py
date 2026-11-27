@@ -148,7 +148,7 @@ def test_a_ruled_line_is_still_covered_and_runs_no_other_program():
 def test_every_line_is_read_as_written_too():
     # (k-okuyucu-2: a stripped, joined or normalised reading may only add - never stand in for
     # the line as written: a data heredoc's body once cut the commands after it)
-    missing = [row[0] for row in GATE["lines"] if row[0] not in commands.readings(row[0])]
+    missing = [row[0] for row in GATE["lines"] if row[0] not in commands._readings(row[0])]
     assert not missing, "\n".join(missing[:20])
 
 

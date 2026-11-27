@@ -43,7 +43,7 @@ REASONS = {
 _FAMILIES = (
     (
         "delete",
-        r"(?:Deletes|Empties|Throws away|Overwrites or deletes|it deletes|it rebuilds"
+        r"(?:Deletes|Empties|Throws away|Overwrites or deletes|Prunes|it deletes|it rebuilds"
         r"|what it deletes changed)\b",
     ),
     ("send", r"It (?:reaches beyond|sends work off)\b"),
