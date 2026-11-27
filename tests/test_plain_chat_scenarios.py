@@ -218,8 +218,10 @@ def test_a_plain_chats_lead_is_offered_only_what_needs_no_folder(make_client, wa
     cid = plain(client)
     snap = done(wait_run(client, cid, say(client, cid)))
     # (message_agent is offered once somebody can be messaged; recall_output is no role's tool,
-    # every agent's at its own work: K-gecmis-zengin)
-    assert set(names(model.tool_args[0])) == PLAIN - {"message_agent"} | {"recall_output"}
+    # every agent's at its own work: K-gecmis-zengin; the Orchestrator's turn tools need no folder:
+    # 0.1.11's D3/D4)
+    at_work = {"stop_agent", "agents_at_work", "update_plan", "note_decision", "ask_advisor"}
+    assert set(names(model.tool_args[0])) == PLAIN - {"message_agent"} | {"recall_output"} | at_work
     lead = snap["agents"][0]
     assert set(lead["tools"]) == PLAIN and lead["mcp"] == []
 

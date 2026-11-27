@@ -608,6 +608,7 @@ def test_an_agent_is_offered_the_guide_only_while_there_is_one(make_client, wait
         "why",
         "effort",
         "findings_from",
+        "background",
     ]
     assert "Local" not in spawn["description"] and "Free" not in str(model.tool_args[1])
     assert TEAM_PROMPT not in model.calls[1][0]["content"]

@@ -45,6 +45,15 @@ from tests.test_spawn import begin, call, step
 
 BEFORE = Path(__file__).with_name("agents_sent_before_memory.json")
 NEW_TOOLS = ("remember", "recall")
+# The Orchestrator's tools while its agents work (0.1.11), offered where it may open agents.
+AT_WORK = (
+    "stop_agent",
+    "agents_at_work",
+    "update_plan",
+    "note_decision",
+    "ask_advisor",
+    "read_pr_feedback",
+)
 LATER_ROLES = (
     "Debugger",
     "Architect",
@@ -179,7 +188,7 @@ def without_memory(tools):
     before the web tools, which came later still (slice 18c), show (slice 39),
     open_room (slice 29b-2), add_skill (slice 45), the backlog's tools (slice 52),
     ask_folder (slice 75), ask_secret (slice 91), offer_away (slice 106), recall_output
-    (K-gecmis-zengin) and command_output / stop_command (0.1.8)."""
+    (K-gecmis-zengin), command_output / stop_command (0.1.8) and the turn tools (0.1.11)."""
     later = (
         *NEW_TOOLS,
         "web_search",
@@ -198,6 +207,7 @@ def without_memory(tools):
         "recall_output",
         *SERVING_TOOLS,
         *("run_checks", "read_status"),  # (0.1.9)
+        *AT_WORK,
     )
     if tools and isinstance(tools[0], str):
         return [name for name in tools if name not in later]
@@ -206,6 +216,8 @@ def without_memory(tools):
         if tool["function"]["name"] == "run_command":
             # A command that keeps running came later (slice 42b): one more input, no other word.
             tool["function"]["parameters"]["properties"].pop("keep_running", None)
+            # And one in the background (0.1.11): one more input.
+            tool["function"]["parameters"]["properties"].pop("background", None)
         if tool["function"]["name"] == "create_role":
             listed = tool["function"]["parameters"]["properties"]["tools"]
             listed["description"] = (
@@ -237,6 +249,8 @@ def without_memory(tools):
             tool["function"]["parameters"]["properties"].pop("effort", None)
             # And whose findings it carries (slice 84c): one more input, no other word.
             tool["function"]["parameters"]["properties"].pop("findings_from", None)
+            # And one opened in the background (0.1.11): one more input.
+            tool["function"]["parameters"]["properties"].pop("background", None)
             # And that sub-agents opened together work beside each other (K-koordinasyon): one
             # more sentence, no other word.
             tool["function"]["description"] = tool["function"]["description"].replace(
@@ -2050,7 +2064,7 @@ def cli_memory(cli_app, kind, script, project_dir, wait_run, **plan):
     assert "Sign every commit." in document["instructions"]
     assert '- "the port is 8790" (written by the user on ' in document["instructions"]
     # (every agent's: K-gecmis-zengin - and after them a session's command_output / stop_command)
-    assert [t for t in seen["tools"] if t not in SERVING_TOOLS][-3:] == [
+    assert [t for t in seen["tools"] if t not in (*SERVING_TOOLS, *AT_WORK)][-3:] == [
         *NEW_TOOLS,
         "recall_output",
     ]
