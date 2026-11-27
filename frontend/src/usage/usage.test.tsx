@@ -97,6 +97,7 @@ const usage: Usage = {
       cost: null,
     },
   ],
+  by_day: [],
 }
 const cells = (row: HTMLElement) =>
   within(row)

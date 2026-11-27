@@ -4191,12 +4191,24 @@ class ModelUsage(UsageRow):
     # From the price the user wrote for this model; None without one, with nothing
     # known, and for a CLI (a plan has no price for a token).
     cost: CostOut | None
+    # What Copilot said it spent in its own units, added up: AI credits in billionths,
+    # premium requests. None where it said nothing - not a zero.
+    nano_aiu: int | None = None
+    premium_requests: float | None = None
 
 
 class ConversationUsage(UsageRow):
     conversation_id: str
     project_id: str | None  # None: a plain chat's
     title: str
+    # Its models' costs added up, as a starter's; None where none of them has one.
+    cost: CostOut | None = None
+
+
+class DayUsage(UsageRow):
+    day: str  # YYYY-MM-DD, by this machine's clock
+    # Its models' costs added up, as a starter's; None where none of them has one.
+    cost: CostOut | None
 
 
 class StartUsage(UsageRow):
@@ -4232,6 +4244,8 @@ class UsageOut(BaseModel):
     by_model: list[ModelUsage]
     by_conversation: list[ConversationUsage]
     by_start: list[StartUsage]
+    # The days anything ran in the period, the first first.
+    by_day: list[DayUsage]
 
 
 class DayFile(BaseModel):

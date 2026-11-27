@@ -61,6 +61,7 @@ const usage: Usage = {
   ],
   by_conversation: [],
   by_start: [],
+  by_day: [],
 }
 
 test('every model is listed once, priced ones first: those with a price, those that ran and those an API provider names - not a CLI’s', async () => {
@@ -123,7 +124,7 @@ test('every model is listed once, priced ones first: those with a price, those t
 
 test('the models can be priced though no agent ran, and a refused price says why and reads nothing again', async () => {
   const onPrice = vi.fn().mockRejectedValue({ detail: 'origin not allowed' })
-  const onLoad = vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })
+  const onLoad = vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [], by_day: [] })
   render(
     <UsagePage
       project={project}
@@ -148,7 +149,7 @@ test('the models can be priced though no agent ran, and a refused price says why
 })
 
 test('without the price handlers the page has no Prices, and with nothing to list it says so', async () => {
-  const onLoad = vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })
+  const onLoad = vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [], by_day: [] })
   const { unmount } = render(
     <UsagePage project={project} projects={[project]} onLoad={onLoad} onOpen={vi.fn()} providers={[cli]} />,
   )
