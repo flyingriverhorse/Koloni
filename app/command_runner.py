@@ -713,7 +713,7 @@ class CommandRunner:
         reads = await asyncio.to_thread(
             reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel
         )
-        moved = await asyncio.to_thread(push_judge.moved, judgement)
+        moved = await asyncio.to_thread(push_judge.moved, judgement, planned.command)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
@@ -1210,7 +1210,7 @@ class CommandRunner:
         has read it already. `judgement`, `disposable`, `park`: as `run`'s - one refused or parked
         is (False, its id); a push's "fine" lapses where it moved (`push_judge.moved`). `why`:
         KOLONİ's reason for its card (`card_reason`), never the CLI's words, shown on it as well."""
-        moved = await asyncio.to_thread(push_judge.moved, judgement)
+        moved = await asyncio.to_thread(push_judge.moved, judgement, command)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode

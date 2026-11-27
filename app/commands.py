@@ -4043,8 +4043,10 @@ def _led(words: list[str]) -> list[str]:
 
 def _sets_git_config(command: str) -> bool:
     """Whether a part of a command sets git's config (`read_edges.sets_git_config`): `git config`
-    setting or taking off a value, or a `git remote` that changes origin."""
-    return sets_git_config([_git_sub(words) for words in _parts(command)])
+    setting or taking off a value, or a `git remote` that changes origin - each part as the shell
+    splits it, and as written, its quotes kept: `"ori"gin` is origin to the shell, not `ori`."""
+    written = [_git_sub(_words(piece.strip())) for piece in _CHAIN.split(command)]
+    return sets_git_config([*(_git_sub(words) for words in _parts(command)), *written])
 
 
 def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:

@@ -709,8 +709,11 @@ keeps the card:
 - origin's address or git's settings in any scope are not what they were when the turn began - a
   `core.hooksPath` an agent set. A turn that began below Full auto has no such record: its pushes are
   cards. An agent's `git remote` that changes `origin` - `add`, `set-url`, `remove`, `rename`,
-  `set-head`, `set-branches` - is itself asked at every level, Full auto too, so an origin changed in
-  one turn is not the next turn's unseen;
+  `set-head`, `set-branches`, origin spelt any way, a quote inside it (`ori''gin`) too - is itself asked
+  at every level, Full auto too, so an origin changed in one turn is not the next turn's unseen;
+- git reads a settings file of the project out of `.git` - an `include.path` of yours to
+  `../.gitconfig`: an agent may write that file unasked, and a `pushInsteadOf` there would send the
+  next turn's push elsewhere;
 - a hook a push runs on this machine is there at all - `pre-push` or `reference-transaction` in
   `.git/hooks` or in the folder `core.hooksPath` names - yours too (husky's, Git LFS's): an unchanged
   hook can run what an agent wrote;

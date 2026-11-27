@@ -93,12 +93,12 @@ def refused(
     if not start or not start["url"] or start["config"] is None:
         return "what a push goes by was not read as the turn began"
     try:
-        exe, _folder = git.repository(root)
+        exe, folder = git.repository(root)
         branch = _branch(root, exe, start["default"])
         tip = _tip(root, exe, branch)
         if not (branch and tip) or word not in ("", "HEAD", branch):
             return "it pushes main, master, origin's default branch, no branch or another one"
-        if why := _redirects(_config(root, exe), branch):
+        if why := _redirects(_config(root, exe, folder), branch):
             return why
         url = git.push_address(root)
         if (url, config_digest(root)) != (start["url"], start["config"]):
@@ -115,15 +115,21 @@ def refused(
     return why
 
 
-def moved(judgement: dict | None) -> bool:
+def moved(judgement: dict | None, line: str) -> bool:
     """Whether a push the judge called fine would send another branch or commit now than the one
     looked at (its record's "push": `refused`'s `seen`) - HEAD switched or the branch moved while
-    a card of another kind waited, say: its card. False for a record with none. Blocking.
+    a card of another kind waited, say: its card. A "fine" on a plain push's `line` with no such
+    record is its card too (fails closed); False for any other record. Blocking.
     shortcut: a bare push (and `origin HEAD`) still reads HEAD as it runs - looked at here, just
     before; a switch by the user's own hand in the moment between is not seen."""
-    seen = (judgement or {}).get("push")
+    record = judgement or {}
+    seen = record.get("push")
     if not isinstance(seen, dict):
-        return False
+        return (
+            record.get("kind") == "risk"
+            and record.get("verdict") == "fine"
+            and (shape(line) is not None)
+        )
     try:
         root = Path(seen["root"])
         exe, _folder = git.repository(root)
@@ -210,9 +216,11 @@ def _hooked(root: Path, exe: str) -> bool:
     )
 
 
-def _config(root: Path, exe: str) -> dict[str, list[str]]:
-    """git's config as git reads it, in every scope (`config --list`): each key's values - a key
-    with no value is true. Refused where git does not say it."""
+def _config(root: Path, exe: str, folder: Path) -> dict[str, list[str]]:
+    """git's config as git reads it, in every scope (`config --list --show-origin`): each key's
+    values - a key with no value is true. Refused where git does not say it, or reads a file of the
+    project out of its git folder (`folder`): an `include.path` of yours to `../.gitconfig`, which
+    an agent may write unasked - a `pushInsteadOf` there sends the next turn's push elsewhere."""
     code, out, _said = git._in(
         root,
         exe,
@@ -220,13 +228,18 @@ def _config(root: Path, exe: str) -> dict[str, list[str]]:
         "config",
         "-z",
         "--list",
+        "--show-origin",
         seconds=git.SHORT_SECONDS,
         **git.UNASKED_ENV,
     )
     if code != 0:
         raise git.Refused("git's config could not be read")
+    fields = out.decode("utf-8", "replace").split("\0")
     found: dict[str, list[str]] = {}
-    for entry in out.decode("utf-8", "replace").split("\0"):
+    for origin, entry in zip(fields[0::2], fields[1::2], strict=False):
+        file = origin.removeprefix("file:")
+        if file != origin and _inside(root, file) and not _inside(folder, str(root / file)):
+            raise git.Refused(f"git's config reads {file}, a file of the project")
         key, newline, value = entry.partition("\n")
         if key:
             found.setdefault(key, []).append(value if newline else "true")

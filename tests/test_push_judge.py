@@ -166,9 +166,27 @@ def test_what_a_fine_was_given_for_is_looked_at_again_as_it_runs(pushed, change)
         commit(pushed, "late.py", "x = 1\n", "while a card waited")
     elif change == "gone":
         seen = {**seen, "root": str(pushed.parent / "nowhere")}
-    assert push_judge.moved({"kind": "risk", "push": seen}) == (change != "none"), change
-    assert not push_judge.moved({"kind": "risk", "verdict": "fine"})
-    assert not push_judge.moved(None)
+    fine = {"kind": "risk", "verdict": "fine"}
+    assert push_judge.moved({**fine, "push": seen}, "git push") == (change != "none"), change
+    assert not push_judge.moved(None, "git push")
+
+
+@pytest.mark.parametrize(
+    ("record", "line", "card"),
+    [
+        # (a "fine" on a plain push with no record of what was looked at: fails closed)
+        ({"kind": "risk", "verdict": "fine"}, "git push", True),
+        ({"kind": "risk", "verdict": "fine"}, f"git push -u origin {BRANCH}", True),
+        # (a "fine" on any other line, a refusal, the check of your words: as before)
+        ({"kind": "risk", "verdict": "fine"}, "python gen.py", False),
+        ({"kind": "risk", "verdict": "fine"}, "git push --force", False),
+        ({"kind": "risk", "verdict": "refuse"}, "git push", False),
+        ({"kind": "said", "verdict": "ask"}, "git push", False),
+        (None, "git push", False),
+    ],
+)
+def test_a_fine_on_a_push_with_no_record_of_what_was_looked_at_is_a_card(record, line, card):
+    assert push_judge.moved(record, line) == card
 
 
 def test_a_plain_push_of_the_feature_branch_is_not_refused(pushed):
@@ -344,6 +362,32 @@ def test_an_origin_git_reads_from_its_old_files_is_a_card(pushed, legacy):
     url = {"remote.origin.url": ["x"]}
     assert push_judge._redirects({}, BRANCH) == "git's config does not name origin's address"
     assert push_judge._redirects(url, BRANCH) == ""
+
+
+@pytest.mark.parametrize("where", ["in the project", "beside it"])
+def test_a_config_file_git_reads_from_the_project_is_a_card(pushed, where):
+    # (the review's p11b: your `.git/config` includes `../.gitconfig`, a file of the project an agent
+    # may write unasked - a `pushInsteadOf` there sends the next turn's push elsewhere)
+    shared = pushed / ".gitconfig" if where == "in the project" else pushed.parent / "shared.cfg"
+    git(
+        pushed,
+        "config",
+        "include.path",
+        "../.gitconfig" if where == "in the project" else str(shared),
+    )
+    start = at_start(pushed)  # (the next turn begins: what the agent wrote there is read then)
+    elsewhere = bare(pushed.parent / "elsewhere.git")
+    git(pushed, "push", "-q", str(elsewhere), "main")
+    origin = git(pushed, "remote", "get-url", "origin").replace("\\", "\\\\")  # (as git writes it)
+    shared.write_text(f'[url "{elsewhere.as_posix()}"]\n\tpushInsteadOf = {origin}\n')
+    assert git(pushed, "remote", "get-url", "--push", "origin") == elsewhere.as_posix()
+    found = refused(pushed, "", at_start(pushed), [])
+    if where == "beside it":  # (a file out of the project: compared within the turn, as any)
+        assert "changed in this turn" in refused(pushed, "", start, []), start
+    if where == "in the project":
+        assert "a file of the project" in found, found
+    else:
+        assert found == "", found
 
 
 def test_an_origin_in_the_project_is_a_card(pushed):
@@ -698,6 +742,16 @@ def test_claude_codes_push_of_the_feature_branch_runs_through_the_judge(
         "git remote set-branches origin main",
         "git remote add -t main origin https://example.com/x.git",
         "git remote set-url 'origin' https://example.com/x.git",
+        # (a quote inside the name, an escape: the shell may make it origin - any name not plain)
+        "git remote set-url ori''gin https://example.com/x.git",
+        'git remote set-url ori""gin https://example.com/x.git',
+        'git remote set-url "ori"gin https://example.com/x.git',
+        "git remote set-url o`rigin https://example.com/x.git",
+        "git remote set-url $R https://example.com/x.git",
+        "git remote rename x ori''gin",
+        # (git's words in any case: a case-blind disk finds the program)
+        "git remote Set-Url origin https://example.com/x.git",
+        "git REMOTE set-url origin https://example.com/x.git",
     ],
 )
 def test_a_git_remote_that_changes_origin_is_asked_at_every_level(line):
@@ -709,6 +763,8 @@ def test_a_git_remote_that_changes_origin_is_asked_at_every_level(line):
     "line",
     [
         "git remote add upstream https://example.com/x.git",
+        "git remote add -t main -m main upstream https://example.com/x.git",
+        "git remote rename origin-old old",
         "git remote set-url upstream https://example.com/origin",
         "git remote remove upstream",
         "git remote -v",
@@ -717,6 +773,7 @@ def test_a_git_remote_that_changes_origin_is_asked_at_every_level(line):
     ],
 )
 def test_a_git_remote_of_another_remote_or_a_read_is_as_before(line):
+    # (`add`'s `-t` / `-m` values are no remote: `add -t main upstream x` is upstream's)
     assert harm_class(line, False) == "" and not standing_asked(line, False), line
 
 
