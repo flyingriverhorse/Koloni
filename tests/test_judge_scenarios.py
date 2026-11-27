@@ -469,6 +469,8 @@ def test_a_run_verdict_is_not_kept_on_a_command_asked_for_another_reason(
 @pytest.mark.no_po
 def test_one_verdict_per_command_and_folder_in_a_turn(judging, wait_run, project_dir):
     (project_dir / "sub").mkdir()
+    # (K5: a run in `sub` stands only on a line that names it - `judge._elsewhere`)
+    rule = "You may delete build/ and sub/build/."
     client, _lead, judge, _executor = judging(
         [
             cmd("rm -rf build", id="k1"),
@@ -476,10 +478,10 @@ def test_one_verdict_per_command_and_folder_in_a_turn(judging, wait_run, project
             cmd("rm -rf build", id="k3", cwd="sub"),
             text("cleaned"),
         ],
-        [verdict_line("run", RULE), verdict_line("run", RULE)],
+        [verdict_line("run", rule), verdict_line("run", rule)],
         [Script([])] * 3,
     )
-    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=rule)
     snap = wait_run(client, cid, run_id)
     assert len(judge.calls) == 2
     assert sorted(
