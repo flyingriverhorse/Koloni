@@ -34,16 +34,18 @@ same meanings - and has one line under the chat's name:
 | Green, full | **Done**, and what its last turn ran with: its agents, model and tokens |
 | Empty | **Stopped**, or **No turn yet** |
 
-What waits for your word in a chat is what [Ready for you](ready.md) lists for it, so the rows and the
-top bar's pill count the same things. A chat whose state is not read yet has no cell and no line: the
-page says nothing it does not know.
+What waits for your word in a chat is what [Ready for you](ready.md) lists for it, and **Show** goes by
+the same. A chat Ready for you has not read yet - or could not read - says what the project's board says,
+**Waits for your word** with nothing after it, until it is read or its board row changes. A chat whose
+state is not read at all has no cell and no line: the page says nothing it does not know.
 
 ## Now
 
 **Now** stands beside the list, over every folder:
 
-- a cell for each chat at work, each thing that waits for your word, and each chat stuck or done
-  today; hover a cell, or let a screen reader say it, for its chat and its state;
+- a cell for each chat at work (one that waits for your word too, while another of its agents works),
+  each thing that waits for your word, and each chat whose last turn ended today stuck or done; hover a
+  cell, or let a screen reader say it, for its chat and its state;
 - one sentence that counts them - "2 chats at work; 2 things wait for your word. Today 1 stuck." The
   number that waits is the top bar's pill's;
 - **Go to Ready**, where what waits is answered;

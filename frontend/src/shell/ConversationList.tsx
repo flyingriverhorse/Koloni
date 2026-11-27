@@ -4,11 +4,10 @@ import { WAITS } from '../agents/agentStatus'
 import { errorText } from '../api/client'
 import type { Board, ConversationsDeleted, ListedConversation, Project } from '../api/types'
 import { count } from '../board/columns'
-import { standingOf } from '../board/waiting'
 import { CELL, type Stands } from '../ready/cells'
 import { type ReadyItem, chatOf } from '../ready/ready'
 import { Cell } from './Cell'
-import { CHAT_WORD, type ChatSaid, type ChatStands, chatStands } from './chatStands'
+import { CHAT_WORD, type ChatSaid, type ChatStands, chatStands, standingFor } from './chatStands'
 import { ChatsNow } from './ChatsNow'
 import { useConfirm } from './Confirm'
 import { GitHubIssue } from './GitHubIssue'
@@ -156,11 +155,12 @@ const TASK_WORD: Record<TaskStatus, [word: string, stands: Stands]> = {
   blocked: ['stuck', 'stuck'],
 }
 
-/** Where its task stands on the To-do list - unless the chat's own line already says the same. */
+/** Where its task stands on the To-do list - unless the chat's own line already says the same ("to do" says more than
+ *  an idle chat's line). */
 function TaskState({ task, stands }: { task: ListedConversation['backlog_task']; stands?: ChatStands }) {
   if (!task) return null
   const [word, its] = task.waiting ? ([WAITS, 'yours'] as const) : TASK_WORD[task.status]
-  if (its === stands) return null
+  if (its === stands && its !== 'queued') return null
   // (In the cells' colours: your word honey, stuck red-orange.)
   const tone = task.waiting ? ' tag-accent' : task.status === 'blocked' ? ' tag-warn' : ''
   return <span className={`tag${tone}`}>{word}</span>
@@ -187,16 +187,30 @@ function saidOf(
   )
 }
 
-/** Now's chats, by name: those at work, and those stuck or done today (not archived ones). */
+/** An agent's state while its work goes on, not asking you. */
+const BUSY = new Set<string>(['running', 'queued', 'waiting', 'blocked'])
+
+/**
+ * Now's chats, by name: those at work - one that waits for your word too, while another of its agents works - and
+ * those stuck or done today, by when their last turn ended (not archived ones).
+ */
 function nowOf(
   conversations: ListedConversation[],
   said: Map<string, ChatSaid | null>,
   on: Map<string, BoardConversation>,
 ) {
-  const today = (c: ListedConversation) => !c.archived_at && dayOf(lastAt(c, on.get(c.id))) === 'Today'
-  const titles = (stands: ChatStands, only: (c: ListedConversation) => boolean) =>
-    conversations.filter(c => said.get(c.id)?.[0] === stands && only(c)).map(c => c.title)
-  return { working: titles('running', () => true), stuck: titles('stuck', today), done: titles('done', today) }
+  const stands = (c: ListedConversation) => said.get(c.id)?.[0]
+  const busy = (c: ListedConversation) =>
+    stands(c) === 'running' || (stands(c) === 'yours' && !!on.get(c.id)?.agents.some(agent => BUSY.has(agent.status)))
+  const ended = (c: ListedConversation) => on.get(c.id)?.turn?.ended_at
+  const today = (c: ListedConversation, as: ChatStands) =>
+    stands(c) === as && !c.archived_at && !!ended(c) && dayOf(Date.parse(ended(c)!)) === 'Today'
+  const titles = (only: (c: ListedConversation) => boolean) => conversations.filter(only).map(c => c.title)
+  return {
+    working: titles(busy),
+    stuck: titles(c => today(c, 'stuck')),
+    done: titles(c => today(c, 'done')),
+  }
 }
 
 /** A row's line under its name: how it stands, then its To-do task's state, its kept changes, archived. */
@@ -245,7 +259,9 @@ export function ConversationList({
   const shown =
     show === 'all'
       ? found
-      : found.filter(c => (standings as readonly (string | null)[]).includes(standingOf(on.get(c.id))))
+      : found.filter(c =>
+          (standings as readonly (string | null)[]).includes(standingFor(on.get(c.id), readChats.includes(c.id))),
+        )
   // Those that wait for you first; within them, as chosen (newest first is how the server lists them).
   const sorted = shown
     .sort((a, b) =>

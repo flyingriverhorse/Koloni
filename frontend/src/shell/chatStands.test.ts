@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import type { Board } from '../api/types'
 import { boardTurn } from '../test-fixtures'
-import { chatStands, nowSaid } from './chatStands'
+import { chatStands, nowSaid, standingFor } from './chatStands'
 
 type BoardConversation = Board['conversations'][number]
 type BoardAgent = BoardConversation['agents'][number]
@@ -54,8 +54,17 @@ test('a chat stands as its cell says: at work with who and on which branch; stuc
   // as its turn says, at work while its agents are, or as its turn ended.
   const answered = { ...ended('completed'), merges_pending: 1 }
   expect(chatStands(answered, [], null, true)?.slice(0, 2)).toEqual(['done', 'Done'])
-  expect(chatStands({ ...answered, agents: [agent('Lead', 'waiting_approval')] }, [], null, true)?.[0]).toBe('running')
+  // ...its line not saying "waits for you" of an agent the Board still has asking.
+  expect(chatStands({ ...answered, agents: [agent('Lead', 'waiting_approval')] }, [], null, true)?.slice(0, 2)).toEqual(
+    ['running', 'At work'],
+  )
+  const asksAndWorks = [agent('Lead', 'waiting_approval'), agent('Spawned', 'proposed'), agent('Coder', 'running')]
+  expect(chatStands({ ...answered, agents: asksAndWorks }, [], null, true)?.[1]).toBe('Coder working')
   expect(chatStands(onBoard({ merges_pending: 1 }), [], null, true)).toEqual(['queued', 'No turn yet', ''])
+  // The Show filter goes by the same: the Board's standing, what waits left out of a chat that was read.
+  expect(standingFor(answered, false)).toBe('waits')
+  expect(standingFor(answered, true)).toBe('completed')
+  expect(standingFor(undefined, true)).toBeNull()
   // No row on the Board yet: nothing is said.
   expect(chatStands(undefined, [])).toBeNull()
 })

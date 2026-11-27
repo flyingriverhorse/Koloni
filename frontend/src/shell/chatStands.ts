@@ -45,10 +45,15 @@ const ENDED: Partial<Record<string, [ChatStands, string]>> = {
   cancelled: ['queued', 'Stopped'],
 }
 
-/** Its agents at work, each with how it stands ("Coder working, Reviewer waiting"), the branches they work on, and
- *  what its turn runs with. */
+/** An agent's state that asks something of you: Ready for you lists what of it waits. */
+const ASKS = new Set<string>(['waiting_approval', 'proposed'])
+
+/** Its agents at work, each with how it stands ("Coder working, Reviewer waiting") - not one the Board, read before
+ *  your answer, still has asking you -, the branches they work on, and what its turn runs with. */
 function atWork(on: BoardConversation): ChatSaid {
-  const who = on.agents.map(agent => `${titleOf(agent.name || agent.role)} ${AGENT_STATUS[agent.status][0]}`)
+  const who = on.agents
+    .filter(agent => !ASKS.has(agent.status))
+    .map(agent => `${titleOf(agent.name || agent.role)} ${AGENT_STATUS[agent.status][0]}`)
   const branches = [...new Set(on.agents.flatMap(agent => (agent.copy?.branch ? [agent.copy.branch] : [])))]
   const where = branches.length > 0 && `branch ${branches.join(', ')}`
   return ['running', who.join(', ') || 'At work', line(where, ...ranOf(on.turn))]
@@ -57,6 +62,13 @@ function atWork(on: BoardConversation): ChatSaid {
 /** How it goes on, what waits left out (`standingOf` past its first question): at work, or how its last turn ended. */
 const goingOn = (on: BoardConversation) =>
   on.agents.length > 0 || (on.turn && !TERMINAL.has(on.turn.status)) ? 'working' : (on.turn?.status ?? null)
+
+/** How it stands as the Board says it (`standingOf`) - for a chat Ready for you has read (`read`), what waits left out:
+ *  Ready lists that. A row's line and the Show filter both go by it. */
+export function standingFor(on: BoardConversation | undefined, read: boolean) {
+  const board = standingOf(on)
+  return board === 'waits' && read && on ? goingOn(on) : board
+}
 
 /**
  * How a chat stands, as its cell and one line say it on the Chats page (0.1.10): what waits for your word in it - Ready
@@ -76,9 +88,8 @@ export function chatStands(
     return ['yours', mine.length === 1 ? 'Waits for your word' : `${mine.length} wait for your word`, kinds]
   }
   if (!on) return null
-  const board = standingOf(on)
-  if (board === 'waits' && !read) return ['yours', 'Waits for your word', '']
-  const standing = board === 'waits' ? goingOn(on) : board
+  const standing = standingFor(on, read)
+  if (standing === 'waits') return ['yours', 'Waits for your word', '']
   if (standing === 'working') return atWork(on)
   const ended = standing ? ENDED[standing] : undefined
   const ran = line(...ranOf(on.turn))

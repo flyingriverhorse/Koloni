@@ -1025,6 +1025,41 @@ test('the settings opened over a narrow window’s story: the page around it is 
   })
 })
 
+test('a narrow window’s story: what opens over the page after it - Ctrl+K, a portal in the body - is not shut; what was there is', async () => {
+  // (As App lays it out: the page in .main, Ctrl+K beside .main in .app.)
+  const shown = (palette: boolean) => (
+    <div className="app">
+      <nav aria-label="Rail">
+        <button type="button">Chats</button>
+      </nav>
+      <div className="main">
+        <BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} />
+      </div>
+      {palette && (
+        <div role="dialog" aria-label="Go to">
+          <input aria-label="Go to" />
+        </div>
+      )}
+    </div>
+  )
+  await narrowWindow(async () => {
+    const { rerender } = render(shown(false))
+    await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: 0 of 1 done' }))
+    expect(screen.getByRole('dialog', { name: 'Şifre sıfırlama' })).toBeInTheDocument()
+    expect(document.querySelector('nav[aria-label="Rail"]')).toHaveAttribute('inert')
+    rerender(shown(true))
+    const portal = document.createElement('div')
+    document.body.append(portal)
+    await new Promise(done => setTimeout(done, 0))
+    const box = screen.getByRole('textbox', { name: 'Go to' })
+    expect(box.closest('[inert]')).toBeNull()
+    expect(portal).not.toHaveAttribute('inert')
+    await userEvent.type(box, 'chats')
+    expect(box).toHaveValue('chats')
+    portal.remove()
+  })
+})
+
 test('a narrow window’s story: its Tab goes round what can be seen, not what is hidden in it', async () => {
   await narrowWindow(async () => {
     render(<BacklogPage {...page()} backlog={TREE_TASKS} stories={STORIES} />)

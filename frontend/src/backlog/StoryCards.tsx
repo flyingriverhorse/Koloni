@@ -287,8 +287,9 @@ function useNarrow(): boolean {
 
 /**
  * While the panel is open, what it lies over cannot be reached: the rest of To-do (its cards to its dock) is inert -
- * and, `modal` (a narrow window, the panel the window's), everything else on the page too. What comes in after it
- * opened - a draft's tree, the tasks the Orchestrator turned down - is made inert as it comes. As it closes only what
+ * and, `modal` (a narrow window, the panel the window's), everything else on the page too. What comes into To-do after
+ * it opened - a draft's tree, the tasks the Orchestrator turned down - is made inert as it comes; not what opens over
+ * the page meanwhile (Ctrl+K, the folder browser, Ready for you's panel), which must be reached. As it closes only what
  * it made inert is put back.
  */
 function useInertAround(box: RefObject<HTMLElement | null>, modal: boolean) {
@@ -300,17 +301,17 @@ function useInertAround(box: RefObject<HTMLElement | null>, modal: boolean) {
     for (let at = panel.parentElement; modal && at && at !== document.body; at = at.parentElement)
       around.push([at.parentElement, at])
     const made = new Set<Element>()
-    const shut = () => {
-      for (const [parent, keep] of around)
+    const shut = (levels: typeof around) => {
+      for (const [parent, keep] of levels)
         for (const one of Array.from(parent?.children ?? []))
           if (one !== keep && !one.hasAttribute('inert')) {
             one.setAttribute('inert', '')
             made.add(one)
           }
     }
-    shut()
-    const watch = new MutationObserver(shut)
-    for (const [parent] of around) if (parent) watch.observe(parent, { childList: true })
+    shut(around)
+    const watch = new MutationObserver(() => shut(around.slice(0, 1)))
+    if (panel.parentElement) watch.observe(panel.parentElement, { childList: true })
     return () => {
       watch.disconnect()
       made.forEach(one => one.removeAttribute('inert'))

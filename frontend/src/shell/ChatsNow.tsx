@@ -52,7 +52,7 @@ export function ChatsNow({
             {cells.slice(0, MOST).map(([stands, label], at) => (
               <Cell key={at} {...CELL[stands]} label={label} big />
             ))}
-            {cells.length > MOST && <span className="muted">+{cells.length - MOST}</span>}
+            {cells.length > MOST && <span className="muted">+{cells.length - MOST} more</span>}
           </span>
         )}
         <p>
@@ -65,13 +65,14 @@ export function ChatsNow({
           </button>
         )}
       </div>
-      <p className="cell-legend" aria-label="What the cells say">
+      {/* (Each cell's word beside it: a screen reader is told it once.) */}
+      <div className="cell-legend" role="group" aria-label="What the cells say">
         {(Object.keys(CHAT_WORD) as ChatStands[]).map(stands => (
           <span key={stands}>
-            <Cell {...CELL[stands]} label={CHAT_WORD[stands]} /> {CHAT_WORD[stands]}
+            <Cell {...CELL[stands]} label={CHAT_WORD[stands]} hidden /> {CHAT_WORD[stands]}
           </span>
         ))}
-      </p>
+      </div>
     </aside>
   )
 }
