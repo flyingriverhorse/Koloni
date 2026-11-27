@@ -26,6 +26,7 @@ from app import (
     topics,
     views,
 )
+from app.agent import message_modes
 from app.agent.cards import _changes_nothing
 from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
@@ -551,7 +552,8 @@ class TalkMixin:
     async def _message(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """Give another agent a turn on a message, and return its reply. A name that no
         agent of this turn has may be that of an agent of an earlier turn of the topic:
-        the lead goes on with it (`_go_on`), which is opening an agent."""
+        the lead goes on with it (`_go_on`), which is opening an agent. C1: `how` "leave" or
+        "now" - its sender goes on (`message_modes`)."""
         to, body = args.get("to"), args.get("message")
         if not isinstance(to, str) or not to.strip():
             raise ToolError("missing required argument: to")
@@ -569,10 +571,30 @@ class TalkMixin:
         handed_files = self._named_files(ctx, args.get("attachments"))  # (slice 85b)
         reachable = self._reachable(ctx)
         match = next((m for m in reachable if m[0].name.casefold() == to.casefold()), None)
+        how, told = message_modes.how_of(self, ctx, args.get("how"))  # (C1)
         if match is None:
-            return await self._message_unknown(ctx, call_id, to, body, reachable)
+            status, result = await self._message_unknown(ctx, call_id, to, body, reachable)
+            earlier = message_modes.EARLIER.format(how=how) if how != "reply" else ""
+            return status, told + earlier + result
         target, kind = match
         self._within_limit(ctx)
+        if how != "reply":
+            return await message_modes.left(
+                self, ctx, call_id, target, kind, body, handed_files, how
+            )
+        status, result = await self._message_to(ctx, call_id, target, kind, body, handed_files)
+        return status, told + result
+
+    async def _message_to(
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        target: Ctx,
+        kind: str,
+        body: str,
+        handed_files: list,
+    ) -> tuple[str, str]:
+        """`_message` as a reply: past its reach and its limit."""
         if kind == "steer":  # (its files only once its CLI took the message)
             return await self._steer_message(ctx, target, body, handed_files)
         # shortcut: not with an earlier turn's agent gone on with (`_go_on`); hand them there
@@ -743,7 +765,9 @@ class TalkMixin:
             result = f"{injection.NOTE}\n{result}"
         return status, result
 
-    def _within_limit(self: "AgentRunner", ctx: Ctx) -> None:
+    def _within_limit(self: "AgentRunner", ctx: Ctx, room: int = 1) -> None:
+        """Refused where the turn's messages between agents leave no `room` (C1: a message left
+        takes two - its note and the turn it may start, counted while it is to come: `_left`)."""
         with self._factory() as session:
             sent = session.scalar(
                 select(func.count())
@@ -753,7 +777,7 @@ class TalkMixin:
                     ChannelMessage.kind.in_(("message", "note")),
                 )
             )
-        if (sent or 0) >= MAX_MESSAGES_PER_TURN:
+        if (sent or 0) + len(self._left.get(ctx.run_id, ())) + room > MAX_MESSAGES_PER_TURN:
             raise ToolError(
                 f"limit of {MAX_MESSAGES_PER_TURN} messages between agents per turn "
                 "reached. Go on with what you know."
@@ -809,6 +833,8 @@ class TalkMixin:
                 .where(Message.delivered_at.is_(None), Message.run_id == ctx.run_id)
                 .order_by(Message.created_at, literal_column("messages.rowid"))
             ).all()
+            if ctx.answering or ctx.discussion:  # (C1: a message left is its own work's to read)
+                waiting = [one for one in waiting if one.id not in self._left.get(ctx.run_id, ())]
             if not waiting and not handed:
                 return []
             names = dict(
