@@ -139,7 +139,7 @@ export function useAgents(project: Project, more?: number) {
         {/* (Saved command by command: Enter in its fields sends nothing of the section's Save.
             shortcut: a command half written there is dropped when another section is chosen (no "not saved" mark);
             keep it mounted if that bites.) */}
-        <div onKeyDown={noSubmit}>
+        <div role="presentation" onKeyDown={noSubmit}>
           <OwnCommands projectId={project.id} />
         </div>
       </More>

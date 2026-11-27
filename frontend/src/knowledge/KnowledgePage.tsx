@@ -1,4 +1,4 @@
-import { type FormEvent, type KeyboardEvent, useEffect, useId, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 import { errorText, overWhat } from '../api/client'
 import type {
   Knowledge,
@@ -155,6 +155,11 @@ export function KnowledgePage(props: Props) {
   }, [learning, items, onReload])
   // Held over the month's budget, as a new turn is: the user is asked to go on (`over`: which, and why).
   const [over, setOver] = useState<{ id: string; said: string } | null>(null)
+  // (Its Go on anyway has the focus once it is asked: no `autoFocus`.)
+  const goOn = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (over) goOn.current?.focus()
+  }, [over])
   const learn = (id: string, overBudget = false) => {
     setSaid(null)
     setOver(null)
@@ -199,7 +204,7 @@ export function KnowledgePage(props: Props) {
       {over && (
         <div role="group" aria-label={over.said} className="composer-warning composer-budget">
           <span role="alert">{over.said}. Learn anyway?</span>
-          <button type="button" className="btn btn-small" autoFocus onClick={() => learn(over.id, true)}>
+          <button ref={goOn} type="button" className="btn btn-small" onClick={() => learn(over.id, true)}>
             Go on anyway
           </button>
           <button type="button" className="btn btn-small" onClick={() => setOver(null)}>
