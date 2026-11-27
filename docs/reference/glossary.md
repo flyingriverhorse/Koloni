@@ -36,9 +36,11 @@ KOLONİ's own words, as they appear on screen.
 
 **Check what I said first**
 : Full auto's judge's question of your words (its box in Settings › This project › Asking and away,
-  since 0.1.9): at Full auto, before a harmful-looking command waits for you on a card, a fast model
-  reads your own words, and the command runs without a card only where a line of yours names it. See
-  [Permission levels](../use/permissions.md#check-what-i-said-first).
+  since 0.1.9): at Full auto, before a delete, a push or a send waits for you on a card - or a delete
+  in the project goes to Full auto's judge -, a fast model reads your own words, and the command runs
+  without a card only where a line of yours names it - never a force push. Until a model has passed its
+  measurement, a push, a pull request or a merge you asked for gets a card that quotes you instead, one
+  click. See [Permission levels](../use/permissions.md#check-what-i-said-first).
 
 **Compare**
 : **Compare…** under **More** next to the message box. One message goes to two models side by

@@ -663,12 +663,18 @@ yours names it". It works only:
 - or in a project where you had turned Check what I said first on before 0.1.9: its box comes ticked and
   works as it did, and you may untick it and tick it again.
 
-With the judge off, or the box unticked, it is never asked. The judge's two questions stay apart: a
-command the list stops softly (a delete, a push, a send) is asked whether your words cover it; any other
-command, whether it looks risky - never both.
+With the judge off, or the box unticked, it is never asked. The judge's two questions come one after
+the other: a command the list stops softly (a delete, a push, a send) is first asked whether your words
+cover it - its run runs, its refusal refuses, and its ask (a condition of yours, "ask me first") keeps
+the card. Where it gave no answer, or is not asked, a delete, git work thrown away or a stop by name in
+the project goes on to the judge's own question, whether it looks risky ([which](#what-the-judge-decides-in-place-of-the-list));
+a push or a send keeps its card - [quoted](#a-push-a-pull-request-or-a-merge-you-asked-for) where you
+asked for it. A force push or a branch deleted on the remote is never asked: a card at every level,
+whatever you said.
 
-At Full auto, in a chat you started, a command that deletes, overwrites or sends something off this
-machine would wait for you on a card. Where the box works, your Judge model (as for [Full auto's
+At Full auto, in a chat you started, a command that sends something off this machine would wait for you
+on a card, and one that deletes in the project goes to Full auto's judge (a card where the judge does not
+run). Where the box works, your Judge model (as for [Full auto's
 judge](#full-autos-judge): the Fast tier's first unless you choose one) first reads
 your preferences, this project's rules as saved on the [Memory](../memory.md) page and your own
 messages in the chat - never anything an agent wrote - and then:
