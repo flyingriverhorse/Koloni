@@ -302,3 +302,101 @@ def test_left_to_a_cli_at_work_is_never_written_into_its_turn_and_is_taken_up_af
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     assert not claude_app.record().get("steered")  # (a note, not its running turn's line)
     assert claude_app.record()["stdin"].count("use blue") == 1  # (its run on it, once)
+
+
+def test_a_left_note_is_never_taken_in_another_agents_answer_turn_but_in_its_own(
+    make_client, wait_run, project_dir
+):
+    # (K4: a finished Coder answers the Tester - a read-only turn, its turn lock held - while the
+    # Lead leaves it "do B now": that answer turn is not handed it; its own turn after it is.)
+    answer, lead_gate = Gate(), Gate()
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                spawn("Coder", "a"),
+                step(bg("Tester", "ask the Coder", "s2")),
+                lead_gate.step(leave(words="do B now")),
+                *[text("x")] * 4,
+            ],
+            "Coder": [
+                text("A done"),
+                answer.step(step(call("read_file", {"path": "hello.py"}, "r1"))),
+                text("ANSWER TO TESTER"),
+                text("B DONE"),
+            ],
+            "Tester": [
+                step(call("message_agent", {"to": "Coder", "message": "what did you do?"}, "q")),
+                text("T done"),
+            ],
+        },
+        spawn_max_parallel=3,
+    )
+    answer.wait_partial()  # (its answer turn to the Tester holds its turn)
+    lead_gate.release()
+    until(client, cid, lambda _s: len(model.calls_of["Lead"]) >= 4)  # (left: it went on)
+    answer.release()
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    handed = [said_in(one, "do B now") for one in model.calls_of["Coder"]]
+    assert handed == [0, 0, 0, 1], handed  # (not in its answer's steps: in its own turn)
+    assert any(said_in(one, "B DONE") for one in model.calls_of["Lead"][-1:])
+
+
+def test_left_messages_to_come_count_twice_toward_the_turns_limit(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # (K1: each left message held room for two only as it was looked at - not while to come.)
+    monkeypatch.setattr(talk_mixin, "MAX_MESSAGES_PER_TURN", 3)
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "a"}, "s1"),
+                    call("spawn_agent", {"role": "Tester", "task": "b"}, "s2"),
+                ),
+                step(
+                    leave("Coder", "do B", id="m1").tool_calls[0],
+                    leave("Tester", "do C", id="m2").tool_calls[0],
+                ),
+                *[text("x")] * 5,
+            ],
+            "Coder": [text("A done"), text("B done")],
+            "Tester": [text("T done"), text("C done")],
+        },
+    )
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    results = [tool_result(model.calls_of["Lead"][2], one) for one in ("m1", "m2")]
+    assert results[0] == LEFT_NOW.format(name="Coder")
+    assert "limit of 3 messages" in results[1], results
+    with client.app.state.runner._factory() as session:
+        kinds = session.scalars(
+            select(ChannelMessage.kind).where(
+                ChannelMessage.run_id == run_id, ChannelMessage.kind.in_(("message", "note"))
+            )
+        )
+        assert sorted(kinds) == ["message", "note"]  # (within the limit: its note, its turn)
+
+
+def test_an_error_after_its_turn_took_a_left_message_up_is_unknown(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    def breaks(*_args):  # (after the note is handed: its turn took it up)
+        raise RuntimeError("a bug")
+
+    monkeypatch.setattr(AgentRunner, "_reply_turn_start", breaks)
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [spawn("Coder", "do A"), leave(), text("went on"), *[text("x")] * 3],
+            "Coder": [text("A done"), text("B done")],
+        },
+    )
+    snap = wait_run(client, cid, run_id)
+    went = MESSAGE_WENT[UNKNOWN].format(name="Coder", words='"do B"')
+    assert f"KOLONİ: {went}." in notes_of(snap, "Lead"), notes_of(snap, "Lead")

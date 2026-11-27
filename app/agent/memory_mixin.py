@@ -558,6 +558,7 @@ class MemoryMixin:
                     note = session.get_one(Message, left)
                     note.delivered_at = note.created_at = now()
                     session.commit()
+                self._left.get(ctx.run_id, set()).discard(left)  # (its turn's row: counted now)
             self._channel(ctx, ctx.agent_id, target.agent_id, "message", body)
             # Read by it in its turn, with the note (`_from`): the user is told here (93-A4) -
             # but not of the word of the agent it works for.

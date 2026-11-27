@@ -130,6 +130,8 @@ class AtWorkMixin:
         # (its note's id, the agent's name, the words), by turn; and a word's spoken ask.
         self._told_lead: dict[str, list[tuple[str, str, str]]] = {}
         self._word_spoken: dict[str, dict | None] = {}
+        # C1: by turn, the messages left (`message_modes`) no turn of their receiver's took up yet.
+        self._left: dict[str, set[str]] = {}
         self._lead_tools_init()  # (the Orchestrator's own tools: `LeadToolsMixin`)
 
     def _at_work_offered(self: "AgentRunner", ctx: Ctx, schemas: list[dict]) -> None:

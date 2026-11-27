@@ -115,8 +115,9 @@ goes - only to an agent it could message anyway:
 | **now** | as **leave** | into its running work: a CLI's running turn - with what came of it, as [below](#what-came-of-a-word-sent-into-a-clis-turn) - else at its next step, as **leave** |
 
 A turn an agent takes on a message left waits for its other turns and for a place, as any agent's
-turn. A message left counts twice toward the turn's messages between agents (its note and the turn
-it may start), so it is refused where there is room for one only. However it ends, the Orchestrator
+turn; a turn in which it only answers another agent's question is not handed it - its own work is.
+A message left counts twice toward the turn's messages between agents (its note and the turn it may
+start) from the moment it is left, so it is refused where there is room for one only. However it ends, the Orchestrator
 is told: the agent read it (from its next step on, without a step of its own for it), its reply, or
 why it was not taken up - the agent was stopped, or can no longer be messaged, or the turn ended
 first, or it was stopped as it took it up (then it may have read it); it is not sent again. Every

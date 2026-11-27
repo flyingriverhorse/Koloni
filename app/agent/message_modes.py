@@ -91,14 +91,13 @@ async def left(
     turn's messages (`_within_limit`): room for both, or it is refused now."""
     if how == "now" and kind == "steer":  # (its CLI's turn, C2's outcome told)
         return await runner._steer_message(ctx, target, body, files)
-    # shortcut: room for two is looked at, not kept - what others send meanwhile may take it, and
-    # its turn then goes one over the limit; keep the room if a turn is seen past it.
     runner._within_limit(ctx, room=2)
     with runner._factory() as session:
         at_work = session.get_one(Agent, target.agent_id).status in AT_WORK
     runner._hand_files(ctx, files, target.agent_id)
     note = runner._send(ctx, target, body, delivered=False)
     runner._channel(ctx, ctx.agent_id, target.agent_id, "note", body)
+    runner._left.setdefault(ctx.run_id, set()).add(note)  # (its turn to come counted, `_deliver`)
     later = asyncio.ensure_future(_taken_up(runner, ctx, call_id, target, body, note))
     later.add_done_callback(_retrieved)
     runner._answers_out.setdefault(ctx.agent_id, []).append(later)
@@ -146,14 +145,19 @@ async def _taken_up(
     except asyncio.CancelledError:
         # (The turn stopped, or its sender's work ended: on its record, never dropped unsaid.)
         with contextlib.suppress(Exception):
-            if started:
+            if started and _read(runner, note):  # (handed in its turn: it may have read it)
                 runner._message_went(ctx.agent_id, target, body, note, UNKNOWN)
             elif not _read(runner, note):
                 _not_taken_up(runner, ctx, target, body, "the turn ended first")
         raise
     except Exception as exc:
         log.warning("agent %s: a message left for %s failed: %r", ctx.agent_id, target.name, exc)
+        if started and _read(runner, note):
+            runner._message_went(ctx.agent_id, target, body, note, UNKNOWN)
+            return target.name, "", note
         return _not_taken_up(runner, ctx, target, body, "an internal error")
+    finally:
+        runner._left.get(ctx.run_id, set()).discard(note)
 
 
 async def _replied(

@@ -767,7 +767,7 @@ class TalkMixin:
 
     def _within_limit(self: "AgentRunner", ctx: Ctx, room: int = 1) -> None:
         """Refused where the turn's messages between agents leave no `room` (C1: a message left
-        takes two - its note and the turn it may start)."""
+        takes two - its note and the turn it may start, counted while it is to come: `_left`)."""
         with self._factory() as session:
             sent = session.scalar(
                 select(func.count())
@@ -777,7 +777,7 @@ class TalkMixin:
                     ChannelMessage.kind.in_(("message", "note")),
                 )
             )
-        if (sent or 0) + room > MAX_MESSAGES_PER_TURN:
+        if (sent or 0) + len(self._left.get(ctx.run_id, ())) + room > MAX_MESSAGES_PER_TURN:
             raise ToolError(
                 f"limit of {MAX_MESSAGES_PER_TURN} messages between agents per turn "
                 "reached. Go on with what you know."
@@ -833,6 +833,8 @@ class TalkMixin:
                 .where(Message.delivered_at.is_(None), Message.run_id == ctx.run_id)
                 .order_by(Message.created_at, literal_column("messages.rowid"))
             ).all()
+            if ctx.answering or ctx.discussion:  # (C1: a message left is its own work's to read)
+                waiting = [one for one in waiting if one.id not in self._left.get(ctx.run_id, ())]
             if not waiting and not handed:
                 return []
             names = dict(
