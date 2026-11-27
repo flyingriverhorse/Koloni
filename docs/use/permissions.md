@@ -37,7 +37,7 @@ level says "· no checks"). Each chat has its own level.
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless Full auto's judge finds it risky; a card where what it runs deletes, sends or is asked at every level |
 | Reading a secret file (`.env`, keys, …) | Card | Card | Card |
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
-| Writing a file that steers agents' later turns (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.mcp.json`, …) | Card | Card | Card |
+| Writing a file that steers agents' later turns or runs by itself (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.devcontainer/`, `.cargo/`, `.gitmodules`, `.mcp.json`, … - [all of them](../security/model.md#files-that-steer-later-turns)) | Card | Card | Card |
 | Writing `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` | Card | Card | Runs |
 | Writing in the folder's `.koloni/` - or a command that names it - but in its scratch `tmp/`, and a look into `worktrees/` or `copies/` ([which](#the-folders-koloni)) | Card | Card | Card |
 | A web search | Card, unless you allowed searching in this chat | Card, unless you allowed searching in this chat | Runs |
@@ -52,10 +52,14 @@ level says "· no checks"). Each chat has its own level.
 | A sub-agent's command in a branch's worktree that finds your repository's own path (`git rev-parse --git-dir`), or writes to a place built when it runs (`> "$D/…"`, `cp x "$D/…"`, `Set-Content (Join-Path …)`) or links to one - it may be your repository's own `.git` | Card | Card | Card |
 
 A plain `git` command counts as read-only only when it runs at the top of the project and the
-project holds no secret file.
+project holds no secret file. As in Claude Code, these are no read either: a line that sets `PATH` or
+`IFS`, git after a change of folder (`cd sub && git status`: a repository shaped there can set programs
+git runs), a redirection to bash's `/dev/tcp/` or `/dev/udp/` (it reaches the internet), and a wildcard
+that may expand to an option (`find *`, `rg foo *`, `cat -*`: a file named `-delete` or `--pre=x` in the
+folder would be one; `src/*.py` and a quoted `'*.py'` are fine).
 
-The secret-file rows have exceptions for CLIs run with their own tools (Codex's own safe commands,
-agy's reads): see [Known limits](../reference/known-limits.md#secrets).
+The secret-file rows have exceptions for CLIs run with their own tools (a command Codex's own allow rules
+cover, agy's reads): see [Known limits](../reference/known-limits.md#secrets).
 
 ### The folder's `.koloni/`
 
@@ -423,10 +427,11 @@ It looks at Full auto's commands in a chat you watch (a To-do task done in a cha
 you're away (☾ Away) - not at **Ask before changes** or **Auto-edit files**.
 It is not asked about:
 
-- a command that only reads;
+- a command that only reads (git's at the project's root);
 - ordinary work, as a plain command with its common options only: a test runner (`pytest`, `python -m
   pytest`, `npm test`, `cargo test`, `go test`), a compiler or checker (`tsc`, `ruff`, `eslint`, `mypy`,
-  `cargo build`, `go build`), local git (`status`, `add`, `commit`, `diff`, `log`, `switch`, `branch`) and
+  `cargo build`, `go build`), local git at the project's root (`status`, `add`, `commit`, `diff`, `log`,
+  `switch`, `branch`; in a folder below it, git is judged: a repository shaped there sets what it runs) and
   `npm run <script>` - but not where an agent wrote what it runs (the program, or the project's
   `package.json`);
 - your own test command (the project map's) - but it is, where the line runs a program an agent wrote -,

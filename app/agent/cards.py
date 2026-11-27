@@ -30,9 +30,9 @@ from app.team import only_in_project, reads_only
 from app.tools import MAX_LINE_CHARS
 from app.workspace import Workspace, WorkspaceError, never
 
-# What a CLI that asks first did without asking (Codex: its own allow rules, its known-safe
-# commands; Copilot's own tools; Claude Code: a tool past its hook): its turn goes on, and
-# the record says so (`_unasked_note`). (Native agy's run is stopped there: `AgyClient._heard`.)
+# What a CLI that asks first did without asking (Codex: its own allow rules, before 0.172.0 its
+# known-safe commands; Copilot's own tools; Claude Code: a tool past its hook): its turn goes on,
+# and the record says so (`_unasked_note`). (Native agy's run is stopped there: `AgyClient._heard`.)
 UNASKED_BY_CLI = "ran without KOLONİ being asked ({who}'s own rules)"
 NATIVE_NEEDS_FULL_AUTO = (
     "{provider} works here with its own tools and cannot ask before it writes or runs "

@@ -948,12 +948,12 @@ class CodexNativeClient(CliStepClient):
             # An answer from the user, or a whole sub-agent, can take a long time.
             "-c",
             f"mcp_servers.{SERVER}.tool_timeout_sec={TOOL_WAIT_SECONDS}",
-            # B-304: none of its own sub-agents, as step by step (`CodexCliClient.DISABLED`): they
-            # work past KOLONİ's records, and each would start a bridge of its own, which the
-            # tool server turns away. shortcut: the key as `features.apps` below, not measured
-            # live; measure it (K-cli-surface).
+            # B-304: none of its own sub-agents, as step by step: they work past KOLONİ's records,
+            # and each would start a bridge of its own, which the tool server turns away. The
+            # feature (an older Codex's) and `CodexCliClient.NO_AGENTS` (0.172.0's, measured).
             "-c",
             "features.multi_agent=false",
+            *CodexCliClient.NO_AGENTS,
             # The user's own skills are not an agent of KOLONİ's to use - nor its plugins' (B-312:
             # a Debugger read a plugin's SKILL.md), as Claude Code's `--setting-sources` and
             # step by step (`DISABLED`). shortcut: `plugins` among Codex 0.164's feature names,
@@ -976,11 +976,11 @@ class CodexNativeClient(CliStepClient):
             # to start or be ignored - measure it (K-cli-surface) before relying on it.
             *(("-c", "features.apps=false") if {"search", "fetch"} & set(withheld) else ()),
             # B-301: read-only for a role that may not run commands, no shell of its own at all:
-            # its read-only sandbox keeps writes, not reads, and its known-safe commands run
-            # unasked ("untrusted") - a .env, the home folder. It reads with KOLONİ's tools.
-            # shortcut: Codex 0.164 takes both names (`--disable shell_tool` / `unified_exec`
-            # measured), but that they take its shell away is not; a command that comes all
-            # the same ends the turn (`_converse`). Measure it live (K-cli-surface).
+            # its read-only sandbox keeps writes, not reads, and a command its own allow rules cover
+            # runs unasked (0.172.0 asked of `Get-Content readme.txt` and of `.env` at "untrusted":
+            # measured 27 Nov 2026). It reads with KOLONİ's tools. shortcut: Codex 0.164 takes both
+            # names (`--disable shell_tool` / `unified_exec` measured), but that they take its shell
+            # away is not; one that comes all the same ends the turn (`_converse`). Measure it live.
             *(
                 ("-c", "features.shell_tool=false", "-c", "features.unified_exec=false")
                 if _no_shell(withheld)
@@ -2202,9 +2202,9 @@ class CodexSessionClient(CodexNativeClient):
     # and js_repl may send no item at all: for those the flags in `OFF` are the guard.
     # shortcut: by the item types of 0.164's protocol; one code mode sends around an MCP call is
     # not measured - it would end every session: add it here once seen live.
-    # shortcut: B-415 (live, 8 Nov, gpt-6-luna): a lead began collabAgentToolCall with
-    # multi_agent off - an item, not a request, so nothing to decline: the session still stops
-    # (its agents at work end its row, `_lead_ended`); measure which flag turns it off.
+    # B-415 (live, 8 Nov, gpt-6-luna): a lead began collabAgentToolCall with multi_agent off -
+    # an item, not a request, so nothing to decline: the session stops (`_lead_ended`). The flag
+    # that turns it off is `CodexCliClient.NO_AGENTS` (measured 27 Nov 2026, 0.172.0).
     ITEMS = frozenset(
         {
             "userMessage",

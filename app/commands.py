@@ -19,6 +19,7 @@ from sqlalchemy import or_, select
 from app import raw
 from app.copies import LINKED, folders
 from app.db.models import AllowedCommand, AllowedWeb
+from app.read_edges import NET_PATH, SEARCH_DOES, globs_an_option
 from app.workspace import (
     FREE,
     INSTRUCTION_FILES,
@@ -3562,7 +3563,8 @@ def _looks_only(command: str) -> bool:
     looks = _LOOKERS | _SEARCHERS - {"ag", "ack"} | {"find"}  # (theirs take `--pag=`: review)
     return (
         bool(lines)  # (an option as the shell joins it too: `-fpr""intf`, `$'-de\x6cete'` - review)
-        and not (re.search(r"[<>$]", rest) or _SEARCH_DOES.search(_as_word(rest) + " " + rest))
+        and not (re.search(r"[<>$]", rest) or SEARCH_DOES.search(_as_word(rest) + " " + rest))
+        and not globs_an_option(rest)  # (`ls *`: a file named `-x` there is an option)
         and all(_program(words[0]) in looks for words in lines)
     )
 
@@ -3807,27 +3809,25 @@ def _reads(part: str, sinks: bool = True) -> bool:
 _RENAMES = re.compile(
     r"(?i)(?<![\w-])(?:set-alias|new-alias|sal|nal|function|filter|alias)(?![\w-])"
 )
-# What a search may be told that writes or runs something: find's actions, rg's preprocessor and
-# its replace and hostname program, ag's/ack's pager (`-r` is rg's and ag's replace, grep's not).
-_SEARCH_DOES = re.compile(
-    r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fprintf|-fls"
-    r"|--pre(?:=.*)?|--replace(?:=.*)?|--pager(?:=.*)?|--hostname-bin(?:=.*)?"
-)
 
 
 def only_searches(part: str) -> bool:
     """B-198: a lone search that only reads - rg, ag, ack, a grep or find by its own name,
-    nothing piped, redirected, substituted or wrapped (a shell's script: `_script`, B-307),
-    none of `_SEARCH_DOES`. A file that
-    steers later turns it names (`rg --files -g AGENTS.md`, `rg foo .github/`) it reads, as a
+    nothing piped, redirected, substituted, wrapped (`_script`, B-307) or chained (`rg x; cd y &&
+    git log`), none of `SEARCH_DOES`, no wildcard that may be an option (`globs_an_option`). A file
+    that steers later turns it names (`rg --files -g AGENTS.md`, `rg foo .github/`) it reads, as a
     `cat` does: `names_standing` asks nothing of it. (`.koloni` and a secret still ask: `_harm`.)"""
     words = [word.strip("'\"") for word in _words(part.strip())]
-    if not words or re.search(r"[|<>`$(){}]", part) or re.search(r"[\\/]", words[0]):
+    if not words or re.search(r"[|<>`$(){};&\r\n]", part) or re.search(r"[\\/]", words[0]):
         return False
     program = _program(words[0])
     replaces = program in ("rg", "ripgrep", "ag")  # (as the shell joins a word: `-de""lete`)
-    return program in _SEARCHERS | _GREPS | {"find"} and not any(
-        _SEARCH_DOES.fullmatch(_as_word(word)) or replaces and word == "-r" for word in words
+    return (
+        program in _SEARCHERS | _GREPS | {"find"}
+        and not globs_an_option(part)
+        and not any(
+            SEARCH_DOES.fullmatch(_as_word(word)) or replaces and word == "-r" for word in words
+        )
     )
 
 
@@ -6525,7 +6525,7 @@ def _commands_in(
 
 def reaches_network(command: str) -> str:
     """What in a command reaches the internet - a program, an address, a git fetch, a package
-    install or download, or a word that publishes (`npm publish`, `docker push`); "" for none.
+    install or download, a word that publishes (`npm publish`) or bash's `/dev/tcp/`; "" for none.
     A package manager's part reaches it where any of its words is an install verb of its own
     (`_reaches_by_word`: no carve-out - `pip install --dry-run x` resolves from the index too).
     A continued line is read as `_readings` reads it."""
@@ -6542,7 +6542,7 @@ def _reaches_by_word(words: list[str]) -> bool:
 
 
 def _reaches_of(command: str) -> str:
-    if found := _NETWORK.search(command):
+    if found := _NETWORK.search(command) or NET_PATH.search(_as_word(command)):
         return found[0]
     for words in (words for words in _commands_in(command) if words):
         program, sub = _program(words[0]), _git_sub(words)[0]

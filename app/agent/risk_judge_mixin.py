@@ -535,7 +535,8 @@ class RiskJudgeMixin:
         Not judged: not a watched Full auto turn nor a job's at Full auto, a
         line the user lets run or KOLONİ asks of anyway (`exempt`: a skill's script they allowed,
         a disposable delete, a reason in a working copy, a role that runs no command),
-        the project's switch off (read at each command), one that only reads, their own test
+        the project's switch off (read at each command), one that only reads (and an ordinary
+        line: git's at the root alone, `risk_judge.git_below`), their own test
         command (but where an agent wrote the program it runs), one asked at every level anyway
         (a secret, a file that steers later turns), an ordinary line (`risk_judge.ordinary`, what
         it runs not an agent's: `_planted`, W7), one a narrow "Always run" rule of the chat covers
@@ -633,7 +634,9 @@ class RiskJudgeMixin:
         fetched page; text None) -; its digest whoever wrote it ("": no file found); and whether
         that file is all the line runs (`_Files.exact`). Blocking."""
         npm = [_program(word) for word in _words(command.strip())[:1]] == ["npm"]  # (npm.cmd)
-        ordinary = risk_judge.ordinary(command, npm_run=True)
+        # (git in a folder below the root: a repository shaped there sets what it runs)
+        below = risk_judge.git_below(command, cwd)
+        ordinary = risk_judge.ordinary(command, npm_run=True) and not below
         plain = (
             (ordinary or ruled)
             and _planted(self._factory, ctx.cid, root, command, cwd) is None
@@ -677,7 +680,7 @@ class RiskJudgeMixin:
             if (
                 project is None
                 or not project.full_auto_judge
-                or only_reads(command)
+                or (only_reads(command) and not risk_judge.git_below(command, cwd))
                 or names_secret(line)
                 or standing_asked(line, False)
             ):

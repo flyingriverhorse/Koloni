@@ -205,8 +205,9 @@ NO_SHELL = {("-c", "features.shell_tool=false"), ("-c", "features.unified_exec=f
 def test_a_codex_reviewers_own_command_ends_its_turn_even_one_it_runs_unasked(
     clis, wait_run, project_dir
 ):
-    # A known-safe command runs unasked at "untrusted", and the read-only sandbox keeps writes,
-    # not reads: with no shell that cannot come; if it comes all the same, the run stops.
+    # A command its own allow rules cover runs unasked at "untrusted" (before 0.172.0 its known-
+    # safe ones too), and the read-only sandbox keeps writes, not reads: with no shell that cannot
+    # come; if it comes all the same, the run stops.
     client, providers = clis(
         [spawn("Reviewer", "review it", "r0"), text("done")],
         codex=[{"run": "type .env", "unasked": True, "output": "TOKEN=x"}, {"say": "read it"}],

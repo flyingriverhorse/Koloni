@@ -270,6 +270,15 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
     )
 
 
+def git_below(command: str, cwd: str | None) -> bool:
+    """Whether a line runs git in a folder below the project's root (its `cwd`, as `cd x && git
+    status` does): a repository shaped there - a bare one's `config` and `hooks`, with no `.git`
+    name to ask of - sets programs git runs (Claude Code asks of `cd` + git: "bare repository
+    attacks"). It is judged, never let by as a read or as ordinary work."""
+    words = _words(command.strip())
+    return (cwd or ".") != "." and bool(words) and _program(words[0]) == "git"
+
+
 # K3 (0.1.10, as Claude Code's auto mode): the list's harms the judge decides in a turn the user
 # watches, in place of their card - work of the folder lost and a stop by name. Any other sentence
 # (a send, a git remote's, Docker's - the machine's, or another's: `-H` -, a worktree removed - git

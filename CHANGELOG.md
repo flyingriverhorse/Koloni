@@ -24,6 +24,14 @@ How to write an entry (every release looks the same):
 ### Fixed
 
 - **Chat**: a command kept off its **Always run** rule by an agent's write of a file it may read - an `.npmrc` or `x.npmrc`, a `package.json`, a lock, a `tsconfig.json`, a `pyproject.toml` - says so on its card: "an agent wrote a file this line may read or load (evil096.npmrc)"; it said "an agent wrote its program" of a file the line does not run. Where an agent wrote the program too, the card names the program, whichever was written first. The rule still stops there, and no rule is offered ([docs](docs/use/permissions.md#what-a-rule-never-covers)).
+- **Docs**: Codex run **Native** asks KOLONİ before its commands, a read of `.env` too - measured with Codex 0.172.0 on 27 Nov 2026; the guide said it ran its own safe commands (a `.env` read among them) unasked, which earlier versions did. A command an allow rule of Codex's own covers still runs unasked and is recorded after it ran ([docs](docs/reference/known-limits.md#secrets)).
+
+### Security
+
+- **Permissions**: writing the files Claude Code protects that KOLONİ did not asks at every level now, Full auto too, and one written unasked is put back: `.devcontainer/` and `.devcontainer.json`, `.gitmodules`, `.cargo/`, `.mvn/`, Gradle's wrapper (`gradle-wrapper.properties`, `gradle-wrapper.jar`) and `.bazelrc` - each runs or fetches code by itself, when the folder is opened or at the next build. An approved `git submodule` line may write `.gitmodules`; `./gradlew test` and `cargo test` run as before ([docs](docs/security/model.md#files-that-steer-later-turns)).
+- **Permissions**: lines Claude Code still asks of are no read, look or search to KOLONİ either: a wildcard that may expand to an option (`find *`, `rg foo *`, `cat -*` - a file named `-delete` or `--pre=x` in the folder would be one), a search chained to another command, a redirection to bash's `/dev/tcp/` or `/dev/udp/` (it reaches the internet: asked at every level while a web tool is off), a line that sets `PATH` or `IFS`, and git after a change of folder ([docs](docs/use/permissions.md#what-asks-at-each-level)).
+- **Permissions**: at **Full auto**, git run in a folder below the project's root (`git status` there, as `cd sub && git status`) is put to Full auto's judge instead of running as a read or as ordinary work: a repository shaped in that folder can set programs git runs ([docs](docs/use/permissions.md#full-autos-judge)).
+- **CLIs**: Codex no longer opens sub-agents of its own. Codex 0.172.0 opened one when asked though KOLONİ switched its `multi_agent` feature off (measured 27 Nov 2026, gpt-6-luna); KOLONİ now also sets `agents.enabled=false`, with which it has no such tool - Native, as a session, step by step and in its web search.
 
 ## [0.1.10] - 2026-11-27
 

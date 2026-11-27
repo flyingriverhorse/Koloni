@@ -14,10 +14,11 @@ messages.
   `rg`, `gci | gc`), is asked about at every level, Full auto too. A script that opens a secret file
   without naming it (it builds the name, say) is not caught. Only Docker and Copilot's sandbox hide secret
   files from commands; KOLONİ's own commands on this machine, Claude Code, Codex and agy do not.
-- When it runs **Native**, Codex runs the commands its own rules count as safe (a read of `.env`, or of a
-  file outside the project) without asking KOLONİ, at every level; KOLONİ records them after they ran, so
-  no card stands in their way. agy reading with its own tools has no hook: its reads, of a secret file
-  too, are not asked about at any level.
+- When it runs **Native**, Codex asks KOLONİ before its commands - a read of `.env` too (measured on 27 Nov
+  2026 with Codex 0.172.0: it asked before both `Get-Content readme.txt` and `Get-Content .env`; earlier
+  versions ran their own list of safe commands unasked). A command an allow rule of Codex's own covers
+  still runs without asking; KOLONİ records it after it ran, so no card stands in its way. agy reading with
+  its own tools has no hook: its reads, of a secret file too, are not asked about at any level.
 - A command you approve can still print, encode or send a secret it was given.
 - An agent's request for a key on a hidden card is not available to CLIs working with their own tools.
 - A branch deleted because it held a secret you gave still has its commits in git's reflog until git

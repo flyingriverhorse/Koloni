@@ -1024,17 +1024,17 @@ def _command_names(
     """What a command lets stand at the one look just after it (K-yazma-denetimi), as paths
     and names for `_put_back`, where the user `approved` it: the standing name its card showed
     (`names_standing`) - of git's folder its config alone, never its hooks; `.git/config` where
-    it is git's own that rewrites it as it works (`writes_git_config`); and, at `full_auto`
-    (K-fullauto-sorma: kept, said on record), the `.pth` files a Python install alone adds -
-    whether it ran was its approval's, and taken back they would leave it half undone (npm's
-    runs its packages' own scripts; below Full auto those are a card that says the install made
-    them). What any other git command
-    changes there - a checkout, a pull - is a card like any write.
-    shortcut: a checkout that brings in other standing files is a card for each of them."""
+    it is git's own that rewrites it as it works (`writes_git_config`), with `.gitmodules` for
+    `git submodule`'s; and, at `full_auto` (K-fullauto-sorma: kept, said on record), the `.pth`
+    files a Python install alone adds - whether it ran was its approval's, and taken back they
+    would leave it half undone (npm's runs its packages' own scripts; below Full auto those are
+    a card that says the install made them). What any other git command changes there - a
+    checkout, a pull - is a card like any write (one that brings in other standing files: each)."""
     if not approved:
         return set(), frozenset()
     key = names_standing(command)
     paths = {".git/config"} if key == ".git" or writes_git_config(command) else set()
+    paths |= {".gitmodules"} if paths and re.search(r"\bsubmodule\b", command) else set()
     names = {key} if key and key not in (".git", PATCH) else set()
     if full_auto and PIP_INSTALLS.search(command) and not MORE_THAN_ONE.search(command):
         names.add("*.pth")

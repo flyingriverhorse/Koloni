@@ -41,8 +41,8 @@ switched off for every agent at once:
 
 A tool switched off here is given to no agent, whatever its role says. Claude Code's and Codex's own
 web tools switch off with **Search the web** and **Web requests**. While either is off, a command that
-reaches the internet (`curl`, `git clone`, an `https` address) asks you on a card at every level, Full
-auto too.
+reaches the internet (`curl`, `git clone`, an `https` address, bash's `/dev/tcp/`) asks you on a card at
+every level, Full auto too.
 
 ## Every tool, by group
 

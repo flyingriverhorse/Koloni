@@ -134,10 +134,13 @@ of these is a wall: a script in the job reaches your repository as you could. Se
 ## Files that steer later turns
 
 Some files change what agents, git or your editor do later, by themselves. Writing them asks at every
-level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vscode/`, `.husky/`,
-`.mcp.json`, commit-hook settings (`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's
-`.pth` files in `site-packages`, and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except
-at Full auto. On Windows, device names (`CON`, `COM1`) and file streams (`a.txt:x`) are never written.
+level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vscode/`,
+`.devcontainer/` (and `.devcontainer.json`), `.husky/`, `.gitmodules`, `.cargo/`, `.mvn/`, Gradle's wrapper
+(`gradle-wrapper.properties`, `gradle-wrapper.jar`), `.bazelrc`, `.mcp.json`, commit-hook settings
+(`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's `.pth` files in `site-packages`,
+and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except at Full auto. A project's own
+`gradlew` or `mvnw` does not: `./gradlew test` is ordinary work. On Windows, device names (`CON`, `COM1`)
+and file streams (`a.txt:x`) are never written.
 
 ## Secrets
 
@@ -258,9 +261,10 @@ What is not framed:
   command the CLI reports. Everything but your own words reaches it marked as an agent's data, but text
   written to steer a model can still sway one.
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
-  about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
-  safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its
-  own tools reads without asking. Copilot on
+  about at every level. Exceptions: when it runs **Native**, Codex runs a command an allow rule of its
+  own covers without asking KOLONİ (0.172.0 asked before a read of `.env`, measured 27 Nov 2026; earlier
+  versions ran their own safe commands unasked); agy reading with its own tools reads without asking.
+  Copilot on
   its newer protocol (1.0.114 on) asks nothing of a command it counts as read-only, a read of a secret
   among them: KOLONİ's own hook makes it ask before every tool, and a tool that still ran without KOLONİ
   being asked stops the turn. A script
