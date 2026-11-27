@@ -27,13 +27,12 @@ from app.commands import (
     harms,
     installs,
     joined,
-    readings,
     runs_another,
-    runs_inline,
     switches_branch,
     web_off_reason,
     writes_git_config,
 )
+from app.commands import _readings as readings
 from app.commands import _reasons as reasons
 from app.db.models import Agent
 from app.tools import ON_BRANCH_PROPERTY, OPENED_TOGETHER
@@ -963,7 +962,7 @@ def test_a_launchers_other_spellings_are_read(command):
     assert harm_class(command) == "always", command
 
 
-# The four checks that read a line as written read every reading (k-okuyucu): a continued line
+# The checks that read a line as written read every reading (k-okuyucu): a continued line
 # and a group too - the strictest of them.
 def test_the_checks_that_read_a_line_as_written_read_every_reading():
     for line in [
@@ -973,8 +972,6 @@ def test_the_checks_that_read_a_line_as_written_read_every_reading():
         "{ git checkout -b x; }",
     ]:
         assert switches_branch(line), line
-    for line in ['python `\n-c "import os"', 'node `\n-e "x"', '(python -c "import os")']:
-        assert runs_inline(line), line
     for line in [
         "git `\napply x.patch",
         "patch `\n-p1 < x.diff",

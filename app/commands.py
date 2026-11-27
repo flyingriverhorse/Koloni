@@ -3331,7 +3331,7 @@ def _copy_reason(
     it is not seen - nor a delete in a script, or by a program `_through_links` does not list.
     shortcut: a line PowerShell is handed encoded (`-EncodedCommand`), a name spliced by
     backticks (`ki`ll`), and what code handed to `python -c` / `node -e` does are not read;
-    `runs_another` and `runs_inline` ask of those where a night's rules hold."""
+    `runs_another` asks of a shell or a wrapper where a night's rules hold."""
     own = str(own) if own is not None else None
     # (K-koloni-alan: the copy's own tree is taken out first too - it is in the project's
     # `.koloni/` where that has no git, and a worktree always is: `copies.in_project`)
@@ -4121,15 +4121,9 @@ def joined(line: str) -> str:
     at a line's very end as a space between words, sh's backslash and cmd's `^` as nothing
     (`gi\\⏎t` is `git`). KOLONİ judges a line both so and as written (`_readings`): reading it
     joined may only add. Joined alone it misses what a line's end that continues nothing hands
-    on (`rm x # done `⏎`npm publish`): a caller judges each of `readings(line)`, not this
+    on (`rm x # done `⏎`npm publish`): a caller judges each of `_readings(line)`, not this
     alone."""
     return _CONTINUED.sub(lambda found: " " if found[0][0] == "`" else "", line)
-
-
-def readings(line: str) -> list[str]:
-    """Every way KOLONİ reads a command line (`_readings`): joined, as written and what its
-    backtick pairs hold - a caller outside this module judges each (review round 4)."""
-    return _readings(line)
 
 
 def _readings(line: str) -> list[str]:
@@ -5881,13 +5875,8 @@ _INSTALLERS = {
 }
 
 
-def sends_off(command: str) -> str:
-    """What of a command sends something off this machine, in one sentence; "" for none."""
-    return next((said for words in _parts(command) if words and (said := _sends(words))), "")
-
-
 def _sends(words: list[str]) -> str:
-    """`sends_off` for one part of a command."""
+    """What one part of a line sends off this machine (a fetch too), in a sentence; "" for none."""
     program = _program(words[0])
     said = {w.lower().lstrip("-") for w in words[1:]}
     if program in _SENDING_PROGRAMS:
@@ -5978,7 +5967,7 @@ def _only_fetches(words: list[str]) -> bool:
     wget or Invoke-WebRequest/RestMethod with nothing on the line that sends, `gh` with a read
     subcommand (`gh pr list`, `gh api` with nothing to send). K-fullauto-sorma: a watched Full
     auto turn does not ask about one (`harms`); a job while the user is away asks about any
-    (`sends_off`). shortcut: what a config file (`curl -K`, `--config`) or a variable makes it
+    (`_sends`). shortcut: what a config file (`curl -K`, `--config`) or a variable makes it
     send is not seen; look inside if a POST gets through one."""
     program = _program(words[0])
     line = " ".join(
@@ -5999,14 +5988,14 @@ def _only_fetches(words: list[str]) -> bool:
 
 def harms(command: str, instructions: bool = True) -> str:
     """What of a command cannot be taken back - it deletes or overwrites (`danger`), or sends
-    something off this machine (`sends_off`, but for a line that only fetches: `_only_fetches`)
+    something off this machine (`_sends`, but for a line that only fetches: `_only_fetches`)
     - in one sentence; "" for none; what a shell or a wrapper is handed is looked at too
     (`_commands_in`: `cmd /c "git push"`, `sh -c 'rm -rf x'`). K-fullauto-sorma: the user's
     rule is that Full auto asks about nothing but harm, so this is asked at every level in a
     watched turn as in a job while the user is away, and no rule is offered for it; there an
     instruction file alone is no harm (`instructions` False, `standing_asked`).
     shortcut: `robocopy /MIR`, `mail` / `sendmail` and `ssh host 'cmd'` are in neither `danger`
-    nor `sends_off` today; add them there when the user meets one. shortcut: a shell nested in
+    nor `_sends` today; add them there when the user meets one. shortcut: a shell nested in
     a shell with escaped quotes (`cmd /c "powershell -c \\"git push\\""`) is not looked into
     (`_commands_in` opens one quoted level; a night job still asks through `runs_another`).
     shortcut: at Full auto this check is a courtesy for honest commands, not a wall against
@@ -6016,7 +6005,7 @@ def harms(command: str, instructions: bool = True) -> str:
     shortcut (security review of K-yargic): no harm is seen in `powershell -enc <base64>`,
     `ssh host 'rm -rf /'`, `find . -exec rm {} ;` or `python -c "shutil.rmtree('..')"` - they run
     at Full auto as before, and are never put to the check of the user's words (no harm, no
-    check); add them to `danger` / `sends_off` when the user meets one. A continued line is read
+    check); add them to `danger` / `_sends` when the user meets one. A continued line is read
     joined too (`_readings`)."""
     return next(
         filter(
@@ -6262,16 +6251,6 @@ _INLINE = re.compile(
     r"""rscript|julia)[\d.]*w?(?:\.exe)?\s+(?:-\w+\s+)*?(?:-c|-e|-p|--eval|--print)"""
     r"""|php[\d.]*(?:\.exe)?\s+(?:-\w+\s+)*?-r|deno(?:\.exe)?\s+eval)(?=\s|$)"""
 )
-
-
-def runs_inline(command: str) -> str:
-    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none -
-    in any reading (`_readings`: `python `⏎`-c "x"` too, k-okuyucu)."""
-    return (
-        "It runs code written on the line: what it does is not seen."
-        if any(map(_INLINE.search, _readings(command)))
-        else ""
-    )
 
 
 def _module_run(words: list[str]) -> list[str]:
