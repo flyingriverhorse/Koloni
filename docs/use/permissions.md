@@ -70,6 +70,11 @@ agy's reads): see [Known limits](../reference/known-limits.md#secrets).
   `.koloni`'s; any other agent, or a command at the project's root, only reads there. A write, a
   `tee`, `cp` or `mv` into one, a file tool's write (also at Auto-edit and Full auto), a delete, a
   program run from one, or pytest's `--basetemp` there is asked at every level.
+- A search is a look only while it only reads. Its options are read as the shell joins them, so a quote
+  or a backslash inside one changes nothing: `find src -de""lete` is a delete, and `-fpr""intf`,
+  `-ex""ec`, rg's `--p""re=` and `--hostname-bin`, and ag's and ack's `--pager` make it no read. A `find`
+  word in bash's ANSI-C quotes (`$'-de\x6cete'`), which KOLONİ does not decode, is taken for a delete,
+  and ag or ack is no look into a tree. In a worktree or a copy such a line is asked at every level.
 - What is inside the scratch is still judged as any path: a `.claude/settings.json` there asks as it
   does anywhere, and a `git` line that names a free folder (`git add -f .koloni/tmp/x`) asks.
 - A line that climbs from a free folder into the rest - `cat .koloni/tmp/../rules.md`, `cd

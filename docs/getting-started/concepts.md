@@ -26,7 +26,7 @@ how they hang together.
 
 ## Who does the work
 
-**The Orchestrator (Lead)**
+**The Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
   sub-agents, unless you let it change files itself (Settings › This project › How agents work › **Who
   changes the files**). Behind the scenes its role is named Lead. See [Roles](../agents/roles.md).
