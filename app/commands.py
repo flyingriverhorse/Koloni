@@ -1277,37 +1277,19 @@ _RUNS_PACKAGE = {
 _STOP_SWITCHES = ("-force", "-passthru", "-whatif", "-confirm", "-verbose", "-debug")
 # What KOLONİ itself runs as, and the CLIs its agents run on: a stop by a name that may be one is
 # never soft (`_named`) - nor one not written out (a wildcard, a bracket, a variable).
-_KOLONIS_PROGRAMS = (
-    "python",
-    "pythonw",
-    "py",
-    "uvicorn",
-    "node",
-    "claude",
-    "codex",
-    "copilot",
-    "qodercli",
-    "agy",
-    # (the review of K3: what KOLONİ and its terminals stand on - the host, the shell, the system)
-    "windowsterminal",
-    "conhost",
-    "openconsole",
-    "powershell",
-    "pwsh",
-    "cmd",
-    "bash",
-    "explorer",
-    "lsass",
-    "csrss",
-    "svchost",
-    "wininit",
-    "winlogon",
-    "services",
+# What may be KOLONİ itself, an agent's CLI, or what KOLONİ and its terminals stand on - the host,
+# the shell, the system, the session (the review of K3).
+_KOLONIS_WORDS = (
+    "python pythonw py uvicorn node claude codex copilot qodercli agy windowsterminal conhost"
+    " openconsole powershell pwsh cmd bash zsh tmux screen sshd terminal iterm2 gnome-shell xorg"
+    " windowserver loginwindow launchd systemd init explorer dwm smss lsass csrss svchost wininit"
+    " winlogon services git"
 )
+_KOLONIS_PROGRAMS = tuple(_KOLONIS_WORDS.split())
 _KOLONIS_NAMES = re.compile(
-    r"(?i)(?:python|uvicorn|node|claude|codex|copilot|qodercli|agy|windowsterminal|conhost"
-    r"|openconsole|powershell|pwsh|cmd|bash|explorer|lsass|csrss|svchost|wininit|winlogon"
-    r"|services)[\w.-]*|py(?:\.exe)?|.*[*?$(@`%\[\]].*"
+    "(?i)(?:"
+    + "|".join(re.escape(name) for name in _KOLONIS_PROGRAMS if name not in ("pythonw", "py"))
+    + r")[\w.-]*|py(?:\.exe)?|.*[*?$(@`%\[\]].*"
 )
 # What a line sets a variable to: PowerShell's `$p = x`, `foreach ($p in x)`, and sh's `P=x`.
 _PS_SETS = re.compile(r"(?i)\$(\w+)\s*=(?!=)\s*([^;\r\n]*)")
@@ -3769,7 +3751,8 @@ def names_standing(command: str) -> str:
     }
     named |= {".git"} if _sets_git_config(command) else set()
     named |= {PATCH} if applies_patch(command) else set()
-    return min(named) if named else ""
+    # (one that steers before an instruction file: `rm -f AGENTS.md lefthook.yml` is lefthook's)
+    return min(named, key=lambda name: (name in INSTRUCTION_FILES, name)) if named else ""
 
 
 # A chain's commands, a pipeline one of them: `_PARTS` less a single `|`.
@@ -6073,7 +6056,7 @@ HarmClass = Literal["", "soft", "always"]
 # K-yargic: what a check of the user's own words may let run - any other sentence (one added
 # later too, and since 0.1.10 a git remote's branches overwritten or deleted) is asked as before.
 _SOFT = re.compile(
-    r"(?:Deletes|Empties|Throws away|Stops programs by their"
+    r"(?:Deletes(?! a git worktree)|Empties|Throws away|Stops programs by their"
     r" name|It reaches beyond this machine|It sends work off this machine)\b"
 )
 
@@ -6163,6 +6146,10 @@ def _sweeps(command: str, reverts: bool = True) -> bool:
                     and (
                         any(_cluster(word, "x") or _cluster(word, "X") for word in words[2:])
                         or _excludes_back(words[2:])
+                        # (`-ff`: other repositories inside it too - their history with them)
+                        or sum(w.count("f") for w in words[2:] if re.fullmatch(r"-[a-zA-Z]+", w))
+                        + words[2:].count("--force")
+                        > 1
                     )
                 )
                 # (a stash of the ignored files: `git stash --all && git stash drop` is `clean -x`)

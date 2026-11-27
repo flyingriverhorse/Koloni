@@ -215,15 +215,18 @@ messages.
     - Since 0.1.10 it decides a delete in the project, git work thrown away and a stop by name,
       written as a plain line, in place of the list's card (in a chat you watch at Full auto, its
       switch on): a "fine" there deletes
-      with no card. It does not see the disk - a link you made inside what a delete takes is not looked
-      at -, and it can be led to call a delete fine that it should not: a file of yours written over
+      with no card. KOLONİ looks at the disk on the way to what a delete names (a link or a junction
+      there is a card), not inside a folder it deletes - a link deep in one is not looked at -, and the
+      judge can be led to call a delete fine that it should not: a file of yours written over
       first and then deleted as the agent's own, work moved into the scratch and then deleted, a path
       that only looks like a build folder (`build/../src`). Run once on such a card keeps nothing.
     - cmd's `rd /s /q x` and `del /s x` stay the list's card at Full auto, the judge on too: their `/s`
       and `/q` read as paths from the drive's root. So does any delete that is not a plain line - a
       quote, an escape, a wildcard, a pipe, a wrapper (`bash -c "rm -rf build"`, `sudo`, `… | xargs
       rm`) -, even where its target is plainly in the project; and a `\` is a path's separator only in
-      KOLONİ's own PowerShell, so a CLI's `del src\app.py` is a card.
+      KOLONİ's own PowerShell, so a CLI's `del src\app.py` is a card. A plain delete beside any
+      command that is not one (`rm -rf build; npm install`), git's work where the project is not its
+      repository's top folder, and a Windows short name (`ENV~1`) are cards too.
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.

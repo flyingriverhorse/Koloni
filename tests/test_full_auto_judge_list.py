@@ -8,6 +8,9 @@ to answer, in a To-do task's turn and in a job while the user is away."""
 
 import asyncio
 import functools
+import os
+import subprocess
+import sys
 import threading
 
 import pytest
@@ -47,6 +50,29 @@ pytestmark = [pytest.mark.judge, pytest.mark.no_po]
 MOVED = ["rm -rf src", "git reset --hard", "taskkill /IM notepad.exe /F", "git stash drop"]
 
 
+def go_with(client, project_dir, line, **more):
+    """`go`, the project a git repository where the line is git's: the judge decides git's work
+    only where the project's root is its repository's top (the review of K3)."""
+    if line.startswith("git "):
+        subprocess.run(["git", "init", "-q"], cwd=project_dir, check=True, capture_output=True)
+    return go(client, project_dir, **more)
+
+
+def link(at, target):
+    """A link the user made: a junction on Windows (no rights needed), a symlink elsewhere."""
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(at))
+    else:
+        os.symlink(target, at, target_is_directory=True)
+
+
+def unlink(at):
+    """The link alone taken away - never what it leads to."""
+    os.rmdir(at) if sys.platform == "win32" else os.unlink(at)
+
+
 @pytest.mark.parametrize(
     "line",
     [
@@ -67,7 +93,6 @@ MOVED = ["rm -rf src", "git reset --hard", "taskkill /IM notepad.exe /F", "git s
         "git rm -rf src",
         "pytest --basetemp=out",
         "Stop-Process -Name vite",
-        "rm -rf build && npm ci",
         "cd sub; rm -rf build",  # (run_command's folder, as `with_cwd` writes it)
         "rm AGENTS.md",  # (at Full auto an instruction file alone is no card: K-fullauto-sorma)
     ],
@@ -263,7 +288,7 @@ def test_fine_runs_it_unasked(judging, wait_run, project_dir, line):
     client, _lead, judge, executor = judging(
         [cmd(line), text("done")], [said("fine", "The user asked for it.")], [Script([])]
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go_with(client, project_dir, line)
     (ran,) = wait_run(client, cid, run_id)["commands"]
     assert ran["status"] == "exited" and executor.started[0][0] == line
     assert (ran["judged"]["kind"], ran["judged"]["verdict"]) == ("risk", "fine")
@@ -275,7 +300,7 @@ def test_risky_is_refused_and_the_agent_goes_on(judging, wait_run, project_dir, 
     client, lead, judge, executor = judging(
         [cmd(line), text("went another way")], [said("risky", "Not asked for.")], []
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go_with(client, project_dir, line)
     snap = wait_run(client, cid, run_id)
     (refused,) = snap["commands"]
     assert refused["status"] == "refused" and refused["judged"]["verdict"] == "refuse"
@@ -290,7 +315,7 @@ def test_risky_with_ask_me_is_the_lists_card_and_keeps_no_line(
     client, _lead, judge, executor = judging(
         [cmd(line), text("left it")], [said("risky", "Not asked for.")], []
     )
-    _, cid, run_id = go(client, project_dir, risky="ask")
+    _, cid, run_id = go_with(client, project_dir, line, risky="ask")
     asked = card(client, cid)
     wait_run(client, cid, run_id)
     # (its card says what the list says of it; the judge's sentence is on its record)
@@ -331,7 +356,7 @@ def test_a_refused_one_is_refused_again_in_the_turn_unasked(judging, wait_run, p
         [said("risky", "Not asked for.")],
         [],
     )
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go_with(client, project_dir, line)
     snap = wait_run(client, cid, run_id)
     assert [one["status"] for one in snap["commands"]] == ["refused"] * 2
     assert len(judge.calls) == 1 and executor.started == []
@@ -481,7 +506,7 @@ def test_with_no_judge_to_decide_it_is_the_lists_card(
     if why == "switch off":
         off = client.patch(f"/api/projects/{pid}", json={"full_auto_judge": False}, headers=OWN)
         assert off.status_code == 200
-    _, cid, run_id = go(client, project_dir)
+    _, cid, run_id = go_with(client, project_dir, line)
     asked = card(client, cid)
     wait_run(client, cid, run_id)
     assert asked["danger"] == harms(line, False) and asked["judged"] is None
@@ -624,3 +649,151 @@ def test_a_spacing_variant_of_a_refused_line_is_refused_again_unasked(
     snap = wait_run(client, cid, run_id)
     assert [one["status"] for one in snap["commands"]] == ["refused"] * 2
     assert len(judge.calls) == 1 and executor.started == []
+
+
+# --- the review's round 2 ------------------------------------------------------------------------
+
+# A change of folder with no plain word in the folder, then a relative delete: it runs elsewhere.
+MOVES_AWAY = [
+    "cd; rm -rf x",
+    "cd && rm -rf x",
+    "cd --; rm -rf x",
+    "cd -P x; rm -rf y",
+    "cd -; rm -rf x",
+    "cd ..; rm -rf x",
+    "cd sub/..; rm -rf x",
+    "chdir; rm -rf x",
+    "sl; ri x -r",
+    "Set-Location; Remove-Item x -Recurse",
+    "Set-Location -; Remove-Item x -Recurse",
+    "pushd x; rm -rf y",
+    "popd; rm -rf x",
+    "cd..; ri x -r",
+    "cd; git clean -fd",
+    "cd; git reset --hard",
+    "sal z cd; z; rm -rf x",
+    "Set-Alias z cd; z; rm -rf x",
+    # (a part with no harm of the judge's: it runs more than the judge decides)
+    "rm -rf build; npm install",
+    "rm -rf src; ./cleanup.sh",
+    # a Windows short name: any file by another spelling - `.env`'s too
+    "rm -f ENV~1",
+    "Remove-Item ENV~1 -Force",
+    "rm -f CREDEN~1.JSO",
+    "rm -f NPMRC~1",
+    "rm -f PYPIRC~1",
+    # git told of another tree
+    "git -C src reset --hard",
+    "git --work-tree=./ reset --hard",
+]
+
+
+@pytest.mark.parametrize("line", MOVES_AWAY)
+def test_a_change_of_folder_a_short_name_or_another_part_keeps_the_lists_card(line):
+    assert harms(line, False), line
+    assert not judges(line) and not judges(line, POWERSHELL)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cd sub; rm -rf x",
+        "cd sub/dir; git reset --hard",
+        "git reset --hard HEAD~3",
+        "rm -rf a & rm -rf b",
+    ],
+)
+def test_run_commands_own_folder_git_s_ancestors_and_a_chain_of_harms_are_still_judged(line):
+    assert judges(line) and judges(line, POWERSHELL)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "git worktree remove wt",  # (git picks one by its last name)
+        "git clean -ffd",  # (other repositories inside it too)
+        "git clean -f -f -d",
+        "git clean --force --force",
+        "pkill sshd",  # (what KOLONİ's session stands on)
+        "pkill tmux",
+        "pkill screen",
+        "pkill zsh",
+        "killall Terminal",
+        "killall iTerm2",
+        "pkill gnome-shell",
+        "pkill Xorg",
+        "killall WindowServer",
+        "killall loginwindow",
+        "pkill systemd",
+        "pkill git",
+        "Stop-Process -Name git",
+    ],
+)
+def test_round_twos_lines_are_asked_at_every_level(line):
+    assert harm_class(line, False) == "always"
+    assert not judges(line) and not judges(line, POWERSHELL)
+
+
+def test_a_file_that_steers_is_named_before_an_instruction_file():
+    # (`rm -f AGENTS.md lefthook.yml` writes lefthook's: asked at every level, Full auto too)
+    from app.commands import standing_asked
+
+    assert standing_asked("rm -f AGENTS.md lefthook.yml", False) == "lefthook.yml"
+    assert standing_asked("rm -f AGENTS.md", False) == ""
+    assert not judges("rm -f AGENTS.md lefthook.yml")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "rm -rf data/",
+        "rm -rf data",
+        "rm -rf data/sub",
+        "Remove-Item data/sub -Recurse",
+        "cd data; rm -rf x",
+    ],
+)
+def test_a_delete_through_a_link_is_the_lists_card(judging, wait_run, project_dir, tmp_path, line):
+    # (`rm -rf data/` deletes what a junction `data` leads to: the gate looks at the disk first)
+    outside = tmp_path / "outside"
+    (outside / "sub").mkdir(parents=True)
+    (outside / "keep.txt").write_text("keep", encoding="utf-8")
+    link(project_dir / "data", outside)
+    try:
+        client, _lead, judge, executor = judging([cmd(line), text("left")], [said("fine")], [])
+        _, cid, run_id = go(client, project_dir)
+        asked = card(client, cid)
+        wait_run(client, cid, run_id)
+        assert asked["command"] == line and asked["judged"] is None and executor.started == []
+        assert not [one for one in judge.calls if JUDGE_ASKED in one[0]["content"]]
+        assert (outside / "keep.txt").exists()
+    finally:
+        unlink(project_dir / "data")
+
+
+def test_git_s_throw_away_where_the_project_is_no_repositorys_top_is_the_lists_card(
+    judging, wait_run, tmp_path
+):
+    # (a reset there throws away work outside the project: the larger repository's)
+    outer = tmp_path / "outer"
+    project = outer / "project"
+    project.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=outer, check=True, capture_output=True)
+    client, _lead, judge, executor = judging(
+        [cmd("git reset --hard"), text("left")], [said("fine")], []
+    )
+    _, cid, run_id = go(client, project)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["judged"] is None and executor.started == []
+    assert not [one for one in judge.calls if JUDGE_ASKED in one[0]["content"]]
+
+
+@pytest.mark.parametrize("line", ["cd; rm -rf x", "cd - && rm -rf x", "Remove-Item ENV~1 -Force"])
+def test_round_twos_end_to_end_lines_are_cards_unjudged(judging, wait_run, project_dir, line):
+    client, _lead, judge, executor = judging([cmd(line), text("left")], [said("fine")], [])
+    _, cid, run_id = go(client, project_dir)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["command"] == line and asked["judged"] is None and executor.started == []
+    assert not [one for one in judge.calls if JUDGE_ASKED in one[0]["content"]]

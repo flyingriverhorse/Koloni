@@ -21,13 +21,16 @@ from app.command_runner import _planted
 from app.commands import (
     _BLOCKS,
     _INTERPRETER,
+    _PARTS,
     _SHELLS,
+    KILLS_BY_NAME,
     _commands_in,
     _hands_on,
     _in_a_shell,
     _parts,
     _program,
     _words,
+    danger,
     is_exactly,
     is_plain,
     is_wrapped,
@@ -507,6 +510,42 @@ class _Seen(NamedTuple):
     earlier: list[str]
 
 
+def _on_disk(root: Path, line: str) -> bool:
+    """K3 (the review's round 2): whether what a line the judge would decide names is where it is
+    written - each word of a part but its program and its options (an option's `=` value too), and
+    the folder its leading `cd` enters, joined with the folder before it: its real path that very
+    path, in the root - no link nor junction on the way (`rm -rf data/` deletes what a junction
+    `data` leads to), as `disposable` looks; and a git part's repository the root's own top (`.git`
+    there: a reset where the project is a folder of a larger repository throws away work outside
+    it). Not a stop's words: they name programs. Blocking."""
+    top = os.path.realpath(root)
+    here = top
+    for at, part in enumerate(part.strip() for part in _PARTS.split(line) if part.strip()):
+        words = _words(part)
+        if at == 0 and risk_judge.in_folder_cd(part):
+            here = os.path.join(here, words[1])
+            if not _stays(top, here):
+                return False
+            continue
+        if _program(words[0]) == "git" and not os.path.exists(os.path.join(top, ".git")):
+            return False
+        if danger(part, False) == KILLS_BY_NAME:
+            continue
+        for word in words[1:]:
+            value = word.partition("=")[2] if word.startswith("-") else word
+            if value and not _stays(top, os.path.join(here, value)):
+                return False
+    return True
+
+
+def _stays(top: str, spelt: str) -> bool:
+    """Whether a path below `top` is its own real path (no link on the way) and in `top`."""
+    spelt = os.path.normcase(os.path.normpath(spelt))
+    real = os.path.normcase(os.path.realpath(spelt))
+    folder = os.path.normcase(top)
+    return real == spelt and (real == folder or real.startswith(folder.rstrip(os.sep) + os.sep))
+
+
 class RiskJudgeMixin:
     async def _risk_judged(
         self: "AgentRunner",
@@ -554,7 +593,7 @@ class RiskJudgeMixin:
             return found
         try:
             # (the list's own card stays one where the look at it fails: below)
-            takes = self._risk_takes(ctx, command, cwd, found, known, shell)
+            takes = self._risk_takes(ctx, command, cwd, root, found, known, shell)
             if found != ("", None) and not takes:
                 return found
             watched = self._full_auto(ctx)
@@ -575,6 +614,7 @@ class RiskJudgeMixin:
         ctx: Ctx,
         command: str,
         cwd: str | None,
+        root: Path,
         found: tuple[str, dict | None],
         known: bool,
         shell: str | None = None,
@@ -584,8 +624,9 @@ class RiskJudgeMixin:
         "ask me first", keeps the card) is Full auto's judge's to decide: each harm of the line
         one it takes (`risk_judge.judges`), where it runs a fact (`known`), in a turn the user
         watches at Full auto - not a job while they are away, a To-do task's, a side of a
-        comparison, nor a turn of the chat they went away from (`away.gone_from`). Ask, Auto-edit
-        and every turn nobody watches keep the list as it is."""
+        comparison, nor a turn of the chat they went away from (`away.gone_from`) -, and what it
+        names on the disk where it is written (`_on_disk`, under `root`). Ask, Auto-edit and every
+        turn nobody watches keep the list as it is."""
         reason, record = found
         if not (
             reason
@@ -595,6 +636,7 @@ class RiskJudgeMixin:
             and ctx.run_id not in self._sides
             and risk_judge.judges(with_cwd(command, cwd), shell)
             and self._full_auto(ctx)
+            and _on_disk(root, with_cwd(command, cwd))
         ):
             return False
         with self._factory() as session:

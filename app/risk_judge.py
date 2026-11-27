@@ -14,10 +14,12 @@ from typing import TypeGuard
 from app import injection, judge
 from app.commands import (
     _ENCODED,
+    _PARTS,
     _SCRATCH,
     POWERSHELL,
     _as_read,
     _asked_anyway,
+    _git_sub,
     _in_a_shell,
     _offer,
     _program,
@@ -283,26 +285,62 @@ _PLAIN_POWERSHELL = re.compile(r"[A-Za-z0-9_./=~;& \\-]+")
 def judges(command: str, shell: str | None = None) -> bool:
     """K3: whether the judge decides a harmful line in place of the list's card (`commands.harms`
     of a watched Full auto turn: no instruction file alone) - a plain line (`_PLAIN`; `\\` too in
-    KOLONİ's own PowerShell, `shell`), nothing encoded in it (`_ENCODED`), each harm one of
-    `_JUDGES`', nothing of it asked at every level (`commands._asked_anyway`: a secret, `.koloni`,
-    out of the folder, all of it, KOLONİ itself, a line handed to a wrapper - `sudo`, `env`,
-    `xargs`, `VAR=1` -, a place it builds) but git's revert of all of the folder, which the judge
-    reads. Never one in KOLONİ's free folders (`.koloni/tmp`, `worktrees`, `copies`): what is on
-    the disk there - a link, a job's worktree - is the list's to look at (`scratch_delete_only`).
-    False for no harm.
-    shortcut: the judge does not see the disk - a link the user made in the project, in what a
-    delete it calls fine takes, is not looked at (no shell's delete on this machine follows one:
-    `disposable`'s note); look as the disposable delete does if an older PowerShell is met."""
+    KOLONİ's own PowerShell, `shell`), nothing encoded in it (`_ENCODED`), no short name (`ENV~1`
+    is `.env`), and each part of it a harm of `_JUDGES`' itself - but the one `cd <a word in the
+    folder>` run_command's folder starts it with (`with_cwd`): `cd; rm -rf x`, `popd; …` run
+    elsewhere, `rm -rf build; ./x.sh` runs more than the judge decides -, git's with no option
+    before its sub-command (`-C`, `--work-tree`: another tree), nothing of it asked at every level
+    (`commands._asked_anyway`: a secret, `.koloni`, out of the folder, all of it, KOLONİ itself, a
+    line handed to a wrapper - `sudo`, `env`, `xargs`, `VAR=1` -, a place it builds) but git's
+    revert of all of the folder, which the judge reads. Never one in KOLONİ's free folders
+    (`.koloni/tmp`, `worktrees`, `copies`): what is on the disk there - a link, a job's worktree -
+    is the list's to look at (`scratch_delete_only`). False for no harm. What is on the disk on the
+    way to what it names - a link, a junction - the gate looks at (`RiskJudgeMixin._risk_on_disk`).
+    shortcut: a link inside a folder it deletes is not looked at (no shell's delete on this machine
+    follows one: `disposable`'s note); look as the disposable delete does if an older PowerShell
+    is met."""
     plain = _PLAIN_POWERSHELL if shell == POWERSHELL else _PLAIN
-    if not plain.fullmatch(command) or _ENCODED.search(command):
+    if not plain.fullmatch(command) or _ENCODED.search(command) or _short_name(command):
         return False
-    lines = _readings(command)
-    said = [one for line in lines for one in _reasons(line, False) if one]
+    parts = [part.strip() for part in _PARTS.split(command) if part.strip()]
+    if parts and in_folder_cd(parts[0]):
+        parts = parts[1:]
     return (
-        bool(said)
-        and all(map(_JUDGES.match, said))
+        bool(parts)
+        and all(map(_judged_part, parts))
         and not _SCRATCH.search(_as_read(command))  # (as the shell joins it: `t""mp`)
-        and not any(_asked_anyway(line, False, judged=True) for line in lines)
+        and not any(_asked_anyway(line, False, judged=True) for line in _readings(command))
+    )
+
+
+def in_folder_cd(part: str) -> bool:
+    """Whether a part is a plain `cd <word>` into a folder below where it runs - as `with_cwd`
+    writes run_command's folder: not `cd`, `cd -`, `cd ~`, `cd /x`, nor one up (`cd ..`, `x/..`)."""
+    words = part.split(" ")
+    return (
+        len(words) == 2
+        and words[0] == "cd"
+        and not words[1].startswith(("-", "~", "/", "\\"))
+        and ".." not in re.split(r"[/\\]", words[1])
+    )
+
+
+def _judged_part(part: str) -> bool:
+    """A part of a line the judge decides: a harm of `_JUDGES`' itself, git's with nothing before
+    its sub-command."""
+    words = _words(part)
+    sub, rest = _git_sub(words)
+    if sub and len(words) - len(rest) > 2:  # (an option before it: `git -C x`, `--work-tree=..`)
+        return False
+    said = [one for one in _reasons(part, False) if one]
+    return bool(said) and all(map(_JUDGES.match, said))
+
+
+def _short_name(command: str) -> bool:
+    """Whether a word is a Windows short name (`ENV~1`, `CREDEN~1.JSO`): any file, a secret's
+    too, by another spelling - but git's `HEAD~3`."""
+    return any(
+        re.search(r"~\d", word) and not re.fullmatch(r"HEAD~\d+", word) for word in command.split()
     )
 
 

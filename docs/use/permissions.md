@@ -588,7 +588,14 @@ in the project, written as a plain line, goes to the judge instead of a card:
 A plain line is words of letters, digits and `_ . / = ~ -`, its commands joined by `;` or `&` - so
 KOLONİ reads each target as the shell will. In KOLONİ's own PowerShell a `\` is a path's separator
 (`del src\app.py`); everywhere else it is an escape (`.gi\t` is `.git` to Git Bash), and the line is
-the list's.
+the list's. Each command of the line must be such a harm itself - but the one `cd sub` its folder
+starts it with: a change of folder with no plain word in the folder (`cd`, `cd -`, `cd ..`, `popd`,
+`Set-Location`, an alias of `cd`) or any other command beside it (`rm -rf build; npm install`) keeps
+the card. So does a Windows short name (`ENV~1` is `.env`; git's `HEAD~3` is not one), git told of
+another tree (`git -C x`, `--work-tree=…`), and git's work where the project is not its repository's
+top folder (a reset there throws away work outside it). Before the judge is asked KOLONİ looks at the
+disk: a path through a link or a junction you made (`rm -rf data/`, where `data` leads elsewhere) is
+the list's card too.
 
 The list still asks at every level - its card, never the judge's word - about:
 
@@ -600,13 +607,16 @@ The list still asks at every level - its card, never the judge's word - about:
 - what reaches out of the project or all of it: a path out of it (`../x`, `/tmp/x`, `$HOME`, `C:\…`),
   the folder itself or all in it (`rm -rf .`, `rm -rf *`, `find . -delete`, a `find` with no folder),
   `git clean -x` or an exclude that starts with `!` (`-e '!*'`), `git stash --all` then dropped (they
-  take ignored files - `.env`, `.koloni`), a link, a worktree outside the project or removed (`git
-  worktree remove`: git picks one by its last name, KOLONİ's own or one outside);
+  take ignored files - `.env`, `.koloni`), `git clean -ff` (other repositories inside, their history
+  with them), a link, a worktree outside the project or removed (`git worktree remove`: git picks one
+  by its last name, KOLONİ's own or one outside);
 - what git could still bring a dropped branch or stash back by: `git gc --prune=now`, `git prune`,
   `git reflog expire`;
 - what may stop KOLONİ itself (python, node, uvicorn, an agent's CLI, a filter, a wildcard, `kill -1`,
-  a process looked up) or what it stands on (the terminal, the shell, the system: WindowsTerminal,
-  conhost, powershell, pwsh, cmd, bash, explorer, lsass, csrss, svchost, …);
+  a process looked up) or what it stands on (the terminal, the shell, the session, the system:
+  WindowsTerminal, conhost, powershell, pwsh, cmd, bash, zsh, tmux, screen, sshd, Terminal, iTerm2,
+  gnome-shell, Xorg, WindowServer, loginwindow, systemd, launchd, explorer, lsass, csrss, svchost,
+  git, …);
 - a send off the machine (put to [Check what I said first](#check-what-i-said-first) where that box
   works), and a git remote's branches overwritten or deleted (`git push --force`, `git push origin
   :x`) - a card whatever you said;
@@ -642,8 +652,9 @@ Full auto, or the judge is turned off, while it looks, its **fine** lifts nothin
   test files, an eslint or mypy plugin a setting names, `build.rs`, a cargo runner - and an ordinary line
   (`pytest -q`, `cargo build`) runs what an agent wrote there with no judge.
 - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
-- It does not see the disk: a link you made in the project, inside what a delete it calls fine takes, is
-  not looked at (no shell's delete on this machine follows one).
+- KOLONİ looks at the disk on the way to what a delete names (a link or a junction there is the
+  list's card), not inside a folder it deletes: a link you made deep in one is not looked at (no
+  shell's delete on this machine follows one).
 - It can be led to call a plain delete fine that it should not: a file of yours written over first and
   then deleted as the agent's own, work moved into the scratch and then deleted, a path that only looks
   like a build folder (`build/../src`).

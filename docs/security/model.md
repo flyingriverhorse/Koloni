@@ -236,8 +236,10 @@ What is not framed:
   file that steers agents, what may stop KOLONİ, an unread line. Since 0.1.10, in a chat you watch at
   Full auto, it decides a delete in the project, git work thrown away and a stop by name, written as a
   plain line (no quote, escape, wildcard, pipe, wrapper or place built as it runs), in place of the
-  list's card: its "fine" deletes with no card, and it does not see the disk (a link you made inside
-  what a delete takes). With the judge off, no model to answer, at Ask or Auto-edit, in a To-do task's
+  list's card: its "fine" deletes with no card. KOLONİ looks at the disk on the way to what a delete
+  names first (a link or a junction there keeps the card), not inside a folder it deletes; each command
+  of the line must be such a harm (a `cd` elsewhere, a second command, keeps the card), and git's only
+  where the project is its repository's top folder. With the judge off, no model to answer, at Ask or Auto-edit, in a To-do task's
   turn or a job while you're away those are the list's cards as before. It refuses only on its own
   "risky" - an error, a slow answer, an unreadable one, no model to ask or one it
   may not ask now (no room, the turn's token limit) is a card, never a run nor a refusal (it fails
