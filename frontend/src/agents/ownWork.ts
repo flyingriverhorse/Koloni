@@ -1,8 +1,14 @@
 import type { Agent, Project, Provider, ToolCall } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 
-/** What a CLI's own sub-agent is on record as: a call of this tool, by the CLI itself. */
-const OWN_SUB_AGENT = 'claude__Agent'
+/**
+ * What a CLI's own sub-agent is on record as: a call of this tool, by the CLI itself - Claude Code's Agent, or
+ * GitHub Copilot CLI's task (0.1.11), with the CLI's name.
+ */
+const OWN_SUB_AGENTS = new Map([
+  ['claude__Agent', 'Claude Code'],
+  ['copilot__task', 'GitHub Copilot CLI'],
+])
 // The CLIs whose own tools are recorded as <cli>__<tool>.
 const CLIS = new Set(['claude', 'copilot', 'agy'])
 
@@ -11,7 +17,12 @@ const CLIS = new Set(['claude', 'copilot', 'agy'])
  * the sub-agent did hanging off it. One that was refused never worked.
  */
 export function isOwnSubAgent(call: Pick<ToolCall, 'name' | 'origin' | 'status'>): boolean {
-  return call.origin === 'cli' && call.name === OWN_SUB_AGENT && call.status !== 'denied'
+  return call.origin === 'cli' && OWN_SUB_AGENTS.has(call.name) && call.status !== 'denied'
+}
+
+/** The CLI a sub-agent of its own ran inside, by the name its call is on record as. */
+export function ownSubAgentCli(call: Pick<ToolCall, 'name'>): string {
+  return OWN_SUB_AGENTS.get(call.name) ?? 'Claude Code'
 }
 
 /** The ids of the calls that are a CLI's own sub-agents. */
@@ -102,13 +113,10 @@ export function ownSubAgentEnding(call: Pick<ToolCall, 'status' | 'result'>): { 
   return { label: call.status === 'succeeded' ? 'Its report' : 'How it ended', text }
 }
 
-/** Whose models a CLI's own sub-agent runs on: the only CLI whose sub-agents are on record is Claude Code. */
-export const OWN_MODELS = 'uses Claude Code’s own models, not KOLONİ’s team guide'
-
 /**
- * Everything it was asked, the kind of sub-agent the CLI opened, and the model the CLI named
- * for it when it opened it (each null when not said: the model is then the CLI's to choose,
- * and the record does not say which it was).
+ * Everything it was asked, the kind of sub-agent the CLI opened (Claude Code's `subagent_type`,
+ * Copilot's `agent_type`), and the model the CLI named for it when it opened it (each null when
+ * not said: the model is then the CLI's to choose, and the record does not say which it was).
  */
 export function ownSubAgentBrief(call: Pick<ToolCall, 'arguments'>): {
   prompt: string
@@ -116,20 +124,25 @@ export function ownSubAgentBrief(call: Pick<ToolCall, 'arguments'>): {
   model: string | null
   role: string | null
 } {
-  const { prompt, subagent_type: kind, model, koloni_role: role } = given(call)
+  const { prompt, subagent_type: theirs, agent_type: copilots, model, koloni_role: role } = given(call)
+  const kind = theirs ?? copilots
   return {
     prompt: typeof prompt === 'string' ? prompt : '',
     kind: typeof kind === 'string' ? kind : null,
     model: typeof model === 'string' && model.trim() ? model.trim() : null,
-    // 89g: the role KOLONİ offered it as (`--agents`), as KOLONİ put it on the record.
+    // 89g: the role KOLONİ offered it as (`--agents`, Copilot's agents), as KOLONİ put it on the record.
     role: typeof role === 'string' && role ? role : null,
   }
 }
 
-/** The line said of a CLI's own sub-agent's model: whose models, and which one where the record has it. */
-export function ownSubAgentModel(call: Pick<ToolCall, 'arguments'>): string {
+/**
+ * The line said of a CLI's own sub-agent's model: whose models (its CLI's, not KOLONİ's team guide), and which one
+ * where the record has it.
+ */
+export function ownSubAgentModel(call: Pick<ToolCall, 'arguments' | 'name'>): string {
   const { model } = ownSubAgentBrief(call)
-  return `${OWN_MODELS}; ${model ? `model asked for: ${model}` : 'model not reported'}`
+  const whose = `uses ${ownSubAgentCli(call)}’s own models, not KOLONİ’s team guide`
+  return `${whose}; ${model ? `model asked for: ${model}` : 'model not reported'}`
 }
 
 /**

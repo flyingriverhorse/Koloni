@@ -10,6 +10,7 @@ import {
   innerCalls,
   isOwnSubAgent,
   ownSubAgentBrief,
+  ownSubAgentCli,
   ownSubAgentEnding,
   ownSubAgentModel,
   ownSubAgentTask,
@@ -33,7 +34,7 @@ export function OwnSubAgentWork({ state, call, onOpenChange }: Props) {
       {/* It is no agent of KOLONİ's: neither the role's model nor a pick from the team guide applies to it. */}
       <div className="choice-note">{ownSubAgentModel(call)}</div>
       {/* 89g: a role KOLONİ offered the CLI (its node said it before nodes were three lines: the user's, 5 Nov). */}
-      {role && <div className="choice-note">{role} (inside Claude Code)</div>}
+      {role && <div className="choice-note">{`${role} (inside ${ownSubAgentCli(call)})`}</div>}
       {prompt && <div className="agent-feed-task">{prompt}</div>}
       {calls.length === 0 && <p className="muted">{working ? 'Nothing on record yet.' : 'Nothing on record.'}</p>}
       {calls.map(inner => {
