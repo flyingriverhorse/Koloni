@@ -77,9 +77,12 @@ test.describe('a role run inside Claude Code', () => {
     const option = panel.getByRole('checkbox', { name: /Run inside the CLI/ })
     await expect(option).not.toBeChecked()
     await option.check()
-    // K-rol-model: it depends on the agent that opens it running in Claude Code; its card says what it costs.
+    // K-rol-model: it depends on the agent that opens it running in Claude Code (or, since 0.1.11, GitHub Copilot
+    // CLI); its card says what it costs.
     const label = panel.locator('#role-part-inside')
-    await expect(label).toContainText('Only when the agent opening it runs in Claude Code, Native - experimental')
+    await expect(label).toContainText(
+      'Only when the agent opening it runs in Claude Code or GitHub Copilot CLI, Native - experimental',
+    )
     await expect(label).toContainText('cheaper')
     await label.scrollIntoViewIfNeeded()
     await both(page, label, '89g-option')
