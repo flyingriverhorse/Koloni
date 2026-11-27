@@ -133,15 +133,17 @@ lock = threading.Lock()
 
 def save() -> None:
     # (Whole or not at all: KOLONİ may end it as it writes - its run ends at the result its echo
-    # came before, C2 - and a record cut off there cannot be read.)
+    # came before, C2 - and a record cut off there cannot be read. From a file of its own: two
+    # stand-ins of one plan - two Coders at once - write the same record, E14.)
     with lock:
         kept = Path(plan["record"])
-        kept.with_suffix(".writing").write_text(json.dumps(record), encoding="utf-8")
+        writing = kept.with_name(f"{kept.name}.{os.getpid()}.writing")
+        writing.write_text(json.dumps(record), encoding="utf-8")
         for _ in range(100):
             try:
-                os.replace(kept.with_suffix(".writing"), kept)
+                os.replace(writing, kept)
                 return
-            except PermissionError:  # (a test reading it just then, on Windows)
+            except PermissionError:  # (read, or replaced by the other stand-in, just then)
                 time.sleep(0.01)
 
 
@@ -779,5 +781,10 @@ if plan.get("second_turn_on_steer") and unechoed and plan.get("echo") != "none":
 if plan.get("linger"):
     time.sleep(120)  # as the real CLI waits on its input for more
 if plan.get("exits"):  # gone at once after its result, its input still open
+    sys.stdout.flush()
+    os._exit(0)
+# Its end never cuts a save of its reader thread's short (E14: a daemon thread saving as the
+# interpreter finalized crashed it, 0xC0000005): ended at once, the record whole.
+with lock:
     sys.stdout.flush()
     os._exit(0)
