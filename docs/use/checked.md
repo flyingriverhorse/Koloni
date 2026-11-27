@@ -958,7 +958,7 @@ level. The canvas's Checks node has it too, in its **⋯** menu, also while the 
 the related tests (see [On the canvas](#on-the-canvas)). Stopped while the answer still waits for
 them, the line says "Tests not run: you stopped the check".
 
-![The Checked section after Stop this check: Tests not run: you stopped the check](../images/checked-stopped.png)
+![The Checked section after Stop this check: Full tests stopped by you at 0:00 - not checked](../images/checked-stopped.png)
 
 - A newer turn that changes the same project and runs the same suite stops one still running in
   the background, as a new push stops a pull request's old CI run: "Tests not finished: the

@@ -886,7 +886,7 @@ test.describe('proven finish (0.1.6)', () => {
     await picture(page, 'checks-running')
     await page.getByRole('menuitem', { name: 'Stop this check' }).click()
     const checked = page.getByRole('region', { name: 'Chat' }).getByRole('region', { name: 'Checked' })
-    await expect(checked).toContainText('Tests not run: you stopped the check', { timeout: 20_000 })
+    await expect(checked).toContainText('stopped by you at', { timeout: 20_000 })
     await picture(checked, 'checked-stopped')
   })
 
