@@ -667,17 +667,27 @@ aç", "PR'ı merge et", "PR'ı birleştir"). Only:
 
 - the message you sent from the app's own page that started this turn - never an earlier turn's ("Push
   it." yesterday does not cover today's push after "Fix the typo."), an agent's words, a tool's result, a
-  file, your preferences or the project's rules; nor code, a quoted line (`>`) or a sentence with a
-  backtick in it. A message over 4,000 characters is not read for it;
-- the last sentence of it that mentions it decides: "Push it. … Wait, don't push yet." is no quote, and
-  the other way round it is;
-- not a sentence that says no ("Don't push.", "push etme") or anything else on its line that does ("Push
-  it. Don't merge."), one that asks ("Push it?", "push eder misin"), one that says what you do or will
-  do ("I'll push it myself.", "push ettim", "push edeceğim", "tomorrow"), nor a message that sets a
-  condition anywhere ("after the review", "once CI passes", "testler geçince") - those get the plain
-  card;
+  file, your preferences or the project's rules; nor code - a fence closes only on a line of its own
+  marks, at least as many, so what an agent wrote inside the quote **Ask about this** makes stays code -,
+  a quoted line (`>`) or a sentence with a backtick in it. A message over 4,000 characters is not read
+  for it;
+- the last sentence of it that mentions it decides, and the whole message is read with it: anything in
+  it that says no, asks, waits or calls it off ("Don't push.", "push etme", "Push it. Don't merge.",
+  "Push it. Actually no.", "Never mind.", "Or should we wait?", "Hayır, bekle.", "Yok, vazgeçtim."), or
+  sets a condition ("after the review", "once CI passes", "testler geçince") leaves no quote; so does a
+  sentence that says what you do or will do ("I'll push it myself.", "push ettim", "push edeceğim",
+  "tomorrow") - those get the plain card;
+- the sentence names no other branch or pull request than the line does: "Merge PR 5." is no quote
+  for `gh pr merge 7`, nor "Push feature-a." for `git push origin feature-b`, nor "Push it to main." for a
+  push of another branch, nor "Open a PR into main." for `gh pr create -B develop`. A word counts as a
+  branch where your repository knows it - its branches, its remotes' and its tags - and `main` and
+  `master` always; a bare `git push` pushes a branch KOLONİ does not know, so a sentence that names one
+  gets the plain card there;
 - a line of your preferences or the project's rules that names it and forbids it or sets a condition
   ("Never push to main.") leaves no quote for it at all.
+
+The quote is shown as you typed it, in its own reading order: marks that turn text around (right-to-left
+overrides and the like) are taken out of it.
 
 Which commands - one program on one line, run at the project's root, written with letters, digits,
 spaces and `. : / = + - _` alone, a value in double quotes (`-t "Fix the typo"`):
@@ -685,13 +695,17 @@ spaces and `. : / = + - _` alone, a value in double quotes (`-t "Fix the typo"`)
 - `git push`, alone or to `origin` with its branches, and `-u`, `--set-upstream`, `-q`, `-v`, `--progress`.
   A push to `main` or `master` by name is quoted only on a sentence that names it ("Push to main.",
   "main'e push et"); a bare `git push` is quoted on "Push it." whatever branch it pushes;
-- `gh pr create` with a title, a body, a base, a head, one label, assignee, reviewer, milestone or
-  project, `--draft` or `--fill`;
+- `gh pr create` with a title, a body, a base, a head (a branch of this repository: `owner:branch` is
+  not), one label, assignee, reviewer, milestone or project, `--draft` or `--fill`;
 - `gh pr merge` with a number or a branch, `--merge`, `--squash`, `--rebase`, `--auto`, a subject or a
   body.
 
+An option's value never starts with `-`. KOLONİ reads your repository's branches and tags for it (read
+only); where it cannot - no git, or the project is not the repository's top folder - nothing is quoted.
 Anything else gets the plain card, unquoted: a force push, a branch deleted (`git push origin :x`,
-`--delete`, `gh pr merge --delete-branch`), another remote or repository (`upstream`, an address, `-R`),
+`--delete`, `gh pr merge --delete-branch`), a tag or any other ref than a branch (`refs/tags/…`,
+`refs/for/…`, or a tag by its bare name: `git push origin v1.0.0`), another remote or repository
+(`upstream`, an address, `-R`),
 a file read in (`--body-file`), `--admin`, a push in a subfolder, any other option, more than one
 command (`&&`, `;`, `|`), a redirection, and any other character - `$`, a backtick, a bracket, single
 quotes, a comma (`-r a,b`), `@` (`@me`), `!`, `?`, `#`, `*`, `%`, a line break. So does a pull request

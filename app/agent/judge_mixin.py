@@ -7,11 +7,12 @@ import json
 import logging
 import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import away, cards, judge, raw, risk_judge
+from app import away, cards, git, judge, raw, risk_judge
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
@@ -42,6 +43,33 @@ _JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\b(?:remote|Docke
 # any kind, or a backtick or a backslash at a line's end (PowerShell's and a shell's going on - in
 # a comment, inside a word, between bash's backticks, each shell reads them its own way).
 _MORE_LINES = re.compile(r"(?:[\n\r\v\f\x1c-\x1e\x85\u2028\u2029])|(?:[`\\][ \t]*$)")
+
+
+def _refs(root: Path) -> tuple[set[str], set[str]] | None:
+    """K5: the names, case folded, of the branches - the repository's own and its remotes', the
+    remote's name off - and of the tags of the repository whose top folder `root` is
+    (`git.repository`); None where git does not answer. A look as `git.look` takes one: read
+    only, no hook, no fetch."""
+    try:
+        found, _folder = git.repository(root)
+        code, out, _said = git._in(
+            root,
+            found,
+            *git.UNASKED,
+            "for-each-ref",
+            "--format=%(refname)",
+            seconds=git.SHORT_SECONDS,
+            **git.UNASKED_ENV,
+        )
+        names = out.decode("utf-8").casefold().splitlines() if code == 0 else None
+    except (git.Refused, UnicodeDecodeError):
+        return None
+    if names is None:
+        return None
+    branches = {one[len("refs/heads/") :] for one in names if one.startswith("refs/heads/")}
+    branches |= {one.split("/", 3)[-1] for one in names if one.startswith("refs/remotes/")}
+    tags = {one[len("refs/tags/") :] for one in names if one.startswith("refs/tags/")}
+    return branches - {"head"}, tags
 
 
 def only_deletes(line: str) -> bool:
@@ -86,29 +114,34 @@ class JudgeMixin:
         try:
             found = await self._judging(ctx, command, cwd, reason, asked_anyway)
             if found[1] is None and reason and not asked_anyway:
-                return reason, self._said_so(ctx, command, cwd)
+                return reason, await self._said_so(ctx, command, cwd)
             return found
         except Exception:
             log.warning("run %s: the check of the user's words failed", ctx.run_id, exc_info=True)
             return reason, None
 
-    def _said_so(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None) -> dict | None:
+    async def _said_so(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None) -> dict | None:
         """K5 (decision 7): a push, a pull request opened or merged (`judge.action_of`) at the
         project's root, in a turn the user started from the app's own page (`Run.by_user`: not a
-        To-do task's, a trigger's nor a job's while they are away) and not a side of a
+        To-do task's, a trigger's, Fix it's nor a job's while they are away) and not a side of a
         comparison, which no measured judge model let run: the record that its card quotes the
         sentence of the user's message that started this turn - an earlier turn's never: a
         later push is not its - that asked for it (`judge.asked_for`; one over MOST_CHARS is not
         read, never cut: its condition may stand past the cut) - `kind` "said", an ask: a card
-        all the same, one click. None where none asks for it."""
+        all the same, one click, with its `action`. None where none asks for it, the project's
+        repository cannot be read (`_refs`), or a push sends a tag by its bare name."""
         doing = judge.action_of(command)
         if (
             doing is None
             or cwd not in ("", ".")
+            or ctx.root is None
             or ctx.run_id in self._sides
             or ctx.run_id in self._away_jobs
             or harm_class(command) != "soft"
         ):
+            return None
+        refs = await asyncio.to_thread(_refs, Path(ctx.root))
+        if refs is None or {one.casefold() for one in doing.sources} & refs[1]:
             return None
         with self._factory() as session:
             if not session.get_one(Run, ctx.run_id).by_user:
@@ -125,12 +158,9 @@ class JudgeMixin:
         if sum(map(len, started)) > judge.MOST_CHARS:
             return None
         texts["message"] = [raw.hidden(one) for one in started]
-        quote = judge.asked_for(doing[0], texts, doing[1])
-        return (
-            {"kind": "said", "verdict": "ask", "quote": quote, "source": "message"}
-            if quote
-            else None
-        )
+        quote = judge.asked_for(doing, texts, refs[0] | refs[1])
+        said = {"kind": "said", "verdict": "ask", "quote": quote, "source": "message"}
+        return {**said, "action": doing.action} if quote else None
 
     async def _judging(
         self: "AgentRunner",

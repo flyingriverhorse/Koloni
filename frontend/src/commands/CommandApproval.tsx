@@ -20,21 +20,39 @@ interface Props {
   onDecide: (decision: CommandDecision) => Promise<void>
 }
 
-/** K5: what a card quotes the user's own sentence for (`judge.asked_for`) asks and runs, by the line it asks about - the
- *  server quotes only `gh pr create`, `gh pr merge` and a push. */
-const AS_YOU_SAID: [RegExp, string, string][] = [
-  [/^gh(?:\.exe)?\s+pr\s+create\b/i, 'open the pull request', 'Open the PR'],
-  [/^gh(?:\.exe)?\s+pr\s+merge\b/i, 'merge the pull request', 'Merge'],
-  [/^/, 'push', 'Push'],
-]
+/** K5: what a card quotes the user's own sentence for asks and runs, by the action the server read in its line
+ *  (`judge.action_of`). */
+const AS_YOU_SAID = {
+  push: ['push', 'Push'],
+  pr: ['open the pull request', 'Open the PR'],
+  merge: ['merge the pull request', 'Merge'],
+} as const
+
+interface Wording {
+  /** The user's sentence, where the card quotes it; null for the plain question. */
+  quote: string | null
+  verb: string
+  run: string
+}
 
 /** A card's question and its run button's words. K5 (decision 7): for a push, a pull request opened or merged that a
  *  sentence of the user's own asked for, with no judge model measured to let it run, the question quotes them and the
  *  button runs it "as you said". */
-function wording(command: Command): { ask: string; run: string } {
-  if (command.judged?.kind !== 'said') return { ask: 'Run this command?', run: 'Run once' }
-  const [, verb, run] = AS_YOU_SAID.find(([line]) => line.test(command.command.trim())) ?? AS_YOU_SAID[2]
-  return { ask: `You said “${command.judged.quote}” — ${verb} now?`, run: `${run}, as you said` }
+function wording(command: Command): Wording {
+  const action = command.judged?.kind === 'said' ? command.judged.action : null
+  if (!action) return { quote: null, verb: '', run: 'Run once' }
+  const [verb, run] = AS_YOU_SAID[action]
+  return { quote: command.judged?.quote ?? '', verb, run: `${run}, as you said` }
+}
+
+/** The card's question: the user's sentence in its own reading order (`bdi`), where it is quoted. */
+function Question({ words }: { words: Wording }) {
+  if (words.quote === null) return <div className="kicker cmd-approval-kicker">Run this command?</div>
+  return (
+    <div className="kicker cmd-approval-kicker">
+      You said “<bdi>{words.quote}</bdi>” — {words.verb} now?
+    </div>
+  )
 }
 
 /** K-yargıç: Full auto's check of the user's words found no line of theirs that covers it. Not its own sentence: a model's
@@ -116,7 +134,7 @@ export function CommandApproval({ command, why, onDecide }: Props) {
 
   return (
     <div className="cmd-approval">
-      <div className="kicker cmd-approval-kicker">{words.ask}</div>
+      <Question words={words} />
       <pre className="mono cmd-approval-command">{command.command}</pre>
       {command.danger && (
         // (Deletes, overwrites a git remote or opens a secret file: no rule covers it.)

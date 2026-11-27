@@ -307,26 +307,46 @@ test('a card the check found nothing of yours for says so - and not the check’
 })
 
 // K5 (decision 7): a push, a pull request opened or merged that a sentence of yours asked for - quoted, one click.
+const said = (quote: string, action: 'push' | 'pr' | 'merge') =>
+  judged({ kind: 'said', verdict: 'ask', quote, source: 'message', model: '', action })
+const question = () => document.querySelector('.cmd-approval-kicker')
+
 test.each([
-  ['git push -u origin k-x', 'push et', 'You said “push et” — push now?', 'Push, as you said'],
+  ['git push -u origin k-x', 'push' as const, 'push et', 'You said “push et” — push now?', 'Push, as you said'],
   [
     'gh pr create -t Fix -B main',
+    'pr' as const,
     'Open a PR.',
     'You said “Open a PR.” — open the pull request now?',
     'Open the PR, as you said',
   ],
-  ['gh pr merge 12 --squash', 'Merge it.', 'You said “Merge it.” — merge the pull request now?', 'Merge, as you said'],
-])('a card for %s quotes your sentence and runs on one click', async (line, quote, ask, run) => {
+  [
+    'gh pr merge 12 --squash',
+    'merge' as const,
+    'Merge it.',
+    'You said “Merge it.” — merge the pull request now?',
+    'Merge, as you said',
+  ],
+  // (the verb is the server's reading of the line, never the line's own spelling)
+  [
+    '"gh" pr merge 12',
+    'merge' as const,
+    'Merge it.',
+    'You said “Merge it.” — merge the pull request now?',
+    'Merge, as you said',
+  ],
+])('a card for %s quotes your sentence and runs on one click', async (line, action, quote, ask, run) => {
   const onDecide = vi.fn().mockResolvedValue(undefined)
   const asked = command('k', 'r', {
     status: 'proposed',
     command: line,
     suggested_prefix: '',
     danger: 'It sends work off this machine (git push).',
-    judged: judged({ kind: 'said', verdict: 'ask', quote, source: 'message', model: '' }),
+    judged: said(quote, action),
   })
   render(<CommandApproval command={asked} onDecide={onDecide} />)
-  expect(screen.getByText(ask)).toBeInTheDocument()
+  expect(question()).toHaveTextContent(ask)
+  expect(question()?.querySelector('bdi')).toHaveTextContent(quote)
   expect(screen.queryByText('Run this command?')).not.toBeInTheDocument()
   expect(screen.queryByText(/Nothing you said covers this/)).not.toBeInTheDocument()
   // (its two buttons, keyboard first: the verb, then Reject)
@@ -344,6 +364,34 @@ test('a card with no sentence of yours quoted stays “Run this command?” with
   expect(screen.getByText('Run this command?')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Run once' })).toBeInTheDocument()
   expect(screen.queryByText(/as you said/)).not.toBeInTheDocument()
+})
+
+test('a quote that turns its reading order around stays inside its own bdi, not over the card’s words', () => {
+  // (the server takes such marks out; the bdi keeps any right-to-left text from reordering the question)
+  const quote = 'גרסה push it'
+  render(
+    <CommandApproval
+      command={command('k', 'r', { status: 'proposed', command: 'git push', judged: said(quote, 'push') })}
+      onDecide={vi.fn()}
+    />,
+  )
+  const bdi = question()?.querySelector('bdi')
+  expect(bdi?.textContent).toBe(quote)
+  expect(bdi?.previousSibling?.textContent).toBe('You said “')
+  expect(bdi?.nextSibling?.textContent).toBe('” — ')
+  expect(question()).toHaveTextContent(`You said “${quote}” — push now?`)
+})
+
+test('a said record with no action - one from before it was kept - is the plain card', () => {
+  const judgedThen = { ...said('Push it.', 'push'), action: null }
+  render(
+    <CommandApproval
+      command={command('k', 'r', { status: 'proposed', command: 'git push', judged: judgedThen })}
+      onDecide={vi.fn()}
+    />,
+  )
+  expect(screen.getByText('Run this command?')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Run once' })).toBeInTheDocument()
 })
 
 test('a delete KOLONİ found disposable offers Allow such deletes in this project, until the project allows them', async () => {
