@@ -32,13 +32,13 @@ from app.schemas import (
     SecretIn,
     StepLimit,
     SummaryIn,
-    TellIn,
     TestLoad,
     ToolCallDecision,
     ToolCallOut,
     Unattended,
     WorkingCopyOut,
 )
+from app.schemas_at_work import TellIn
 from app.serialize import agent_out, tool_call_out
 
 router = APIRouter(prefix="/api", tags=["agents"], dependencies=[Depends(require_origin)])

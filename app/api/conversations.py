@@ -56,13 +56,13 @@ from app.schemas import (
     ConversationPatch,
     ConversationsDeletedOut,
     ConversationsDeleteIn,
-    MessageIn,
     PostMessageOut,
     SnapshotOut,
     TopicOut,
     TopicPatch,
     WarningOut,
 )
+from app.schemas_at_work import MessageIn
 from app.serialize import (
     agent_out,
     allowed_command_out,

@@ -1024,44 +1024,6 @@ class SpawnMixin:
             self._send(replace(ctx, agent_id=child_id), opener, said, delivered=False),
         )
 
-    def _cancel_later(self: "AgentRunner", run_id: str, agent_id: str | None = None) -> list[tuple]:
-        """Stop the sub-agents CLI openers did not wait for - of one opener, or of the whole
-        turn: nothing of them outlives what opened them. Returns them, for `_stopped_later`."""
-        kept, ending = [], []
-        for one in self._later_work.pop(run_id, []):
-            (ending if agent_id in (None, one[0]) else kept).append(one)
-        if kept:
-            self._later_work[run_id] = kept
-        for one in ending:
-            one[3].cancel()
-        return ending
-
-    async def _stopped_later(self: "AgentRunner", ending: list[tuple]) -> None:
-        """Wait for those `_cancel_later` stopped; one still open on record is `cancelled`
-        the way any agent's work ends (`_set_agent`: what it held is let go)."""
-        await asyncio.shield(asyncio.gather(*(one[3] for one in ending), return_exceptions=True))
-        with self._factory() as session:
-            rows = {
-                agent_id: (run_id, status)
-                for agent_id, run_id, status in session.execute(
-                    select(Agent.id, Agent.run_id, Agent.status).where(
-                        Agent.id.in_([one[1] for one in ending])
-                    )
-                )
-            }
-        for _opener, child_id, cid, _work in ending:
-            if child_id not in rows:
-                continue
-            run_id, status = rows[child_id]
-            # B-313: nor does a card of its own wait at Ready for you after it (a command) - of
-            # one stopped; one that finished is left as it ended.
-            if status != "completed":
-                with contextlib.suppress(Exception):
-                    self._interrupt_open_calls(run_id, cid, child_id)
-            if status not in AGENT_TERMINAL:
-                with contextlib.suppress(Exception):
-                    self._set_agent(cid, child_id, status="cancelled", ended_at=now())
-
     async def _stopped_in_copy(self: "AgentRunner", child: Ctx) -> None:
         """B-405 (live): Stop - the turn's, Stop everything's, its budget's - while an agent works
         on a branch of its own (K-dal-takim): what it changed is committed there and the branch

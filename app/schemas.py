@@ -777,17 +777,6 @@ class TopicPatch(BaseModel):
     title: str = Field(max_length=200)
 
 
-class SpokenIn(BaseModel):
-    """What a message asks of the lead's answer when the user listens to it (slice 32a)."""
-
-    model_config = ConfigDict(extra="forbid")
-    # A language tag as the browser's voices give it: "en-US", "tr-TR", "en-GB-x-rp".
-    # (The page holds the same pattern: voice.ts LANGUAGE_TAG.)
-    language: str = Field(pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,4}$")
-    # How the user wants it said, in their own words.
-    style: str | None = Field(None, max_length=300)
-
-
 class GeminiVoiceOut(BaseModel):
     """Reading aloud with Gemini (slice 32e): whether a key is saved - never the key."""
 
@@ -818,22 +807,6 @@ class GeminiSayIn(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
     voice: str | None = None
     style: str | None = Field(None, max_length=300)
-
-
-class MessageIn(BaseModel):
-    content: str
-    # Asked for: the lead ends its answer with a line to say aloud, taken off into `spoken`.
-    spoken: SpokenIn | None = None
-    # Which piece of work the message goes on with: a topic of this conversation by its
-    # id, or a new one. With neither, the topic the user was last in.
-    topic_id: str | None = None
-    new_topic: bool = False
-    # The user's word to start it though the project is over this month's budget.
-    over_budget: bool = False
-    # The files added to it (slice 85b), by id: this conversation's, not sent before.
-    attachments: list[str] = Field(default=[], max_length=10)  # attachments.MAX_FILES
-    # "Save these to the project too" (slice 23): into docs/attachments/, no card.
-    save_to_project: bool = False
 
 
 class AttachmentOut(Out):
@@ -1912,13 +1885,6 @@ class AnswerLanguage(BaseModel):
         from app.memory import language_name  # (not loaded with the schemas: it loads them)
 
         return language_name(value)
-
-
-class TellIn(BaseModel):
-    """The user's own word to an agent while it works (89d C)."""
-
-    model_config = ConfigDict(extra="forbid")
-    words: str = Field(min_length=1, max_length=4000)
 
 
 class SummaryIn(BaseModel):

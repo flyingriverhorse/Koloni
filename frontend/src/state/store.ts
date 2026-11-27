@@ -98,7 +98,7 @@ import type { NewFact } from '../memory/forms'
 import type { ProjectSettingsValues } from '../shell/ProjectSettings'
 import type { SettingsPlace } from '../shell/Settings'
 import { startsNewTurn } from '../canvas/turns'
-import { inUseBy } from '../shell/inUse'
+import { inUseNow, readHealth } from '../shell/inUse'
 import type { Cannot } from '../shell/ModelBanner'
 import { chatOf, closing, kept, opened, remember, rememberChat, remembered, tabOf } from '../shell/openTabs'
 import { keyOf } from '../views/views'
@@ -115,7 +115,7 @@ export interface BranchSaid {
 /** The tabs of the chat panel. */
 export type ChatTab = 'Chat' | 'Talk' | 'Notes'
 
-interface AppStore extends TeamActions, RecipeActions, CategoryActions {
+export interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   ready: boolean
   /** Why the first load failed, if it did. */
   loadError: string | null
@@ -590,35 +590,8 @@ export function resetStoreForTests(): void {
   useApp.setState(useApp.getInitialState(), true)
 }
 
-const readHealth = (id: string | null) =>
-  api.get<Health>(id ? `/health?provider_id=${encodeURIComponent(id)}` : '/health')
 // The latest loadHealth: an older one, answered late, does not put its readings over a newer one's.
 let healthRuns = 0
-
-/** The top bar's: what /health says of each provider the open chat would run on, and the roles of it that cannot run (`inUseBy`). */
-async function inUseNow(get: () => AppStore, health: Health | null): Promise<{ readings: Health[]; cannot: Cannot[] }> {
-  const chat = get().conv?.conversation ?? null
-  try {
-    // (Read with the page's first reading, they may not be here yet.)
-    if (get().roles.length === 0) await get().loadRoles()
-    if (get().providers.length === 0) await get().loadProviders()
-    const [rows, tiers] = await Promise.all([
-      get().roleModels(chat?.id ?? null),
-      get()
-        .tiers()
-        .catch(() => null),
-    ])
-    const { ids, cannot } = inUseBy(chat, rows, { ...get(), tiers })
-    // A reading that fails keeps the last one: one glitch neither quiets the bar nor shows it again after a dismissal.
-    // (A provider never read before is left out until it is.)
-    const last = (id: string) => get().inUse?.readings.find(one => one.provider_id === id) ?? null
-    const read = (id: string) => (id === health?.provider_id ? health : readHealth(id).catch(() => last(id)))
-    return { readings: (await Promise.all(ids.map(read))).filter(one => one !== null), cannot }
-  } catch {
-    // (No provider at all, or the roles not read: the one reading there is, as before.)
-    return { readings: health ? [health] : [], cannot: [] }
-  }
-}
 
 /** k-tarif-model: the chat the page is open on - a draft asks its Orchestrator's model too (its model picker); null: none. */
 const openChatId = (state: AppStore) => state.conv?.conversation.id ?? null

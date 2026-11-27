@@ -94,6 +94,7 @@ from app.agent.approvals_mixin import NO_COMMANDS as NO_COMMANDS
 from app.agent.approvals_mixin import ONLY_READS as ONLY_READS
 from app.agent.approvals_mixin import READ_ONLY_WRITE as READ_ONLY_WRITE
 from app.agent.approvals_mixin import ApprovalsMixin
+from app.agent.at_work_mixin import AtWorkMixin
 from app.agent.attachments_mixin import AttachmentsMixin
 from app.agent.away_mixin import AwayMixin
 from app.agent.away_mixin import branch_held as branch_held
@@ -161,6 +162,7 @@ from app.agent.discussions_mixin import DiscussionsMixin
 from app.agent.found_mixin import FoundMixin
 from app.agent.judge_mixin import JudgeMixin
 from app.agent.kinds_mixin import KindsMixin
+from app.agent.lead_tools_mixin import LeadToolsMixin
 from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
@@ -456,15 +458,6 @@ log = logging.getLogger(__name__)
 # (`_disposable`'s shell where the command is KOLONİ's own: `_own_shell` says which.)
 OWN_SHELL = "own"
 
-# B-376 (live): a Copilot Lead gave its last answer while a team's "All at once" group had just
-# opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
-# is held till every agent of the turn is back, then it is told so (`_held_for_work`).
-AT_WORK = ("proposed", "queued", "running", "waiting")
-HELD_FOR_WORK = (
-    "Not the end yet: teams were still at work as you answered ({what}). KOLONİ "
-    "waited for them: read what came back, then answer."
-)
-HOLD_LOOK = 0.5  # seconds between looks at whether they are back
 # B-376: a step's agent the turn's end cut, said beside why its team stopped (`_end_runs`).
 CUT_BY_END = "{name} {how}: the turn ended at {at}"
 # Slice 84b-2: how an agent of a stopped team ends (the card where recipes meet: READY_FOR_YOU).
@@ -1158,6 +1151,8 @@ class AgentRunner(
     TryMixin,
     StoryBranchMixin,
     ChecksToolMixin,
+    AtWorkMixin,
+    LeadToolsMixin,
 ):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
@@ -6664,83 +6659,6 @@ class AgentRunner(
                     told["no team"] += 1
         return f"Not the end yet: {'; '.join(said)}." if said else None
 
-    async def _held_for_work(self, ctx: Ctx) -> str | None:
-        """B-376: the Lead answered with agents of its turn still at work (a team's group just
-        opened, one opened by a CLI that did not wait): it waits for them as for its own
-        sub-agents, its place free, and what it is told then is returned. None: none was.
-        shortcut: looked at every HOLD_LOOK seconds, not woken by their ends; an agent left
-        at work on record by a bug holds the turn till Stop."""
-        said = self._still_at_work(ctx)
-        if said is None:
-            return None
-        async with self._handing_over(ctx):
-            while self._still_at_work(ctx) is not None:
-                await asyncio.sleep(HOLD_LOOK)
-        return HELD_FOR_WORK.format(what=said)
-
-    def _still_at_work(self, ctx: Ctx) -> str | None:
-        """The turn's agents at work but its Lead, by team and where its recipe is - "Web app
-        at All at once: Tester running" - and the rest by name. None: none is. One blocked on a
-        file counts only where its holder lets go before the turn's end: one of another turn, or
-        one still at work - not the Lead, nor one done, which hold theirs till then."""
-        with self._factory() as session:
-            busy = {
-                one.id: one
-                for one in session.scalars(
-                    select(Agent)
-                    .where(
-                        Agent.run_id == ctx.run_id,
-                        Agent.depth > 0,
-                        Agent.status.in_((*AT_WORK, "blocked")),
-                    )
-                    .order_by(Agent.created_at)
-                )
-            }
-
-            def lets_go(holder: str) -> bool:
-                known = self._ctxs.get(holder)
-                return (
-                    known is None
-                    or known.run_id != ctx.run_id
-                    or (holder in busy and busy[holder].status != "blocked")
-                )
-
-            # (Nor one whose waits lead back to the Lead - a file it holds: that ends with it.)
-            busy = {
-                key: one
-                for key, one in busy.items()
-                if one.status != "blocked"
-                or (
-                    self.claims.cycle(ctx.agent_id, key) is None
-                    and any(lets_go(wait.holder) for wait in self.claims.waiting(key))
-                )
-            }
-            # B-415: and one a CLI opener did not wait for, ended on record but its call not
-            # over yet - its step's row is moved on (`_after_step`) only then.
-            closing = [
-                self._ctxs[one[1]].name
-                for one in self._later_work.get(ctx.run_id, ())
-                if not one[3].done() and one[1] not in busy and one[1] in self._ctxs
-            ]
-            if not busy and not closing:
-                return None
-            said = [f"{name} finishing" for name in closing]
-            for row, team, _lead in self._rows(session, ctx.cid):
-                state = self._live_state(row, ctx.run_id) or self._apart_state(row, ctx.run_id)
-                theirs = [busy.pop(one) for one in (state or {}).get("agents", []) if one in busy]
-                if theirs:
-                    at = ""
-                    with contextlib.suppress(Exception):  # (a label: never the turn's failure)
-                        if state and state.get("graph"):
-                            graph = recipe_run.graph_of(state)
-                            at = f" at {recipe_run.name_of(graph, state['at'])}"
-                    said.append(
-                        f"{team.name}{at}: "
-                        + ", ".join(f"{one.name} {one.status}" for one in theirs)
-                    )
-            said += [f"{one.name} {one.status}" for one in busy.values()]
-        return "; ".join(said)
-
     def _holds_teams(self, session, ctx: Ctx) -> bool:
         """Whether this agent's turn is held to the chat's teams' work (B-83, B-90): not an
         answer, a discussion, a plan, nor a side of a comparison."""
@@ -9693,26 +9611,6 @@ class AgentRunner(
         return spellings_of(
             [*(value for given in turns for value in given.values()), *filter(None, planted)]
         )
-
-    def _unread_messages(self, ctx: Ctx) -> list[str]:
-        """K-fikir-okunmamis: the user's messages queued behind this turn (their own turns
-        start after it) that this agent was not handed yet - handed here, once, in place of
-        a new question card.
-        shortcut: their turns still run after this one; fold them into it if they are seen
-        to answer the same thing twice."""
-        with self._factory() as session:
-            rows = session.execute(
-                select(Message.id, Message.content)
-                .join(Run, Run.id == Message.run_id)
-                .where(
-                    Run.conversation_id == ctx.cid, Run.status == "queued", Message.role == "user"
-                )
-                .order_by(Message.created_at, literal_column("messages.rowid"))
-            ).all()
-        told = self._read_first.setdefault(ctx.agent_id, set())
-        unread = [(id_, content) for id_, content in rows if id_ not in told]
-        told.update(id_ for id_, _ in unread)
-        return [content for _, content in unread]
 
     def _card_decides(self, ctx: Ctx, args: dict) -> bool:
         """B-359: whether an ask_user offers a Take in card's own words (Take in, Discard,
