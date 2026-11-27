@@ -1,5 +1,5 @@
 import { Moon } from '@phosphor-icons/react'
-import { type CSSProperties, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import type { Away, AwayJob } from '../api/types'
 import { AwayPanel } from '../chat/AwayPanel'
 import { useAsk } from '../memory/useAsk'
@@ -17,8 +17,9 @@ const STATE_MARK: Record<AwayJob['state'], string> = {
   failed: '✕',
   stopped: '■',
 }
-/** A job done that left nothing: nothing kept in its copy, nothing taken in from it. */
-const unchanged = (job: AwayJob) => job.state === 'done' && !job.kept.length && !job.taken.length
+/** A job done that left nothing: nothing kept in its copy, nothing taken in from it, nothing of it discarded. */
+const unchanged = (job: AwayJob) =>
+  job.state === 'done' && !job.kept.length && !job.taken.length && !job.discarded.length
 /** How long from one time to another (now, without it): "1 h 48 m". */
 function lasted(from: string | null, to: string | null) {
   if (!from) return ''
@@ -206,13 +207,18 @@ const lineOf = (away: Away, job: AwayJob) =>
 const CHECKS_MARK: Record<string, string> = { green: '✓', red: '✗' }
 
 /**
- * 0.1.9: where a job's work is - on its own branch in the project's repository (its commits, files and checks, what
- * moved outside it meanwhile), or in a copy and why where git is there.
+ * A job's branch, first: its commits, files and checks, and with no remote how to take it - or, N12, once git deleted
+ * it at its Take in or Discard, that it did: no commits, nor "merge it with git", of a branch that is gone.
  */
-function BranchLine({ job }: { job: AwayJob }) {
-  const branch = job.branch
-  if (job.mode === 'copy' && job.mode_why) return <div className="muted away-line">In a copy: {job.mode_why}</div>
-  if (!branch) return null
+function BranchHead({ job, branch }: { job: AwayJob; branch: NonNullable<AwayJob['branch']> }) {
+  if (branch.gone) {
+    return (
+      <div className="muted away-line">
+        Its branch <span className="mono">{branch.name}</span> was deleted: its work was{' '}
+        {job.taken.length ? 'taken in' : 'discarded'}.
+      </div>
+    )
+  }
   return (
     <>
       <div className="muted away-line">
@@ -220,50 +226,83 @@ function BranchLine({ job }: { job: AwayJob }) {
         files · checks {CHECKS_MARK[branch.checks ?? ''] ?? '…'}
       </div>
       {job.mode === 'branch' && <div className="muted away-line">No remote: merge it with git, or Take in.</div>}
-      {[branch.why, ...(branch.moved ?? [])].filter(Boolean).map(said => (
-        <div key={said} className="away-shared">
-          {said}
+    </>
+  )
+}
+
+/**
+ * 0.1.9: where a job's work is - on its own branch in the project's repository (`BranchHead`, what moved outside it
+ * meanwhile - after the branch is gone too), or in a copy and why where git is there.
+ */
+function BranchLine({ job }: { job: AwayJob }) {
+  const branch = job.branch
+  if (job.mode === 'copy' && job.mode_why) return <div className="muted away-line">In a copy: {job.mode_why}</div>
+  if (!branch) return null
+  const said = branch.gone ? (branch.moved ?? []) : [branch.why, ...(branch.moved ?? [])]
+  return (
+    <>
+      <BranchHead job={job} branch={branch} />
+      {said.filter(Boolean).map(line => (
+        <div key={line} className="away-shared">
+          {line}
         </div>
       ))}
     </>
   )
 }
 
-/** One job of a night, with what you can do about it as it stands. */
-export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen: (cid: string) => void }) {
+/**
+ * One job of a night, with what you can do about it as it stands. On Ready for you's report (`report`): its cell for
+ * its mark, and no Allow for what it asks - that is answered on its card (tek-ev decision 1).
+ */
+export function JobRow({
+  away,
+  job,
+  onOpen,
+  report,
+}: {
+  away: Away
+  job: AwayJob
+  onOpen: (cid: string) => void
+  report?: ReactNode
+}) {
   const { busy, error, ask } = useAsk()
   const store = useApp.getState
   const chat = job.conversation_id
   const line = lineOf(away, job)
   // B-122: a job that changed nothing is not "done" as one with work to take in is.
   const word = unchanged(job) ? 'Done, nothing changed' : STATE_WORD[job.state]
+  /** What it asks, each with Allow and go on or Refuse - not on the report, where its card answers it. */
+  const asks = () =>
+    job.state === 'waits' &&
+    !report &&
+    job.asks
+      .filter(one => one.kind)
+      .map(one => (
+        <span key={one.id} className="away-ask">
+          <span className="mono">{one.text}</span>
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            disabled={busy}
+            onClick={() => void ask(() => store().answerAsk(one, true))}
+          >
+            Allow and go on
+          </button>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy}
+            onClick={() => void ask(() => store().answerAsk(one, false))}
+          >
+            Refuse
+          </button>
+        </span>
+      ))
   /** What you can do about it: answer what it asks, Take in, Try again, open its chat. */
   const actions = () => (
     <div className="memory-actions">
-      {job.state === 'waits' &&
-        job.asks
-          .filter(one => one.kind)
-          .map(one => (
-            <span key={one.id} className="away-ask">
-              <span className="mono">{one.text}</span>
-              <button
-                type="button"
-                className="btn btn-small btn-primary"
-                disabled={busy}
-                onClick={() => void ask(() => store().answerAsk(one, true))}
-              >
-                Allow and go on
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                disabled={busy}
-                onClick={() => void ask(() => store().answerAsk(one, false))}
-              >
-                Refuse
-              </button>
-            </span>
-          ))}
+      {asks()}
       {/* (One that needs the project itself waits with its copy: Take in it as it is, then do the rest there.) */}
       {(job.state === 'done' || job.state === 'waits') && job.kept.length > 0 && (
         // (Not taken - a line that clashes with the project's, say: its chat's card of the kept copy decides it.)
@@ -295,9 +334,11 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
   )
   return (
     <li className={`away-job away-${job.state}`} aria-label={`${job.title}: ${word}`}>
-      <span className="away-mark" aria-hidden="true">
-        {STATE_MARK[job.state]}
-      </span>
+      {report ?? (
+        <span className="away-mark" aria-hidden="true">
+          {STATE_MARK[job.state]}
+        </span>
+      )}
       <div className="away-grow">
         <b>{job.title}</b>
         {line && <div className="muted away-line">{line}</div>}
@@ -324,88 +365,6 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
       </div>
       <span className="away-tag">{word}</span>
     </li>
-  )
-}
-
-/** The night's strip: since when, what it spent against its limit, and Stop all while it runs. */
-function Strip({ away }: { away: Away }) {
-  const { busy, error, ask } = useAsk()
-  const share = away.spent != null && away.money ? Math.min(1, away.spent / away.money) : null
-  return (
-    <div className="away-strip" role="status">
-      <b>{away.status === 'running' ? "☾ Working while you're away" : '☾ While you were away'}</b>
-      <span className="muted">
-        started {clock(away.started_at)} · {lasted(away.started_at, away.ended_at)}
-      </span>
-      {share !== null && (
-        <span className="away-meter" aria-hidden="true">
-          <i style={{ width: `${share * 100}%` } as CSSProperties} />
-        </span>
-      )}
-      <span className="muted">
-        {away.spent == null
-          ? 'spent: not known'
-          : `${away.at_least ? 'at least ' : ''}${amount(away.spent, away.currency)}`}
-        {away.money != null && ` of ${amount(away.money, away.currency)}`}
-      </span>
-      {away.status === 'running' && (
-        <button
-          type="button"
-          className="btn btn-small"
-          disabled={busy}
-          onClick={() => void ask(() => useApp.getState().awayDo(away.id, 'stop'))}
-        >
-          Stop all
-        </button>
-      )}
-      {away.status === 'ended' && away.why && <span className="muted">{away.why}</span>}
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** A job that waits for you, or has a decision of yours on its row: a Take in, a Try again. */
-const needsYou = (away: Away, job: AwayJob) =>
-  job.state === 'waits' ||
-  (job.state === 'done' && job.kept.length > 0) ||
-  ((job.state === 'failed' || job.state === 'stopped') && away.status === 'ended' && !!job.task_id)
-
-/**
- * The To-do page's part of a night: one line, which opens on the strip and each job as it stands right
- * now - open by itself, never folded, while a job waits for your decision.
- */
-export function AwayNight({ away, onOpen }: { away: Away; onOpen: (cid: string) => void }) {
-  const night = (
-    <>
-      <Strip away={away} />
-      <WaitingForYou away={away} />
-      <ol className="away-jobs">
-        {away.jobs.map(job => (
-          <JobRow key={job.task_id ?? job.title} away={away} job={job} onOpen={onOpen} />
-        ))}
-      </ol>
-    </>
-  )
-  const done = away.jobs.filter(job => job.state === 'done').length
-  return (
-    <section className="memory-section" aria-label="While you're away">
-      {away.jobs.some(job => needsYou(away, job)) ? (
-        night
-      ) : (
-        // (Stop all is in the top bar too, while it runs.)
-        <details className="more">
-          <summary>
-            ☾ {away.status === 'running' ? "While you're away" : 'While you were away'}: {done} of {away.jobs.length}{' '}
-            done
-          </summary>
-          {night}
-        </details>
-      )}
-    </section>
   )
 }
 

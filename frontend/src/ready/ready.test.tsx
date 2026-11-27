@@ -196,8 +196,36 @@ test('a copy kept for Take in is KOLONİ’s card about its agent too: "for Code
   expect(screen.getByRole('group', { name: 'chat: for Coder · “Fix the login”' })).toBeInTheDocument()
 })
 
+test('N11: the Orchestrator’s kept copy says “Orchestrator” on its card as over it, never its record’s “Lead”', () => {
+  // (live, 27 Nov 2026: "for Orchestrator" over it, "Lead's changes did not reach the project" on it)
+  const kept: Merge = {
+    id: 'g',
+    run_id: 'rx',
+    agent_id: 'rx',
+    status: 'kept',
+    files: [
+      { path: 'a.txt', kind: 'new', state: 'ready', whole: false, diff: '', additions: 1, deletions: 0, note: null },
+    ],
+    kept_in: 'C:/copies/c',
+    check: null,
+    commit: null,
+    created_at: 't',
+    decided_at: null,
+  }
+  useApp.setState({ readyChats: { x: { ...other, commands: [], agents: [agent('rx', 'completed')], merges: [kept] } } })
+  render(<Shown page />)
+  const row = screen.getByRole('group', { name: 'chat: for Orchestrator · “Fix the login”' })
+  expect(
+    within(row).getByText("Orchestrator's changes did not reach the project — take in what it had changed? · 1 file"),
+  ).toBeInTheDocument()
+  expect(row).not.toHaveTextContent(/Lead/)
+})
+
 test('the page: the same list, by where it is from', async () => {
   render(<Shown page />)
+  // (On Work's tab Ready for you, its count the list's; To-do says none while it has no count.)
+  expect(screen.getByRole('tab', { name: 'Ready for you · 5', selected: true })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'To-do', selected: false })).toBeInTheDocument()
   const shows = screen.getByRole('group', { name: 'Show' })
   expect(
     within(shows)
@@ -238,7 +266,7 @@ test('the same decision everywhere: answered in Ready, another chat’s card is 
     async (url: string) =>
       new Response(
         JSON.stringify(
-          url.endsWith('/conversations/x')
+          url.endsWith('/conversations/x?turns=40')
             ? {
                 conversation: other.conversation,
                 messages: [],
@@ -281,7 +309,8 @@ test('the same decision everywhere: answered in Ready, another chat’s card is 
   expect(fetch.mock.calls.map(([url]) => String(url))).toEqual(
     expect.arrayContaining([
       expect.stringContaining('/api/commands/cmd/approve'),
-      expect.stringContaining('/api/conversations/x'),
+      // (its newest page, not the whole chat: an older turn that still waits comes with it)
+      expect.stringContaining('/api/conversations/x?turns=40'),
     ]),
   )
   await vi.waitFor(() => expect(screen.queryByRole('group', { name: 'chat: “Fix the login”' })).toBeNull())
@@ -293,9 +322,9 @@ test('the same decision everywhere: answered in Ready, another chat’s card is 
   expect(screen.queryByText('Which greeting?')).toBeNull()
 })
 
-test('the rail: Ready carries the badge, the total; no Board page (0.1.10)', () => {
+test('the rail: Work carries the badge, the total; no Board page (0.1.10)', () => {
   render(<Rail view="canvas" onView={vi.fn()} theme="dark" onToggleTheme={vi.fn()} waiting={5} />)
-  expect(screen.getByRole('button', { name: 'Ready' })).toHaveAccessibleDescription('5 waiting')
+  expect(screen.getByRole('button', { name: 'Work' })).toHaveAccessibleDescription('5 waiting')
   expect(screen.queryByRole('button', { name: 'Board' })).toBeNull()
   expect(screen.getAllByText('5')).toHaveLength(1)
 })
@@ -335,7 +364,7 @@ test('a chat answered here that asks again with the same Board row is read again
     'fetch',
     vi.fn(async (url: string) => {
       if (url.includes('/approve')) asking = { ...asking, status: 'approved' }
-      return new Response(JSON.stringify(url.endsWith('/conversations/x') ? snapshot() : {}), { status: 200 })
+      return new Response(JSON.stringify(url.endsWith('/conversations/x?turns=40') ? snapshot() : {}), { status: 200 })
     }),
   )
   // (The Board's row says "x" waits - before the decision, and the same again once it asks anew.)
@@ -364,7 +393,7 @@ test('a chat answered here that asks again with the same Board row is read again
       <Shown page />
     </>,
   )
-  const ready = screen.getByRole('button', { name: 'Ready' })
+  const ready = screen.getByRole('button', { name: 'Work' })
   expect(ready).toHaveAccessibleDescription('1 waiting')
   await userEvent.click(screen.getByRole('button', { name: 'Run once' }))
   await vi.waitFor(() => expect(ready).not.toHaveAccessibleDescription())

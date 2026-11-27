@@ -22,7 +22,7 @@
 </p>
 
 KOLONİ runs Claude Code, Codex, GitHub Copilot CLI and agy, plus a local llama.cpp server or
-any OpenAI-compatible API, side by side in one chat with a canvas. A lead hands parts of the job to
+any OpenAI-compatible API, side by side in one chat with a canvas. The Orchestrator hands parts of the job to
 roles; each sub-agent works in its own copy of your project; what it changed comes back on a card
 with the diff and your tests, and you take it in or discard it. Stop never loses half-done work.
 Secrets go only into the command that needs them.
@@ -39,8 +39,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 <td width="50%"><img src="docs/images/take-in.png" alt="The Ready for you panel asks: take the work into the project?"><br><sub><b>The card.</b> A team's work stays in its copy until you say Take in, or Ask for changes in your own words.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
-<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
+<td width="50%"><img src="docs/images/ready-morning.png" alt="Work the morning after a night while you were away, on its Ready for you tab beside To-do: the night&#39;s report with a row per job, and what waits for your word"><br><sub><b>The morning.</b> ☾ Away works your To-do through while you are away; Work's Ready for you says what was done and what waits for your word, your To-do on the tab beside it.</sub></td>
+<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: what the month cost in a sentence, its budget as ten cells, the last 30 days in a strip, and the table by provider and model"><br><sub><b>Usage.</b> What the month cost and how much of its budget is used, day by day; tokens, AI credits and plan windows as the CLIs reported them; nothing invented.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
@@ -66,36 +66,46 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 
 ## What is in the box
 
-- **Agents and teams**: roles, teams with stages (Plan → Build → Check → Write & keep up), recipes
-  (draw, copy, or describe in a sentence), discussions, Compare (one message to two
+- **Agents and teams**: roles, teams with stages (Plan → Build → Check → Write & keep up) - three ready
+  ones, Web app, Quality and Docs, and the Orchestrator opens any built-in role the work needs beside
+  them -, recipes (draw, copy, or describe in a sentence), discussions, Compare (one message to two
   models, each in its own copy). [Roles](docs/agents/roles.md) · [Teams](docs/agents/teams.md) · [Recipes](docs/agents/recipes.md)
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
   [Chat and canvas](docs/use/chat-and-canvas.md) · [Working copies](docs/use/workspace.md)
 - **Proven finish**: after a turn that changed the project, KOLONİ tests and checks the work itself;
   **Checked** under the answer says what passed and what did not. [What KOLONİ checked](docs/use/checked.md)
-- **Control**: cards for changes, commands, web and HTTP; a delete or a send off the machine asks at
-  every level, unless at Full auto **Check what I said first** finds a line of yours that allows it, or
-  you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); at
-  Full auto, **Full auto's judge** (a small model, on by default) refuses any other command it finds risky -
-  the agent goes on another way - or, with **Ask me**, puts it on a card; secret files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
+- **Control**: cards for changes, commands, web and HTTP; a send off the machine, a force push and a
+  delete out of the project or of all of it ask at every level (a send unless at Full auto **Check what I
+  said first** finds a line of yours that allows it); below Full auto a delete asks too, unless you let
+  agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); at Full
+  auto, **Full auto's judge** (a small model, on by default) looks at the rest - a plain delete in the
+  project and git work thrown away too - and refuses one it finds risky - the agent goes on another way - or,
+  with **Ask me**, puts it on a card; secret files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
   reaches only that command. [Permissions](docs/use/permissions.md) · [Security model](docs/security/model.md)
 - **Agents side by side**: each sub-agent in its own copy; a command that reaches another agent's copy,
   your linked `node_modules` or `.venv`, or stops programs by name asks at every level.
   [Working copies](docs/use/workspace.md#working-copies)
 - **Knowledge and memory**: experts learn from docs, a public GitHub repository or a folder on
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
-  and you approve. [Knowledge](docs/knowledge.md) · [Memory](docs/memory.md)
+  and you approve - one Memory page, with what the project knows and its sources, and one tool,
+  Recall, that looks in both. [Memory](docs/memory.md) · [Sources](docs/knowledge.md)
+- **Work**: one page of two tabs - **Ready for you**, what was done (the last ☾ Away's report), one list
+  of what waits for your word and what was decided for you; and your **To-do**; the Chats, Memory, Tools, Usage and
+  Settings pages say how each thing stands in the same honeycomb cells. [Ready for you](docs/use/ready.md)
 - **Work over time**: a To-do list of stories and their tasks and bugs - a rough note written
   as one by the Hive keeper - ticked tasks done in a chat one by one, at its level and on its model
-  (each story in a topic of its own with a short notebook, on a git branch of its own that is checked,
-  then merged or sent as a pull request when you close the story), with suggested tasks, and
+  (each story, and each task of no story, with a short notebook its turns go on from; each story in a
+  topic of its own, on a git branch of its own that is checked, then merged or sent as a pull request
+  when you close the story), with suggested tasks, and
   **☾ Away**: your To-do tasks worked through one at a time, each in its own copy - in a git repository
   on a branch of its own, its push waiting for your Run - until you are back, then one summary of what
   is done, decided and waiting.
   [To-do](docs/automation/todo.md) · [☾ Away](docs/automation/overnight.md)
-- **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
-  merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
+- **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too), its
+  worktree in your project's `.koloni/worktrees/`, and merged or sent as a pull request from the card,
+  carrying the agent's work alone; a push or a pull request you asked for in your message is one click on
+  a card that quotes you; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
 - **Money**: tokens and credits per run, plan meters for each CLI, and a monthly budget per project.
   [Usage and budgets](docs/money/usage.md)
@@ -160,9 +170,11 @@ The Docker image was built and run once. macOS: not yet. Details: [Install](docs
 ## Security
 
 - Listens on `127.0.0.1` only; a page key on every request; one user.
-- Risky steps wait for your card: harmful or shell-wrapped commands, secret files, and files that
-  steer agents (`.claude/`, `.git/`, `.mcp.json`, …) ask at every level, with a few exceptions for
-  CLIs run with their own tools ([Known limits](docs/reference/known-limits.md#secrets)).
+- Risky steps wait for your card: secret files, files that steer agents (`.claude/`, `.git/`,
+  `.mcp.json`, …) and commands that reach out of the project or off the machine ask at every level,
+  with a few exceptions for CLIs run with their own tools ([Known
+  limits](docs/reference/known-limits.md#secrets)); below Full auto every harmful or shell-wrapped
+  command asks too, and at Full auto Full auto's judge decides a plain delete in the project.
 - A secret given on a card goes only into that command's environment, never into the chat, the
   record or the model. A branch holding that turn's secret is deleted, not merged.
 - An agent's git on its branch runs none of your repository's hooks, and a pull request never pushes

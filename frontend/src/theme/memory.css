@@ -273,6 +273,243 @@ a.btn {
   outline-offset: 2px;
 }
 
+/* 0.1.10, as cells: the page's head - its title and line, the search, the three ways - then its two parts' tabs. */
+.memory-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+
+.memory-top h2 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-title);
+}
+
+/* How memory reaches an agent: one quiet strip, read left to right. */
+.memory-ways {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.memory-ways li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  font-size: var(--text-note);
+}
+
+.memory-ways li + li {
+  border-left: 1px solid var(--border);
+}
+
+.memory-ways b {
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+}
+
+/* A part's tab says what waits in it, in words. */
+.memory-badge {
+  color: var(--accent);
+  font-size: var(--text-note);
+}
+
+.memory-part {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.memory-part[hidden] {
+  display: none;
+}
+
+/* What waits for your word: the page's one honey box, only while something waits. */
+.memory-waits {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--accent-soft);
+}
+
+.memory-waits h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+/* What the project knows: the core and the journal at the left, your own words at the right. */
+.memory-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.memory-col,
+.memory-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.memory-col {
+  gap: 22px;
+}
+
+.memory-area-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.memory-area h3,
+.memory-area-head h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+/* The core's room: ten cells, filled as its facts take room. */
+.memory-room {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.memory-room .cell {
+  width: 11px;
+  height: 12px;
+}
+
+.memory-room .memory-count {
+  margin-left: 6px;
+}
+
+/* An area's records: rows in one box, a line between them. */
+.memory-rows {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.memory-rows > * + * {
+  border-top: 1px solid var(--border);
+}
+
+.memory-rows > .memory-record {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.memory-rows > p {
+  margin: 0;
+  padding: 12px;
+}
+
+.memory-row-line > .cell {
+  margin-top: 3px;
+}
+
+.memory-addrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.memory-rows > .memory-addrow {
+  border-top-style: dashed;
+}
+
+/* History, folded under the journal. */
+.memory-history > summary {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+  cursor: pointer;
+}
+
+.memory-history > .memory-panel {
+  margin-top: 10px;
+}
+
+/* Your own words: a paper look, apart from what agents wrote. */
+.memory-words {
+  gap: 14px;
+}
+
+.memory-paper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.memory-paper h4 {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+}
+
+.memory-why {
+  margin: 0;
+  font-size: var(--text-note);
+}
+
+/* (Its box is the paper, and its label the paper's heading: kept for a screen reader, not shown twice.) */
+.memory-paper .memory-form {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.memory-paper .memory-form > .field > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.memory-paper textarea {
+  font-family: var(--mono);
+}
+
+@media (max-width: 940px) {
+  .memory-grid,
+  .memory-ways {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .memory-ways li + li {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}
+
 /* The tabs, each a tab's one line and its own filters and buttons at the right. */
 .memory-tabs {
   padding: 0;
@@ -436,11 +673,6 @@ a.btn {
   background: var(--surface);
 }
 
-/* (The Hive keeper's box, closed: it stays mounted, so that a draft written is not lost.) */
-.backlog-add[hidden] {
-  display: none;
-}
-
 .backlog-add:focus-within {
   border-color: var(--accent);
 }
@@ -485,18 +717,6 @@ a.btn {
   color: var(--accent);
 }
 
-.todo-story .backlog-row-text {
-  overflow-wrap: anywhere;
-}
-
-.todo-depth-1 > .backlog-row {
-  padding-left: 32px;
-}
-
-.todo-section {
-  padding: 8px 12px 4px;
-}
-
 .todo-rename {
   display: flex;
   flex: 1;
@@ -509,7 +729,7 @@ a.btn {
   padding: 0;
 }
 
-.todo-notebook ul {
+.notebook-notes {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -517,32 +737,12 @@ a.btn {
   padding: 8px 12px;
   list-style: none;
   font-size: var(--text-meta);
+  overflow-wrap: anywhere;
 }
 
-/* What waits for your word: one line above the tabs, its notes unfolded under it. */
-.memory-waiting {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--warn);
-}
-
-.memory-waiting-line {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--warn);
-  font: inherit;
-  font-size: var(--text-note);
-  cursor: pointer;
-}
-
-.memory-waiting > .memory-section {
-  margin-top: 0;
+/* A note's kind: its word first, in the text's weight - no capitals. */
+.note-kind {
+  font-weight: var(--weight-strong);
 }
 
 .memory-section > h3 {
@@ -763,31 +963,6 @@ a.btn {
   align-self: flex-start;
   gap: 6px;
 }
-.away-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  border: 1.5px solid var(--tool-files);
-  border-radius: var(--radius-lg);
-  padding: 8px 12px;
-  margin-bottom: 8px;
-}
-.away-strip > b {
-  color: var(--tool-files);
-}
-.away-meter {
-  width: 140px;
-  height: 7px;
-  border-radius: 99px;
-  background: var(--border);
-  overflow: hidden;
-}
-.away-meter i {
-  display: block;
-  height: 100%;
-  background: var(--tool-files);
-}
 .away-status {
   display: inline-flex;
   align-items: center;
@@ -846,4 +1021,243 @@ a.btn {
 }
 .todo-dock-says {
   margin: 4px 0 0;
+}
+
+/* To-do as cards (0.1.10, Work's To-do tab): each story a card - its name, how many are done, a cell for each
+   task in a row of honeycomb, then its tasks each with its cell and how it stands. The card is one button. */
+.todo-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.todo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.todo-card:hover {
+  border-color: var(--border-strong);
+}
+
+.todo-card[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.todo-card-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.todo-card-name {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+  overflow-wrap: anywhere;
+}
+
+/* The comb: a cell for each task, every second one a half step lower. */
+.cell-comb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.cell-comb:empty {
+  display: none;
+}
+
+.cell-comb .cell:nth-child(even) {
+  margin-top: 6px;
+}
+
+.todo-card-tasks {
+  display: flex;
+  flex-direction: column;
+}
+
+.todo-card-task {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-body);
+}
+
+.todo-card-task:first-child {
+  border-top: 0;
+}
+
+.todo-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-card-state {
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.todo-is-done {
+  color: var(--ok);
+}
+
+.todo-is-yours {
+  color: var(--accent);
+}
+
+.todo-is-stuck {
+  color: var(--warn);
+}
+
+.cell-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.cell-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* The rough note, always in sight under the cards. */
+.hive-note textarea::placeholder {
+  color: var(--faint);
+}
+
+/* A story opened: its panel over the To-do tab, from the right - its facts, its notebook, its buttons, its tasks; the
+   cards it lies over still seen at its left on a wide window. */
+.todo-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(100%, 760px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px 28px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow-md);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .todo-panel {
+    animation: todo-panel-in 0.18s ease-out;
+  }
+}
+
+@keyframes todo-panel-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+.todo-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.todo-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.todo-panel-head h3 {
+  margin: 2px 0 0;
+  font-size: var(--text-title);
+  overflow-wrap: anywhere;
+}
+
+.todo-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 0;
+  font-size: var(--text-body);
+}
+
+.todo-facts dt {
+  color: var(--muted);
+}
+
+.todo-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-book {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.todo-book h4 {
+  margin: 10px 12px 0;
+  font-size: var(--text-body);
+}
+
+.todo-book > p {
+  margin: 4px 12px 0;
+  font-size: var(--text-note);
+}
+
+.todo-panel-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* (Its ☾ Do tonight stands with the other buttons, not pushed to the right as on the bar.) */
+.todo-panel-acts .away-chip-wrap {
+  margin-left: 0;
+}
+
+.todo-tick-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+.todo-half > .memory-page {
+  padding: 0;
+}
+
+/* On a narrow screen a story's panel takes the window. */
+@media (max-width: 980px) {
+  .todo-panel {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    z-index: 40;
+  }
 }

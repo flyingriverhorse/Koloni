@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
-import { part, Row } from './part'
+import { fromOf, Legend, Marked, part, Row, Said } from './part'
+import { notifySaid } from './said'
+import { USUAL } from './usual'
 
 /** This project › Notifications: whether an agent's notifications show on the desktop, and the day's summary. */
 export function useNotifications(project: Project, desktopAvailable: boolean) {
@@ -15,12 +17,17 @@ export function useNotifications(project: Project, desktopAvailable: boolean) {
     patch,
     true,
     <>
-      <h2>Notifications</h2>
-      <Desktop project={project} available={desktopAvailable} on={notifyDesktop} set={setNotifyDesktop} />
+      <Said title="Notifications">
+        {notifySaid({ notify_desktop: notifyDesktop, day_note_at: dayNote || null }, desktopAvailable)}
+      </Said>
+      <Marked from={fromOf(notifyDesktop, project.notify_desktop, USUAL.notify_desktop)}>
+        <Desktop project={project} available={desktopAvailable} on={notifyDesktop} set={setNotifyDesktop} />
+      </Marked>
       <Row
         label="Send the day’s summary at"
         htmlFor="day-note-at"
         doc={GUIDE.settingsNotifications}
+        from={fromOf(dayNote, project.day_note_at ?? '', '')}
         why="Once a day, by this computer’s clock: Usage’s Today numbers for this project as text, shown as a desktop notification. Counted from the record; no model is asked. Empty: not sent."
       >
         <input
@@ -31,6 +38,7 @@ export function useNotifications(project: Project, desktopAvailable: boolean) {
           onChange={e => setDayNote(e.target.value)}
         />
       </Row>
+      <Legend />
     </>,
   )
 }

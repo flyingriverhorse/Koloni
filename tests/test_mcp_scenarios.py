@@ -387,7 +387,7 @@ def test_a_scratch_a_servers_tool_makes_in_the_project_is_ignored_by_git(
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert calls(snap)["fake__mkdir"][0] == "succeeded"
     assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == (
-        "tmp/\n.gitignore\n"
+        "tmp/\n.gitignore\nworktrees/\ncopies/\n"
     )
 
 

@@ -36,7 +36,7 @@ test('the same line changed on both sides is asked about, the Coder’s own test
   // What runs before a sub-agent's work is added is said where the project's checks are: its own tests, no field (0.1.7).
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
-  await settings.getByRole('button', { name: /^Checks/ }).click()
+  await settings.getByRole('button', { name: /^When the work is done/ }).click()
   await expect(
     settings.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run in its working copy/),
   ).toBeVisible()

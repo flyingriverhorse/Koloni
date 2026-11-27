@@ -121,7 +121,7 @@ test('five rows, then Show all; each says when, who, where, what, the words it i
   expect(within(list).getAllByRole('listitem')).toHaveLength(5)
   const [first, second] = within(list).getAllByRole('listitem')
   expect(within(first).getByText('Orchestrator')).toHaveClass('who-orchestrator')
-  expect(first).toHaveTextContent('Fix loginnot seen')
+  expect(first).toHaveTextContent('Fix loginnew')
   expect(first).toHaveTextContent('Answered a question for you: Which database for the tests? → SQLite')
   expect(within(first).getByText('they make one in a temp folder').tagName).toBe('Q')
   // (a rule of yours: in its colour, and in words)
@@ -276,7 +276,9 @@ test('OK on a row not seen, and Change while its agent works: to the server, the
   await userEvent.click(within(card).getByRole('button', { name: 'Change → Postgres' }))
   expect(await screen.findByRole('status')).toHaveTextContent('Sent to the agent that asked, while it works')
   await userEvent.click(within(command).getByRole('button', { name: 'OK' }))
-  expect(calls()).toEqual([
+  // (each OK reads the project's board again too: the pill's and the chat's line's count, K1)
+  await vi.waitFor(() => expect(calls().filter(([url]) => url === '/api/board')).toHaveLength(2))
+  expect(calls().filter(([, method]) => method !== 'GET')).toEqual([
     ['/api/questions/q1/ok', 'POST', '{}'],
     ['/api/questions/q1/change', 'POST', JSON.stringify({ answer: 'Postgres' })],
     ['/api/commands/k2/seen', 'POST', '{}'],

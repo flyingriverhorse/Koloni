@@ -86,6 +86,10 @@ export interface ConvState {
   live: Record<string, AgentLive>
   /** How many files were put before you since this was read (`view.shown`): a file `show` named, or one a command made (R161). */
   shown: number
+  /** A long chat opens on its newest turns (`TURNS_PAGE`): how many older ones are not read yet, and the turn the next
+   *  page is read before (`loadEarlier`); 0 and null: every turn is here. */
+  older: number
+  olderFrom: string | null
 }
 
 /** What an agent's CLI says while it works (89j): its context's fill, and Codex's plan - its words are data. */
@@ -108,6 +112,8 @@ export function fromSnapshot(s: Snapshot): ConvState {
     summarisingAgents: [],
     live: {},
     shown: 0,
+    older: s.older ?? 0,
+    olderFrom: s.older_from ?? null,
   }
 }
 
@@ -218,12 +224,19 @@ function runEvent(state: ConvState, type: string, payload: unknown): ConvState |
     case 'run.thinking': {
       const { run_id, agent_id, summarising } = payload as { run_id: string; agent_id?: string; summarising?: boolean }
       if (summarising && agent_id)
-        return { ...state, summarisingAgents: [...without(state.summarisingAgents, agent_id), agent_id].sort() }
+        return {
+          ...state,
+          summarisingAgents: [...without(state.summarisingAgents, agent_id), agent_id].sort((a, b) =>
+            a.localeCompare(b),
+          ),
+        }
       return {
         ...state,
         thinkingRunId: run_id,
         thinkingAgentId: agent_id ?? null,
-        thinkingAgents: agent_id ? [...without(state.thinkingAgents, agent_id), agent_id].sort() : state.thinkingAgents,
+        thinkingAgents: agent_id
+          ? [...without(state.thinkingAgents, agent_id), agent_id].sort((a, b) => a.localeCompare(b))
+          : state.thinkingAgents,
       }
     }
     default:

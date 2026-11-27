@@ -31,7 +31,7 @@ hand. A file KOLONİ cannot read is listed with the reason.
 - **Ids**: letters, digits, `_` and `-`, at most 40. `start` is the user's message.
 - **steps** (at most 60): `id`, `name`, `who`, and optionally `done_when` (`done` or `no_findings`),
   `if_fails` (`ask` or `stop`), `ask_me` (true or false), `group` (a group's id), `when` (`"problem"`:
-  only if the step before found a problem), `pos` (`{"x", "y"}` on the board).
+  only if the step before found a problem), `pos` (`{"x", "y"}` in the recipe editor).
 - **who** is one of:
     - `{"role": "Coder", "most": 2}`: a role, with at most 1 to 5 agents;
     - `{"team": "Web app"}`: a team's stages;
@@ -86,6 +86,8 @@ Instructions for the agent.
 | `knowledge/` | Knowledge topics: each one's guide; the pages read are kept out of git. |
 | `shared/` | Files teams share while they work; kept out of git. |
 | `tmp/` | The agents' scratch space; kept out of git. The copies of images an agent looked at (`tmp/images/`) and the browser's screenshots go after a week, as new ones come. |
+| `worktrees/` | KOLONİ's git worktrees for a branch's agents (a ☾ Away job, a team on a branch), each KOLONİ's in a folder of its own; kept out of git by the repository's `.git/info/exclude` and by `.koloni/.gitignore` ([where](../use/workspace.md#where-copies-and-worktrees-are)). |
+| `copies/` | Sub-agents' working copies, in a project with no git only; likewise. |
 
 `settings.json` holds only these keys:
 

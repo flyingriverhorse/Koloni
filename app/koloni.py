@@ -154,26 +154,36 @@ def save_rules(root: str, rules: str | None) -> None:
 
 # What `.koloni/.gitignore` holds for the scratch: the scratch, and the file itself - so that
 # neither shows in `git status` (`?? .koloni/`) where the user keeps no other `.koloni` file.
-# (Not `.git/info/exclude`: KOLONİ would write into the user's `.git`, which in a linked
-# worktree is a file pointing elsewhere.)
-IGNORED = ("tmp/", ".gitignore")
+# (Not `.git/info/exclude`: a folder with no git gets a scratch too. KOLONİ's worktrees and
+# copies in `.koloni/` are told to the repository's own too, where git is: `copy_git.exclude`.)
+# K-koloni-alan: and those two - a git-less project's copies stay ignored if it gets git later.
+IGNORED = ("tmp/", ".gitignore", "worktrees/", "copies/")
 
 
 def scratch(root: str, made: bool = False) -> None:
     """Make the agents' scratch, `.koloni/tmp/` (`SCRATCH`), where KOLONİ needs it - or, `made`,
     only where an agent made it already (a look after its command or write) - and have git
-    ignore it by `.koloni/.gitignore` (`IGNORED`, each line added once, the file's other lines
-    kept). Never on opening a folder: an untouched project gets no `.koloni/`. A folder that
-    cannot take it (a link, read-only) is left as it is: the scratch is a convenience."""
+    ignore it by `.koloni/.gitignore` (`ignored`). Never on opening a folder: an untouched project
+    gets no `.koloni/`. A folder that cannot take it (a link, read-only) is left as it is: the
+    scratch is a convenience."""
     with contextlib.suppress(Refused, OSError):
         place = project_files._where(Path(root).resolve(), SCRATCH)
         if made and not place.is_dir():
             return
         place.mkdir(parents=True, exist_ok=True)
-        text, why = _text(root, f"{FOLDER}/.gitignore")
-        lines = (text or "").splitlines()
-        if why is None and (missing := [line for line in IGNORED if line not in lines]):
-            write(root, ".gitignore", "\n".join([*lines, *missing]))
+        ignored(root)
+
+
+def ignored(root: str) -> None:
+    """`.koloni/.gitignore` holds each line of `IGNORED`: one missing is added after what it holds,
+    whose bytes stay as they are - never through a link, nor over another name of a file elsewhere
+    (`_where`, `write`). One that is not UTF-8 text is left as it is."""
+    with contextlib.suppress(Refused, OSError, UnicodeDecodeError):
+        place = project_files._where(Path(root).resolve(), f"{FOLDER}/.gitignore")
+        body = place.read_bytes().decode("utf-8") if place.is_file() else ""
+        if missing := [one for one in IGNORED if one not in body.splitlines()]:
+            ends = "" if not body or body.endswith("\n") else "\n"
+            write(root, ".gitignore", body + ends + "\n".join(missing))
 
 
 def instructions(root: str, part: str = "") -> str:

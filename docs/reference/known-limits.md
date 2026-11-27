@@ -81,9 +81,13 @@ messages.
   the version it runs. Only Windows was measured.
 - A sub-agent on Claude Code run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
-  script) changes the project directly. KOLONİ looks at the project after each of its commands and
+  script) changes the project directly. So do those of GitHub Copilot CLI run **Native** where it works
+  in a working copy and its session has no sandbox - this machine cannot give it one, or the project
+  does not hide its secret files. KOLONİ looks at the project after each of its commands and
   records such a change as made in the project by an unknown maker - one look over the project's files
-  each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows).
+  each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows). With several such
+  agents at work at once, a change can be recorded more than once - by each one's look that finds it,
+  under its own agent; only the record changes, not your files.
 - With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
   failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
   started" at the same 11 minutes.
@@ -109,6 +113,40 @@ messages.
   repository's. A submodule's own changes are not taken into a branch.
 - A junction deep inside a new folder is not taken, but git reads through it while the branch is made;
   one that leads to a large folder can make the branch start from your last commit instead.
+- A branch's start from your folder, and a ☾ Away job's commit on its branch, leave a file out by its
+  name alone: a secret's name (`.env`, `.env.local`, `env.production`, a key file, `credentials.json`,
+  `client_secret….json`, `serviceAccountKey.json`, `.secrets`, `secret.txt`, `access_token.txt`), a
+  data file named `credentials`, `api_keys` / `api-key` or `token` (`.json`, `.yaml`, `.toml`,
+  `.txt`), a copy of a `.env` but `.env.example` (`.env.sample`, `.env.template`,
+  `.env.local.example`), and what is in a folder named `credentials` or `secrets` but source code and
+  docs. Code and Markdown so named go in (`credentials.py`, `api-keys.ts`, `tokens.py`), and so does
+  `tokens.json` (design tokens). A team's pull request asks first for every such file. A secret under
+  any other name - `password.txt`, `.vault_pass`, an npm token in `.yarnrc.yml`, a name spelt with a
+  look-alike letter - is left out only where it holds one KOLONİ knows. A file in a folder named like
+  an installed one (`venv`, `node_modules`, `site-packages`) is never judged by its name. In a
+  `credentials` or `secrets` folder a config, data or text file is left out even where it is no
+  secret (`secrets/README`, `k8s/secrets/deployment.yaml`), and so is a test's
+  `tests/fixtures/credentials.json`. A team's or a story's branch commits what its agents wrote under
+  such a name: its merge stays on this machine. A file left out is never deleted.
+- A branch's worktree, and in a project with no git a copy, is in the project's own `.koloni/`
+  ([where](../use/workspace.md#where-copies-and-worktrees-are)): a CLI started there reads your
+  project's `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` from the folders above it as well as the copy's own -
+  the same words twice (a `.claude/` folder of the project's above it is not measured). A copy of a
+  project that gets git after the copy was made has no `.git` of its own: git started there as KOLONİ
+  starts it finds no repository (it looks no higher than the copies folder; measured with git 2.53),
+  but a command that clears git's environment would reach the new one. The next copy is made outside
+  the project.
+- A command a script runs in your project's root (`rg x`, `grep -r x .`) reads KOLONİ's copies and
+  worktrees in `.koloni/` too, where your search tools do not: a secret file in one counts as the
+  project's for such a search's card.
+- `git clean -fdx` in the project removes KOLONİ's records of its worktrees under `.koloni/` (what
+  each was made from, its hooks folder); `-ffdx` removes the worktrees themselves. A worktree whose
+  record is gone is left as it is at the next start - with its uncommitted work, and git's record
+  of it - for you to look at and delete. An agent that deletes that record of its own worktree
+  (a command in it can reach the folder beside it) keeps it there the same way.
+- A command row that names an agent's own tree by its full path may still say "Names .koloni…" on
+  the page, though it ran with no card: the page reads the line again without knowing whose tree it
+  is.
 
 ## GitHub
 
@@ -129,9 +167,13 @@ messages.
 - [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
     - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
       at Full auto before the judge.
-    - Text aimed at the judge inside a command or a program an agent wrote can still sway the model:
-      the judge is told it is an agent's data, and a few known phrases make a card without asking,
-      but other wordings reach it.
+    - Text aimed at the judge inside a command, an agent's earlier action (a file it wrote, the
+      arguments of a tool it called) or a program an agent wrote can still sway the model: the judge
+      is told it is an agent's data, and a few known phrases make a card without asking, but other
+      wordings reach it. What a tool gave back - a file read, a command's output, a page - never
+      reaches it; but an agent can copy such text into what it writes.
+    - It reads the same agent's last 8 actions, each cut to 300 characters: an earlier one, or what an
+      action held past its first 300 characters, is not seen.
     - Hidden work may not be seen: a tool an agent changed but did not write, a program past its first
       4 KB, a program that imports another file.
     - Test runners and build tools load the project's test and settings code by design - a
@@ -148,18 +190,53 @@ messages.
       working copy (or with `PYTHONPATH` set), a runner KOLONİ does not know, a file it did not find, a
       folder it does not know - is asked about every time, and its card has no box: it fails closed, at
       the cost of more questions.
-    - A command the judge could not look at - too long, orders in it, no room to ask, no answer in time
-      or none it could read, its program changed while it looked - is never kept: a Run on its card
-      runs it once, and its card has no box.
+    - A command the judge could not look at - too long, orders in it, no model to ask or no room to ask,
+      no answer in time or none it could read, its program changed while it looked - is never kept: a
+      Run on its card runs it once, and its card has no box. With no model to ask at all, every command
+      it would look at is such a card (it fails closed): pick a Judge model, or turn the judge off.
     - What a kept program imports in turn is not looked at - not even a file in its folder that shadows
       a standard module (a `json.py` beside `x.py`): a changed import does not make `python x.py`
       another line.
     - For a CLI run **Native**, KOLONİ - and so the judge - sees only the command the CLI reports.
     - Each command it looks at waits for one model request and a few seconds; where only a CLI can be
       asked, from that CLI's quota, and each such command waits for the CLI to start.
+    - A narrow **Always run** rule (`npm run build`, `make build`) lets its very line by with no
+      judge, at the project's root, as Claude Code's auto mode does: what that script, target or
+      tool then runs - a `package.json` script or a Makefile recipe you wrote, a script that recipe
+      calls, a tool's settings - is not looked at (a Makefile, a `package.json` or a script it is
+      handed that an agent wrote is). A broad rule (`npm`, `make`, `python`, `pytest -x`, `npm
+      install`, `docker run`, `git remote`) does not; a sub-command KOLONİ does not list as taking
+      whatever it is handed counts as narrow.
+    - A file an agent made with a command - `cp`, `tar`, `git clone`, a download - is not on record
+      as the agent's: a narrow rule whose line runs it, or the user's own test command, lets it by
+      with no judge, and the judge is not shown its text.
+    - Three refusals in a row ask you; any command of the turn that starts ends a row - an agent
+      that runs something harmless between refusals is asked only at 20 refusals in the turn.
+    - Since 0.1.10 it decides a delete in the project, git work thrown away and a stop by name,
+      written as a plain line, in place of the list's card (in a chat you watch at Full auto, its
+      switch on): a "fine" there deletes
+      with no card. KOLONİ looks at the disk on the way to what a delete names (a link or a junction
+      there is a card), not inside a folder it deletes - a link deep in one is not looked at -, and the
+      judge can be led to call a delete fine that it should not: a file of yours written over
+      first and then deleted as the agent's own, work moved into the scratch and then deleted, a path
+      that only looks like a build folder (`build/../src`). Run once on such a card keeps nothing.
+    - cmd's `rd /s /q x` and `del /s x` stay the list's card at Full auto, the judge on too: their `/s`
+      and `/q` read as paths from the drive's root. So does any delete that is not a plain line - a
+      quote, an escape, a wildcard, a pipe, a wrapper (`bash -c "rm -rf build"`, `sudo`, `… | xargs
+      rm`) -, even where its target is plainly in the project; and a `\` is a path's separator only in
+      KOLONİ's own PowerShell, so a CLI's `del src\app.py` is a card. A plain delete beside any
+      command that is not one (`rm -rf build; npm install`), git's work where the project is not its
+      repository's top folder, and a Windows short name (`ENV~1`) are cards too.
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.
+- `.koloni/`'s free folders (`tmp/`, `worktrees/`, `copies/`) are told apart by how a path is spelt:
+  `.koloni/t*`, a short name (`KOLONI~1`) or `.koloni/./tmp` is `.koloni`, and asked; and a `cd` into
+  one is free only plainly spelt, by a relative path, at the line's start - `git -C <a tree>` or `cd
+  /d …` is asked. A look into a worktree or copy from outside it is told from a write by the programs
+  the line runs (readers, listers, searches, no redirection). An agent's own tree by its full path is
+  known by how it is spelt there (a short name is not). A link inside a free folder is written through
+  as it is spelt: KOLONİ does not resolve it when it reads the line.
 - Commands cannot be given input while they run.
 - In Docker on Linux and macOS, commands run as your user, not as root. A command that needs root in
   the container, such as `apt-get install`, fails. On Linux, files an older version of KOLONİ made as
@@ -210,8 +287,10 @@ messages.
 - A line whose folder its CLI did not say does not run: **Reject** it, or run it yourself.
 - Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
   said **Run** run in the project itself.
-- A job tried twice parked its lines in two copies: each line runs in its own, the going-on turn in the
-  newest.
+- A job tried twice in a copy (not on a branch) keeps each try's copy: each line runs in the copy it
+  was parked in, and the going-on turn goes on in the newest copy any of its lines was parked in - a
+  try that parked nothing keeps its copy for your Take in. A job that parked only questions goes on in
+  the newest copy the turns that asked them kept.
 - KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
   again - **Try again** works it in its chat.
 - `git` in the middle of a line - `cd sub && git push` - needs the project: Take in first; in a copy
@@ -254,8 +333,8 @@ messages.
   cleans them up (`git gc`).
 - Your own `pre-commit` and `pre-push` hooks run neither for the job's commits nor for KOLONİ's push.
 - KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
-  apart from one holding a secret KOLONİ knows (left out, and its push row says so) or a new file your
-  project already has.
+  apart from one holding a secret KOLONİ knows or named as one (left out, and its push row says so) or
+  a new file your project already has.
 - The branch's name is told to the job before its worktree is made: where a branch of that name was
   there already, the worktree is on the next free name, and its row says which.
 

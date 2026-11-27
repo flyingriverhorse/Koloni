@@ -36,7 +36,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import backup as backups
-from app import earlier, mcp_client, models_dev, raw, secret_set, web
+from app import copies, earlier, mcp_client, models_dev, raw, secret_set, web
 from app.agent import (
     AgentRunner,
     recover_copies,
@@ -91,7 +91,7 @@ from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
 from app.clock import Clock
 from app.config import Settings, load_settings
-from app.db.models import Agent, Flag, McpServer, Provider, now
+from app.db.models import Agent, Flag, McpServer, Project, Provider, now
 from app.db.session import (
     back_up_daily,
     make_engine,
@@ -408,7 +408,10 @@ def create_app(
     closed_nights: list = []
     recover_interrupted(factory, closed_nights)
     # No turn outlives the process: a working copy that is still there is deleted -
-    # unless it holds changes that never reached the project.
+    # unless it holds changes that never reached the project. (K-koloni-alan: each project's own
+    # `.koloni/` is looked in too - its worktrees, and its copies where it has no git.)
+    with factory() as session:
+        copies.register(settings.runtime_root, *session.scalars(select(Project.root_path)))
     recover_copies(factory, settings.runtime_root)
     sweep_homes(settings.runtime_root / "agy-home")  # (as `providers` names it for agy)
     # (Copilot's session homes and Codex's threads no agent goes on in: 0.1.8)

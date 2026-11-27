@@ -7,7 +7,7 @@ import { type AwayJobData, deriveGraph } from '../canvas/deriveGraph'
 import { AwayJobNode } from '../canvas/nodes'
 import { useApp } from '../state/store'
 import { agent, convState, run, userMessage } from '../test-fixtures'
-import { AwayFrom, AwayNight, AwayOffer, AwayReport, AwayStatus, AwaySummary } from './Away'
+import { AwayFrom, AwayOffer, AwayReport, AwayStatus, AwaySummary, JobRow } from './Away'
 
 const job = (over: Partial<AwayJob>): AwayJob => ({
   title: 'job',
@@ -22,6 +22,7 @@ const job = (over: Partial<AwayJob>): AwayJob => ({
   kept: [],
   files: [],
   taken: [],
+  discarded: [],
   shared: [],
   kept_out: [],
   asks: [],
@@ -90,6 +91,17 @@ test('the top bar says which To-do task of how many and until when, with I’m b
   expect(screen.queryByRole('button', { name: 'Stop all' })).toBeNull()
 })
 
+/** A night's jobs as rows, as a report lists them (0.1.10: To-do's own part of the night is gone). */
+function Night({ away, onOpen }: { away: Away; onOpen: (cid: string) => void }) {
+  return (
+    <ol>
+      {away.jobs.map(one => (
+        <JobRow key={one.task_id ?? one.title} away={away} job={one} onOpen={onOpen} />
+      ))}
+    </ol>
+  )
+}
+
 test('each job as it stands: what waits is answered here, what is done is taken in by you, what failed is tried again once the night is over', async () => {
   const { awayDo, answerAsk, takeIn } = stub()
   const ask = { kind: 'commands' as const, id: 'k1', text: 'Coder asks to run "npm test"' }
@@ -111,7 +123,7 @@ test('each job as it stands: what waits is answered here, what is done is taken 
     ],
   })
   const onOpen = vi.fn()
-  render(<AwayNight away={night} onOpen={onOpen} />)
+  render(<Night away={night} onOpen={onOpen} />)
   const row = (name: RegExp) => screen.getByRole('listitem', { name })
   expect(row(/^one: Done/)).toHaveTextContent('2 files in its copy, waits for you')
   expect(row(/^one: Done/)).toHaveTextContent('Its copy changed src/payments/x.py, where you said not to')
@@ -151,7 +163,7 @@ test('a job row while the night runs: what it spent, what it does now, its view,
     ],
   })
   const onOpen = vi.fn()
-  render(<AwayNight away={night} onOpen={onOpen} />)
+  render(<Night away={night} onOpen={onOpen} />)
   const row = (name: RegExp) => screen.getByRole('listitem', { name })
   const one = row(/^one: Done$/)
   expect(one.querySelector('.away-line')).toHaveTextContent('1 file in its copy, waits for you · 0.50 USD')
@@ -356,7 +368,7 @@ test("a Take in that is refused (a line clashes) opens the job's chat, where its
   useApp.setState({ takeIn: vi.fn(async () => Promise.reject(new Error('say whose side is taken of: a.py'))) })
   const onOpen = vi.fn()
   render(
-    <AwayNight
+    <Night
       away={card({
         status: 'ended',
         jobs: [
@@ -388,7 +400,7 @@ test('a job that waits says its command once, and one that needs the project its
       }),
     ],
   })
-  render(<AwayNight away={night} onOpen={vi.fn()} />)
+  render(<Night away={night} onOpen={vi.fn()} />)
   expect(within(screen.getByRole('listitem', { name: /^two/ })).getAllByText(ask.text)).toHaveLength(1)
   await userEvent.click(
     within(screen.getByRole('listitem', { name: /^build/ })).getByRole('button', { name: 'Take in' }),
@@ -396,7 +408,7 @@ test('a job that waits says its command once, and one that needs the project its
   expect(takeIn).toHaveBeenCalledWith(['m2'])
 })
 
-test("the report says apart what a job's copy changed in a place kept out, and a night with nothing for you folds to one line", () => {
+test("the report says apart what a job's copy changed in a place kept out", () => {
   stub()
   const night = card({
     status: 'ended',
@@ -405,15 +417,12 @@ test("the report says apart what a job's copy changed in a place kept out, and a
     slipped: [{ task_id: 't1', what: 'one: changed src/payments/x.py in its copy' }],
     jobs: [job({ title: 'one', task_id: 't1', state: 'done' })],
   })
-  const { unmount } = render(<AwayReport away={night} onOpen={() => {}} />)
+  render(<AwayReport away={night} onOpen={() => {}} />)
   expect(screen.getByText('Coder: run rm secret - refused')).toBeInTheDocument()
   expect(screen.getByText('one: changed src/payments/x.py in its copy')).toBeInTheDocument()
-  unmount()
-  render(<AwayNight away={night} onOpen={() => {}} />)
-  expect(screen.getByText('☾ While you were away: 1 of 1 done').closest('details')).not.toHaveAttribute('open')
 })
 
-test('a night job that waits keeps the night open, even with no question on its row', () => {
+test('a night job that waits, even with no question on its row, has the way to its chat', () => {
   stub()
   const night = card({
     status: 'running',
@@ -422,9 +431,7 @@ test('a night job that waits keeps the night open, even with no question on its 
       job({ title: 'two', task_id: 't2', conversation_id: 'c3', state: 'waits', why: 'Waits for you in its chat' }),
     ],
   })
-  render(<AwayNight away={night} onOpen={vi.fn()} />)
-  const region = screen.getByRole('region', { name: "While you're away" })
-  expect(region.querySelector('details')).toBeNull()
+  render(<Night away={night} onOpen={vi.fn()} />)
   expect(
     within(screen.getByRole('listitem', { name: 'two: Waits for you' })).getByRole('button', { name: 'Open its chat' }),
   ).toBeVisible()
@@ -638,12 +645,30 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
     checks: 'green' as const,
     origin: 'https://***@example.com/x.git',
     moved: [],
+    gone: false,
     ...over,
   })
   const night = card({
     status: 'ended',
     jobs: [
       job({ title: 'one', task_id: 't1', state: 'done', mode: 'push', branch: branch({}) }),
+      // N12: taken in, its branch deleted - no commits of it, nor "merge it with git"; what moved outside it stays
+      job({
+        title: 'four',
+        task_id: 't4',
+        state: 'done',
+        mode: 'branch',
+        taken: ['t.txt'],
+        branch: branch({ gone: true, why: 'git said no', moved: ["git's config changed during the job"] }),
+      }),
+      job({
+        title: 'five',
+        task_id: 't5',
+        state: 'done',
+        mode: 'branch',
+        discarded: ['t.txt'],
+        branch: branch({ gone: true }),
+      }),
       job({
         title: 'two',
         task_id: 't2',
@@ -654,7 +679,7 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
       job({ title: 'three', task_id: 't3', state: 'done', mode: 'copy', mode_why: 'HEAD is detached' }),
     ],
   })
-  render(<AwayNight away={night} onOpen={() => {}} />)
+  render(<Night away={night} onOpen={() => {}} />)
   const row = (name: RegExp) => screen.getByRole('listitem', { name })
   expect(row(/^one/)).toHaveTextContent('On branch koloni/x-ab12 · 2 commits · 2 files · checks ✓')
   expect(row(/^one/)).not.toHaveTextContent('No remote')
@@ -664,4 +689,13 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
     'away-shared',
   )
   expect(row(/^three/)).toHaveTextContent('In a copy: HEAD is detached')
+  expect(row(/^four/)).toHaveTextContent('taken in: t.txt')
+  expect(row(/^four/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was taken in.')
+  expect(row(/^four/)).not.toHaveTextContent(/On branch|commits|No remote|git said no/)
+  expect(within(row(/^four/)).getByText("git's config changed during the job").className).toBe('away-shared')
+  // (a discarded job changed something: not "Done, nothing changed" - B-122's word for one that did not)
+  expect(row(/^five/)).toHaveAccessibleName('five: Done')
+  expect(row(/^five/)).toHaveTextContent('discarded: t.txt')
+  expect(row(/^five/)).not.toHaveTextContent('nothing changed')
+  expect(row(/^five/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was discarded.')
 })

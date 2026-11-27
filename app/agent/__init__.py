@@ -223,6 +223,7 @@ from app.agent.merge import writes_nothing as writes_nothing
 from app.agent.native_mixin import COLLABORATION_TOOLS as COLLABORATION_TOOLS
 from app.agent.native_mixin import REPORT_SCHEMA as REPORT_SCHEMA
 from app.agent.native_mixin import NativeMixin
+from app.agent.not_applied import not_applied
 from app.agent.observe_mixin import KEEP_CARDS as KEEP_CARDS
 from app.agent.observe_mixin import LEAD_COMMAND as LEAD_COMMAND
 from app.agent.observe_mixin import UNREAD_TOLD as UNREAD_TOLD
@@ -330,6 +331,7 @@ from app.agent.words import (
     SAME_MESSAGE,
     SECRET_IN_COPY,
     SHARED_WITH_PROJECT,
+    SOME_NOT_HERE,
     STEERED,
     TEAM_STOPPED,
     TESTS_TAIL_LINES,
@@ -351,7 +353,6 @@ from app.commands import (
     POWERSHELL,
     OutputMask,
     copy_reason,
-    disposable_targets,
     hide_keys,
     installs,
     is_allowed,
@@ -442,8 +443,9 @@ from app.workspace import (
     WorkspaceError,
     home_of,
     is_kept_code,
-    is_secret,
+    judged_in,
     listed_folder,
+    secret_in_push,
     secret_named,
     sha256_text,
     stands_over_later_turns,
@@ -893,10 +895,6 @@ IN_A_SIDE = (
     "your changes stay in your copy: the user compares your work with another model's and "
     "takes one side's into the project"
 )
-NOT_APPLIED = (
-    "These changes of {name}'s were not applied to the project: {files}. Do not go on "
-    "as if they were there"
-)
 TURNED_DOWN = (
     "the user discarded them - their decision, not an error: do not make these changes "
     "again yourself; ask what they would like instead"
@@ -906,19 +904,8 @@ KEPT = (
     "of it and took is in the project; whatever else it holds is not, and is kept in "
     "{folder} for the user to look at"
 )
-MEANWHILE = "changed in the project meanwhile"
 # What became of a file both sides changed, where the user said the project's is kept.
 KEPT_THE_PROJECTS = "the project's own file was kept: the user chose it"
-PROJECTS_LINES = (
-    "In {files} the user kept the project's own lines where {name} had changed the same "
-    "ones: {name}'s version of those lines is not there."
-)
-# Of a file taken together with the project's own changes (B-59: the user's line was taken
-# for the agent's). Each file with the lines of it that are the project's, where it added any.
-THEIRS_KEPT = (
-    "In {files} the project's own changes made meanwhile were kept beside {name}'s: they "
-    "are not {name}'s doing."
-)
 # The project's check command, run in the copy on what is about to be taken: as long as
 # any command may run (`CommandRunner.longest`), and this much of the end of what it wrote goes
 # on the card.
@@ -1125,6 +1112,13 @@ def _held_to_run(role: Role | None, step: str, tools) -> bool:
     return "run_command" in tools and (
         step in TEST_STEPS or (role is not None and role.builtin and role.name == "Tester")
     )
+
+
+def _whole_branch(only: list[str] | None, on_branch: dict | None) -> None:
+    """L3: a branch's copy kept over a crash has a card with no `branch`, and goes in whole:
+    `git.Refused` where Take in names some of its files (`only`)."""
+    if only is not None and on_branch:
+        raise git.Refused(SOME_NOT_HERE)
 
 
 class AgentRunner(
@@ -1509,7 +1503,6 @@ class AgentRunner(
         self._judge_refused: dict[str, tuple[int, int]] = {}
         # Full auto's judge: run -> a line's key -> its record or "approved"; -> why it stood aside
         self._risk_cache: dict[str, dict[tuple, dict | str]] = {}
-        self._risk_aside: dict[str, str] = {}
         # K-fullauto-sorma: run -> how often a failing check went back to the Lead (`_merge`).
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}
@@ -2292,7 +2285,6 @@ class AgentRunner(
         self._judge_cache.pop(run_id, None)
         self._judge_refused.pop(run_id, None)
         self._risk_cache.pop(run_id, None)
-        self._risk_aside.pop(run_id, None)
         self._check_rounds.pop(run_id, None)
         self._away_cut.pop(run_id, None)
         if (timer := self._away_timers.pop(run_id, None)) is not None:
@@ -2968,7 +2960,7 @@ class AgentRunner(
         self._release(owner)
 
     async def decide_kept(
-        self, merge_id: str, decision: str, choices: dict[str, str] | None = None
+        self, merge_id: str, decision: str, choices: dict | None = None, only: list | None = None
     ) -> bool:
         """The user's decision on a working copy that was kept (its merge is
         "interrupted"): its turn is over, so only files and their records move - no
@@ -2981,12 +2973,12 @@ class AgentRunner(
         nothing to apply or the copy is not read at all (its tree is a link) - such a
         copy is only to discard. One with nothing to say what it was made from is taken
         as its card showed it: against the project alone (`copies.kept`). `choices`:
-        whose side is taken of each file that clashes (`_join`)."""
+        whose side is taken of each file that clashes (`_join`); `only`: Apply takes those alone."""
         if merge_id in self._deciding:
             return False  # a decision on it is being carried out: that one is the decision
         self._deciding.add(merge_id)
         try:
-            return await self._decide_kept(merge_id, decision, choices or {})
+            return await self._decide_kept(merge_id, decision, choices or {}, only)
         finally:
             self._deciding.discard(merge_id)
 
@@ -2998,17 +2990,23 @@ class AgentRunner(
         times: dict,
         choices: dict[str, str],
         unattended: bool,
+        only: list[str] | None,
     ) -> None:
-        """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
+        """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none - of
+        `only`, those alone."""
         taken = None
         async with self._way_in(copy.project), self._looks_held(copy.project):
             # What a merge comes to is kept in memory alone, and this may be another
             # process than the one that showed the card: made again, off the event loop.
             await asyncio.to_thread(_look_again, copy, files, times, choices)
-            # All of the card or none of it: one file shown again, and nothing is taken.
-            if not [one for one in files.values() if one.pop("again", False)]:
-                self._join(copy, files, choices)
-                taken = self._apply(ctx, copy, files, True, unattended=unattended, choices=choices)
+            chosen = files if only is None else {p: one for p, one in files.items() if p in only}
+            # All of what is taken or none of it: one file shown again, and nothing is taken.
+            if not {path for path, one in files.items() if one.pop("again", False)} & set(chosen):
+                self._join(copy, chosen, choices)
+                taken = self._apply(ctx, copy, chosen, True, unattended=unattended, choices=choices)
+                # (One the copy no longer changes left `chosen` there: it leaves the card too.)
+                for gone in [path for path in only or () if path in files and path not in chosen]:
+                    del files[gone]
         if taken is not None:
             await self._seen_by_watchers(ctx, taken)
         for one in files.values():  # shown again: labelled as a kept copy's files are
@@ -3027,9 +3025,10 @@ class AgentRunner(
                 merge.check = {**merge.check, "stale": _is_stale(merge.check, files)}
             changes = []
             if not left:
+                # (A Discard after a Take in of some of it: what was taken is the card's.)
                 taken = any(one["state"] == "applied" for one in files.values())
                 merge.status = (
-                    "rejected" if decision == "reject" else "applied" if taken else "discarded"
+                    "applied" if taken else "rejected" if decision == "reject" else "discarded"
                 )
                 merge.kept_in = None
                 closed = select(FileChange).where(
@@ -3061,7 +3060,9 @@ class AgentRunner(
             ]
         return applied, payloads
 
-    async def _decide_kept(self, merge_id: str, decision: str, choices: dict[str, str]) -> bool:
+    async def _decide_kept(
+        self, merge_id: str, decision: str, choices: dict[str, str], only: list[str] | None
+    ) -> bool:
         # shortcut: compared and written on the event loop, as a live card's Apply is;
         # hand it to a thread if a large kept copy is felt.
         runtime = self.settings.runtime_root
@@ -3093,6 +3094,7 @@ class AgentRunner(
             tree, recorded, part = _kept_as(session, agent.id, copies.place(runtime, name))
             on_branch = _kept_branch(session, agent.id, copies.place(runtime, name))
             times = _last_changes(session, _line_on_record(session, agent.id))
+        _whole_branch(only, on_branch)
         # What Apply was asked for: the folder goes only when all of that was taken.
         asked = [path for path, one in files.items() if one["state"] in OPEN]
         copy = None
@@ -3105,7 +3107,7 @@ class AgentRunner(
                 )
             except (OSError, ValueError):
                 return False
-            await self._kept_taken(ctx, copy, files, times, choices, unattended)
+            await self._kept_taken(ctx, copy, files, times, choices, unattended, only)
         # (A file the copy no longer changes has left the card: nothing of it is kept.)
         # Nor does it go while it holds files that were never offered, or were refused
         # (a path through a link): what they hold is nowhere else, and deleting it is
@@ -3120,11 +3122,13 @@ class AgentRunner(
             )
             for path, one in files.items()
         )
+        await self._kept_some(merge_id, copy if left else None, files)
         if not left:
+            held = copies.place(runtime, name)  # (K-koloni-alan: once gone, no folder says where)
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
                 copies.remove(runtime, name)
-            self._kept_branch_gone(Path(root), copies.place(runtime, name), on_branch, decision)
+            self._kept_branch_gone(ctx, Path(root), held, on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         self._kept_said(ctx, payloads)  # (N3: its line of where its work is, too)
         if applied:
@@ -3149,6 +3153,17 @@ class AgentRunner(
             )
         return True
 
+    async def _kept_some(self, merge_id: str, copy: copies.Copy | None, files: dict) -> None:
+        """L1: a Take in of some of a kept card (`copy`: the one it stays with): what each file
+        taken now held before and after, kept for the commit offered once the card closes
+        (`_offer`) - `Copy.was` is this process's alone, and so is this copy."""
+        if copy is not None and copy.was:
+            for path, pair in (
+                await asyncio.to_thread(self._keep_sides, merge_id, copy.was)
+            ).items():
+                files[path]["taken_sides"] = pair
+            copy.was.clear()
+
     def decide_merge(
         self,
         merge_id: str,
@@ -3160,7 +3175,7 @@ class AgentRunner(
         "check": run the project's check command and ask again; D2, on a branch's card,
         "resolve": an agent puts the conflicts together - with whose side they chose of each
         file that clashes, and (`said`) of a branch whether it is kept after its merge and
-        which way it goes; False if nothing waits."""
+        which way it goes, of Take in which files alone (`only`); False if nothing waits."""
         future = self._merge_decisions.get(merge_id)
         if future is None or future.done():
             return False
@@ -3698,7 +3713,7 @@ class AgentRunner(
                         or (pr_off and f"a pull request cannot be opened: {pr_off}")
                     )
                     # (A file named as a secret - `.env.local` - goes up only on a click.)
-                    named = [path for path in look["files"] if is_secret(path)]
+                    named = [path for path in look["files"] if secret_in_push(path)]
                     if pr_blocked:
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
@@ -3859,19 +3874,19 @@ class AgentRunner(
                 if not copies.under(path.split("/"), copies.LINKED | copies.NOT_COPIED)
             }
         )
-        # Not committed: a file holding a secret KOLONİ checks, and a new one where the project
-        # has its own file (git ignores it there - the merge would write over the user's).
+        # Not committed: a secret KOLONİ checks (a job's: by name too), BRANCH_THEIRS's new file.
         held = {path: SECRET_IN_COPY for path in changed if _secret_in(copy, path, True)} | {
             path: BRANCH_THEIRS
             for path, kind, state in found
             if kind == "new" and state == "conflict"
         }
+        held = self._named_out(ctx, copy, changed) | held
         await asyncio.to_thread(
             git.commit_branch,
             copy.root,
             copy.branch or "",
             [path for path in changed if path not in held],
-            f"{ctx.name}: {first}\n\nKoloni-Agent: {ctx.name}",
+            f"{self._shown_name(ctx)}: {first}\n\nKoloni-Agent: {ctx.name}",
             self.settings.runtime_root / "no-hooks",
         )
         return held
@@ -4028,7 +4043,7 @@ class AgentRunner(
         body = away_branch.team_pr_body(
             first, ctx.name, branch, look["files"], tested, notes, known
         )
-        title = raw.hide(first, known)
+        title = away_branch.titled(first, known)  # (a secret by its shape alone too: M-2)
         if sent.get("tip") == look["tip"]:
             sha = sent["sha"]  # (pushed already: only the pull request failed - opened again)
         else:
@@ -4298,16 +4313,17 @@ class AgentRunner(
             finally:
                 self._merge_decisions.pop(merge_id, None)
                 choices = self._merge_choices.pop(merge_id, {})
+                only = self._branch_said.pop(merge_id, {}).get("only")
                 self._update_run(ctx.run_id, ctx.cid, status="running")
             if decision == "reject":
-                self._record_merge(ctx, merge_id, "rejected", files, check)
-                self._drop_copy(ctx.agent_id, "rejected")
-                return self._not_applied(ctx, files, TURNED_DOWN)
+                return await self._turned_down(ctx, copy, files, check, merge_id)
             if decision == "check":
                 await self._check_clicked(ctx, copy, files, check, choices, merge_id)
                 continue
+            # (A Take in of some of it takes those alone: the rest stay on the card, asked again.)
+            chosen = files if only is None else {p: one for p, one in files.items() if p in only}
             async with self._way_in(copy.project), self._looks_held(copy.project):
-                if await asyncio.to_thread(_moved, copy, files, choices):
+                if await asyncio.to_thread(_moved, copy, chosen, choices):
                     # All of the card or none of it: a file is not as it was shown, and the
                     # card is shown again as it is now (the API says why).
                     # shortcut: one the user moves between here and its write is still not
@@ -4315,10 +4331,22 @@ class AgentRunner(
                     # hold the files if that is seen.
                     continue
                 # No await from here to the last file written.
-                self._join(copy, files, choices)
-                taken = self._apply(ctx, copy, files, True, choices=choices)
+                self._join(copy, chosen, choices)
+                taken = self._apply(ctx, copy, chosen, True, choices=choices)
             await self._seen_by_watchers(ctx, taken)
         return await self._merge_over(ctx, copy, files, check, merge_id)
+
+    async def _turned_down(
+        self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict | None, merge_id: str
+    ) -> str:
+        """Discard on a turn's card (`_merge`): the copy goes. After a Take in of some of it, what
+        was taken stays taken - the card is of that, and its commit is offered."""
+        taken = any(one["state"] == "applied" for one in files.values())
+        self._record_merge(ctx, merge_id, "applied" if taken else "rejected", files, check)
+        if taken:
+            await self._offer(ctx, merge_id, files, copy)
+        self._drop_copy(ctx.agent_id, "rejected")
+        return self._not_applied(ctx, files, TURNED_DOWN)
 
     async def _check_clicked(
         self,
@@ -5009,6 +5037,15 @@ class AgentRunner(
         kept = (
             await asyncio.to_thread(self._keep_sides, merge_id, sides) if state == "offered" else {}
         )
+        if state == "offered":  # (and those of a kept card's earlier Take in: `_decide_kept`)
+            kept = {
+                **{
+                    path: files[path]["taken_sides"]
+                    for path in paths
+                    if "taken_sides" in files[path]
+                },
+                **kept,
+            }
         with self._factory() as session:
             merge = session.get_one(Merge, merge_id)
             merge.commit = {
@@ -5080,51 +5117,7 @@ class AgentRunner(
         files.update(sorted({**kept, **fresh}.items()))
         return why
 
-    @staticmethod
-    def _not_applied(ctx: Ctx, files: dict, why: str | None) -> str:
-        """What an agent's opener is told of the changes that did not reach the project
-        ("" when all did). `why`: one reason for all of them, else each has its own.
-        And of a file that did, with the project's own lines where the two clashed: the
-        agent's version of those lines is not there, by the user's word."""
-        left = [one for one in files.values() if one["state"] != "applied"]
-        lines = [
-            path
-            for path, one in files.items()
-            if one["state"] == "applied" and one.get("chose") == "project"
-        ]
-        theirs = [
-            f"{path} ({one['theirs']})" if one["theirs"] else path
-            for path, one in files.items()
-            if one["state"] == "applied" and "theirs" in one
-        ]
-        kept_lines = " ".join(
-            filter(
-                None,
-                [
-                    PROJECTS_LINES.format(name=ctx.name, files=", ".join(lines[:MAX_PATHS_TOLD]))
-                    if lines
-                    else "",
-                    THEIRS_KEPT.format(name=ctx.name, files=", ".join(theirs[:MAX_PATHS_TOLD]))
-                    if theirs
-                    else "",
-                ],
-            )
-        )
-        if not left:
-            return kept_lines
-        # Each reason once, with the files it goes for.
-        by_reason: dict[str, list[str]] = {}
-        for one in left[:MAX_PATHS_TOLD]:
-            reason = "" if why else one.get("note") or MEANWHILE
-            by_reason.setdefault(reason, []).append(one["path"])
-        told = [
-            ", ".join(paths) + (f" ({reason})" if reason else "")
-            for reason, paths in by_reason.items()
-        ]
-        if len(left) > MAX_PATHS_TOLD:
-            told.append(f"and {len(left) - MAX_PATHS_TOLD} more")
-        said = NOT_APPLIED.format(name=ctx.name, files="; ".join(told))
-        return " ".join(filter(None, [f"{said}: {why}." if why else f"{said}.", kept_lines]))
+    _not_applied = staticmethod(not_applied)
 
     def _taken_now(
         self,
@@ -5681,9 +5674,10 @@ class AgentRunner(
         # Text from outside that reads like orders: the agent is told to take it as data,
         # the user is warned - and the call goes on as it is (93-A4). Of a web or MCP tool's
         # answer only what is inside its frame: the query and the address are the agent's.
+        name = LOOKUP if request.name == "recall" and LOOKUP in ctx.tools else request.name
         outside = (
-            ("web", WEB_WHERE[request.name], web.inside(output))
-            if request.name in WEB_WHERE
+            ("web", WEB_WHERE[name], web.inside(output))  # (0.1.10: recall's pages: a lookup's)
+            if name in WEB_WHERE
             else ("mcp", f"the MCP tool {request.name}", web.inside(output))
             if "__" in request.name  # (none of KOLONİ's own tools is named so)
             # (A failed one too: what the page said - a dialog, an address - ends its error.)
@@ -5757,7 +5751,7 @@ class AgentRunner(
             root is None
             or cwd is None
             or ctx.root is None
-            or not any(disposable_targets(command, one) for one in (POSIX, POWERSHELL))
+            or not any(disposable.disposable_targets(command, one) for one in (POSIX, POWERSHELL))
         ):
             return None
         seen = self._git_at.get(ctx.run_id) or {}
@@ -5843,7 +5837,7 @@ class AgentRunner(
         # Where it runs in a working copy, why it is asked at every level there
         # (`_in_copy_asks`) - for one this command makes, with the links it will have.
         owner = None if review else self._works_in(ctx)
-        made = self._copies.get(owner) if owner else None
+        judged_in((made := self._copies.get(owner) if owner else None) and made.root)  # (its tree)
         linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args, self.commands.longest(cid))
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"
@@ -5896,6 +5890,7 @@ class AgentRunner(
             place or ws.root,
             (night, judged),
             exempt=unasked or free or bool(in_a_copy),
+            shell=self._own_shell(ctx),
         )
         in_a_copy = in_a_copy or night
         self._never_asked(review, planned.command, in_a_copy)
@@ -5989,8 +5984,8 @@ class AgentRunner(
             status, output = await self._create_role(ctx, call_id, args)
         elif request.name == LEARN:
             status, output = await self._learn(ctx, args)
-        elif request.name == LOOKUP:
-            status, output = "succeeded", await self._lookup(ctx, args)
+        elif request.name in (LOOKUP, "recall"):  # (0.1.10: one look-up, either name)
+            status, output = "succeeded", await self._look_up(ctx, request.name, args)
         elif request.name == "add_skill":
             status, output = await self._add_skill(ctx, call_id, args)
         elif request.name == "use_skill":
@@ -6057,9 +6052,6 @@ class AgentRunner(
                     args,
                 ),
             )  # (a job's lines are its copy's: the project has not changed)
-        elif request.name == "recall":
-            # (In a thread: it reads the memory and the index of earlier turns.)
-            status, output = "succeeded", await asyncio.to_thread(self._recall, ctx, args)
         elif request.name in BACKLOG_TOOLS:
             status, output = "succeeded", self._backlog(ctx, request.name, args)
         elif request.name == "show":
@@ -6133,11 +6125,13 @@ class AgentRunner(
             self._set_call(cid, call_id, status="denied", result=CANARY_REFUSED, ended_at=now())
             self._over_budget(run_id, CANARY_STOPPED)
             raise asyncio.CancelledError  # (here, as `_hold_to_limit` does: not at a later wait)
+        # (0.1.10: recall and lookup are one look-up, held as either - `_look_up`)
+        held = {"recall", LOOKUP} if request.name in ("recall", LOOKUP) else {request.name}
         # (show and recall_output are every agent's at its own work, and no role's: not an
         # answer's either)
         if ctx.answering and (
             request.name in ALL_TOOLS
-            and request.name not in ctx.tools
+            and not held & set(ctx.tools)
             or request.name in ("show", "recall_output")
         ):
             if ctx.discussion:
@@ -6156,7 +6150,7 @@ class AgentRunner(
             )
         # (show is every agent's at its own work: a role's list does not grant it)
         role_tool = request.name in ALL_TOOLS and request.name != "show"
-        if role_tool and request.name not in ctx.tools:
+        if role_tool and not held & set(ctx.tools):
             raise ToolError(f"{request.name} is not available to the {ctx.role} role")
         if request.name in self._off():  # (slice 61: offered before it was switched off)
             raise ToolError(f"{request.name} is not available")

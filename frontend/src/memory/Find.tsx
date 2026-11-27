@@ -11,15 +11,15 @@ import {
   matches,
   rowId,
   saidWhere,
-  type Tab,
-  TABS,
+  type Area,
+  AREAS,
   waitId,
 } from './memoryText'
 import { RecordCard } from './RecordCard'
 
-/** Where a hit is: what waits for your word (above the tabs), or one of the tabs. */
-type Place = Tab | 'waiting'
-const PLACES = [['waiting', 'Waiting for your word'], ...TABS] as const
+/** Where a hit is: what waits for your word (on top), or one of the page's areas. */
+export type Place = Area | 'waiting'
+const PLACES = [['waiting', 'Waiting for your word'], ...AREAS] as const
 
 /** What a record of a linked project says of itself (22c): the server's words for an agent, in short. */
 const NOT_CHECKED_HERE = 'its files are not in this project: it could not be checked here'
@@ -29,7 +29,7 @@ interface Hit {
   text: string
 }
 
-/** What on this page has every word typed, by the tab it is under; the id is the row (or the box) it is on. */
+/** What on this page has every word typed, by the area it is in; the id is the row (or the box) it is on. */
 function pageHits(memory: ProjectMemory, query: string): Record<Place, Hit[]> {
   const rows = (records: ProjectMemory['core'], at = rowId) =>
     records.filter(record => matches(record, query)).map(record => ({ id: at(record.id), text: record.text }))
@@ -60,7 +60,7 @@ function pageHits(memory: ProjectMemory, query: string): Record<Place, Hit[]> {
 
 interface Props {
   memory: ProjectMemory
-  /** Opens a tab at a row: a hit was clicked. */
+  /** Goes to a row of an area: a hit was clicked. */
   onOpen: (place: Place, id: string) => void
   /** What an agent's `recall` would find; left out, there is no search deeper. */
   onSearch?: (query: string) => Promise<MemorySearch>
@@ -70,7 +70,7 @@ interface Props {
 
 /**
  * One search over the whole page, two layers deep. As you type, what is on the page is sifted, by
- * tab; Enter searches deeper, as an agent's `recall` does: the memory, what was said in the
+ * area; Enter searches deeper, as an agent's `recall` does: the memory, what was said in the
  * project's earlier messages, and the linked projects - each as it was said, with whose words.
  */
 export function Find({ memory, onOpen, onSearch, searchFor }: Props) {

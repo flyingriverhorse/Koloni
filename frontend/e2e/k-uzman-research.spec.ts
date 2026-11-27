@@ -86,7 +86,8 @@ for (const theme of ['light', 'dark'] as const) {
       ).ok(),
     ).toBe(true)
     await openFreshConversation(page)
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click()
+    await page.getByRole('button', { name: 'Memory', exact: true }).click()
+    await page.getByRole('tab', { name: /^Sources to look things up in/ }).click()
     const hooks = page.locator('.knowledge-card').filter({ hasText: 'Hooks expert' })
     await hooks.getByRole('button', { name: /Hooks/ }).click()
     const panel = page.locator('.knowledge-page')

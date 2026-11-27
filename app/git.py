@@ -22,7 +22,7 @@ from collections.abc import Callable, Collection, Iterable, Sequence
 from pathlib import Path, PureWindowsPath
 
 from app.executors.winjob import Job
-from app.workspace import in_scratch, is_secret, secret_in_project, stray_in_koloni
+from app.workspace import in_scratch, is_secret, secret_in_branch, stray_in_koloni
 
 # A merge of one file of at most 1 MiB; a look at a repository.
 SHORT_SECONDS = 15.0
@@ -1505,24 +1505,35 @@ KOLONI_ID = {
 LOCK_REASON = "KOLONİ: an agent works here; KOLONİ removes it"
 
 
+def _slugged(said: str) -> str:
+    """Small letters, digits and dashes of `said`, as a branch's name has them."""
+    return "-".join(re.findall(r"[a-z0-9]+", said.lower()))
+
+
 def branch_name(said: str) -> str:
     """The short name an Orchestrator gave (`login form`) as a branch's (`login-form`): small
     letters, digits and dashes. ValueError for one with none of those."""
-    name = "-".join(
-        "".join(c if c.isascii() and c.isalnum() else " " for c in said.lower()).split()
-    )[:BRANCH_CHARS].strip("-")
+    name = _slugged(said)[:BRANCH_CHARS].strip("-")
     if not name:
         raise ValueError("on_branch: give a short name of letters and digits, as login-form")
     return name
 
 
 def task_branch(title: str, task_id: str) -> str:
-    """A backlog task's branch name: its title's and 4 of its id's - two tasks of one title get
-    two names (R165). Short enough that `branch_name` leaves it as it is."""
+    """A task's branch name: its title's and 4 of its id's (R165), as `branch_name` leaves it -
+    "task" where the title holds a secret KOLONİ checks (any case, or spelt as a name) or one's
+    shape: a name is pushed. shortcut: a secret's head alone is not seen; look if titles hold it."""
+    from app import secret_set  # (here: it reads app.commands, which reads this module)
+
+    said, slug = title.casefold(), _slugged(title)
+    known = [(one.casefold(), _slugged(one)) for one in secret_set.checked()]
+    held = secret_set.shaped(title) or any(one in said or bit and bit in slug for one, bit in known)
     try:
+        if held:
+            raise ValueError(title)
         name = branch_name(title)[: BRANCH_CHARS - 5].strip("-")
     except ValueError:
-        name = "task"  # (a title of no letter or digit)
+        name = "task"  # (a title of no letter or digit, or holding a secret)
     return f"{name}-{task_id[:4]}"
 
 
@@ -1556,9 +1567,6 @@ TOO_LONG = "it took longer than {seconds:.0f} seconds"
 SNAPSHOT_SECONDS = 180.0
 # Of what git says, as much as a card's line holds: its start and its end.
 WHY_CHARS = 300
-# Secrets a snapshot leaves out besides those the project's own rules name (`secret_in_project`,
-# which take a credentials.json for code): Google's OAuth quickstart's two files.
-SNAPSHOT_SECRETS = frozenset({"credentials.json", "token.json"})
 # How many links and junctions at the top of the new files a snapshot steps round, at most.
 MOST_LINKS = 200
 # A snapshot's own index is written whole: no shared index of the user's is split off or expired
@@ -1611,14 +1619,6 @@ def _ours(path: str) -> bool:
     )
 
 
-def _secret_named(path: str) -> bool:
-    """A secret by its name, as the project's own rules have one (`secret_in_project`: a .env, a
-    key file - not code named like one, a credentials.py), or Google's OAuth files
-    (`SNAPSHOT_SECRETS`), which those rules take for code: never an object in the user's .git,
-    reachable from a branch of KOLONİ's."""
-    return secret_in_project(path) or path.rsplit("/", 1)[-1].casefold() in SNAPSHOT_SECRETS
-
-
 def _through_link(project: Path, path: str, seen: dict[str, bool]) -> str | None:
     """The link or junction a path of the folder is, or is in - what git would follow out of the
     folder (Git for Windows walks a junction as a folder); None where none is. Each place looked
@@ -1648,7 +1648,7 @@ def _taker(project: Path) -> tuple[Callable[..., bool], set[str]]:
         if not _ours(path):
             return False
         through = path if link else _through_link(project, path, seen)
-        if through or _secret_named(path):
+        if through or secret_in_branch(path):
             left.add(through or path)
             return False
         return True

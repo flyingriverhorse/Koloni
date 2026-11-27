@@ -831,7 +831,7 @@ TOO_DEEP = f"it nests over {MOST_DEPTH} deep"
 SECRET = "a secret file is never read"
 # (Not secrets by name elsewhere - an agent may read them - but they often hold one.)
 MAY_HOLD = "it may hold a secret"
-_MAY_HOLD = re.compile(r"credentials\.json|token\.json|kubeconfig[^/]*|client_secret[^/]*\.json")
+_MAY_HOLD = re.compile(r"credentials\.json|token\.json|kubeconfig[^/]*")  # (client_secret*: SECRET)
 NO_PARSE = "does not parse - "
 _BRACKET = re.compile(r"[\[\]{}]")
 # (Each one unended - a lone backslash before the end too - runs to the end of its line, or of the

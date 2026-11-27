@@ -46,7 +46,9 @@ Feature, Model change and Pipeline change lean on their Checks step the same way
 one review is the UI designer's - a judgement of the screens KOLONİ's checks do not make; Model change
 keeps its experts' review of the plan and the Model evaluator's metrics, Pipeline change the Data
 analyst's look at the data. Their tests are KOLONİ's to run, and a big or security-touching change gets
-KOLONİ's Reviewer and Security reviewer; a small one gets no review of KOLONİ's. Before 0.1.10 Feature had a
+KOLONİ's Reviewer and Security reviewer; a small one gets no review of KOLONİ's. They check so even in a
+project at **Nothing**: to leave it to the project, copy one and set the copy's Checks step to **Follow the
+project** ([The Checks step](recipes.md#the-checks-step)). Before 0.1.10 Feature had a
 Code review, a Security review and a Test it beside its UI review (6 to 16 agents), and Model change and
 Pipeline change a Tester and a closing Reviewer; a copy you made keeps them.
 

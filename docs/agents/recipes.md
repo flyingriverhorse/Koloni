@@ -21,7 +21,7 @@ Recipes are on the Agents page, tab **Recipes**.
   keeps its tools. If one does not answer, the next is asked. Where none answers, it names every
   model it tried, each with why, and how to fix it ("No model answered: Local · qwen3 (not
   running). Start Local on the Models page, give a model a tier there, or pick a model in the
-  chat."). The model draws the recipe on the board; nothing is saved until you save it.
+  chat."). The model draws the recipe in the editor; nothing is saved until you save it.
 
 The ready recipes include Feature, Bugfix, Review only, Integration, Quality check, Model change,
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.
@@ -164,10 +164,10 @@ At **Full auto**, the work is taken in without the card, unless a team failed or
 ## Candidates
 
 A step whose **Who** is **Candidates (the best one goes on)** gives the same job to 2 to 5 agents.
-Each works in its own working copy. For their models choose **Auto, the Lead picks**, **Same model** or
+Each works in its own working copy. For their models choose **Auto, the Orchestrator picks**, **Same model** or
 **I pick each**.
 
-Each candidate's work is scored by the project's **Measure command** (Settings › This project › Checks and git):
+Each candidate's work is scored by the project's **Measure command** (Settings › This project › When the work is done):
 a command whose last line of output is a number from 0 to 100. A card then lists the scores and asks
 which candidate's work goes on. At Full auto the best score goes on by itself.
 

@@ -16,7 +16,7 @@ test('what was said in an earlier turn is found from the Memory page, with whose
   const said = region.getByRole('list', { name: 'In earlier messages' }).getByRole('listitem')
   await expect(said).toHaveCount(2)
   await expect(said.filter({ hasText: /^“Answer only: The ZEPPELIN hangar is in Kayseri\.”/ })).toContainText('You ·')
-  await expect(said.filter({ hasText: /^“The ZEPPELIN hangar is in Kayseri\.”/ })).toContainText('Lead ·')
+  await expect(said.filter({ hasText: /^“The ZEPPELIN hangar is in Kayseri\.”/ })).toContainText('Orchestrator ·')
   await expect(region.getByText('Nothing on record speaks to “zeppelin KAYSERİ”.')).toBeVisible()
 
   await region.getByLabel('Search everything this project remembers').fill('unicorn')

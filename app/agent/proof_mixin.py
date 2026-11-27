@@ -44,6 +44,7 @@ from app.db.models import (
 )
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row, TestRun
+from app.roles import title_of
 from app.serialize import message_out
 from app.team import quoted
 from app.tools import MAX_TIMEOUT, ToolError
@@ -1393,7 +1394,7 @@ class ProofMixin:
             .order_by(Merge.created_at, literal_column("merges.rowid"))
         ).all()
         return [
-            proof.row("take_in", "note", f"Take in's check of {name}'s work: {said}")
+            proof.row("take_in", "note", f"Take in's check of {title_of(name)}'s work: {said}")
             for check, name in found
             for said in dict.fromkeys((check or {}).get("said") or [])
             if said != proof_related.NO_OWN_TESTS

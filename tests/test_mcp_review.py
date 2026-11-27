@@ -580,7 +580,9 @@ THE_COPY = (
 def copy_of(client, snap, name):
     """Where the working copy of this agent was."""
     agent = next(a for a in snap["agents"] if a["name"] == name)
-    return copies.folder(client.app.state.settings.runtime_root) / agent["id"] / copies.TREE
+    (project,) = client.get("/api/projects").json()  # (K-koloni-alan: its .koloni/ - no git)
+    held = copies.folder(client.app.state.settings.runtime_root, Path(project["root_path"]))
+    return held / agent["id"] / copies.TREE
 
 
 def test_a_sub_agent_in_a_copy_is_told_its_copys_path_and_a_lead_the_projects(

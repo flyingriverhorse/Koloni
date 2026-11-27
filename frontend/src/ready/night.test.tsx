@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Away, AwayJob, Decision, Waiting } from '../api/types'
 import { NightStrip } from './NightStrip'
-import { axisOf, nightMarkdown, nightTitle, place } from './nightText'
+import { Report } from './Report'
+import { axisOf, greeting, nightLede, nightMarkdown, nightTitle, place } from './nightText'
 
 /** Ready for you's night (Part B): a lane per job on one time axis, the decisions on their jobs' lanes, what was not
  *  checked and spent, the whole report and Copy as Markdown - nothing drawn that the record does not hold. */
@@ -45,6 +46,7 @@ const job = (over: Partial<AwayJob>): AwayJob => ({
   kept: [],
   files: [],
   taken: [],
+  discarded: [],
   shared: [],
   kept_out: [],
   asks: [],
@@ -191,7 +193,7 @@ test('the whole report, and Copy as Markdown of it: every word of a job’s, an 
   render(<NightStrip away={night(jobs)} parked={[push]} onReport={onReport} />)
   await user.click(screen.getByRole('button', { name: 'The whole report' }))
   expect(onReport).toHaveBeenCalled()
-  await user.click(screen.getByRole('button', { name: 'Copy as Markdown' }))
+  await user.click(screen.getByRole('button', { name: 'Copy report as Markdown' }))
   expect(await screen.findByRole('status')).toHaveTextContent('Copied')
   const copied = await navigator.clipboard.readText()
   expect(copied).toBe(nightMarkdown(night(jobs), [push]))
@@ -238,4 +240,84 @@ test('the night’s Markdown copies a parked line as the page shows it - masked,
   const copied = nightMarkdown(night(JOBS), [line])
   expect(copied).toContain('curl -H "Authorization: ***" https://***@example.com')
   for (const word of ['ghp_0123456789abcdef', 'hunter2']) expect(copied).not.toContain(word)
+})
+
+test('the report (0.1.10): one sentence, a row per job with its cell, no Allow - its card answers it -, what was decided', async () => {
+  const ask = { kind: 'commands' as const, id: 'k1', text: 'Coder asks to run "npm test"' }
+  const jobs = [JOBS[0], { ...JOBS[1], asks: [ask] }, JOBS[2], JOBS[3]]
+  render(<Report away={night(jobs)} parked={[]} onOpen={vi.fn()} />)
+  const report = screen.getByRole('region', { name: /^Last night, / })
+  expect(within(report).getByText('1 of 4 jobs done, 1 waits for your word, 1 was stopped.')).toBeVisible()
+  const rows = within(within(report).getByRole('list', { name: "The night's jobs, as they came out" })).getAllByRole(
+    'listitem',
+  )
+  expect(rows.map(row => row.getAttribute('aria-label'))).toEqual([
+    'Fix the login: Done, nothing changed',
+    'Clean old fixtures: Waits for you',
+    'Docs pass: Stopped',
+    'Never started: Next',
+  ])
+  expect(within(rows[0]).getByRole('img', { name: 'Done' })).toHaveClass('cell-ok', 'cell-full')
+  expect(within(rows[1]).getByRole('img', { name: 'Waits for you' })).toHaveClass('cell-honey', 'cell-soft')
+  expect(within(report).queryByRole('button', { name: 'Allow and go on' })).toBeNull()
+  expect(report).toHaveTextContent('2 decided for you on its jobs, 1 not seen')
+  expect(within(report).getByRole('button', { name: 'Copy report as Markdown' })).toBeVisible()
+})
+
+test('a night at work is reported as it goes, with what it spent; no night, or one seen and over a day old, is one line', () => {
+  const working = night([JOBS[0], { ...JOBS[1], state: 'working' }], { status: 'running', ended_at: null })
+  const { rerender } = render(<Report away={working} parked={[]} onOpen={vi.fn()} />)
+  const report = screen.getByRole('region', { name: /^☾ While you're away, since / })
+  expect(report).toHaveTextContent("At work while you're away: 1 of 2 jobs done.")
+  expect(report).toHaveTextContent('Spent 1.40 USD of 5.00 USD')
+  rerender(<Report away={null} parked={[]} onOpen={vi.fn()} />)
+  expect(screen.getByText('Nothing new since you last looked.')).toBeVisible()
+  const old = { started_at: '2026-01-02T22:00:00Z', ended_at: '2026-01-03T06:00:00Z' }
+  rerender(
+    <Report away={night(JOBS, { id: 'a2', ...old, seen_at: '2026-01-03T08:00:00Z' })} parked={[]} onOpen={vi.fn()} />,
+  )
+  expect(screen.getByText('Nothing new since you last looked.')).toBeVisible()
+  // Not seen yet, it is news whatever its age - and stays on screen once the strip marks it seen.
+  rerender(<Report away={night(JOBS, { id: 'a3', ...old })} parked={[]} onOpen={vi.fn()} />)
+  expect(screen.getByRole('region', { name: /^Night of / })).toBeVisible()
+  rerender(
+    <Report away={night(JOBS, { id: 'a3', ...old, seen_at: '2026-11-26T08:00:00Z' })} parked={[]} onOpen={vi.fn()} />,
+  )
+  expect(screen.getByRole('region', { name: /^Night of / })).toBeVisible()
+})
+
+test('the greeting by the hour, and the night in one sentence', () => {
+  expect([6, 13, 19, 2].map(hour => greeting(new Date(2026, 10, 26, hour)))).toEqual([
+    'Good morning',
+    'Good afternoon',
+    'Good evening',
+    'Good evening',
+  ])
+  expect(nightLede(night([JOBS[0], { ...JOBS[0], state: 'failed' }, { ...JOBS[0], state: 'failed' }]))).toBe(
+    '1 of 3 jobs done, 2 could not be done.',
+  )
+  expect(nightLede(night([JOBS[0]]))).toBe('1 of 1 job done.')
+})
+
+test('a night planned, then gone away under the same id, is reported at once - never held as "nothing new"', () => {
+  const planned = night([JOBS[3]], { status: 'planned', started_at: null, ended_at: null })
+  const { rerender } = render(<Report away={planned} parked={[]} onOpen={vi.fn()} />)
+  expect(screen.getByText('Nothing new since you last looked.')).toBeVisible()
+  rerender(<Report away={{ ...planned, status: 'running', started_at: at(2, 10) }} parked={[]} onOpen={vi.fn()} />)
+  expect(screen.getByRole('region', { name: /^☾ While you're away, since / })).toBeVisible()
+})
+
+test('a night folded into "nothing new" keeps the way to its whole report; the report says why the night ended', async () => {
+  const onReport = vi.fn()
+  const old = { started_at: '2026-01-02T22:00:00Z', ended_at: '2026-01-03T06:00:00Z', seen_at: '2026-01-03T08:00:00Z' }
+  const { rerender } = render(<Report away={night(JOBS, old)} parked={[]} onReport={onReport} onOpen={vi.fn()} />)
+  expect(screen.getByText(/^Nothing new since you last looked\./)).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: 'The whole report' }))
+  expect(onReport).toHaveBeenCalled()
+  rerender(<Report away={null} parked={[]} onReport={onReport} onOpen={vi.fn()} />)
+  expect(screen.queryByRole('button', { name: 'The whole report' })).toBeNull()
+  rerender(
+    <Report away={night(JOBS, { id: 'a9', why: 'Its money limit was reached.' })} parked={[]} onOpen={vi.fn()} />,
+  )
+  expect(screen.getByRole('region', { name: /^Last night, / })).toHaveTextContent('Its money limit was reached.')
 })

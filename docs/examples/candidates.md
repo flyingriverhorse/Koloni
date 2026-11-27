@@ -3,11 +3,11 @@
 Give one job to several agents, score each result, and keep the best. The ready recipe **Evolve** does
 this with three Coders.
 
-1. **Set a measure command.** Settings › This project › Checks and git › **Measure command**: a command whose last
+1. **Set a measure command.** Settings › This project › When the work is done › **Measure command**: a command whose last
    line of output is a number from 0 to 100, for example `python measure.py`. Higher is better.
 2. **Make the recipe.** Agents → **Recipes**: pick **Evolve** and press **Copy it**, or draw your own
    step whose **Who** is **Candidates (the best one goes on)**. Choose how many (2 to 5), their models
-   (**Auto, the Lead picks**, **Same model** or **I pick each**), and a **Target** score if you want one.
+   (**Auto, the Orchestrator picks**, **Same model** or **I pick each**), and a **Target** score if you want one.
    With a loop, the step is tried again while the best score is below the target - with no measure
    command, one round only: there is no score to compare.
 3. **Use it.** On the canvas, **Teams for this chat** → **Manual**, pick a team and this recipe. Then

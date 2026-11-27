@@ -2,6 +2,8 @@
 repository, nor below a file that tells a CLI started there what to do - a copy under
 KOLONİ's own checkout was inside KOLONİ's git repository, and Codex and Claude Code started
 in it were handed KOLONİ's own AGENTS.md (measured 10 Oct 2026).
+K-koloni-alan: that is a project's in git; one with no git has its copies in its own
+`.koloni/copies/` (`tests/test_koloni_alan.py`) - here each project is given a `.git`.
 """
 
 import asyncio
@@ -21,6 +23,13 @@ from tests.test_copy_scenarios import files, one
 from tests.test_spawn import step
 
 MARKS = [".git", "AGENTS.md", "CLAUDE.md", "GEMINI.md", ".claude"]
+
+
+@pytest.fixture
+def project_dir(project_dir):
+    """A project in git (by its folder: no git is run in it), so its copies are made outside it."""
+    (project_dir / ".git").mkdir()
+    return project_dir
 
 
 def mark(folder, name):

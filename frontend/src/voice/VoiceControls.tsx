@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useId, useState, useSyncExternalStore } from
 import { useShallow } from 'zustand/react/shallow'
 import { api, errorText } from '../api/client'
 import type { GeminiVoice, Message } from '../api/types'
+import { voiceSaid } from '../shell/sections/said'
 import { engine } from './engine'
 import { cannotRead, geminiOn, read, readAnswer, reader, stopReading, useVoice } from './voice'
 
@@ -196,6 +197,7 @@ export function VoiceSettings() {
   // (Its settings only: what is being read changes at every key, and is none of its business.)
   const settings = useVoice(
     useShallow(s => ({
+      autoRead: s.autoRead,
       mode: s.mode,
       language: s.language,
       voice: s.voice,
@@ -213,13 +215,14 @@ export function VoiceSettings() {
   // The browser's own languages too: dictation and the Lead's line need no voice to read them.
   const languages = [
     ...new Set([settings.language, 'en-US', ...navigator.languages, ...useVoices().map(voice => voice.lang)]),
-  ].sort()
+  ].sort((a, b) => a.localeCompare(b))
   const voices = useVoices(settings.language)
   // With no voice of this computer's for the language, the browser's own is a service's.
   const online = voices.length > 0 && !voices.some(voice => voice.local)
   return (
     <section aria-label="Voice" className="voice-settings">
       <h2>Voice</h2>
+      <p className="set-said">{voiceSaid(settings, gemini)}</p>
       <p className="choice-note">
         This browser’s, for every chat: kept here, not on the server. Dictate and Read aloud stay beside the message
         box.

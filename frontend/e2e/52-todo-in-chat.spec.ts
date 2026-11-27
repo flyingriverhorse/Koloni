@@ -1,10 +1,10 @@
-// 0.1.8, To-do in a chat, in the browser: a story of two tasks and a bug of no story are ticked on To-do and given to a
-// new chat (Do in chat ▾ → A new chat); the chat shows each task as itself, under its story's topic line, asks
+// 0.1.8, To-do in a chat, in the browser: a story of two tasks and a bug of no story are ticked on To-do - in their
+// cards' panels, 0.1.10 - and given to a new chat (Do in chat ▾ → A new chat); the chat shows each task as itself, under its story's topic line, asks
 // "Done?" under each, runs the story's second task in the same topic, then asks "Story done?" - Close the story closes
 // it on To-do; the bug runs in a topic of its own. The queue over the message box lists what waits, and Remove puts
 // one back on To-do. Run the backlog, Runs by itself and Run settings are gone.
 import { expect, test, type Page } from './fixtures'
-import { OWN, e2eProject, openFreshConversation, rail } from './helpers'
+import { OWN, e2eProject, openFreshConversation, story, todo } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -43,15 +43,16 @@ test('a story and a bug ticked on To-do run in a new chat, each asked "Done?", t
 }) => {
   await openFreshConversation(page)
   await made(page)
-  await rail(page, 'To-do').click()
-  const tasks = page.getByRole('list', { name: 'Tasks' })
+  await todo(page)
   for (const gone of ['Run settings', 'Runs by itself', 'Run the backlog'])
     await expect(page.getByText(gone)).toHaveCount(0)
 
-  // Tick the story (its open tasks), the bug and one for later; the dock says how many and what happens.
-  await tasks.getByRole('checkbox', { name: `Tick the story ${STORY}` }).check()
-  await tasks.getByRole('listitem', { name: BUG }).getByRole('checkbox').first().check()
-  await tasks.getByRole('listitem', { name: LATER }).getByRole('checkbox').first().check()
+  // Tick the story (its open tasks), then - in the card of no story - the bug and one for later; the dock says how
+  // many and what happens.
+  await (await story(page, STORY)).getByRole('checkbox', { name: `Tick the story ${STORY}` }).check()
+  const loose = await story(page, 'Without a story')
+  await loose.getByRole('listitem', { name: BUG }).getByRole('checkbox').first().check()
+  await loose.getByRole('listitem', { name: LATER }).getByRole('checkbox').first().check()
   const dock = page.getByRole('region', { name: 'Selected tasks' })
   await expect(dock).toContainText('4 selected')
   await expect(dock).toContainText('Each story goes into its own topic')
@@ -84,7 +85,10 @@ test('a story and a bug ticked on To-do run in a new chat, each asked "Done?", t
   // The bug in a topic of its own.
   await expect(chat.getByRole('group', { name: 'From To-do · bug' })).toContainText(BUG, { timeout: 20_000 })
 
-  await rail(page, 'To-do').click()
-  await expect(tasks.getByRole('listitem', { name: STORY })).toContainText('✓ done', { timeout: 20_000 })
-  await expect(tasks.getByRole('listitem', { name: LATER })).not.toContainText('queued')
+  await todo(page)
+  await expect(page.getByRole('button', { name: `${STORY}: 2 of 2 done` })).toBeVisible({ timeout: 20_000 })
+  await expect((await story(page, STORY)).getByText('✓ done')).toBeVisible({ timeout: 20_000 })
+  await expect((await story(page, 'Without a story')).getByRole('listitem', { name: LATER })).not.toContainText(
+    'queued',
+  )
 })

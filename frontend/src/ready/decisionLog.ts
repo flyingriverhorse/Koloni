@@ -113,19 +113,20 @@ const things = (n: number, done: string, many: string) => (n === 1 ? `1 thing ${
 /** What a chat's line says: what was decided for you in it and waits for your OK, and what waits for your word. */
 export function decidedSentence(decided: number, waiting: number): string {
   const parts = [
-    decided > 0 && things(decided, 'was decided for you', 'were decided for you'),
-    waiting > 0 && (waiting === 1 ? '1 waits for you' : `${waiting} wait for you`),
+    decided > 0 && things(decided, 'was decided for you in this project', 'were decided for you in this project'),
+    waiting > 0 && (waiting === 1 ? '1 waits for you here' : `${waiting} wait for you here`),
   ].filter(Boolean)
   return `While you were away, ${parts.join(' and ')}.`
 }
 
-/** What Usage's Today says of the day's decisions, from the log: how many, and how many you have not seen. */
-export function todaySentence(log: DecisionLog): string {
+/** What Usage says of a period's decisions (`when`: "today", "this month"), from the log: how many, and how many you
+ *  have not seen. */
+export function periodSentence(log: DecisionLog, when = 'today'): string {
   const n = log.rows.length
   // (More than the log gives: how many is not known here, so not said.)
-  if (log.more) return 'Decisions were made for you today.'
-  if (n === 0) return 'No decisions were made for you today.'
+  if (log.more) return `Decisions were made for you ${when}.`
+  if (n === 0) return `No decisions were made for you ${when}.`
   const unseen = log.rows.filter(row => row.seen === false).length
-  const made = n === 1 ? '1 decision was made for you today' : `${n} decisions were made for you today`
+  const made = n === 1 ? `1 decision was made for you ${when}` : `${n} decisions were made for you ${when}`
   return unseen > 0 ? `${made}, ${unseen} of them you haven't seen.` : `${made}.`
 }

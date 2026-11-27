@@ -21,8 +21,8 @@ for (const theme of ['light', 'dark'] as const) {
     const id = await openFreshConversation(page, { leadWrites: false })
     mkdirSync(SHOTS, { recursive: true })
 
-    // The setting: every chat's, in Settings › This project › Asking and away, with the minutes before the Lead answers (0: at once).
-    const settings = await projectSettings(page, /^Asking and away/)
+    // The setting: every chat's, in Settings › This project › When you’re asked, with the minutes before the Lead answers (0: at once).
+    const settings = await projectSettings(page, /^When you’re asked/)
     await expect(settings.getByLabel('When you’re away')).toHaveValue('waits')
     await settings.getByLabel('When you’re away').selectOption('lead')
     await settings.getByLabel('Minutes before the Orchestrator answers').fill('0')
@@ -39,9 +39,11 @@ for (const theme of ['light', 'dark'] as const) {
     // (To look at, not waiting: the pill says "2 decided" - or, where other chats of the run wait, how many do;
     // the chat says it in one line, and so does the panel's This chat.)
     const pill = page.locator('.ready-pill')
-    await expect(pill).toHaveText(/^(2 decided|\d+ waits?)$/, { timeout: 20_000 })
+    // (K1: the project's count - other chats of the project may have theirs - read with its board, every 5 s)
+    await expect(pill).toHaveText(/^(\d+ decided|\d+ waits?)$/, { timeout: 20_000 })
     await expect(chat.locator('.decided-line')).toHaveText(
-      'While you were away, 2 things were decided for you. Open in Ready for you',
+      /^While you were away, \d+ things were decided for you in this project\. Open in Ready for you$/,
+      { timeout: 15_000 },
     )
     await pill.click()
     const panel = page.getByRole('complementary', { name: /^Ready for you/ })

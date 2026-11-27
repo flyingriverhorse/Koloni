@@ -80,7 +80,8 @@ for (const theme of ['light', 'dark'] as const) {
     for (const kind of ['Plan', 'Build', 'Data', 'ML', 'Ops', 'Check', 'Write & keep up'])
       await expect(library.getByRole('region', { name: kind, exact: true })).toBeVisible()
     const check = library.getByRole('region', { name: 'Check' })
-    await expect(check.getByRole('button', { name: /^Reviewer/ })).toContainText('Reviewer4 teams')
+    // (Of KOLONİ's ready teams, Web app and Quality since 0.1.10's three - migration 0194.)
+    await expect(check.getByRole('button', { name: /^Reviewer/ })).toContainText('Reviewer2 teams')
     // off: muted in its own group, and counted
     const write = library.getByRole('region', { name: 'Write & keep up' })
     await expect(write.locator('.lib-row-off')).toHaveCount(1)
@@ -104,9 +105,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(panel.getByLabel("Reviewer's category")).toHaveValue('check')
     await expect(panel).toContainText('Web app · Check')
     await expect(
-      page.getByText(/^Reviewer is in 4 of \d+ teams · the others are faded while it is open$/),
+      page.getByText(/^Reviewer is in 2 of \d+ teams · the others are faded while it is open$/),
     ).toBeVisible()
-    await expect(page.locator('.team-box-hit')).toHaveCount(4)
+    await expect(page.locator('.team-box-hit')).toHaveCount(2)
     await expect(panel).toContainText('Which modelOrchestrator · fast–strongest')
     await expect(panel.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
     expect(await cutLines(page)).toEqual([])

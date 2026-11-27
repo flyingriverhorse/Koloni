@@ -20,8 +20,8 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import git, raw
-from app.commands import _commands_in, _git_sub, _program
+from app import copies, git, raw, secret_set
+from app.commands import _TOKENS, _commands_in, _git_sub, _program
 from app.db.models import Agent, Run
 
 # The job's first message ends with this where it works on its branch (`backlog.first_message`).
@@ -71,7 +71,7 @@ PUSH_LINE = (
     "at {tip7}"
 )
 PUSH_PR = " · opens a pull request into {into}"
-PUSH_LEFT = " · left out: {files} (holds a secret KOLONİ knows)"  # (HIGH-1)
+PUSH_LEFT = " · left out: {files} (a secret KOLONİ knows, or named as one)"  # (HIGH-1, W-1)
 PUSH_WHY = "A push leaves this machine: nothing goes up before you say so"
 MARKS = {"green": "✓", "red": "✗"}
 
@@ -173,7 +173,16 @@ def refs(project: Path) -> dict[str, str] | None:
     digests["stash-list"].update(stashes)
     for name in GIT_FILES:
         with contextlib.suppress(OSError):
-            digests["git-files"].update(name.encode() + b"\0" + (folder / name).read_bytes())
+            data = (folder / name).read_bytes()
+            if name == "info/exclude":  # (K-koloni-alan: KOLONİ's own lines, `copy_git.exclude`)
+                data = b"".join(
+                    line
+                    for line in data.splitlines(keepends=True)
+                    if line.rstrip(b"\r\n").decode("utf-8", "replace") not in copies.EXCLUDED
+                )
+                if not data:  # (as no file: one KOLONİ made for its own lines alone)
+                    continue
+            digests["git-files"].update(name.encode() + b"\0" + data)
     code, out, _said = git._in(project, exe, "symbolic-ref", "-q", "HEAD")
     if code != 0:
         code, out, _said = git._in(project, exe, "rev-parse", "-q", "--verify", "HEAD")
@@ -199,13 +208,15 @@ _MENTION = re.compile(r"@(?=[\w-])")
 def titled(text: str, secrets: Iterable[str] = ()) -> str:
     """R2: a To-do task's line - which an agent may have written (the Scout) - as a commit's subject
     or a pull request's title says it: no control or format character (a line break, a bidi
-    override), each of `secrets` masked - before the joiner could split one - and a zero-width
+    override), each of `secrets` masked, and any secret by its shape alone (`secret_set.parts`: a
+    `ghp_…` token, an address's password) - before the joiner could split one - and a zero-width
     joiner after each `@` that would mention someone and before each issue's number a closing
     keyword would close (`Fixes #12`, `Fixes GH-9`, an issue's link: L-3). The rest as written: a
     link's or code's marks there are only text."""
     shown = "".join(ch for ch in text if unicodedata.category(ch) not in ("Cc", "Cf"))
-    for one in filter(None, secrets):
-        shown = shown.replace(one, "***")
+    # (`_TOKENS` has no group: `findall` gives each whole token)
+    for one in [*secrets, *secret_set.parts(shown), *_TOKENS.findall(shown)]:
+        shown = shown.replace(one, "***") if one else shown
     return _MENTION.sub("@\u200d", _CLOSES.sub("\\1\u200d", shown))
 
 
@@ -382,4 +393,5 @@ def row(session: Session, cid: str) -> dict | None:
             *([CONFIG_MOVED] if away.get("config_moved") else []),
             *([HOOKS_MOVED] if away.get("hooks_moved") else []),
         ],
+        "gone": bool(away.get("gone")),  # (N12: git deleted it at its Take in or Discard)
     }

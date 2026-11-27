@@ -74,7 +74,7 @@ export function OwnCommands({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <h2>Slash commands</h2>
+      <h3>Slash commands</h3>
       <span className="choice-note">
         Your own commands in the message box’s / menu: <span className="mono">/name</span> and what you type after it
         put the text in the box, <span className="mono">{'{args}'}</span> replaced by what you typed, to change before

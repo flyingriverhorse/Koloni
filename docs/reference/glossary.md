@@ -35,10 +35,12 @@ KOLONİ's own words, as they appear on screen.
   searches, secret files, opening a sub-agent, plans and more.
 
 **Check what I said first**
-: Full auto's judge's question of your words (its box in Settings › This project › Asking and away,
-  since 0.1.9): at Full auto, before a harmful-looking command waits for you on a card, a fast model
-  reads your own words, and the command runs without a card only where a line of yours names it. See
-  [Permission levels](../use/permissions.md#check-what-i-said-first).
+: Full auto's judge's question of your words (its box in Settings › This project › When you're asked,
+  since 0.1.9): at Full auto, before a delete, a push or a send waits for you on a card - or a delete
+  in the project goes to Full auto's judge -, a fast model reads your own words, and the command runs
+  without a card only where a line of yours names it - never a force push. Until a model has passed its
+  measurement, a push, a pull request or a merge you asked for gets a card that quotes you instead, one
+  click. See [Permission levels](../use/permissions.md#check-what-i-said-first).
 
 **Compare**
 : **Compare…** under **More** next to the message box. One message goes to two models side by
@@ -53,9 +55,9 @@ KOLONİ's own words, as they appear on screen.
 
 **Decided for you**
 : Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
-  card waited the project's minutes (Settings › This project › Asking and away › **When you're
+  card waited the project's minutes (Settings › This project › When you're asked › **When you're
   away**); and the commands **Check what I said first** ran, or did not run, on a line of yours.
-  The project's whole list is on the Ready for you page, with OK and Change; a chat says it in one
+  The project's whole list is on Work's Ready for you tab, with OK and Change; a chat says it in one
   line: [Decisions](../use/decisions.md).
 
 **Discussion**
@@ -68,7 +70,7 @@ KOLONİ's own words, as they appear on screen.
 
 **Hive keeper**
 : The built-in role that keeps the To-do list: it turns a goal into stories and tasks, each with what
-  makes it done, and puts them in order. **Write it with the Hive keeper** on the To-do page asks for its
+  makes it done, and puts them in order. The rough note's **Split into tasks** on To-do asks the Hive keeper for its
   way of writing a note as stories and their tasks. See [To-do](../automation/todo.md).
 
 **Journal**
@@ -76,27 +78,34 @@ KOLONİ's own words, as they appear on screen.
   when they look.
 
 **Knowledge**
-: A page of expert topics, each read once from web pages or project files into pages and a guide.
-  Roles that know a topic use it while they work.
+: The Memory page's second part, **Sources to look things up in**: expert topics, each read once from
+  web pages or project files into pages and a guide. Roles that know a topic use it while they work,
+  and an agent's **Recall** looks in its role's. See [Sources](../knowledge.md).
 
 **MCP server**
 : A program on your machine that gives agents more tools. You add it on the Tools page, under
   **Servers**. Each tool asks before it runs unless you say otherwise.
 
 **Measure command**
-: A command, set under Settings › This project › Checks and git, whose last line of output is a score from 0 to
+: A command, set under Settings › This project › When the work is done, whose last line of output is a score from 0 to
   100. It scores candidates.
 
 **Memory**
-: What a project remembers between chats: your preferences, the project's rules, facts and notes.
-  See [Memory](../memory.md).
+: What a project remembers between chats: your preferences, the project's rules and Project notes,
+  facts and notes. See [Memory](../memory.md).
 
 **Note**
 : A piece of memory an agent wrote with its **Remember** tool. See [Memory](../memory.md).
 
+**Notebook**
+: A job's short notebook - a To-do story's, or a task's of no story (a task's chat, a night's job) -
+  given to each of its turns as data, for as long as the job runs. KOLONİ, the Orchestrator, the agents'
+  notes for the whole turn and yours go in. See
+  [The job's notebook](../automation/todo.md#the-storys-notebook).
+
 **Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
-  sub-agents, unless you let it change files itself (Settings › This project › Agents › **Who
+  sub-agents, unless you let it change files itself (Settings › This project › How agents work › **Who
   changes the files**). (Behind the scenes its role is named Lead.)
 
 **Outside content**
@@ -129,20 +138,20 @@ KOLONİ's own words, as they appear on screen.
 : A folder your agents work in. Each project has its own settings, memory and To-do list.
 
 **Project notes**
-: A Knowledge topic that KOLONİ fills from what you tick on the **Add to Project notes?** card at the
-  end of a turn.
+: The lines you keep from the **Add to Project notes?** card at the end of a turn: part of
+  [Memory](../memory.md#project-notes), under the project's rules, given to the Orchestrator every turn
+  as notes.
 
 **Provider**
 : Where a model runs: an OpenAI-compatible server, the Anthropic API, or a CLI you are signed in to
   (Claude Code, Codex, GitHub Copilot CLI, agy). You add providers on the Models page.
 
-**Ready**
-: A page on the rail that lists everything waiting for your word, with a count.
-
 **Ready for you**
-: The panel and page that list everything waiting for your word, in two parts: **Needs your
-  answer** and **Ready to take in**. Beside the page's list, **Decided for you**: what was decided for
-  you in the project ([Decisions](../use/decisions.md)).
+: The panel and page that list everything waiting for your word. The panel lists the open chat's in two
+  parts, **Needs your answer** and **Ready to take in**, then what waits elsewhere. The page holds the last
+  ☾ Away's report, **Waiting for your word** in one list and **Decided for you** - what was decided for you
+  in the project ([Decisions](../use/decisions.md)) - with To-do beside them
+  ([Ready and approval cards](../use/ready.md#the-page)).
 
 **Recipe**
 : The drawn steps of a piece of work: who does each step, what runs at once, where it loops back
@@ -176,11 +185,11 @@ KOLONİ's own words, as they appear on screen.
   [Chat and canvas](../use/chat-and-canvas.md#writing-a-message).
 
 **Story**
-: On the To-do page, tasks and bugs that go on together. Its state comes from its tasks; it is done
+: On To-do (a tab of Work), tasks and bugs that go on together. Its state comes from its tasks; it is done
   only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
   on in one topic of a chat. A **bug** is a task about something that works wrong. See
   [Stories](../automation/todo.md#goals-and-stories) and
-  [The story's notebook](../automation/todo.md#the-storys-notebook).
+  [The job's notebook](../automation/todo.md#the-storys-notebook).
 
 **Sub-agent**
 : An agent that the Orchestrator (or another agent) opens for a part of the work. It works in its
@@ -209,7 +218,7 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order: stories hold tasks and bugs. Ticked tasks run
+: A project's tasks, in your order, on the Work page's To-do tab: stories hold tasks and bugs. Ticked tasks run
   in a chat you give them to (**Do in chat**), one by one, at that chat's level and on its model. Agents,
   and the Scout after a turn, propose tasks; you decide. See [To-do](../automation/todo.md).
 
@@ -229,12 +238,18 @@ KOLONİ's own words, as they appear on screen.
   in this chat, and other branches, each saying how the work stands. See
   [Branches](../use/workspace.md#branches).
 
+**Work**
+: A page on the rail (0.1.10; once **Ready**), with the count of what waits for your word: two tabs,
+  **Ready for you** and **To-do**. It opens on the tab shown last. See
+  [Ready and approval cards](../use/ready.md#the-page).
+
 **Workspace**
 : The side window with the project's files, what agents changed, wrote or showed, and what waits
   for you.
 
 **Working copy**
-: A copy of your project, outside your folder, where a sub-agent makes its changes. Its work comes
+: A copy of your project, outside your folder (in its `.koloni/copies/` where it has no git), where a
+  sub-agent makes its changes. Its work comes
   back to you on a card to take in or discard.
 
 ## How a CLI runs

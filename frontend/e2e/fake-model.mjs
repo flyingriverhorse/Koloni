@@ -471,7 +471,7 @@ function nextStep(all, tools = [], model = '') {
   // Asked to draw the user's sentence as a recipe (slice 84a): its JSON, in a code block as models often answer.
   if (String(messages[0].content).startsWith('You are asked one thing: to draw a recipe'))
     return say(`Here it is:\n\`\`\`json\n${JSON.stringify(RECIPE84)}\n\`\`\``)
-  // The To-do page's "Write it with the Hive keeper" (6 Nov): the note as a goal, two stories and three tasks.
+  // To-do's rough note, Split into tasks (6 Nov; 0.1.10 on Ready for you): the note as a goal, two stories and three tasks.
   if (String(messages[0].content).startsWith("You are asked one thing: to write the user's note as To-do tasks"))
     return say(JSON.stringify(TASKS_PO))
   // Asked to write an expert's guide from what it read (K-uzman): a short one, from its file.

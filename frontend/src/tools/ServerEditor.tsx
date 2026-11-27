@@ -1,9 +1,11 @@
-import { Plus, X } from '@phosphor-icons/react'
+import { Check, Plus, X } from '@phosphor-icons/react'
 import { type FormEvent, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import type { McpRead, McpServer, McpTool } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
+import { foundIn } from './cells'
 import { PackageLook } from './PackageLook'
 import { commandShown, count, downloadOf, packageOf, type Pasted } from './paste'
 import type { Props } from './ToolsPage'
@@ -11,9 +13,10 @@ import type { Props } from './ToolsPage'
 /** How many of a server's tools its table shows before "+ N more", with nothing typed in its search. */
 const FIRST_TOOLS = 8
 
+/** A tool's three marks, as its row shows them: from the most it may do without you to none. */
 const MARKS: [mark: McpTool['mark'], label: string][] = [
-  ['ask', 'Ask'],
   ['free', 'Runs without asking'],
+  ['ask', 'Ask'],
   ['off', 'Off'],
 ]
 
@@ -22,17 +25,6 @@ const linesOf = (text: string) =>
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)
-
-/** What a reading found against the one before, in words; nothing that is not there is named. */
-function foundIn(read: McpRead): string {
-  const parts = [
-    read.new.length > 0 && `New: ${read.new.join(', ')}.`,
-    read.changed.length > 0 &&
-      `Changed: ${read.changed.join(', ')} - one that ran without asking is asked about again.`,
-    read.gone.length > 0 && `Gone: ${read.gone.join(', ')}.`,
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' ') : 'Nothing is new, changed or gone since the reading before.'
-}
 
 export interface EditorProps extends Omit<Props, 'servers'> {
   server: McpServer | null
@@ -125,8 +117,6 @@ export function ServerEditor({
   const [inProject, setInProject] = useState<Record<string, string | null> | null>(null)
   const readButton = useRef<HTMLButtonElement>(null)
   const saved = server ? packageOf(server.command) : null
-  // npx's name@version, uvx's name==version or name@version; none, or @latest, takes the newest each start.
-  const unpinned = saved !== null && !/.@(?!latest$)|==/.test(saved)
   const readNow = (startFrom: Record<string, string | null> | null) => {
     if (!server) return
     const check = osv && saved !== null
@@ -193,12 +183,9 @@ export function ServerEditor({
       void run(() => onSave(server.id, { marks: Object.fromEntries(offerable.map(tool => [tool.name, mark])) }))
   }
 
-  /** A saved server's bar: its command, Read its tools, Edit and Delete server. */
+  /** A saved server's bar: Read its tools, Edit and Delete server (its command is on its card's head). */
   const bar = (server: McpServer) => (
     <div className="tools-bar">
-      <span className="mono tools-command" title={givenShown.join(' ')}>
-        {givenShown.join(' ')}
-      </span>
       <button
         type="button"
         className="btn btn-small"
@@ -437,39 +424,6 @@ export function ServerEditor({
     </section>
   )
 
-  /** A server not trusted yet: Trust this server, and why every call asks. */
-  const watching = (server: McpServer) => (
-    <>
-      <div className="tools-bar">
-        <span className="tag tag-warn">Watching: every call asks</span>
-        {/* Trust is in the tools read: none before the first reading. */}
-        <button
-          type="button"
-          className="btn btn-small"
-          disabled={busy || server.read_at === null}
-          aria-describedby={unpinned ? 'mcp-trust-note' : undefined}
-          onClick={() => void run(() => onSave(server.id, { trusted: true }))}
-        >
-          Trust this server
-        </button>
-        {unpinned && (
-          <span id="mcp-trust-note" className="muted provider-note">
-            <span className="mono">{saved}</span> updates itself: trust covers future versions
-          </span>
-        )}
-      </div>
-      {/* What it runs stays in sight; why, and what watches it again, behind ⓘ. */}
-      <p className="muted provider-note">
-        Every call asks until you trust it.{' '}
-        <Hint doc={GUIDE.mcpTrust}>
-          Until you trust it, every call of its tools asks you on a card with what the server says of the tool, at every
-          level, Full auto too, and “Runs without asking” waits. Read its tools and what they say first. Another
-          command, another variable, or a reading that finds a new or changed tool watches it again.
-        </Hint>
-      </p>
-    </>
-  )
-
   /** What the last reading of its tools found, or that none was made. */
   const reading = (server: McpServer) =>
     server.read_error ? (
@@ -515,21 +469,29 @@ export function ServerEditor({
         {tool.unusable ? (
           <span className="choice-note">Not offered: {tool.unusable}.</span>
         ) : (
-          <select
-            className="input"
-            aria-label={`When an agent calls ${tool.name}`}
-            value={tool.mark}
-            disabled={busy}
-            onChange={e =>
-              void run(() => onSave(server.id, { marks: { [tool.name]: e.target.value as McpTool['mark'] } }))
-            }
-          >
-            {MARKS.map(([mark, label]) => (
-              <option key={mark} value={mark}>
-                {label}
-              </option>
-            ))}
-          </select>
+          // Its three marks side by side, the one it has pressed - said by its check and weight too, not its ground
+          // alone; saved as one is pressed, never by an arrow key. Green only where it runs so: a trusted server's.
+          <span className="tools-marks" role="group" aria-label={`When an agent calls ${tool.name}`}>
+            {MARKS.map(([mark, label]) => {
+              const on = tool.mark === mark
+              return (
+                <button
+                  key={mark}
+                  type="button"
+                  value={mark}
+                  className={`tools-mark${mark !== 'free' || server.trusted ? ` tools-mark-${mark}` : ''}`}
+                  aria-pressed={on}
+                  disabled={busy}
+                  onClick={() => {
+                    if (!on) void run(() => onSave(server.id, { marks: { [tool.name]: mark } }))
+                  }}
+                >
+                  {on && <Check size={11} weight="bold" aria-hidden />}
+                  {label}
+                </button>
+              )
+            })}
+          </span>
         )}
       </td>
     </tr>
@@ -603,11 +565,9 @@ export function ServerEditor({
     </>
   )
 
-  /** A saved server's trust, its checks, its tools and the roles that may use it. */
+  /** A saved server's checks, its tools and the roles that may use it (its trust is on its card's head). */
   const checks = (server: McpServer) => (
     <>
-      {/* Slice 92: a server added is watched until you trust it (one added before is trusted). */}
-      {!server.trusted && watching(server)}
       {/* What the package says of itself and what the last reading found: only what is on record. */}
       <h4 className="kicker">Checks</h4>
       {spec && <PackageLook key={lines.join('\n')} spec={spec} command={lines} />}
@@ -632,7 +592,7 @@ export function ServerEditor({
                   )
                 }
               />
-              <span>{role.name}</span>
+              <span>{titleOf(role.name)}</span>
             </label>
           )
         })}

@@ -9,7 +9,8 @@ test('on a narrow window the teams list and the New role form lie one under the 
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   await page.getByRole('button', { name: 'New role' }).click()
   const [teams, form] = [
-    await page.locator('.agents-teams').boundingBox(),
+    // (The teams' list: at this width their wrapper is no box of its own - "Roles ▸ N" sticks in the page's scroll.)
+    await page.locator('.teams-board').boundingBox(),
     await page.locator('.role-panel').boundingBox(),
   ]
   expect(form!.y).toBeGreaterThanOrEqual(teams!.y + teams!.height - 1)

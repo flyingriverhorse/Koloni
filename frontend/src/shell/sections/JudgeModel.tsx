@@ -26,8 +26,8 @@ function JudgeNotes({ judge, stale }: { judge: JudgeOut; stale: boolean }) {
       )}
       {judge.now === null && (
         <span className="choice-note">
-          No model can be asked: Full auto’s judge stands aside and says so in the chat. Give a model a tier on the
-          Models page.
+          No model can be asked: each command Full auto’s judge would look at waits for you on a card, and the chat says
+          why. Give a model a tier on the Models page.
         </span>
       )}
       {judge.now?.cli && <span className="choice-note">On a CLI each such command waits for it to start.</span>}
@@ -37,8 +37,9 @@ function JudgeNotes({ judge, stale }: { judge: JudgeOut; stale: boolean }) {
 }
 
 /** Settings › The app › Agents (0.1.9): whom KOLONİ's judges ask, in every project - the Fast tier's first unless one
- *  is chosen; kept as it is changed. A choice that cannot be asked now stays chosen, and is said so. */
-export function JudgeModel() {
+ *  is chosen; kept as it is changed. A choice that cannot be asked now stays chosen, and is said so. The judge as
+ *  read (undefined until it is), and its row. */
+export function useJudgeModel() {
   const [judge, setJudge] = useState<JudgeOut | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
@@ -58,7 +59,7 @@ export function JudgeModel() {
   const fast = choices.find(one => one.tier === 'fast')
   const chosen = judge?.provider_id && judge.model_id ? keyOf(judge.provider_id, judge.model_id) : ''
   const listed = choices.some(one => keyOf(one.provider_id, one.model_id) === chosen)
-  return (
+  const view = (
     <div className="settings-app-form">
       <Row
         label="Judge model"
@@ -66,6 +67,7 @@ export function JudgeModel() {
         doc={GUIDE.fullAutoJudge}
         why={JUDGE_WHY}
         warn={judge && <JudgeNotes judge={judge} stale={chosen !== '' && !listed} />}
+        from={judge === undefined ? null : chosen ? 'here' : 'usual'}
       >
         <select
           id="judge-model"
@@ -90,4 +92,5 @@ export function JudgeModel() {
       )}
     </div>
   )
+  return { judge, view }
 }

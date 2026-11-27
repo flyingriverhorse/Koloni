@@ -154,6 +154,7 @@ beforeEach(() => {
     },
     '/api/tiers': { strongest: [], balanced: [], fast: [] },
     '/api/projects/p/others-instructions': { paths: [], more: 0, partial: false },
+    '/api/projects/p/decisions': { rows: [], judge_fine: 0, more: false },
   }
   asked = []
   vi.stubGlobal(
@@ -186,7 +187,7 @@ const options = () =>
 test('Ctrl+K opens it from inside the message box; it finds by name as it is typed; Esc closes it and the focus is back in the box', async () => {
   render(<App />)
   const box = await screen.findByLabelText('Message')
-  await waitFor(() => expect(asked).toContain('/api/conversations/c1'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c1?turns=40'))
   await userEvent.click(box)
   await userEvent.keyboard('{Control>}k{/Control}')
   expect(palette()).toBeInTheDocument()
@@ -217,11 +218,20 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
     await userEvent.type(within(palette()!).getByRole('combobox'), `${words}{Enter}`)
     expect(palette()).not.toBeInTheDocument()
   }
+  // 0.1.10: Knowledge is the Memory page's sources
   await pick('knowledge')
-  expect(await screen.findByRole('heading', { name: 'Knowledge' })).toBeInTheDocument()
-  // the Conversations page by the rail's word for it, too
+  expect(await screen.findByRole('tab', { name: /^Sources to look things up in/, selected: true })).toBeInTheDocument()
+  // the Chats page by the rail's word for it
   await pick('chats')
-  expect(await screen.findByRole('heading', { name: 'Conversations' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Chats' })).toBeInTheDocument()
+  // To-do, a tab of Work (0.1.10): that page on that tab, its To-do heading taking the focus
+  await pick('to-do')
+  expect(await screen.findByRole('heading', { name: /^To-do/ })).toHaveFocus()
+  expect(screen.getByRole('button', { name: 'Work' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('tab', { name: /^To-do/ })).toHaveAttribute('aria-selected', 'true')
+  // ...and Ready for you, by the page's old name: that tab
+  await pick('ready')
+  expect(await screen.findByRole('heading', { name: /^Ready for you/ })).toBeVisible()
   // a role: the Agents page, open on it rather than on the first
   await pick('documenter')
   await userEvent.click(await screen.findByRole('tab', { name: 'Instructions' }))
@@ -233,7 +243,7 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
   expect(screen.getByRole('heading', { name: 'Web search' })).toBeInTheDocument()
   // a conversation, by its name: it is opened on the canvas
   await pick('tidy')
-  await waitFor(() => expect(asked).toContain('/api/conversations/c2'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c2?turns=40'))
   expect(screen.queryByRole('form', { name: 'Project settings' })).not.toBeInTheDocument()
   expect(await screen.findByLabelText('Message')).toBeInTheDocument()
 })
@@ -276,7 +286,55 @@ test('a section of the settings picked over a page picked before leaves that pag
   await userEvent.click(
     within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }),
   )
-  expect(screen.getByRole('heading', { name: 'Agents' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'How agents work' })).toBeInTheDocument()
+})
+
+test('0.1.10: a section is found by its new name, and by a name it had before - listed by its new one', async () => {
+  render(<App />)
+  await screen.findByLabelText('Message')
+  const find = async (words: string) => {
+    await userEvent.keyboard('{Control>}k{/Control}')
+    await userEvent.type(within(palette()!).getByRole('combobox'), words)
+    return within(palette()!)
+      .getAllByRole('option')
+      .map(one => one.textContent)
+  }
+  for (const [old, now] of [
+    ['runs without asking', 'When you’re asked'],
+    ['commands and secrets', 'When you’re asked'],
+    ['asking and away', 'When you’re asked'],
+    ['checks and git', 'When the work is done'],
+    ['slash commands', 'How agents work'],
+    ['new chats start with', 'How agents work'],
+  ]) {
+    expect(
+      (await find(old)).some(one => one?.includes(now)),
+      old,
+    ).toBe(true)
+    await userEvent.keyboard('{Escape}')
+  }
+  await find('when the work')
+  await userEvent.keyboard('{Enter}')
+  expect(screen.getByRole('heading', { name: 'When the work is done' })).toBeInTheDocument()
+})
+
+test('0.1.10: a section folded into another is found by its old name, and opened where it is now - its More, or the rules', async () => {
+  render(<App />)
+  await screen.findByLabelText('Message')
+  const go = async (words: string, shown: string) => {
+    await userEvent.keyboard('{Control>}k{/Control}')
+    await userEvent.type(within(palette()!).getByRole('combobox'), words)
+    expect(within(palette()!).getAllByRole('option')[0]).toHaveTextContent(shown)
+    await userEvent.keyboard('{Enter}')
+  }
+  await go('slash commands', 'How agents work › Slash commands')
+  expect(screen.getByRole('heading', { name: 'Slash commands' })).toBeVisible()
+  await go('commands and secrets', 'When you’re asked › Commands and secrets')
+  expect(screen.getByLabelText(/^Planted test key/)).toBeVisible()
+  await go('runs without asking', 'When you’re asked › Runs without asking')
+  expect(screen.getByRole('button', { name: 'Hide the rules' })).toHaveAttribute('aria-expanded', 'true')
+  await go('new chats start', 'How agents work › New chats start with')
+  expect(screen.getByRole('list', { name: 'New chats’ other folders' })).toBeVisible()
 })
 
 test('“Search in messages” opens the memory’s search with the words, and searches them', async () => {
@@ -360,7 +418,7 @@ test('the first steps are one path - a provider, a folder, a message: the first 
   answers['/api/conversations'] = [{ ...listed('c1', 'Fix the login'), wrote: true }]
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().loadProjects()))
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().newConversation()))
-  await waitFor(() => expect(asked).toContain('/api/conversations/c3'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c3?turns=40'))
   expect(screen.queryByRole('region', { name: 'First steps' })).not.toBeInTheDocument()
   expect(localStorage.getItem('koloni-first-steps')).toBeNull()
 })
@@ -371,7 +429,7 @@ test('a conversation with a turn has no first steps over it, even with the model
   answers['/api/providers'] = [{ id: 'pv', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] }]
   answers['/api/roles/models'] = [{ role: 'Reviewer', provider_name: 'Local', asks_how_hard: null }]
   render(<App />)
-  await waitFor(() => expect(asked).toContain('/api/conversations/c1'))
+  await waitFor(() => expect(asked).toContain('/api/conversations/c1?turns=40'))
   expect(await screen.findByLabelText('Message')).toBeInTheDocument()
   await screen.findByText(/Local isn't answering/)
   expect(screen.queryByRole('region', { name: 'First steps' })).not.toBeInTheDocument()
@@ -477,6 +535,6 @@ test('gone to another page by Enter, the focus is on that page, not lost', async
   await userEvent.click(box)
   await userEvent.keyboard('{Control>}k{/Control}')
   await userEvent.type(within(palette()!).getByRole('combobox'), 'knowledge{Enter}')
-  await screen.findByRole('heading', { name: 'Knowledge' })
+  await screen.findByRole('tab', { name: /^Sources to look things up in/, selected: true })
   await waitFor(() => expect(document.querySelector('.main')).toHaveFocus())
 })

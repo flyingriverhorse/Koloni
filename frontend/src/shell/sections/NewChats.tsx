@@ -3,7 +3,8 @@ import { useState } from 'react'
 import type { Project, TeamsMode } from '../../api/types'
 import { useApp } from '../../state/store'
 import { type FolderRow, GIVEN, listsOf, rowsOf } from '../Folders'
-import { part, Row } from './part'
+import { fromOf, Row } from './part'
+import { USUAL } from './usual'
 
 const MODES: [mode: TeamsMode, label: string][] = [
   ['lead', 'Orchestrator decides'],
@@ -15,9 +16,9 @@ const same = (a: FolderRow[], b: FolderRow[]) =>
   a.length === b.length && a.every((row, at) => row.path === b[at].path && row.access === b[at].access)
 
 /**
- * This project › New chats start with: the teams and the other folders a new chat of it starts with. A chat sets its own
- * teams and folders; "Use for new chats" and "Keep for this project" there
- * put them here too.
+ * This project › How agents work (New chats start with, before 0.1.10): the teams and the other folders a new chat of
+ * it starts with - its teams in sight, its folders under More. A chat sets its own teams and folders; "Use for new
+ * chats" and "Keep for this project" there put them here too.
  */
 export function useNewChats(project: Project) {
   const [mode, setMode] = useState<TeamsMode>(project.teams_mode)
@@ -28,14 +29,19 @@ export function useNewChats(project: Project) {
     ...(mode !== project.teams_mode && { teams_mode: mode, teams: mode === 'manual' ? project.teams : [] }),
     ...(!same(folders, kept) && listsOf(folders)),
   }
-  return part(
+  return {
     patch,
-    true,
-    <>
-      <h2>New chats start with</h2>
-      <p className="choice-note">A new chat of this project starts with these; each chat then sets its own.</p>
-      <NewTeams mode={mode} setMode={setMode} project={project} />
-      <Row label="Other folders">
+    mode,
+    folders: folders.length,
+    teams: (
+      <>
+        <h3>New chats start with</h3>
+        <p className="choice-note">A new chat of this project starts with these; each chat then sets its own.</p>
+        <NewTeams mode={mode} setMode={setMode} project={project} />
+      </>
+    ),
+    others: (
+      <Row label="Other folders" from={fromOf(folders, kept, [])}>
         {folders.length === 0 && <span className="muted">None.</span>}
         <ul className="folder-rows" aria-label="New chats’ other folders">
           {folders.map(row => (
@@ -57,8 +63,8 @@ export function useNewChats(project: Project) {
           A folder is added from a chat’s folder button: “Keep for this project”. {GIVEN}
         </span>
       </Row>
-    </>,
-  )
+    ),
+  }
 }
 
 /** Who picks a new chat's teams; with Manual, the teams a chat kept for it. */
@@ -72,11 +78,15 @@ function NewTeams({
   project: Project
 }) {
   const teams = useApp(s => s.teams)
-  const names = project.teams.map(row => teams.find(team => team.id === row.team_id)?.name ?? 'a team deleted since')
+  // (A server older than the page has no teams yet.)
+  const names = (project.teams ?? []).map(
+    row => teams.find(team => team.id === row.team_id)?.name ?? 'a team deleted since',
+  )
   return (
     <Row
       label="New chats’ teams"
       htmlFor="new-teams"
+      from={fromOf(mode, project.teams_mode, USUAL.teams_mode)}
       warn={
         mode === 'manual' && (
           <span className="choice-note">

@@ -15,8 +15,9 @@ way, and where that ends.
 - **Full auto** runs commands without asking. Its check for harmful commands (deleting, force-pushing,
   sending data off the machine) is a courtesy for honest commands, not a wall: a command written to hide
   what it does is not seen. [Full auto's judge](../use/permissions.md#full-autos-judge), on by default,
-  also asks a small model about each command that list does not stop, and puts one it finds risky on a
-  card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
+  also asks a small model about each command that list does not stop - since 0.1.10 a delete in the
+  project, git work thrown away and a stop by name too, which the list asked of before - and refuses one
+  it finds risky, or puts it on a card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
   then it runs. Use Full auto only for work you are ready to let run.
 - For a wall against a deliberate attacker on your own account, run agents' commands in Docker, or run
   KOLONİ as another user.
@@ -142,7 +143,7 @@ at Full auto. On Windows, device names (`CON`, `COM1`) and file streams (`a.txt:
 
 - Secret files (`.env`, keys, …) are opened only on your **Allow once**, and searches skip them.
 - Variables with secret names are not passed to commands or CLIs unless you name them (Settings ›
-  This project › Commands and secrets).
+  This project › When you're asked › More › **Secret variables commands may see**).
 - Keys in command output are shown and recorded as `***`.
 - **Planted test key (canary)**: a made-up key in each message's commands. A command, web request,
   browser or MCP call that would send it out is refused, and the work stops.
@@ -199,7 +200,8 @@ What is not framed:
 ## Other walls
 
 - **Sub-agents** work in working copies, not in your folder, until you take their work in. The commands of
-  Claude Code run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
+  Claude Code run **Native** there are not sandboxed, nor those of GitHub Copilot CLI run **Native** where its session
+  has no sandbox: at Full auto, one that reaches the project by a path it does not
   spell out changes it directly, and KOLONİ records that change after the command, by an unknown maker
   ([Known limits](../reference/known-limits.md#clis)).
 - **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
@@ -214,7 +216,7 @@ What is not framed:
   be your repository's own `.git` - is asked at every level. A pull request never pushes commits of
   yours that origin does not have, in any worktree of yours
   ([Branches](../use/workspace.md#branches)).
-- **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
+- **Commands in Docker** (Settings › This project › When you're asked › More): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.
 - **Web searches and requests** reach only public addresses, never this machine or your local
   network. The agents' browser opens previews on this machine and the sites you allowed.
@@ -229,15 +231,29 @@ What is not framed:
   model decide whether a harmful-looking command at Full auto runs: it reads only your own words, never
   an agent's, and asks on a card when anything is unclear, but a model can misread a line. Leave it on
   **Ask me** where a wrong delete would cost you.
-- [Full auto's judge](../use/permissions.md#full-autos-judge) never lets a command run that asks, and
-  refuses only on its own "risky" - an error, a slow answer, an unreadable one, a model it may not ask
-  now (no room, the turn's token limit) is a card, never a run nor a refusal; a refused agent is told a
-  general reason, never the judge's sentence (it read your messages, and would guide the next try), and
-  after 3 refusals in a turn, by any of its agents, the next risky command is a card;
-  it stands aside only with no model to ask - but what it lets by runs as Full auto ran before it: a
-  model's "fine" can be wrong; it reads the first 4 KB of a program an agent wrote, not a file that
-  program imports, a tool an agent changed without writing it, nor a file an agent made by copying
-  (`cp x.txt x.py`); test runners and build tools run an agent's `conftest.py`, test files, plugins or
+- [Full auto's judge](../use/permissions.md#full-autos-judge) never lets a command run that asks at
+  every level - out of the project or all of it, a send, a git remote's branches, a secret, `.koloni`, a
+  file that steers agents, what may stop KOLONİ, an unread line. Since 0.1.10, in a chat you watch at
+  Full auto, it decides a delete in the project, git work thrown away and a stop by name, written as a
+  plain line (no quote, escape, wildcard, pipe, wrapper or place built as it runs), in place of the
+  list's card: its "fine" deletes with no card. KOLONİ looks at the disk on the way to what a delete
+  names first, and again before it runs (a link or a junction there keeps the card), not inside a
+  folder it deletes; the line is one such harm (a `cd` elsewhere, a second command or harm, keeps the
+  card), and git's only where the project is its repository's top folder. With the judge off, no model to answer, at Ask or Auto-edit, in a To-do task's
+  turn or a job while you're away those are the list's cards as before. It refuses only on its own
+  "risky" - an error, a slow answer, an unreadable one, no model to ask or one it
+  may not ask now (no room, the turn's token limit) is a card, never a run nor a refusal (it fails
+  closed); a refused agent is told a general reason, never the judge's sentence (it read your messages,
+  and would guide the next try), and after 3 refusals in a row (a command that runs ends a row) or 20
+  in a turn, by any of its agents, the rest of the turn's risky commands are cards. A narrow **Always
+  run** rule (`npm run build`) lets its very line by unjudged, at the project's root in a chat you watch -
+  not a broad one (`npm`, `python`, `npm install`, `docker run`), nor a line that runs a program an agent
+  wrote. It reads your words
+  and the agent's actions - its tool calls by name and arguments, never what they gave back (a file
+  read, a command's output, a page), so text planted in a file or a page does not reach it that way.
+  What it lets by runs as Full auto ran before it: a model's "fine" can be wrong; it reads the first
+  4 KB of a program an agent wrote, not a file that program imports, a tool an agent changed without
+  writing it, nor a file an agent made by copying (`cp x.txt x.py`); test runners and build tools run an agent's `conftest.py`, test files, plugins or
   `build.rs` on an ordinary line it is not asked about; and for a CLI run **Native** it sees only the
   command the CLI reports. Everything but your own words reaches it marked as an agent's data, but text
   written to steer a model can still sway one.

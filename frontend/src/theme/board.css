@@ -33,7 +33,7 @@
 
 /* --- what waits for you, seen from anywhere (slice 38f-2) --------------------------- */
 
-/* The count on the rail's Ready button: a warning tag, so its ground and text are the tags' own. */
+/* The count on the rail's Work button: a warning tag, so its ground and text are the tags' own. */
 .rail-badge {
   position: absolute;
   top: 0;
@@ -122,6 +122,190 @@
   flex: 1;
   min-width: 0;
   width: auto;
+}
+
+/* The Chats page (0.1.10): its heading with one row of tools beside it - under it where narrow -, Now across the top,
+   the chats by folder the whole width under it. */
+.conv-head-chats {
+  flex-wrap: wrap;
+  gap: 8px 4px;
+}
+
+.conv-toolbar {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.conv-toolbar .input {
+  width: auto;
+}
+
+.conv-toolbar input[type='search'] {
+  flex: 1 1 180px;
+  max-width: 340px;
+}
+
+.conv-sub {
+  margin: -8px 0 0;
+}
+
+.conv-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* A chat's row: its cell, its name with one line of how it stands under it, when; one frame for a group's rows. */
+.conv-main .conv-list {
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.conv-main .conv-item {
+  flex-wrap: nowrap;
+  padding: 0 10px;
+}
+
+.conv-main .conv-item + .conv-item {
+  border-top: 1px solid var(--border);
+}
+
+.conv-main .conv-row {
+  align-items: flex-start;
+  background: transparent;
+  box-shadow: none;
+}
+
+.conv-main .conv-row:hover {
+  background: var(--hover);
+}
+
+/* The open chat: a honey line on its row's left edge. */
+.conv-main .conv-row[aria-current='true'] {
+  box-shadow: none;
+}
+
+.conv-main .conv-item:has(.conv-row[aria-current='true']) {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.conv-cell-none {
+  flex: none;
+  width: 14px;
+}
+
+.conv-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.conv-row-said {
+  color: var(--muted);
+  font-size: var(--text-note);
+  overflow-wrap: anywhere;
+}
+
+.conv-is-yours {
+  color: var(--accent);
+  font-weight: var(--weight-strong);
+}
+
+.conv-is-stuck {
+  color: var(--warn);
+  font-weight: var(--weight-strong);
+}
+
+.conv-folder-count {
+  font-size: var(--text-note);
+  font-weight: normal;
+}
+
+/* Now: what is at work and what waits for your word, in every folder - one strip across the top, in sight while the
+   list scrolls under it: its heading, its cells, its sentence and Go to Ready for you, what the cells mean; wrapped
+   where narrow. It sticks to the page's very top (its padding is 28 px) in a band of the page's ground, so the rows
+   that go under it are not seen above it or by its corners. */
+.conv-now {
+  position: sticky;
+  top: -28px;
+  z-index: 2;
+  flex: none;
+  margin: -8px 0;
+  padding: 8px 0;
+  background: var(--bg);
+}
+
+.conv-now-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.conv-now h3 {
+  margin: 0;
+  font-size: var(--text-heading);
+  white-space: nowrap;
+}
+
+.conv-now h3 .muted {
+  font-size: var(--text-note);
+  font-weight: normal;
+}
+
+.conv-now-box {
+  display: flex;
+  flex: 1 1 520px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+/* (Twelve cells a line: thirty are three lines.) */
+.conv-now-box .cell-comb {
+  max-width: 300px;
+}
+
+.conv-now-box p {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+/* What the cells mean, in two short lines beside the sentence. */
+.conv-now .cell-legend {
+  flex: 0 1 250px;
+}
+
+/* A row the keyboard reaches is scrolled into view under Now, not behind it (Now's height: ChatsNow). */
+.conv-page:has(> .conv-now) {
+  scroll-padding-top: calc(var(--now-h, 0px) + 8px);
+}
+
+/* Narrow, Now wraps to a few lines: it stays on top but scrolls away with the page, so the list keeps the screen. */
+@media (max-width: 980px) {
+  .conv-now {
+    position: static;
+  }
+
+  .conv-page:has(> .conv-now) {
+    scroll-padding-top: 0;
+  }
+
+  .conv-toolbar {
+    justify-content: flex-start;
+  }
 }
 
 /* Under an answer whose message did work (slice 107): one quiet line, the summary under "details". */
@@ -317,28 +501,184 @@
   overflow-wrap: anywhere;
 }
 
-/* The Ready for you page in two columns (karar defteri): what waits for your word, and beside it - under it on a narrow
-   screen - Decided for you. */
+/* Work (0.1.10): Ready for you and To-do, two tabs under the page's heading - the tab shown fills the page and scrolls
+   by itself, its tabs staying in sight; on a narrow window the page scrolls as one. */
+.ready-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.work-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 28px 0;
+}
+
+.work-top > h2 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+
+.work-tabs {
+  padding: 0;
+}
+
+/* (Both tabs stay drawn: the one not shown is hidden, whatever its own display.) */
+.ready-page > [hidden] {
+  display: none;
+}
+
+.ready-left,
+.todo-half {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px 28px 32px;
+  overflow-y: auto;
+}
+
+/* (A story's panel lies over the To-do tab, not over what it scrolls: the tab is its frame.) */
+.ready-right {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* An empty To-do's long line: its faint hive reaches 32px past it, which the tab's padding (28px) does not hold - the
+   tab would scroll sideways. */
+.todo-half p.hive-empty {
+  max-width: calc(100% - 32px);
+}
+
+.ready-greet {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-title);
+  line-height: 1.25;
+}
+
+.ready-eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: var(--text-note);
+  font-weight: var(--weight-strong);
+}
+
 .ready-said {
-  margin: 0 0 12px;
+  margin: -8px 0 0;
   color: var(--muted);
 }
 
-.ready-columns {
+.ready-part,
+.ready-left > .decisions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ready-part-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.ready-main {
-  flex: 3 1 520px;
-  min-width: 0;
+.ready-part-head h2,
+.todo-half > h2 {
+  margin: 0;
+  font-size: var(--text-heading);
 }
 
-.ready-columns > .decisions {
-  flex: 2 1 360px;
-  min-width: 0;
+/* Nothing new since you last looked: one line, never an empty box. */
+.ready-nothing {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+
+/* The night's report: written as a report - one sentence, a row per job -, the honey line on its left. */
+.ready-left > .night-strip {
+  margin: 0;
+  border-left: 4px solid var(--accent-fill);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+
+.ready-lede {
+  margin: 0;
+  max-width: 60ch;
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  line-height: 1.35;
+}
+
+.ready-jobs .away-job {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+}
+
+.ready-jobs .away-job > .cell {
+  margin-top: 3px;
+}
+
+.ready-report-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+/* Waiting for your word on the page: one list in one frame, a row each. */
+.ready-page .ready-items {
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.ready-page .ready-item {
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.ready-page .ready-item + .ready-item {
+  border-top: 1px solid var(--border);
+}
+
+.ready-item-kind {
+  font-weight: var(--weight-strong);
+}
+
+@media (max-width: 980px) {
+  .ready-page {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .ready-left,
+  .todo-half {
+    overflow: visible;
+  }
 }
 
 /* The night strip (Part B): a lane per job on one time axis - its bar from its start to its end, the decisions made for

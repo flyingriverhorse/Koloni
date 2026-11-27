@@ -1,5 +1,5 @@
 import { X } from '@phosphor-icons/react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { type KeyboardEvent as KeyEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { titleOf } from '../agents/agentStatus'
 import { errorText } from '../api/client'
 import type { Team } from '../api/types'
@@ -7,17 +7,20 @@ import { NightRow } from './NightRow'
 import { WaitRow } from '../backlog/BacklogPage'
 import { count, since } from '../board/columns'
 import { type RequestHandlers, WaitingCard, WaitingList } from '../chat/MessageList'
-import { PARTS, koloniAbout } from '../chat/waiting'
+import { koloniAbout } from '../chat/waiting'
 import { wouldReplace } from '../memory/memoryText'
 import { Proposal, Suggestion } from '../memory/records'
-import type { WaitingKind, Waiting as WaitingRow } from '../chat/waiting'
+import type { Waiting as WaitingRow } from '../chat/waiting'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { Decisions } from './Decisions'
 import { readySentence } from './decisionLog'
-import { NightStrip } from './NightStrip'
+import { Cell } from '../shell/Cell'
+import { CELL } from './cells'
+import { greeting } from './nightText'
+import { Report } from './Report'
 import { ParkedRow } from './ParkedRow'
-import { READY_PANEL, type ReadyItem, type ReadySource, SOURCES, chatOf, ofChat, readyId } from './ready'
+import { READY_PANEL, type ReadyItem, type ReadySource, SOURCES, type TaskWait, chatOf, ofChat, readyId } from './ready'
 
 /** Open a chat; `key`: at that card of it (the panel's This chat). Resolves once it is open. */
 type OpenChat = (conversationId: string, key?: string) => Promise<void>
@@ -78,6 +81,36 @@ function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | 
     .filter(Boolean)
     .join(' · ')
 }
+
+/** What a card asks, in a word or two, by what it is of. */
+const CARD_WORD: Record<WaitingRow['what'], string> = {
+  question: 'Question',
+  command: 'Command',
+  change: 'File change',
+  web: 'Web request',
+  spawn: 'New agent',
+  role: 'New role',
+  skill: 'New skill',
+  outside: 'Outside the folder',
+  plan: 'Plan',
+  merge: 'Take in',
+  night: 'Night job',
+  notes: 'Project notes',
+}
+const TASK_WORD: Record<TaskWait, string> = { 'new task': 'Proposed task', 'done?': 'Done?', change: 'Proposed change' }
+const PARKED_WORD: Record<string, string> = { push: 'Push', command: 'Parked command', question: 'Question' }
+
+/** What a row is, first on it: a push, a parked command, a question, a proposed task, a card's kind. */
+export function kindWord(item: ReadyItem): string {
+  if (item.what === 'card') return item.row.kind === 'ready' ? 'Ready to take in' : CARD_WORD[item.row.what]
+  if (item.what === 'task') return TASK_WORD[item.kind]
+  if (item.what === 'parked') return PARKED_WORD[item.row.kind] ?? item.row.kind
+  if (item.what === 'memory') return item.suggestion ? 'Suggestion' : 'Memory proposal'
+  return 'Night job'
+}
+
+/** A proposal - a new task, a memory record - is a thin cell; the rest wait for your word. */
+const proposed = (item: ReadyItem) => (item.what === 'task' && item.kind === 'new task') || item.what === 'memory'
 
 /** A chat's card, with its chat's words. */
 function ChatCard({ state, row, openChat }: { state: ConvState; row: WaitingRow; openChat: OpenChat }) {
@@ -164,7 +197,11 @@ function ReadyRow({
       aria-label={`${WORD[item.source]}: ${from}`}
     >
       <div className="ready-item-head">
-        <span className="tag">{WORD[item.source]}</span>
+        <Cell
+          {...CELL[proposed(item) ? 'proposed' : 'yours']}
+          label={proposed(item) ? 'proposed' : 'waits for your word'}
+        />
+        <span className="ready-item-kind">{kindWord(item)}</span>
         <span className="ready-item-from">{from}</span>
         {item.at && <span className="mono muted">{since(item.at)}</span>}
         {chat && (
@@ -181,9 +218,6 @@ function ReadyRow({
     </li>
   )
 }
-
-/** A row's kind, for its part of Ready for you (`PARTS`): a chat's card as its chat counts it; a To-do, memory or night row is a decision. */
-const kindOf = (item: ReadyItem): WaitingKind => (item.what === 'card' ? item.row.kind : 'decision')
 
 function ReadyList({
   items,
@@ -295,26 +329,14 @@ export function ReadyPanel({ items, openChat, onPage, onClose }: PanelProps) {
 type DecisionsProps = Omit<Parameters<typeof Decisions>[0], 'onLeft'>
 
 /**
- * Ready for you as a page (tek-ev §1): the same list, oldest first, by where it comes from; and the To-do list's new
- * tasks approved together - one after another, each as its own Approve does it, one that fails left on its row with why.
- * Beside it, on a wide screen (under it on a narrow one), the project's Decided for you: its decision log, with your OK
- * and Change (karar defteri). Above both, the project's last night once it ended (Part B): `onReport` opens its whole
- * report.
+ * Waiting for your word (0.1.10): one list in one frame, oldest first - what the night parked, a chat's cards, To-do's
+ * proposals and "done?", Memory's proposals -, each row saying what it is and whose; filtered by where it is from; the
+ * To-do list's new tasks approved together - one after another, each as its own Approve does it, one that fails left on
+ * its row with why.
  */
-export function ReadyPage({
-  items,
-  openChat,
-  decisions,
-  onReport,
-}: {
-  items: ReadyItem[]
-  openChat: OpenChat
-  decisions?: DecisionsProps
-  onReport?: () => void
-}) {
-  const away = useApp(s => s.away)
+function WaitingPart({ items, openChat }: { items: ReadyItem[]; openChat: OpenChat }) {
+  const id = useId()
   const [only, setOnly] = useState<ReadySource | null>(null)
-  const [left, setLeft] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const shown = only ? items.filter(item => item.source === only) : items
@@ -334,10 +356,10 @@ export function ReadyPage({
     setBusy(false)
   }
   return (
-    <div className="memory-page ready-page">
-      <div className="conv-head">
-        <h2>
-          Ready for you <span className="muted ready-count">· {items.length}, oldest first</span>
+    <section className="ready-part" aria-labelledby={id}>
+      <div className="ready-part-head">
+        <h2 id={id}>
+          Waiting for your word <span className="muted ready-count">{items.length}</span>
         </h2>
         {proposals.length > 0 && (
           <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void approveAll()}>
@@ -345,46 +367,140 @@ export function ReadyPage({
           </button>
         )}
       </div>
-      <p className="ready-said">{readySentence(items.length, decisions?.leftAt ? left : null)}</p>
-      {away && (
-        <NightStrip
+      {items.length > 0 && <Sources items={items} only={only} onOnly={setOnly} />}
+      {/* (Nothing at all: the page's first line says so, and the count beside the heading.) */}
+      {shown.length > 0 ? (
+        <ReadyList items={shown} openChat={openChat} errors={errors} off={busy} />
+      ) : (
+        items.length > 0 && <p className="muted">Nothing waits for you here.</p>
+      )}
+    </section>
+  )
+}
+
+/** The list's filters: all, or the rows from one place. */
+function Sources({
+  items,
+  only,
+  onOnly,
+}: {
+  items: ReadyItem[]
+  only: ReadySource | null
+  onOnly: (only: ReadySource | null) => void
+}) {
+  return (
+    <div role="group" aria-label="Show" className="board-show">
+      <button type="button" className="btn btn-small" aria-pressed={only === null} onClick={() => onOnly(null)}>
+        All · {items.length}
+      </button>
+      {SOURCES.map(([source, word]) => (
+        <button
+          key={source}
+          type="button"
+          className="btn btn-small"
+          aria-pressed={only === source}
+          onClick={() => onOnly(source)}
+        >
+          {word} · {items.filter(item => item.source === source).length}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+type WorkTab = 'ready' | 'todo'
+
+/** The Work page's two tabs (0.1.10), each with its count where there is one: what waits for your word on Ready for
+ *  you, the open tasks on To-do (none until its list is read). The keys as Memory's tabs take them. */
+function WorkTabs({ tab, waiting, open }: { tab: WorkTab; waiting: number; open: number | null }) {
+  const pick = (to: WorkTab) => useApp.setState({ readyTab: to })
+  const one = (to: WorkTab, words: string, n: number | null) => (
+    <button
+      id={`work-tab-${to}`}
+      type="button"
+      role="tab"
+      className="tab"
+      aria-selected={to === tab}
+      aria-controls={`work-panel-${to}`}
+      tabIndex={to === tab ? 0 : -1}
+      onClick={() => pick(to)}
+    >
+      {n ? `${words} · ${n}` : words}
+    </button>
+  )
+  // Two tabs: either arrow goes to the other, Home to the first, End to the last.
+  const onKey = (event: KeyEvent<HTMLDivElement>) => {
+    const other = tab === 'ready' ? 'todo' : 'ready'
+    const to = ({ ArrowRight: other, ArrowLeft: other, Home: 'ready', End: 'todo' } as Record<string, WorkTab>)[
+      event.key
+    ]
+    if (!to) return
+    event.preventDefault()
+    pick(to)
+    event.currentTarget.querySelector<HTMLElement>(`#work-tab-${to}`)?.focus()
+  }
+  return (
+    <div role="tablist" aria-label="Work’s parts" className="tabs work-tabs" onKeyDown={onKey}>
+      {one('ready', 'Ready for you', waiting)}
+      {one('todo', 'To-do', open)}
+    </div>
+  )
+}
+
+/**
+ * The Work page (tek-ev §1; 0.1.10 Ready and To-do one page, as two tabs): Ready for you - what was done, the project's
+ * last night and its report, then what waits for your word and what was decided for you (karar defteri) - and To-do,
+ * `todo`, with `todoOpen` its open tasks. The tab shown is the store's; both stay drawn, so what is typed or open in one
+ * stays as the other is shown. `onReport` opens the night's whole report.
+ */
+export function ReadyPage({
+  items,
+  openChat,
+  decisions,
+  onReport,
+  todo,
+  todoOpen = null,
+}: {
+  items: ReadyItem[]
+  openChat: OpenChat
+  decisions?: DecisionsProps
+  onReport?: () => void
+  todo?: ReactNode
+  todoOpen?: number | null
+}) {
+  const away = useApp(s => s.away)
+  const tab = useApp(s => s.readyTab)
+  const [left, setLeft] = useState<number | null>(null)
+  const panelOf = (of: WorkTab) => ({
+    id: `work-panel-${of}`,
+    role: 'tabpanel',
+    'aria-labelledby': `work-tab-${of}`,
+    hidden: of !== tab,
+  })
+  return (
+    <div className="ready-page">
+      <div className="work-top">
+        <h2>Work</h2>
+        <WorkTabs tab={tab} waiting={items.length} open={todoOpen} />
+      </div>
+      <div {...panelOf('ready')} className="ready-left">
+        {/* (Its name first: Ready for you, then the hour's greeting.) */}
+        <h2 className="ready-greet">
+          <span className="ready-eyebrow">Ready for you</span> {greeting()}
+        </h2>
+        <p className="ready-said">{readySentence(items.length, decisions?.leftAt ? left : null)}</p>
+        <Report
           away={away}
           parked={items.flatMap(item => (item.what === 'parked' ? [item.row] : []))}
           onReport={onReport}
+          onOpen={id => void openChat(id)}
+          hidden={tab !== 'ready'}
         />
-      )}
-      <div className="ready-columns">
-        <div className="ready-main">
-          <div role="group" aria-label="Show" className="board-show">
-            <button type="button" className="btn btn-small" aria-pressed={only === null} onClick={() => setOnly(null)}>
-              All · {items.length}
-            </button>
-            {SOURCES.map(([source, word]) => (
-              <button
-                key={source}
-                type="button"
-                className="btn btn-small"
-                aria-pressed={only === source}
-                onClick={() => setOnly(source)}
-              >
-                {word} · {items.filter(item => item.source === source).length}
-              </button>
-            ))}
-          </div>
-          {shown.length === 0 && <p className="muted">Nothing waits for you here.</p>}
-          {PARTS.map(([head, kinds]) => {
-            const mine = shown.filter(item => kinds.includes(kindOf(item)))
-            return (
-              mine.length > 0 && (
-                <section key={head} aria-label={head}>
-                  <h3 className="kicker">{head}</h3>
-                  <ReadyList items={mine} openChat={openChat} errors={errors} off={busy} />
-                </section>
-              )
-            )
-          })}
-        </div>
+        <WaitingPart items={items} openChat={openChat} />
         {decisions && <Decisions {...decisions} onLeft={setLeft} />}
+      </div>
+      <div {...panelOf('todo')} className="ready-right">
+        {todo}
       </div>
     </div>
   )

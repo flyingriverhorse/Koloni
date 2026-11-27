@@ -62,16 +62,19 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   const echo = page.getByRole('row', { name: /^echo/ })
   await expect(echo).toContainText('“Says back what it is given.”')
   await expect(echo).toContainText(/about [\d,]+ characters/)
-  await expect(echo.getByRole('combobox')).toHaveValue('ask')
+  await expect(echo.getByRole('button', { name: 'Ask', exact: true })).toHaveAttribute('aria-pressed', 'true')
   // its inputs are the server's words too, and can be read before a mark is given
   await echo.getByText('Its inputs, as an agent is given them').click()
   await expect(echo.locator('pre')).toContainText('"required"')
   await expect(page.getByText(/8 tools on: about [\d,]+ characters added to every model step/)).toBeVisible()
-  // Slice 92: a server added is watched - every call asks, at every level - until it is trusted.
-  await expect(page.getByText('Watching: every call asks')).toBeVisible()
+  // Slice 92: a server added is watched - every call asks, at every level - until it is trusted: its cell honey, its
+  // trust on its card's head (0.1.10).
+  await expect(page.getByRole('img', { name: 'watching: every call asks you' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^fake/ })).toContainText('watching')
   await expect(page.getByRole('button', { name: /^fake/ })).toContainText(
-    'watching8 tools · every call asks until you trust it',
+    '8 tools · every call asks until you trust it',
   )
+  await expect(page.getByRole('tab', { name: 'Servers 1 watching' })).toBeVisible()
   // Switched off it is given to no agent, and says so; on again, as it was.
   await page.getByRole('switch', { name: 'fake on' }).click()
   await expect(page.getByRole('button', { name: /^fake/ })).toContainText('off: given to no agent')
@@ -79,12 +82,15 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   await expect(page.getByRole('switch', { name: 'fake on' })).toBeChecked()
   await expect(page.getByRole('button', { name: /^fake/ })).not.toContainText('off: given to no agent')
   // One the user does not want offered is switched off, and the sum counts one fewer.
-  await page.getByLabel('When an agent calls hang').selectOption('Off')
+  const hang = page.getByRole('group', { name: 'When an agent calls hang' })
+  await hang.getByRole('button', { name: 'Off', exact: true }).click()
+  await expect(hang.getByRole('button', { name: 'Off', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText(/7 tools on: /)).toBeVisible()
 
-  // The Lead may use it; the role's own page names it. (The box is ticked once the role is saved.)
-  await page.getByLabel('Lead', { exact: true }).click()
-  await expect(page.getByLabel('Lead', { exact: true })).toBeChecked()
+  // The Lead may use it - its box says Orchestrator, as everywhere; the role's own page names it. (The box is ticked
+  // once the role is saved.)
+  await page.getByLabel('Orchestrator', { exact: true }).click()
+  await expect(page.getByLabel('Orchestrator', { exact: true })).toBeChecked()
   await page.getByRole('table', { name: 'Tools of fake' }).scrollIntoViewIfNeeded()
   await shot(page, '28b-tools-page')
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
@@ -131,8 +137,9 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   await rail(page, 'Tools').click()
   // trusted, it is watched no more (its calls go back to the marks and the level)
   await page.getByRole('button', { name: 'Trust this server' }).click()
-  await expect(page.getByText('Watching: every call asks')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Trust this server' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^fake/ })).not.toContainText('watching')
+  await expect(page.getByRole('tab', { name: 'Servers', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Delete server' }).click()
   // none left: the page offers the common servers again
   await expect(page.getByRole('region', { name: 'Start from a common server' })).toBeVisible()

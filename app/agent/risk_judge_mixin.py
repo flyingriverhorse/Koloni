@@ -1,5 +1,6 @@
 """Full auto's judge (0.1.9), its gate: at Full auto, before a command the list does not stop runs,
-a small model is asked once whether it is risky (`app.risk_judge`) - `RiskJudgeMixin`."""
+a small model is asked once whether it is risky (`app.risk_judge`) - since 0.1.10 (K3) before a
+delete or a stop by name in the folder the list asked of too - `RiskJudgeMixin`."""
 
 import asyncio
 import hashlib
@@ -22,14 +23,17 @@ from app.commands import (
     _INTERPRETER,
     _SHELLS,
     _commands_in,
+    _hands_on,
     _in_a_shell,
     _parts,
     _program,
     _words,
+    is_exactly,
     is_plain,
     is_wrapped,
     names_secret,
     only_reads,
+    rules_here,
     standing_asked,
     with_cwd,
 )
@@ -41,6 +45,7 @@ from app.db.models import (
     Project,
     Provider,
     Run,
+    ToolCall,
     project_of,
 )
 from app.providers import ask_once
@@ -53,12 +58,13 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("app.agent")
 CARD = risk_judge.CARD
-# Said once in the chat where the judge cannot be asked for the rest of a turn: no model to ask -
-# nothing an agent can bring about (one that slows the judge, spends its turn's tokens or its
-# provider's room, or writes what it cannot read, gets a card).
-ASIDE = "Full auto's judge is off for this turn: {why}."
-NO_MODEL = "no model to ask - choose a Judge model in Settings, or give a model the Fast tier"
-# Its card where it may not be asked now, or was asked and gave no answer to go by: never a run.
+# Its card where it may not be asked now - no model to ask (0.1.10: fails closed, as Claude Code's
+# auto mode does where its classifier cannot answer) or none with room -, or was asked and gave no
+# answer to go by: never a run.
+NO_MODEL = (
+    "no judge model answered - choose a Judge model in Settings › The app › Agents, or give a "
+    "model the Fast tier"
+)
 NO_ROOM = "{name} has no room for it now"
 OVER_LIMIT = "the turn is past its token limit"
 NOT_ASKED = "it could not be asked: {why}"
@@ -72,10 +78,9 @@ UNREAD = "its answer could not be read"
 FAILED = "it could not be asked"
 NOT_LOOKED = "it could not look at this command"
 NO_REASON = risk_judge.NO_REASON
-# Said once a turn where the judge refused `risk_judge.MOST_REFUSED`: the next risky one is a card.
-CAPPED = "Full auto's judge refused {count} commands this turn; the next risky one asks you."
-# The key of the turn's count of them in its `_risk_cache` - no line's key is one word long.
-_REFUSED_COUNT = ("refused",)
+# Said once a turn where the judge's refusals reach `risk_judge.refusals`' limits: the rest of the
+# turn's risky commands are cards.
+CAPPED = "Full auto's judge refused {count} this turn; each risky one asks you now."
 
 # An option word of an interpreter's after which the line holds its code itself (`python -c`,
 # `node -e`, `-p`, `-r`): no file of its own runs (`python -m x` is read as its module's file). A
@@ -293,7 +298,13 @@ def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
     for name in names:
         try:
             path = (root / cwd / name).resolve()
-            if name and path.is_relative_to(home) and path.is_file():
+            # (by its own spelling: on macOS's case-blind disk `makefile` would find Makefile)
+            if (
+                name
+                and path.is_relative_to(home)
+                and path.is_file()
+                and path.name in os.listdir(path.parent)
+            ):
                 # (a package's __main__.py: its __init__.py runs first - `python -m pkg`)
                 return path, exact and path.name != "__main__.py"
         except (OSError, ValueError):
@@ -413,12 +424,12 @@ def _only_fetches(program: str, words: list[str]) -> bool:
     return True
 
 
-def _agents(factory, cid: str, root: Path, path: Path) -> bool:
+def _agents(factory, cid: str, root: Path, path: Path, scratch: bool = True) -> bool:
     """Whether `path` (in `root`) is as an agent wrote it - its write on record, of any turn of
-    the project's, still stands (`proof_style.still_written`) - or in the agents' scratch, theirs
-    whoever wrote it there (`workspace.in_scratch`)."""
+    the project's, still stands (`proof_style.still_written`) - or, with `scratch`, in the agents'
+    scratch, theirs whoever wrote it there (`workspace.in_scratch`)."""
     rel = path.relative_to(root.resolve()).as_posix()
-    if in_scratch(rel):
+    if scratch and in_scratch(rel):
         return True
     with factory() as session:
         found = session.execute(
@@ -468,16 +479,36 @@ def _program_read(path: Path, root: Path) -> tuple[tuple[str, str, int], str]:
     return (rel, head.decode("utf-8", "replace"), left), _digest(path)
 
 
+# Tools whose `run` builds the folder's code and runs it (`cargo run`, `go run .`, `dotnet run`):
+# what an agent wrote there is no one file KOLONİ finds, so a rule never lets such a line by.
+_BUILDS_AND_RUNS = commands._RUNS_AFTER_DASHES | {("go", "run")}
+
+
+def _builds_and_runs(command: str) -> bool:
+    """Whether a line is one of `_BUILDS_AND_RUNS`'s, by its program and first word."""
+    words = [word.strip("'\"") for word in _words(command.strip())]
+    return len(words) > 1 and (_program(words[0]), words[1].lower()) in _BUILDS_AND_RUNS
+
+
+def _refused(judged: object) -> bool:
+    """Whether a command's record of the judge is its refusal (Refuse and go on)."""
+    return (
+        isinstance(judged, dict)
+        and judged.get("kind") == "risk"
+        and judged.get("verdict") == "refuse"
+    )
+
+
 class _Seen(NamedTuple):
     """What of a line besides it the judge goes by: where it runs (`root`, `cwd`), the file it
     runs by its name (`_named_file`; None: none found, or its folder no fact), that program as
-    shown where an agent wrote it, its digest ("": none), and what the same agent ran before it in
-    the turn."""
+    shown where an agent wrote it (`_risk_line`), its digest ("": none), and what the same agent
+    did before it in the turn (`_risk_earlier`)."""
 
     root: Path
     cwd: str | None  # (None: no fact - `_risk_judged`'s `known`)
     path: Path | None
-    program: tuple[str, str, int] | None
+    program: tuple[str, str | None, int] | None
     digest: str
     earlier: list[str]
 
@@ -493,6 +524,7 @@ class RiskJudgeMixin:
         *,
         exempt: bool,
         known: bool = True,
+        shell: str | None = None,
     ) -> tuple[str, dict | None]:
         """Full auto's judge: why `command` (run in `cwd` of `root`, the project or the copy it
         works in) waits for the user on a card though KOLONİ found no reason of its own - asked
@@ -506,59 +538,142 @@ class RiskJudgeMixin:
         the project's switch off (read at each command), one that only reads, their own test
         command (but where an agent wrote the program it runs), one asked at every level anyway
         (a secret, a file that steers later turns), an ordinary line (`risk_judge.ordinary`, what
-        it runs not an agent's: `_planted`, W7), one they said Run to on its card this turn - or
-        not to ask about again here (`JudgeAllowed`) -, or where it stood aside for the turn (no
-        model to ask). A card unasked: `risk_judge.risky_unasked`.
+        it runs not an agent's: `_planted`, W7), one a narrow "Always run" rule of the chat covers
+        in a turn the user watches (0.1.10, `_risk_line`: never a broad one, `risk_judge.
+        broad_rule`, nor one that runs a program an agent wrote), one they said Run to on its card
+        this turn - or not to ask about again here (`JudgeAllowed`). A card unasked:
+        `risk_judge.risky_unasked`; one with no model to ask, `_risk_asked`.
         `known`: False where `cwd` is no fact (a CLI's folder not known, or its model's word):
         then no program is read. Nothing is kept for such a line - neither its verdict, nor a Run
         on its card -, nor for one but where the file it runs was found, hashed, and is all it
         runs (`_named_file`), or it runs none of the folder's code (`_no_local_code`): what it
-        runs may change unseen, the same words in another folder be another line.
+        runs may change unseen, the same words in another folder be another line. `shell`: the
+        one it runs in where that is KOLONİ's own PowerShell (a `\\` there is no escape: K3).
         In a watched turn its own "risky" may be refused instead (`_risk_refuses`).
-        Whatever goes wrong in it but a Stop is its card, never a run nor a refusal."""
-        if exempt or found != ("", None):
+        Whatever goes wrong in it but a Stop is its card, never a run nor a refusal.
+        K3 (0.1.10, as Claude Code's auto mode): the list's own card that is the judge's to decide
+        (`_risk_takes`: a delete or a stop by name in the folder, a plain line, a watched turn) is
+        put to it too - its "risky" kept for the turn, never its "fine" nor a Run on its card -, and
+        runs only on the model's own "fine"; any other answer but its "risky" (no verdict, not
+        asked, the switch off) gives the card back."""
+        if exempt:
             return found
         try:
+            # (the list's own card stays one where the look at it fails: below)
+            takes = self._risk_takes(ctx, command, cwd, root, found, known, shell)
+            if found != ("", None) and not takes:
+                return found
             watched = self._full_auto(ctx)
             if not (watched or self._away_full_auto(ctx)):
-                return "", None
-            judged = await self._risk_judging(ctx, command, cwd, root, known)
+                return found if takes else ("", None)  # (a level changed meanwhile: its card)
+            judged = await self._risk_judging(ctx, command, cwd, root, known, takes)
+            if takes and not (judged[1] or {}).get("looked"):
+                return found
+            # (R2: what it names looked at again once the judge said fine - a link may have been
+            # made meanwhile; KOLONİ's own command is looked at once more as it runs: `_gate_open`)
+            line = with_cwd(command, cwd)
+            moved = takes and not judged[0]
+            if moved and not await asyncio.to_thread(risk_judge.on_disk, root, line):
+                return found
             return self._risk_refuses(ctx, *judged) if watched else judged
         except asyncio.CancelledError:
             raise
         except Exception:
             log.warning("run %s: Full auto's judge failed", ctx.run_id, exc_info=True)
-            return CARD.format(why=NOT_LOOKED), None
+            return found if found != ("", None) else (CARD.format(why=NOT_LOOKED), None)
+
+    def _risk_takes(
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str | None,
+        root: Path,
+        found: tuple[str, dict | None],
+        known: bool,
+        shell: str | None = None,
+    ) -> bool:
+        """K3: whether the list's own card (`found`: its reason, and no record of the check of the
+        user's words - its run runs, its refusal refuses and its ask, a condition of theirs or
+        "ask me first", keeps the card) is Full auto's judge's to decide: each harm of the line
+        one it takes (`risk_judge.judges`), where it runs a fact (`known`), in a turn the user
+        watches at Full auto - not a job while they are away, a To-do task's, a side of a
+        comparison, nor a turn of the chat they went away from (`away.gone_from`) -, and what it
+        names on the disk where it is written (`risk_judge.on_disk`, under `root`). Ask,
+        Auto-edit and every turn nobody watches keep the list as it is."""
+        reason, record = found
+        if not (
+            reason
+            and known
+            and record is None
+            and ctx.run_id not in self._todo_turns
+            and ctx.run_id not in self._sides
+            and risk_judge.judges(with_cwd(command, cwd), shell)
+            and self._full_auto(ctx)
+            and risk_judge.on_disk(root, with_cwd(command, cwd))
+        ):
+            return False
+        with self._factory() as session:
+            return away.gone_from(session, ctx.cid) is None
 
     def _risk_line(
-        self: "AgentRunner", ctx: Ctx, command: str, cwd: str, root: Path, known: bool
-    ) -> tuple[bool, Path | None, tuple[str, str, int] | None, str, bool]:
-        """Whether a line is ordinary (`risk_judge.ordinary`, nothing it runs an agent's); the
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str,
+        root: Path,
+        known: bool,
+        ruled: bool = False,
+    ) -> tuple[bool, Path | None, tuple[str, str | None, int] | None, str, bool]:
+        """Whether a line is let by unjudged: ordinary (`risk_judge.ordinary`) or covered by a
+        narrow rule (`ruled`), nothing it runs an agent's (`_planted`; a ruled line's program not
+        an agent's either: `_agents`); the
         file it runs as its program (`_named_file`, where `known`); that program as the judge is
-        shown it where an agent wrote it (`_agents`); its digest whoever wrote it ("": no file
-        found); and whether that file is all the line runs (`_Files.exact`). Blocking."""
+        shown it where an agent wrote it (`_agents`) - its text only where a write of an agent's
+        on record made it, never one in the scratch it did not (0.1.10: a command's output, a
+        fetched page; text None) -; its digest whoever wrote it ("": no file found); and whether
+        that file is all the line runs (`_Files.exact`). Blocking."""
         npm = [_program(word) for word in _words(command.strip())[:1]] == ["npm"]  # (npm.cmd)
+        ordinary = risk_judge.ordinary(command, npm_run=True)
         plain = (
-            risk_judge.ordinary(command, npm_run=True)
+            (ordinary or ruled)
             and _planted(self._factory, ctx.cid, root, command, cwd) is None
             # W7: what `npm test` and `npm run x` run is package.json's - an agent's, where one of
             # its writes of one (or of a lock, a runner's setting) still stands: as npx's reads
             and not (npm and _planted(self._factory, ctx.cid, root, "npx -", cwd))
         )
-        path, exact = (None, False) if plain or not known else _named_file(root, command, cwd)
+        path, exact = (
+            (None, False) if plain and ordinary or not known else _named_file(root, command, cwd)
+        )
         if path is None:
-            return plain, None, None, "", False
+            # (a ruled interpreter's or runner's line whose file is not found - `uv run python
+            # x.py`, `npx x` -, or a tool's run that builds the folder's code - `cargo run`, `go
+            # run .` - is judged: what it runs is not known. shortcut: what a found file runs in
+            # turn - a Makefile recipe's script, a package script - is not looked at)
+            unknown = ruled and not ordinary and (_hands_on(command) or _builds_and_runs(command))
+            return plain and not unknown, None, None, "", False
         shown, digest = _program_read(path, root)
-        agents = _agents(self._factory, ctx.cid, root, path)
-        return plain, path, shown if agents else None, digest, exact
+        written = _agents(self._factory, ctx.cid, root, path, scratch=False)
+        if not (written or in_scratch(shown[0])):
+            return plain, path, None, digest, exact
+        # (a ruled line that runs an agent's program is judged: no rule covers what an agent wrote)
+        return False, path, shown if written else (shown[0], None, 0), digest, exact
 
     async def _risk_judging(
-        self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path, known: bool
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str | None,
+        root: Path,
+        known: bool,
+        takes: bool = False,
     ) -> tuple[str, dict | None]:
-        """`_risk_judged`'s work, which may raise."""
+        """`_risk_judged`'s work, which may raise. `takes`: the list's card put to the judge (K3) -
+        no Run on its card nor "don't ask again" is kept for its line, nor its "fine" (what the
+        turn did before it changes); its "risky" is, as any line's: not asked again and again."""
         line = with_cwd(command, cwd)
         with self._factory() as session:
-            project = project_of(session, session.get_one(Conversation, ctx.cid))
+            conversation = session.get_one(Conversation, ctx.cid)
+            project = project_of(session, conversation)
             if (
                 project is None
                 or not project.full_auto_judge
@@ -567,13 +682,31 @@ class RiskJudgeMixin:
                 or standing_asked(line, False)
             ):
                 return "", None
+            # (decision 6, 0.1.10: a narrow "Always run" rule lets a line by as Claude Code's auto
+            # mode does - in a turn the user watches, its folder known; a broad one never)
+            narrow = [
+                rule.prefix
+                for rule in session.scalars(rules_here(conversation))
+                if not risk_judge.broad_rule(rule.prefix)
+            ]
+            # (the review of K1: only its very line - one word more and it is another task, its
+            # program's options or a file it is told to load -, at the project's root - the same
+            # words in another folder run another file -, in a turn the user watches: not a job
+            # while away, nor a To-do task's, which may run with nobody there)
+            ruled = (
+                known
+                and (cwd or ".") == "."
+                and ctx.run_id not in self._away_jobs
+                and ctx.run_id not in self._todo_turns
+                and any(is_exactly(command, one) for one in narrow)
+            )
             project_id = project.id
             own = project_map.own_test(project.test_commands, command, cwd)
             earlier = self._risk_earlier(session, ctx)
             # (anywhere but the project itself - a working copy, a branch's worktree - is a copy)
             in_copy = root.resolve() != Path(project.root_path).resolve()
         plain, path, program, digest, exact = await asyncio.to_thread(
-            self._risk_line, ctx, command, cwd or ".", root, known
+            self._risk_line, ctx, command, cwd or ".", root, known, ruled
         )
         exact = exact and not _sees_python_path(command, in_copy)
         # (the user's own test command is theirs - but not where it runs a program an agent wrote)
@@ -588,38 +721,56 @@ class RiskJudgeMixin:
         one = is_plain(command) and not is_wrapped(command)
         hashed = bool(digest) and exact and one
         kept = known and (hashed or _no_local_code(root, command, cwd or "."))
-        key = (command.strip(), cwd or "", digest if hashed else "", str(root)) if kept else None
-        if key and (
-            self._risk_cache.get(ctx.run_id, {}).get(key) == "approved"
-            or self._risk_allowed(project_id, key)
+        # (K3: a moved line's "risky" is kept for the turn by its words alone - a refusal kept
+        # loosens nothing -, its "fine" never: `_risk_asked`)
+        key = (
+            # (a moved line's by its words, spaced as they are read: `rm  -rf src` is the line
+            # refused before - the review of K3)
+            (
+                " ".join(_words(command.strip())) if takes else command.strip(),
+                cwd or "",
+                digest if hashed else "",
+                str(root),
+            )
+            if kept or takes
+            else None
+        )
+        if (
+            key
+            and not takes
+            and (
+                self._risk_cache.get(ctx.run_id, {}).get(key) == "approved"
+                or self._risk_allowed(project_id, key)
+            )
         ):
             return "", None
         # ("program", "root": the line's key, for `_risk_approved` - "program" None: none;
         # "looked": False until the model's verdict is had - no fields of `schemas.Judged`)
         record: dict = {"kind": "risk", "verdict": "risky", "why": "", "model": "", "looked": False}
-        record |= {"program": digest if key else None, "root": str(root)}
+        record |= {"program": digest if key and not takes else None, "root": str(root)}
         if why := risk_judge.risky_unasked(command, program[1] if program else None, earlier):
             return CARD.format(why=why), {**record, "why": why}
-        if ctx.run_id in self._risk_aside:
-            return "", None
         seen = _Seen(root, (cwd or ".") if known else None, path, program, digest, earlier)
-        return await self._risk_asked(ctx, command, cwd, seen, key, record)
+        return await self._risk_asked(ctx, command, cwd, seen, key, record, takes)
 
     @staticmethod
     def _risk_earlier(session, ctx: Ctx) -> list[str]:
-        """What the same agent ran before in the turn - one that started: not one refused, turned
-        down or never run -, at most `EARLIER`, oldest first, each masked (`raw.hidden`)."""
-        ran = session.scalars(
-            select(Command.command)
+        """What the same agent did before in the turn (0.1.10, as Claude Code's auto mode's
+        classifier reads it): its tool calls that ended and were not refused nor turned down - a
+        command, a file written or read, a page opened, by its name and arguments
+        (`risk_judge.action`), never what it gave back -, at most `EARLIER`, oldest first, each's
+        first `EARLIER_READ` characters masked (`raw.hidden`)."""
+        done = session.execute(
+            select(ToolCall.name, func.substr(ToolCall.arguments, 1, risk_judge.EARLIER_READ))
             .where(
-                Command.run_id == ctx.run_id,
-                Command.agent_id == ctx.agent_id,
-                Command.started_at.is_not(None),
+                ToolCall.run_id == ctx.run_id,
+                ToolCall.agent_id == ctx.agent_id,
+                ToolCall.status.in_(("succeeded", "failed")),
             )
-            .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())
+            .order_by(literal_column("tool_calls.rowid").desc())
             .limit(risk_judge.EARLIER)
         ).all()
-        return [raw.hidden(one) for one in reversed(ran)]
+        return [raw.hidden(risk_judge.action(*one)) for one in reversed(done)]
 
     def _risk_allowed(self: "AgentRunner", project_id: str, key: tuple[str, ...]) -> bool:
         """Whether the user said on a judge's card not to ask about this line again here: its
@@ -643,23 +794,34 @@ class RiskJudgeMixin:
         refuses such a one (`Project.judge_risky`, read at each command): no card, its record's
         verdict "refuse" - the command is not run and its agent is told so. Any other card stays
         one - KOLONİ's own before it was asked, or one the model gave no verdict for (fails
-        closed: the user decides) -, and so does each after `risk_judge.MOST_REFUSED` in the turn,
-        counted by all its agents (said once in the chat: `CAPPED`). The turn's kept verdict
-        stays "risky" (a new record)."""
+        closed: the user decides) -, and so does each once the turn's refusals, by all its agents,
+        reached `risk_judge.refusals`' limits - 3 in a row (a command that started ends a row), 20
+        in all - read from the turn's records (said once in the chat: `CAPPED`). The turn's kept
+        verdict stays "risky" (a new record).
+        shortcut: two commands judged at once both read the records before either refusal is
+        kept - a row may go one past its limit; hold a count in memory if that is seen."""
         if not (record and record["looked"] and record["verdict"] == "risky"):
             return why, record
         with self._factory() as session:
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             if project is None or project.judge_risky != "refuse":
                 return why, record
-        cache = self._risk_cache.setdefault(ctx.run_id, {})
-        counted = cache.get(_REFUSED_COUNT)
-        count = counted["count"] if isinstance(counted, dict) else 0
-        if count >= risk_judge.MOST_REFUSED:
+            turn = session.execute(
+                select(Command.judged, Command.started_at)
+                .where(Command.run_id == ctx.run_id)
+                .order_by(Command.created_at, literal_column("commands.rowid"))
+            ).all()
+        row, total, capped = risk_judge.refusals(
+            (_refused(judged), started is not None) for judged, started in turn
+        )
+        if capped:
             return why, record
-        cache[_REFUSED_COUNT] = {"count": count + 1}
-        if count + 1 == risk_judge.MOST_REFUSED:
-            self._koloni_line(ctx.cid, ctx.run_id, CAPPED.format(count=count + 1))
+        if row + 1 >= risk_judge.MOST_REFUSED_IN_A_ROW:
+            self._koloni_line(
+                ctx.cid, ctx.run_id, CAPPED.format(count=f"{row + 1} commands in a row")
+            )
+        elif total + 1 >= risk_judge.MOST_REFUSED_IN_A_TURN:
+            self._koloni_line(ctx.cid, ctx.run_id, CAPPED.format(count=f"{total + 1} commands"))
         return "", {**record, "verdict": "refuse"}
 
     def _risk_no_room(self: "AgentRunner", session, ctx: Ctx, picked, project) -> str:
@@ -682,12 +844,13 @@ class RiskJudgeMixin:
         seen: _Seen,
         key: tuple[str, ...] | None,
         record: dict,
+        takes: bool = False,
     ) -> tuple[str, dict | None]:
         """The judge asked (`_risk_asks`) - once a turn for a line with a key and the user's words
-        as they are -, what it reads masked (`raw.hidden`); a "fine" whose program changed while
-        it was asked is a card. Where no model can be asked it stands aside for the turn, said
-        once in the chat (`ASIDE`), and the line runs as Full auto runs it; where one may not be
-        asked now (`_risk_no_room`), its card."""
+        as they are (`takes`, K3: its "fine" never kept) -, what it reads masked (`raw.hidden`); a
+        "fine" whose program changed while it was asked is a card. Where no model can be asked
+        (`NO_MODEL`: fails closed) or one may not be asked now (`_risk_no_room`), its card - said
+        once a turn in the chat."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = session.get_one(Project, conversation.project_id)
@@ -699,16 +862,14 @@ class RiskJudgeMixin:
             digest = hashlib.sha256(json.dumps(said, sort_keys=True).encode()).hexdigest()
             full = (*key, digest) if key else None
             cache = self._risk_cache.setdefault(ctx.run_id, {})
-            if full and isinstance(found := cache.get(full), dict):
+            found = cache.get(full) if full else None
+            if isinstance(found, dict) and not (takes and found["verdict"] == "fine"):
                 why = found["why"] or NO_REASON
                 return ("" if found["verdict"] == "fine" else CARD.format(why=why)), found
             would = would_run(session, find_role(session, LEAD), conversation)
             picked = judge_pick(session, would, self.providers, judge_chosen(session))
-            if picked is None:
-                self._risk_aside[ctx.run_id] = NO_MODEL
-                self._koloni_line(ctx.cid, ctx.run_id, ASIDE.format(why=NO_MODEL))
-                return "", None
-            if why := self._risk_no_room(session, ctx, picked, project):
+            why = NO_MODEL if picked is None else self._risk_no_room(session, ctx, picked, project)
+            if picked is None or why:
                 self._koloni_line(ctx.cid, ctx.run_id, NOT_ASKED_LINE.format(why=why))
                 why = NOT_ASKED.format(why=why)
                 return CARD.format(why=why), {**record, "why": why}
@@ -722,7 +883,9 @@ class RiskJudgeMixin:
                 "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}"),
             },
             seen.earlier,
-            (raw.hidden(program[0]), raw.hidden(program[1]), program[2]) if program else None,
+            (raw.hidden(program[0]), program[1] and raw.hidden(program[1]), program[2])
+            if program
+            else None,
         )
         record = {**record, "model": f"{asking.provider} · {asking.model_name}"}
         got, failed = await self._risk_asks(ctx, asking, mode, asked)
@@ -734,7 +897,7 @@ class RiskJudgeMixin:
         if await asyncio.to_thread(self._risk_moved, command, seen):
             changed = {"verdict": "risky", "why": CHANGED, "looked": False}
             return CARD.format(why=CHANGED), {**record, **changed}
-        if full:
+        if full and not (takes and got["verdict"] == "fine"):
             cache[full] = record
         why = record["why"] or NO_REASON
         return ("" if got["verdict"] == "fine" else CARD.format(why=why)), record

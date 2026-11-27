@@ -21,6 +21,7 @@ from app.workspace import (
     _cased,
     _never_places,
     has_other_names,
+    in_tree,
     is_kept_code,
     is_secret,
     unified_diff,
@@ -80,12 +81,14 @@ def listing(root_path: str, rel: str) -> list[dict]:
     if not folder.is_dir():
         raise Refused(404, "no such folder")
     out, places = [], _inside(root)
+    above = () if rel in ("", ".") else tuple(rel.split("/"))
     try:
         with os.scandir(folder) as entries:
             for entry in itertools.islice(entries, MOST_LISTED):
                 child = Path(entry.path)
                 try:
-                    if _hidden(root, child, places):
+                    # (nor KOLONİ's worktrees and copies in `.koloni/`: whole checkouts)
+                    if _hidden(root, child, places) or in_tree((*above, entry.name)):
                         continue
                     if entry.is_dir():
                         out.append({"name": entry.name, "kind": "dir", "size": None})
@@ -293,7 +296,8 @@ def others_instructions(root_path: str) -> dict:
                 and depth < MOST_DEEP
                 and name not in skipped
                 and not _hidden(root, Path(entry.path))
-                and not is_kept_code(path.split("/"))
+                and not is_kept_code(parts := path.split("/"))
+                and not in_tree(parts)  # (KOLONİ's worktrees and copies: the project's own files)
             ):
                 todo.append((f"{path}/", depth + 1))
     return {

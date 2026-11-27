@@ -273,7 +273,7 @@ def test_a_command_run_in_a_place_kept_out_is_refused(make_client, wait_run, pro
     wait_run(client, cid, run_id)
     start(client, cid)
     done = ended(client, pid)
-    assert [t["what"] for t in done["tried"]] == ["Lead: run echo hi in secret"]
+    assert [t["what"] for t in done["tried"]] == ["Orchestrator: run echo hi in secret"]
     assert job_chat(client, pid)["commands"] == []
 
 
@@ -506,7 +506,7 @@ def no_desktop(monkeypatch):
 
 
 def test_what_sends_work_off_the_machine_is_told_apart_from_what_does_not():
-    from app.commands import sends_off
+    from tests.test_full_auto_harm import sends_off
 
     for sends in (
         "git push origin main",
@@ -537,7 +537,8 @@ def test_what_sends_work_off_the_machine_is_told_apart_from_what_does_not():
 
 
 def test_a_wrapper_or_a_shell_and_any_request_from_the_command_line_count_as_leaving():
-    from app.commands import installs, runs_another, sends_off
+    from app.commands import installs, runs_another
+    from tests.test_full_auto_harm import sends_off
 
     for wrapped in (
         "cmd /c git push",

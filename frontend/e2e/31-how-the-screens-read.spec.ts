@@ -166,7 +166,7 @@ async function walk(page: Page, theme: 'light' | 'dark') {
   await expect(page.getByRole('table').first()).toBeVisible()
   await snap('8-type-usage')
   await rail(page, 'Memory').click()
-  await expect(page.getByRole('tabpanel', { name: /^Facts/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Facts', exact: true })).toBeVisible()
   await snap('8-type-memory')
 }
 
@@ -432,12 +432,13 @@ test('a turn of two nodes opens closer and whole; an agent’s header and a role
     })
     await page.getByRole('button', { name: 'Set all to Off' }).click()
     await expect(page.getByText(/^0 of 170 tools on · about 0 characters added to every model step$/)).toBeVisible()
-    await expect(page.getByLabel('When an agent calls echo')).toHaveValue('off')
+    const echo = page.getByRole('group', { name: 'When an agent calls echo' })
+    await expect(echo.getByRole('button', { name: 'Off', exact: true })).toHaveAttribute('aria-pressed', 'true')
     expect(sent).toHaveLength(1)
     expect(Object.values(JSON.parse(sent[0]).marks)).toEqual(Array(170).fill('off'))
     await page.getByRole('button', { name: 'Set all to Ask' }).click()
     await expect(above).toBeVisible()
-    await expect(page.getByLabel('When an agent calls echo')).toHaveValue('ask')
+    await expect(echo.getByRole('button', { name: 'Ask', exact: true })).toHaveAttribute('aria-pressed', 'true')
     expect(sent).toHaveLength(2)
     // (nothing gives all of them leave to run without asking)
     await expect(page.getByRole('button', { name: /^Set all to / })).toHaveText(['Set all to Ask', 'Set all to Off'])
@@ -460,6 +461,10 @@ for (const theme of ['light', 'dark'] as const)
       await root
         .locator('details.more, details.usage-fold')
         .evaluateAll(folds => folds.forEach(fold => ((fold as HTMLDetailsElement).open = true)))
+      // (Settings' More, 0.1.10: a button over what it folds)
+      await root
+        .locator('.set-more-rows')
+        .evaluateAll(rows => rows.forEach(row => ((row as HTMLElement).hidden = false)))
       await root
         .locator('.hint-bubble')
         .evaluateAll(hints => hints.forEach(hint => ((hint as HTMLElement).hidden = false)))
@@ -550,12 +555,10 @@ for (const theme of ['light', 'dark'] as const)
       await check(settings.locator('.agents-list'), 11)
       let pieces = 0
       for (const section of [
-        'Agents',
-        'Asking and away',
-        'New chats start with',
+        'How agents work',
+        'When you’re asked',
+        'When the work is done',
         'Limits and money',
-        'Commands and secrets',
-        'Checks and git',
         'Memory and web',
         'Notifications',
       ]) {
@@ -640,7 +643,7 @@ for (const theme of ['light', 'dark'] as const)
       await check(page.locator('.conv-page'), 4)
       await narrow(page.locator('.conv-page'))
       await rail(page, 'Memory').click()
-      await expect(page.getByRole('tabpanel', { name: /^Facts/ })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Facts', exact: true })).toBeVisible()
       await check(page.locator('.memory-page'), 15)
       await narrow(page.locator('.memory-page'))
     } finally {
@@ -685,7 +688,7 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
   await expect(settings).toBeVisible()
-  await settings.getByRole('button', { name: /^Checks/ }).click()
+  await settings.getByRole('button', { name: /^When the work is done/ }).click()
   await expect(settings.getByLabel(/^Save each sub-agent’s work as a git commit/)).toBeVisible()
   const [commit] = await readOut(page, /^Save each sub-agent’s work as a git commit/)
   expect(commit.name).toMatch(
@@ -709,7 +712,7 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   expect(await described()).not.toContain('About this')
   // A note that warns of what a setting does not hold, or of what it runs, is not folded at all. (0.1.7: Test before
   // adding is gone, with its field - what runs before a sub-agent's work is added is a note of its own, in sight.)
-  await settings.getByRole('button', { name: /^Checks/ }).click()
+  await settings.getByRole('button', { name: /^When the work is done/ }).click()
   await expect(
     settings.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run/),
   ).toBeVisible()

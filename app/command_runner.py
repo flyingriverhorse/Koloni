@@ -15,7 +15,7 @@ from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
 from app import ledger, project_map, proof, proof_style, risk_judge
-from app.cards import card_reason
+from app.cards import card_reason, rule_kept_off
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
@@ -151,15 +151,16 @@ def refused_by_rule(judgement: dict) -> str:
     return REFUSED_BY_A_MESSAGE
 
 
-def _gate_open(mode: str, check: bool, judgement: dict | None) -> bool:
-    """Whether what the check of the user's words said of a command still holds: only while the
-    chat is at Full auto and the project's check is on (`check`: its judge and the judge's box,
-    §8) - a run or a refusal that comes back after either changed is its card, as if never checked
-    (the security review of K-yargic's slice 2). Full auto's judge's own (`kind` "risk") has no
-    gate: it never lets a command run - its "risky" a card (`always`, its call's `why_asked`) or a
-    refusal ("refuse")."""
-    risk = judgement is not None and judgement.get("kind") == "risk"
-    return risk or mode == "full_auto" and check
+def _gate_open(mode: str, check: bool, judgement: dict | None, judge: bool, line: str) -> bool:
+    """Whether what the check of the user's words said still holds: while the chat is at Full auto
+    and the project's check is on (`check`, §8) - else its card (the security review of K-yargic).
+    Full auto's judge's "risk" and K5's quote ("said", an ask) have none - but a risk "fine" on a
+    line the list asks of (`line`, K3): it holds while the chat is at Full auto and `judge` (the
+    project's judge on, what it names still where it is written: `risk_judge.on_disk`)."""
+    kind = judgement.get("kind") if judgement is not None else None
+    if kind == "risk" and danger(line, False):
+        return mode == "full_auto" and judge
+    return kind in ("risk", "said") or mode == "full_auto" and check
 
 
 def _refuses(judgement: dict | None, gate: bool) -> bool:
@@ -560,7 +561,7 @@ def _bare_name_hint(output: str, folder: Path) -> str:
 
 HELD_BACK = (
     "(secret variables held back from this command: {names} - the user can pass one "
-    "in Settings › This project › Commands and secrets)"
+    "in Settings › This project › When you're asked, under More)"
 )
 
 
@@ -715,8 +716,12 @@ class CommandRunner:
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            check = project.full_auto_judge and project.judge_words
-            gate = _gate_open(conversation.permission_mode, check, judgement)
+            check, judge = project.full_auto_judge and project.judge_words, project.full_auto_judge
+            # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
+            judged = with_cwd(planned.command, planned.cwd_rel)
+            # (K3's R2: a "fine" holds where what it names is still where it was - in a copy: no)
+            on = judge and (where is None and risk_judge.on_disk(ws.root, judged))
+            gate = _gate_open(conversation.permission_mode, check, judgement, on, judged)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
                 self._may_serve(
@@ -751,8 +756,6 @@ class CommandRunner:
             # that holds (`_gate_open`).
             own = project_map.own_test(project.test_commands, planned.command, planned.cwd_rel)
             # (K-fullauto-sorma: at Full auto an instruction file alone is not asked.)
-            # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
-            judged = with_cwd(planned.command, planned.cwd_rel)
             free = _free(ask, disposable, conversation.permission_mode, project.disposable_deletes)
             covered = (
                 is_allowed(planned.command, prefixes)
@@ -819,6 +822,7 @@ class CommandRunner:
                 else None,
             )
             session.add(command)
+            rule_kept_off(session, command, prefixes, conversation.permission_mode != "full_auto")
             session.commit()
             command_id, location = command.id, command.location
             payload = command_out(command, held=bool(searched))
@@ -1219,12 +1223,12 @@ class CommandRunner:
                     Project.disposable_deletes,
                 ).where(Project.id == conversation.project_id)
             ).one()
-            gate = _gate_open(mode, judge and words, judgement)
+            # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
+            judged = with_cwd(command, cwd)
+            gate = _gate_open(mode, judge and words, judgement, judge, judged)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)
-            # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
-            judged = with_cwd(command, cwd)
             free = _free(ask, disposable, mode, allows)
             asks = ask and (
                 always
@@ -1260,6 +1264,7 @@ class CommandRunner:
                 else None,
             )
             session.add(row)
+            rule_kept_off(session, row, prefixes, mode != "full_auto")
             session.commit()
             command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)

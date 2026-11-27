@@ -28,7 +28,7 @@ It opens the Away panel:
   to keep out (up to 20): a pattern such as `src/*` or a place outside the project is refused.
 - Where the project is not on **Test and review**: "While you're away, Test and review is suggested:
   tests, and a review of big or security-touching changes." **Use Test and review** sets the project
-  to it (Settings › This project › Checks and git › **After a change**) - while you are away, nobody
+  to it (Settings › This project › When the work is done › **After a change**) - while you are away, nobody
   but KOLONİ's checks looks at the work ([What KOLONİ checked](../use/checked.md)).
 - **Go away**, or **Cancel**. **How it works** says the rest.
 
@@ -80,12 +80,18 @@ works in a copy of the project of its own.
 - **A job that fails** is tried once more in its chat. Failed twice, it could not be done, and the next
   one goes on.
 - **A job that waits for your word** waits, and the next one goes on.
+- **Its notebook:** a job writes in its task's [notebook](todo.md#the-storys-notebook) (its story's, where
+  the task is of one): how each turn ended, the files it changed, the Orchestrator's `Task note:` lines
+  and what its agents noted for the whole turn. The next night that works the task, or your own turn in
+  its chat, goes on from it. **📓** on the task's row in its story's panel on To-do opens it.
 
 ### In a git repository: each job on its own branch
 
 Where the project is the top folder of a git repository, a job works on a git branch of its own,
-`koloni/<task>` (for example `koloni/fix-login-3f2a`), in a worktree of your repository, and commits
-there as it goes. How Go away finds the project decides it, once for every job:
+`koloni/<task>` (for example `koloni/fix-login-3f2a`; `koloni/task-3f2a` where the task's title holds
+a secret KOLONİ knows, or one's shape - a branch's name goes to origin with its push), in a worktree
+of your repository, and commits there as it goes. How Go away finds the project decides it, once for
+every job:
 
 | The project | The job | In the morning |
 |---|---|---|
@@ -105,17 +111,24 @@ there as it goes. How Go away finds the project decides it, once for every job:
   not a wall: see [Known limits](../reference/known-limits.md#away-on-a-branch).
 - **Where git will not** when the job starts (HEAD detached since Go away, say), it works in a copy;
   its Orchestrator is told why, and its row says "In a copy: …".
-- **At its end** KOLONİ commits what the job left on the branch and keeps the worktree for your Take in -
-  the same card as a copy's, file by file. Nothing of it goes into your project by itself, at Full auto
-  too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
+- **At its end** KOLONİ commits what the job left on the branch ("Orchestrator: fix the login") and keeps
+  the worktree for your Take in - the same card as a copy's, file by file. Taking all of it in, or
+  Discard, deletes the worktree and the branch, and the row says so instead of its commits: "Its branch
+  koloni/fix-login-3f2a was deleted: its work was taken in." Nothing of it goes into your project by
+  itself, at Full auto too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
   an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
   on a card, or any value with a secret's shape (`ghp_…`, `sk-…`, a password in an address) and the
-  token or password it holds alone - is left out of that commit and stays in the job's worktree only; the job's chat and its push row say which
-  ("· left out: conf.txt (holds a secret KOLONİ knows)"), and the rest of the work goes on. A file an
-  agent committed on the branch itself is on the branch, not left out: the chat and the row do not call
-  it left out, and **Run** refuses the push ("prov.txt on the branch holds a secret KOLONİ knows - take
-  it off the branch first"). Such a secret never deletes the job's work: only a secret given on a card during the
-  job, which an agent committed on the branch itself, has the branch deleted, and the chat says so.
+  token or password it holds alone - is left out of that commit and stays in the job's worktree only;
+  so is a file named as a secret, whatever it holds: `.env.sample`, `api_keys.json`, `token.txt`, a
+  data file in a `credentials` or `secrets` folder ([which names](../reference/known-limits.md#git)).
+  The job's chat and its push row say which ("· left out: conf.txt (a secret KOLONİ knows, or named as
+  one)"), and the rest of the work goes on. A file an agent committed on the branch itself is on the
+  branch, not left out: the chat and the row do not call it left out, and **Run** refuses the push
+  ("prov.txt on the branch holds a secret KOLONİ knows - take it off the branch first") - or, for one
+  only named as a secret, asks first ("credentials.yaml on the branch is named as a secret (its agent
+  committed it): Run anyway pushes it"). Such a secret never deletes the job's work: only a secret
+  given on a card during the job, which an agent committed on the branch itself, has the branch
+  deleted, and the chat says so.
 - **Its second try** after a failure, and the turn that goes on after your decisions in the morning,
   work in the same worktree, on the same branch.
 - KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:
@@ -124,7 +137,7 @@ there as it goes. How Go away finds the project decides it, once for every job:
   does not undo it: it may be yours.
 
 The top bar shows "☾ Away · To-do 2 of 4" with **I'm back** and **Stop all**, and "· until 07:00"
-after it when you set a stop time. The To-do page shows the jobs too: since when, what they spent against the limit,
+after it when you set a stop time. Ready for you's report shows the jobs too: since when, what they spent against the limit,
 and each job as it stands, with what its agents are doing right now. A job's chat says at the top when
 its jobs started, with a link back to their report.
 
@@ -240,11 +253,16 @@ at, and one when a limit or Stop all ends Away - none when you come back yoursel
 The chat you went away from has one summary: "While you were away (23:10 – 07:42): 2 of 2 To-do
 done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Ready to take in), what was
 decided for you, **Waiting for you**, what waits (with **Allow and go on** / **Refuse**), **Review and
-take in** and **On the canvas**. KOLONİ opens on the report on the canvas until you have seen it.
+take in** and **On the canvas**. KOLONİ opened again opens on [Ready for you](#the-night-on-ready-for-you),
+on the night, until you have seen it there or its report on the canvas - never over a page you opened
+before the night was read.
 
 ### The night on Ready for you
 
-Once the night has ended, the [Ready for you](../use/ready.md#the-page) page opens on it: "Last night,
+KOLONİ opened after the night has ended opens on [Ready for you](../use/ready.md#the-page), at its first
+look at the night - never taking you off a page you opened before that look; once the night has been on
+screen (here, or its report on the canvas), KOLONİ opens as you left it. Once the night has ended, the
+page opens on it: "Last night,
 23:10 to 07:42" ("Night of Tue 24 Nov, …" once it ended more than a day ago), a time axis, and a lane
 for each job. A job's bar runs from when its first turn of the
 night began to when its last one ended - green where it finished, hatched honey where it waits for you,
@@ -263,7 +281,7 @@ of 5.00 USD").
   where its push went, that GitHub's checks on it were not waited for (KOLONİ does not wait for them
   yet). A job with no **Checked** section of the night says "not known", never "nothing".
 - **The whole report** opens the night's report on the canvas.
-- **Copy as Markdown** copies the whole night - named by its day, its jobs, what waits for you, what
+- **Copy report as Markdown** copies the whole night - named by its day, its jobs, what waits for you, what
   was decided for you on its jobs, what was not checked and what it spent - for a pull request's
   description. Every job's, agent's and model's word goes in a code span, masked as the screen shows
   it: a parked command too, as the list shows it.
@@ -280,7 +298,7 @@ shape - a `Bearer` token, a password in an address - shows as `***`, and what ru
 as recorded), or the question; why, in KOLONİ's words (the
 card's reason, the judge's sentence, the Orchestrator's reason in quotes); and a warning where it reads
 like orders to a model. It is in [Ready for you](../use/ready.md)'s waiting list (first, the push first
-of all), on the summary, on the To-do page and on the report.
+of all), on the summary and on the report.
 
 - **Run** or **Reject** a command; a question takes one of its options, or a line and **Answer**.
 - **Stop this task**, on the task's line: what waits of it is closed, the task is stopped, and nothing
@@ -313,8 +331,9 @@ of all), on the summary, on the To-do page and on the report.
 - Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
   user decided: ran "npm test" ("…"); rejected "git push"; answered "Which database?": "Postgres". Go on
   with the task." - what a line printed, and your answer, in quotes; a line that timed out or was
-  stopped says so. It is a job's turn: held to a job's hours, in the kept copy (a fresh one where you
-  took some of it in), its work kept for your Take in - at Full auto too - and the judge looks at its
+  stopped says so. It is a job's turn: held to a job's hours, in the kept copy its rows were parked in
+  - never a later turn's of the chat, a message of yours, say - (a fresh one where you took some of it
+  in), its work kept for your Take in - at Full auto too - and the judge looks at its
   commands. It does not start where the project is over its monthly budget: the job then waits with
   why. A message of yours in that chat meanwhile waits behind it.
 - **A job's push** (a git repository with an `origin`): "Push koloni/fix-login-3f2a to origin
@@ -354,7 +373,8 @@ started** (with **Add to To-do** or **Dismiss**) and **Kept out, as you asked** 
 those places, refused).
 
 Each job row says what its reviews found, and warns where its copy changed a place you kept out, or a
-file another job changed too. A job that changed nothing is "Done, nothing changed". For each job:
+file another job changed too. A job that changed nothing is "Done, nothing changed"; one whose work
+you took in or discarded says which files ("taken in: hello.py", "discarded: hello.py"). For each job:
 
 - **Allow and go on** or **Refuse**, when it waits for a change, a web request or an agent to open. A
   folder or a secret is answered in its chat: **Open its chat**. The job then goes on in its copy. What
@@ -367,7 +387,7 @@ file another job changed too. A job that changed nothing is "Done, nothing chang
   level says.
 - **See the changes** or **Open its chat**.
 
-The To-do page shows the same jobs, open by itself while a job needs a decision of yours.
+Ready for you's report shows the same jobs, with a row per job and what waits for you.
 
 See [A job while you're away](../examples/overnight-job.md) for the steps from going away to taking
 the work in.

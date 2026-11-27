@@ -1542,13 +1542,12 @@ class MergeFileOut(BaseModel):
 
     path: str
     kind: Literal["new", "changed", "deleted"]
-    # "ready": can be taken; "merged": the project changed it too, on other lines - the
-    # two went together, and that is what is taken; "conflict": the project's file
-    # changed meanwhile and the two do not go together by themselves - the user says
-    # which side is taken (`whole`); "applied": in the project; "refused": not taken,
-    # and `note` says why; "left_out": of a copy with nothing to say what it was made
-    # from - the file differs from the project's and is not offered at all (nothing
-    # says the agent changed it).
+    # "ready": can be taken; "merged": the project changed it too, on other lines - the two went
+    # together, and that is what is taken; "conflict": the project's file changed meanwhile and the
+    # two do not go together by themselves - the user says which side is taken (`whole`); "applied":
+    # in the project; "refused": not taken, and `note` says why; "left_out": of a copy with nothing
+    # to say what it was made from - the file differs from the project's and is not offered at all
+    # (nothing says the agent changed it).
     state: Literal["ready", "merged", "applied", "conflict", "refused", "left_out"]
     # From what the project holds to what would be taken: the copy's file; for "merged"
     # the two sides together; for a "conflict" of lines (`whole` false) what goes in
@@ -1649,14 +1648,14 @@ Side = Literal["agent", "project"]
 
 
 class MergeChoices(BaseModel):
-    """For each file whose two sides clash, by its path: whose is taken - the agent's
-    ("agent") or the project's ("project"). `shown`: of Apply, each file the card showed,
-    by path, as its `shown` - where one is not as the card has it now, nothing is taken.
-    None (a Take in that shows no files): as the card was last shown - and choices
-    without it are refused (a page from before `shown`). As many as a copy has files."""
+    """For each file whose two sides clash, by its path: whose is taken ("agent" or "project").
+    `shown`: of Apply, each file the card showed, by path, as its `shown` - one not as the card has
+    it now, and nothing is taken; None (a Take in that shows no files): as last shown, and choices
+    without it are refused. `files`: of Take in, only these (T93-01); the rest stay on the card."""
 
     choices: dict[str, Side] = Field(default_factory=dict, max_length=copies.MAX_FILES)
     shown: dict[str, list[str | None]] | None = Field(default=None, max_length=copies.MAX_FILES)
+    files: list[str] | None = Field(default=None, max_length=copies.MAX_FILES)
     # D2, of a branch's Merge: keep the branch after it ("Keep this branch after merging") -
     # and, where the card asks which way finished work goes, the user's choice, saved to the
     # project (a pull request is their consent to push its branches).
@@ -2011,8 +2010,7 @@ class BoardConversation(BaseModel):
     # Its agents' changes that wait for the user's decision (a merge card in its chat), and its
     # copies kept for Take in that hold a file.
     merges_pending: int
-    # Its last turn; None before its first.
-    turn: BoardTurn | None
+    turn: BoardTurn | None  # its last turn; None before its first
     # The folder it is in (None: a chat with none): every chat's board tags another's (B-72).
     project_id: str | None = None
 
@@ -2041,6 +2039,7 @@ class BoardOut(BaseModel):
     # What waits for the user on the project's backlog: tasks and changes agents proposed,
     # and tasks whose turn ended and wait for review (slice 52).
     backlog_waiting: int
+    decided: int | None = None  # decisions not OK'd yet: Not seen's (`decisions.unseen_count`)
 
 
 class ChannelMessageOut(Out):
@@ -2403,19 +2402,19 @@ class SnapshotOut(BaseModel):
     discussions: list[DiscussionOut]
     discussion_posts: list[DiscussionPostOut]
     board_posts: list[BoardPostOut]
-    # The files of the project held right now, by agents of any of its conversations.
-    claims: list[ClaimOut]
-    # The working copies of this conversation's agents that were, or are to be, taken
-    # into the project.
-    merges: list[MergeOut]
-    # The files added to its messages, and those added to the next one, not sent yet.
-    attachments: list[AttachmentOut] = []
+    claims: list[ClaimOut]  # the project's files held now, by agents of any of its chats
+    merges: list[MergeOut]  # its agents' working copies taken into the project, or to be
+    attachments: list[AttachmentOut] = []  # its messages' files, and the next one's not sent yet
     # The "While you're away" cards its Lead put here, with their nights (slice 106).
     away: list["AwayOut"] = []
     # K-bilgi 6: the "Add to Project notes?" offers under its turns, decided or not.
     notes_offers: list["NotesOfferOut"] = []
     warnings: list[WarningOut] = []
     last_event_id: int
+    # Of `?turns=N` (a long chat's page): how many turns before these were not sent, and the run to
+    # read the page before from (`before=`) - 0 or None: every turn is here.
+    older: int | None = None
+    older_from: str | None = None
 
 
 class PostMessageOut(BaseModel):
@@ -2498,7 +2497,7 @@ class Placed(BaseModel):
     stage_id: str
 
 
-class LearnIn(BaseModel):
+class LearnIn(SendIn):  # (`over_budget`: the user's word to learn over the month's budget)
     project_id: str
 
 
@@ -3361,11 +3360,10 @@ class RoleModelOut(BaseModel):
     cannot_step: str | None = None
     # Where its agents could run instead, as their own model; [] where none could.
     run_on: list[RunOn] = []
-    # Of the team guide (the role's own list is judged too, so not `pick_from` alone), the
-    # providers a pick could not open in this conversation now (a CLI with its own tools,
-    # at this permission level or for this role's tools): the
-    # provider's name -> why, as the agent that picks it is told. In a turn nobody is
-    # watching nothing is picked at all, which no row says.
+    # Of the team guide (the role's own list is judged too, so not `pick_from` alone), the providers
+    # a pick could not open in this conversation now (a CLI with its own tools, at this permission
+    # level or for this role's tools): the provider's name -> why, as the agent that picks it is
+    # told. In a turn nobody is watching nothing is picked at all, which no row says.
     cannot_pick: dict[str, str]
     # Asked for (`?levels=1`): the reasoning levels that model takes; [] where it takes none
     # or its provider does not say them without a cost - no level is sent to it. None: not
@@ -3720,8 +3718,7 @@ class ModelFactsOut(BaseModel):
     catalogue_date: str | None
     # A lookup that was needed (the server on this machine, Anthropic) did not answer.
     failed: bool = False
-    # What it takes besides text, each kind someone said (slice 85b); a kind left out is
-    # not known.
+    # What it takes besides text, each kind someone said (slice 85b); a kind left out is not known.
     inputs: list["ModelInputOut"] = []
 
 
@@ -3943,6 +3940,8 @@ class ProjectMemoryOut(BaseModel):
     rules_differ: bool = False
     # The rules as saved here (`Project.rules`): `rules` are the folder's where it is read.
     rules_saved: str | None = None
+    # 0.1.10: the Project notes, the rules' second box (`Project.project_notes`); null: none.
+    project_notes: str | None = None
     # Why the folder's .koloni/rules.md is not read, as the page says it; null: it is, or is
     # not there.
     rules_not_read: str | None = None
@@ -4108,9 +4107,8 @@ class PriceIn(PriceOut):
 class CostOut(BaseModel):
     amount: float
     currency: str
-    # True where an agent of the row is unknown, or tokens of it are not priced
-    # (`cache_unpriced`): the amount is the least it cost. Left out where everything of
-    # the row is known and priced.
+    # True where an agent of the row is unknown, or tokens of it are not priced (`cache_unpriced`):
+    # the amount is the least it cost. Left out where everything of the row is known and priced.
     at_least: bool | None = None
     # True where tokens of the row were read from a cache or written to one and the user
     # wrote no price for that: they are not in the amount at all. Left out otherwise.
@@ -4168,47 +4166,6 @@ class CompareOut(BaseModel):
     sides: list[CompareSideOut]
 
 
-class UsageRow(BaseModel):
-    """What a set of agents reported. A sum is over what is known and None when nothing
-    is; `unknown_agents` are the agents whose numbers are not both on record. A request
-    KOLONİ made of a model itself (a lead's "how hard is this message") is counted as one
-    more agent, under the model that was asked."""
-
-    runs: int
-    agents: int
-    input_tokens: int | None
-    output_tokens: int | None
-    # Of `input_tokens`: what the providers said was read again from their cache and
-    # written to it. None where none of them said - not a zero.
-    cache_read_tokens: int | None
-    cache_write_tokens: int | None
-    unknown_agents: int
-
-
-class ModelUsage(UsageRow):
-    provider_name: str | None
-    # The provider of that name now; None for one deleted since.
-    provider_id: str | None = None
-    model_id: str | None
-    # From the price the user wrote for this model; None without one, with nothing
-    # known, and for a CLI (a plan has no price for a token).
-    cost: CostOut | None
-
-
-class ConversationUsage(UsageRow):
-    conversation_id: str
-    project_id: str | None  # None: a plain chat's
-    title: str
-
-
-class StartUsage(UsageRow):
-    # "koloni": what KOLONİ asked a model itself with no turn (the day's words, a recipe's
-    # draft, a role's guide, a Check that runs a CLI) - in no message.
-    started_by: Literal["user", "trigger", "koloni"]
-    # Its models' costs added up, as a budget adds them; None where none of them has one.
-    cost: CostOut | None
-
-
 class BudgetOut(BaseModel):
     """This calendar month's spend of a project at the user's prices, against its budget."""
 
@@ -4226,14 +4183,6 @@ class BudgetOut(BaseModel):
     over: bool  # at 100%
     # Turns on a model with no price (or a CLI, or nothing reported): not in `spent`.
     unpriced_runs: int
-
-
-class UsageOut(BaseModel):
-    """Each list has what was spent most first."""
-
-    by_model: list[ModelUsage]
-    by_conversation: list[ConversationUsage]
-    by_start: list[StartUsage]
 
 
 class DayFile(BaseModel):
@@ -4454,6 +4403,8 @@ class BacklogTaskOut(Out):
     story_id: str | None = None
     kind: TaskKind = "task"
     place: int | None = None
+    # 0.1.10: its notebook, where it is of no story (`stories.notebook_of`); always a list here.
+    notes: "list[StoryNoteOut] | None" = None
     # Its story's title and its goal's, and who opened each ("agent": an agent's proposal opened
     # it, the user has not added one of its tasks yet) - read by the backlog's list only, so that a
     # proposal's card says where adding it puts it.

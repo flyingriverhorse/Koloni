@@ -23,7 +23,7 @@ from app.model_client import ModelUnavailable
 from tests.conftest import Gate
 from tests.test_agent_writes import edit, write
 from tests.test_away_park import call_result, chat, commands_in, run
-from tests.test_away_scenarios import ended, evening, go_away
+from tests.test_away_scenarios import ended, evening, go_away, night
 from tests.test_away_waiting import decide, waiting
 from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
@@ -164,6 +164,28 @@ def test_a_repository_with_no_origin_has_a_branch_and_no_push(make_client, wait_
     )
     assert job["mode"] == "branch" and job["branch"]["commits"] == 1
     assert waiting(client, done["id"]) == []
+    # N11: KOLONİ's commit names the Orchestrator as the screen does, not its role "Lead"
+    assert git_run(repo, "log", "-1", "--format=%s", name_of(job)) == "Orchestrator: one"
+    assert job["branch"]["gone"] is False
+
+
+@pytest.mark.parametrize("word", ["approve", "reject"])
+@pytest.mark.parametrize("retried", [False, True])
+def test_a_take_in_or_discard_says_the_branch_is_gone(make_client, wait_run, repo, word, retried):
+    # N12: the morning's row still said "On branch … 1 commits … merge it with git, or Take in"
+    # after its Take in had deleted the branch. (A second try's Orchestrator holds the record.)
+    again = [ModelUnavailable("model server unreachable"), write("b.txt", "b\n")] if retried else []
+    client, _model, pid, _done, job = branch_night(
+        make_client, wait_run, repo, [edit(), *again, text("one done")]
+    )
+    (kept,) = job["kept"]
+    assert client.post(f"/api/merges/{kept}/{word}").status_code == 200
+    assert git_run(repo, "branch", "--list", name_of(job)) == ""
+    (job,) = night(client, pid)["jobs"]
+    assert job["kept"] == [] and job["branch"]["gone"] is True
+    files = ["b.txt", "hello.py"] if retried else ["hello.py"]
+    # (and a discarded job is not one that changed nothing)
+    assert (job["taken"], job["discarded"]) == ((files, []) if word == "approve" else ([], files))
 
 
 def test_detached_at_job_start_works_in_a_copy_and_says_why(

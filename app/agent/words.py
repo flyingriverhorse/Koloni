@@ -44,6 +44,8 @@ MAX_PATHS_TOLD = 20
 AGENT_TERMINAL = frozenset({"completed", "failed", "cancelled", "rejected", "interrupted"})
 # How a file of a working copy stands while it can still be taken into the project.
 OPEN = ("ready", "merged", "conflict")
+# T93-01: `files` (a Take in of some of a card's files) where all of it goes in: a branch's.
+SOME_NOT_HERE = "only Take in takes some of a card's files: all of it goes here"
 
 # 28e: view_image - the name its copy takes by its type, and what the result says where the
 # model is shown it (`_history` sends it then).

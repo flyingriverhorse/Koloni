@@ -53,12 +53,14 @@ nav = [
     { "Subscription rules" = "models/subscription-rules.md" },
   ] },
   { "Tools" = [
-    { "Built-in tools" = "tools/built-in.md" },
+    { "KOLONİ's tools" = "tools/built-in.md" },
     { "MCP servers and trust" = "tools/mcp.md" },
     { "Skills" = "tools/skills.md" },
   ] },
-  { "Memory" = "memory.md" },
-  { "Knowledge and experts" = "knowledge.md" },
+  { "Memory" = [
+    { "What the project knows" = "memory.md" },
+    { "Sources to look things up in" = "knowledge.md" },
+  ] },
   { "Automation" = [
     { "To-do" = "automation/todo.md" },
     { "Work while you're away" = "automation/overnight.md" },

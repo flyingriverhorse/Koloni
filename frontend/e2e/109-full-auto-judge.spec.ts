@@ -79,7 +79,8 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await expect(chat.locator('.tool-row', { hasText: refused })).toContainText('refused')
   // (other chats of the run may wait too: the pill counts them)
   const pill = page.locator('.ready-pill')
-  await expect(pill).toHaveText(/^(1 decided|\d+ waits?)$/)
+  // (K1: the project's count, read with its board every 5 s - other chats of the e2e project may have theirs)
+  await expect(pill).toHaveText(/^(\d+ decided|\d+ waits?)$/, { timeout: 15_000 })
   await chat.locator('.decided-line').getByRole('button', { name: 'Open in Ready for you' }).click()
   const decided = page.getByRole('region', { name: /^Decided for you/ })
   const row = decided.getByRole('listitem').filter({ hasText: COMMAND }).first()
@@ -91,8 +92,8 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await expect(row.getByRole('button', { name: 'OK' })).toHaveCount(0)
   await rail(page, 'Canvas').click()
 
-  // Ask me, chosen in Settings › This project › Asking and away: its card.
-  const settings = await projectSettings(page, /^Asking and away/)
+  // Ask me, chosen in Settings › This project › When you’re asked: its card.
+  const settings = await projectSettings(page, /^When you’re asked/)
   await settings.getByLabel('When the judge finds a command risky').selectOption('ask')
   await saveSettings(page)
   await expect.poll(async () => (await (await request.get(`/api/projects/${pid}`)).json()).judge_risky).toBe('ask')

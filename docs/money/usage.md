@@ -2,30 +2,54 @@
 
 ## The Usage page
 
-Open **Usage** on the left rail. Choose **This project** or **All projects**, and a period: **Today**,
-**7 days**, **30 days** or **All**.
+Open **Usage** on the left rail. Choose a period - **Today**, **7 days**, **This month**, **30 days** or
+**All** - and **This project** or **All projects**. **This month** is the calendar month, as the budget counts it.
 
-![The Usage page for this project today: messages, tokens sent and written, cost, failed and files changed, and the table by provider and model](../images/usage.png)
+![The Usage page for this project this month: the summary sentence and its boxes, this month's budget as ten cells, the last 30 days in one strip, the table by provider and model and the chats that spent most](../images/usage.png)
 
 *The Usage page, counted from the record: no model is asked.*
 
-With **This project** and **Today**, the day's numbers come first, and under them one line on the
-day's decisions: "12 decisions were made for you today, 2 of them you haven't seen.", with **Open in
-Ready for you**, where **Decided for you** lists each. See [Decisions](../use/decisions.md).
+The page reads from the top:
 
-At the top: **Messages**, **Tokens sent**, **Tokens written** and **Cost**. Below:
+- **A sentence** on the period, such as "This month about 23.40 USD was spent. This month's budget is 46%
+  used. Claude Code has used 62% of the week." The budget's part shows with **This project** where the project
+  has a monthly budget; the plan's part is the plan window used most, as the CLIs last said it. With nothing
+  priced it says "no money was counted". Under it: **Messages**, **Tokens sent**, **Tokens written** and
+  **Cost**, with **set prices**. **Messages** says how many agents worked in them and, apart, KOLONİ's own
+  requests outside a message: "12 agents", "1 request by KOLONİ itself".
+- **This month's budget** as ten cells, each a tenth of the budget: honey as it fills, a red-orange rim on what
+  is left from 80%, all red-orange once it is over, with the amount, the share used and the days left in words beside them. Once all are full, new work waits
+  for your word (see [A project's monthly budget](#a-projects-monthly-budget)).
+- **Plan limits** beside it: a bar for each window of a plan, with **Check now** (see [Plan meters](#plan-meters)).
+- With **This project** and **Today**, the day's own numbers: **Failed** and **Files changed**, and **Say it in
+  words**.
+- **Day by day**: the last 30 days in one strip, whatever the period, a bar a day. It is money where any of it is
+  priced, else the tokens the models reported. A day that ran with nothing known has a dashed stub, never a zero.
+  Under it: the first day, the day that spent most, and today.
+- **By provider and model**: messages, agents, tokens and cost for each model. A CLI on a subscription, or an API
+  key marked as a plan, says **plan** instead of a cost; Copilot's AI credits stand beside it, such as "plan · 41
+  AI credits". A model's **Agents** count KOLONİ's own requests to it outside a message too, and the line under
+  the table says how many there were: 12 agents and 1 request are 13 there.
+- **Chats that spent most**: the top three, each opening its chat. **All N chats, in numbers** unfolds the full
+  table, which every column sorts.
+- **Who started it**: a bar each for **You**, **KOLONİ itself** (requests KOLONİ makes outside a message, such as
+  a real run of a CLI from the Models page) and **A trigger, with nobody watching** (a turn before 0.1.10, when
+  triggers were removed). **In numbers** unfolds its table. A night's work while you are ☾ Away counts as yours.
+- With **This project**, one line on the period's decisions: "12 decisions were made for you this month, 2 of them
+  you haven't seen.", with **Open in Ready for you**, where **Decided for you** lists each. See
+  [Decisions](../use/decisions.md).
 
-- **By provider and model**: messages, agents, tokens and cost for each model.
-- **By conversation**.
-- **Who started it**: **You**, **A trigger, with nobody watching** (a turn before 0.1.10, when triggers were removed), or **KOLONİ itself** (requests
-  KOLONİ makes outside a message, such as a real run of a CLI from the Models page).
+A chat's or a day's cost is its models' costs added up, as the budget adds them. Where none of them has a price,
+or the costs are in more than one currency, the chats, the starters and the strip are compared by their tokens
+instead, and a sum of only part of them says "≥".
 
 "Nothing is estimated": tokens are only what the models reported, and what was not reported shows as
 "–".
 
 **GitHub Copilot CLI** reports what it spent in its usage checkpoint: its tokens, and its own unit,
 AI credits (or premium requests, its older unit). They show on the agent's context line, under
-**Details** in its window, such as "1,200 in / 300 out · 0.42 AI credits". Run as a session, they are
+**Details** in its window, such as "1,200 in / 300 out · 0.42 AI credits", and added up by model on the
+Usage page, beside its cost. Run as a session, they are
 counted from that checkpoint as in **Native**: measured with `copilot -p` (CLI 1.0.103), not yet seen in a
 live session.
 
@@ -60,12 +84,13 @@ USD). It covers this calendar month, by this machine's clock.
 
 - At 80%, KOLONİ tells you once, and the top bar shows it.
 - At 100%, a new message asks first: "Over this month's budget. Send it anyway?" Press **Go on anyway**
-  or **Cancel**.
+  or **Cancel**. **Learn** on a knowledge asks the same way.
 - Work on a model with no price is not counted.
 - If your prices are in more than one currency, the budget is not enforced, and the page says so.
 - A plain chat (no folder) belongs to no budget.
 
-The Usage page shows **This month's budget**, how much is used, and **Change in Settings →**.
+The Usage page shows **This month's budget** as ten cells, how much is used, the days left in the month, and
+**Change in Settings →**.
 
 ## A job's budget
 
@@ -93,4 +118,6 @@ what the month has left too. See [Work while you're away](../automation/overnigh
 For Claude Code, Codex, agy and Copilot, the top bar shows how much of the plan is used, from what each
 CLI last reported. Copilot's chat requests and premium requests show apart
 ([Copilot on your GitHub account](../models/copilot.md#plan-limits)). Near the limit (90%), KOLONİ tells you. On the Usage page, **Plan limits** shows the
-same with **Check now**: "These are the limits of the account the CLI on this machine is signed in to."
+same with **Check now**: "These are the limits of the account the CLI on this machine is signed in to." Where
+a subscription steps down a tier (its **Limits** on the Models page), a line on its bar marks that share; past it
+the bar turns orange and its row says so: "Past 80%: a model picked by tier on it is one tier lower".

@@ -67,8 +67,9 @@ def changes(snap):
 
 
 def copies_left(settings_env):
-    held_in = copies.folder(load_settings(settings_env).runtime_root)
-    return list(held_in.iterdir()) if held_in.is_dir() else []
+    # (K-koloni-alan: wherever they were made - a project with no git has them in its .koloni/)
+    held = copies.folders(load_settings(settings_env).runtime_root)
+    return [one for place in held if place.is_dir() for one in place.iterdir()]
 
 
 # --- Claude Code --------------------------------------------------------------------------
@@ -92,7 +93,8 @@ def test_a_native_claude_sub_agent_works_in_its_copy_and_its_changes_are_taken_a
     assert coder["copy"] == {"state": "own"} and agent(snap, "Lead")["copy"] is None
     seen = claude_app.record()
     # started in its copy, under the runtime root - not in the project
-    tree = copies.folder(load_settings(settings_env).runtime_root) / coder["id"] / copies.TREE
+    tree = copies.folder(load_settings(settings_env).runtime_root, project_dir) / coder["id"]
+    tree = tree / copies.TREE
     assert Path(seen["cwd"]) == tree
     # git there looks no higher than the copies folder: never into a repository above it
     assert seen["git_ceiling"] == str(tree.parent.parent)
@@ -532,7 +534,8 @@ def test_what_a_native_codex_sub_agent_changes_is_found_in_its_copy_and_taken_at
     coder = agent(snap, "Coder")
     assert coder["copy"] == {"state": "own"}
     seen = native_app.record()
-    tree = copies.folder(load_settings(settings_env).runtime_root) / coder["id"] / copies.TREE
+    tree = copies.folder(load_settings(settings_env).runtime_root, project_dir) / coder["id"]
+    tree = tree / copies.TREE
     assert Path(seen["cwd"]) == tree
     assert seen["thread"]["cwd"] == str(tree)
     assert seen["git_ceiling"] == str(tree.parent.parent)
@@ -828,7 +831,8 @@ def test_a_native_agy_sub_agent_works_in_its_copy_and_its_change_is_taken_at_the
     coder = agent(snap, "Coder")
     assert coder["copy"] == {"state": "own"} and agent(snap, "Lead")["copy"] is None
     seen = agy_app.record()
-    tree = copies.folder(load_settings(settings_env).runtime_root) / coder["id"] / copies.TREE
+    tree = copies.folder(load_settings(settings_env).runtime_root, project_dir) / coder["id"]
+    tree = tree / copies.TREE
     assert Path(seen["cwd"]) == tree and SKIP in seen["argv"]
     assert seen["env"]["GIT_CEILING_DIRECTORIES"] == str(tree.parent.parent)
     assert (

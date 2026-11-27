@@ -28,6 +28,7 @@ from app import (
     koloni,
     ledger,
     models_dev,
+    project_notes,
     proof,
     record,
     stories,
@@ -79,7 +80,7 @@ from app.db.models import (
 from app.executors.host import shell_name, shell_writes
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, Transient
 from app.providers import ask_once, list_providers
-from app.roles import LEAD, LEARN, LOOKUP, find_role, shown_name, tools_off
+from app.roles import LEAD, LEARN, find_role, shown_name, tools_off
 from app.team import asked_how_hard, guide, quoted, would_run
 from app.tools import NOT_A_MODEL, WRITE_TOOLS, ToolError, parse_arguments
 from app.workspace import WorkspaceError, in_scratch, never
@@ -136,9 +137,9 @@ KEPT_ENGLISH = (
     "`Already failing before:`, `Pre-existing:`, `(pre-existing)`, `(already failing before)`, "
     "`| fixed:`, `| disputed:`, "
     + ", ".join(f"`## {heading}`" for heading in handoff.HEADINGS)
-    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `{stories.STORY_NOTE}`, `Say:`, "
-    "and the keys of JSON and StructuredOutput; for nothing found or nothing checked write "
-    "exactly `Findings: none` or `Checked: none`"
+    + f", `{backlog.NOT_FINISHED}`, `{backlog.NEEDS_PROJECT}`, `{stories.STORY_NOTE}`, "
+    f"`{stories.TASK_NOTE}`, `Say:`, and the keys of JSON and StructuredOutput; for nothing "
+    "found or nothing checked write exactly `Findings: none` or `Checked: none`"
 )
 # Told to the lead only, while its conversation has it hand code to sub-agents (slice 48):
 # it is not given the tools that write files, and "Do small jobs yourself" is not for those.
@@ -1653,16 +1654,14 @@ class ContextMixin:
             system += "\n\n" + DECIDES_PROMPT
         if others:
             system += "\n\n" + others
-        # A knowledge its role uses as a map - the project's notes, unless the user took them
-        # away (`project_notes.accept`): where its guide is, as a sub-agent's role is told.
+        project_id = session.get_one(Conversation, cid).project_id
+        # A knowledge its role uses as a map: where its guide is, as a sub-agent's role is told.
         if mapped := knows.map_of(
-            session,
-            find_role(session, ctx.role),
-            session.get_one(Conversation, cid).project_id,
-            ctx.root,
-            LOOKUP in has,
+            session, find_role(session, ctx.role), project_id, ctx.root, has, ctx.tools
         ):
             system += "\n\n" + mapped
+        if notes := project_notes.told(session.get(Project, project_id) if project_id else None):
+            system += "\n\n" + notes
         if told := self._map_told(ctx):
             system += "\n\n" + told
         if not (ctx.answering or ctx.discussion or ctx.run_id in self._sides) and (
@@ -1717,7 +1716,7 @@ class ContextMixin:
             # K-uzman: its guide as it is now - learned again a step ago, it is this one.
             known = known if "web_search" not in off else {**known, "search_answering": False}
             system += "\n\n" + knowledge.brief(ctx.root, known, LEARN in ctx.tools, ctx.tools)
-        if mapped := knows.map_of(session, kind_of, here, ctx.root, LOOKUP in has):
+        if mapped := knows.map_of(session, kind_of, here, ctx.root, has, ctx.tools):
             system += "\n\n" + mapped
         if about := self._about.get(ctx.agent_id):
             system += "\n\n" + about
@@ -1825,7 +1824,8 @@ class ContextMixin:
         carried = None
         if ctx.depth == 0:
             try:
-                before = self._notes_before(session, ctx)
+                job = stories.notebook_of_run(session, session.get_one(Run, ctx.run_id))  # 0.1.10
+                before = [] if job else self._notes_before(session, ctx)  # (a job's: its notebook)
                 carried = board.pushed(
                     before,
                     {agent_id: name for agent_id, (name, _parent) in family.items()},

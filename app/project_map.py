@@ -19,7 +19,7 @@ from pathlib import Path
 from app import copies, git
 from app.commands import is_exactly
 from app.project_files import _hidden
-from app.workspace import is_kept_code
+from app.workspace import in_tree, is_kept_code
 
 # A part's language by its marker file; a folder with several has each, in this order.
 MARKERS = {
@@ -115,7 +115,8 @@ def _walk(root: Path, skip: frozenset[str] | None, count: bool) -> tuple[dict, d
                 if e.is_dir(follow_symlinks=False)
                 and e.name.casefold() not in left_out
                 and not _hidden(root, Path(e.path))
-                and not is_kept_code(f"{rel}{e.name}".split("/"))
+                and not is_kept_code(parts := f"{rel}{e.name}".split("/"))
+                and not in_tree(parts)  # (KOLONİ's worktrees and copies in `.koloni/`)
             ]
         if skip is None and depth < MOST_DEEP and below:
             ignored |= git.ignored(root, below, above=True)

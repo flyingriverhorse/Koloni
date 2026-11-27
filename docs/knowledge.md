@@ -1,24 +1,35 @@
-# Knowledge and experts
+# Sources to look things up in
 
 Knowledge is "what agents can look things up in": documentation, files or a topic that KOLONİ reads
-once and turns into a short guide. A role uses a knowledge only if you give it to the role; the one
-exception is [Project notes](#project-notes) made from now on, which the Orchestrator has from the
-first note. Open
-**Knowledge** on the left rail.
+once and turns into a short guide. A role uses a knowledge only if you give it to the role. Since
+0.1.10 it is the second part of the [Memory](memory.md) page: open **Memory** on the left rail and
+press its second tab, **Sources to look things up in** (Ctrl+K: **Knowledge**). The tab says how many
+sources may be old ("2 may be old"). Its first part, **What the project knows**, is the project's rules,
+facts and notes.
 
-## The Knowledge page
+## The sources part {#the-knowledge-page}
 
-Each knowledge is a card. Its header shows its first source, and buttons to **Try it** and to
-**Learn** (later **Learn more** or **Learn again**), with what learning may cost beside it. The card
-also says when it was last read (**Fresh:**), how much it spent (**Spent:**), which model it learns
-with (**Learns with:**) and which roles use it (**Used by:**).
+Each knowledge is a card, the cards side by side in a grid. A card's head has a small hexagon, a cell,
+for how it stands, its topic and its first source. Under them it says when it was last read
+(**Fresh:**), how much it spent (**Spent:**) and which model it learns with (**Learns with:**); then
+**Used by:**, a tick for each role that uses it; then **Try it** and **Learn** (later **Learn more** or
+**Learn again**), with what learning may cost beside it.
 
-![The Knowledge page: the Databricks and MLflow cards, and the lines offering This project's code and KOLONİ's own guide](images/knowledge.png)
+| Cell | What it means |
+|---|---|
+| Green, filled | Learned (for this project's code, scanned), and KOLONİ knows of no change since. That is all it says: KOLONİ looks at a project's files again each time, at a site or a topic only once a week and only with **Learn again weekly** on, and at a repository, a folder on this machine or this project's code not at all until you learn or scan again. |
+| Honey, filled | Learning (or, for this project's code, scanning). |
+| Red-orange, filled | May be old - its sources changed since it learned, a file it read changed or went, or its guide is a week old and **Learn again weekly** is on (**Fresh: old**, the reason on hover) - or its last learning failed. |
+| Empty | Not learned yet. |
 
-*The Knowledge page, with this project's code and KOLONİ's own guide offered below the cards.*
+The cell's word is its name for a screen reader, and **Fresh:** says it too: never its colour alone.
 
-Click the topic to open the card. Its tabs are **Guide**, **Pages**, **Not known yet**, **Settings**
-and **Copy**.
+![The Memory page's sources part: the Databricks and MLflow cards side by side, each with its cell, and This project's code and KOLONİ's own guide offered as dashed cards](images/knowledge.png)
+
+*Memory's sources, with this project's code and KOLONİ's own guide offered as cards of their own.*
+
+Click the topic to open the card: it goes across the row. Its tabs are **Guide**, **Pages**, **Not known
+yet**, **Settings** and **Copy**. **Try it** opens across the row too.
 
 ## Adding knowledge
 
@@ -49,6 +60,10 @@ Then:
 
 Press **Add and learn**, or **Add without learning** to learn later.
 
+What a learning spends counts toward the project's monthly budget (Usage shows it as "KOLONİ itself"). Over that
+budget, **Learn** asks first, as a new message does: "Over this month's budget. Learn anyway?" Press **Go on anyway** or
+**Cancel**.
+
 ## What learning does
 
 KOLONİ reads every page under the sources, up to the page cap, and keeps their text in the project's
@@ -63,8 +78,8 @@ another site the page redirects to. Reading stops after 10 minutes.
 
 **Learning again** reads only what changed. If nothing changed, no model is asked.
 
-**This project's code** has its own card. "Free: KOLONİ reads the files here, no model." Press **Scan the
-code**.
+**This project's code** is offered as a dashed card until you add it. "Free: KOLONİ reads the files
+here, no model." Press **Scan the code**: it becomes a card like the others.
 
 **Try it** asks a question as an agent would, and shows the answer.
 
@@ -96,7 +111,7 @@ guide, its pages, and its code under `code/`: the code map, and each code file t
 `code/files/<path>.md`, line for line. Test runners and builds look for code files, not `.md`
 ones, so they do not pick these up unless set to read Markdown. Files under hidden folders (`.github/`, `.claude/` and the like) are not kept. The code map reads at
 most 4 MB a file and 64 MB in all. Agents read the code there with `read_file`, at the file and
-line lookup names; what they read there is marked as data, not instructions.
+line **Recall** names; what they read there is marked as data, not instructions.
 
 What the knowledge keeps is kept out of git, **Take in**, search and the list of changes.
 A working copy links to it rather than copying it, so an agent there reads it too.
@@ -130,7 +145,7 @@ Learn.
 Nothing is copied into your project but the same text a repository leaves, and nothing is ever
 written into the folder. Nothing in it is run, not even git: its `.git` folder is not read.
 
-Only you add one, on the Knowledge page: an agent cannot add or change a folder source, and its
+Only you add one, on Memory's sources part: an agent cannot add or change a folder source, and its
 expert never learns it by itself. A path is refused if it is not a full path, not a folder, a link
 or a junction, a drive's root, your home folder or a folder holding it, a hidden folder of your home
 (`.ssh`, `.claude`, `.config`…), its `AppData` (on a Mac, its `Library`), a folder named as secrets are (`.ssh`),
@@ -140,7 +155,8 @@ this copy of KOLONİ's folder or its `runtime/`, another KOLONİ's runtime or ch
 
 ## KOLONİ's own guide
 
-**Add KOLONİ's own guide** adds this guide as a knowledge called **KOLONİ guide**. Its source is
+**Add KOLONİ's own guide**, on a dashed card of its own until you press it, adds this guide as a
+knowledge called **KOLONİ guide**. Its source is
 `koloni-guide:`. KOLONİ reads only the Markdown pages of its own `docs/` folder and keeps them in the
 project, as for any source. Its code, its `.env` and `runtime/` are never read, and agents read only
 the kept pages, never KOLONİ's folder.
@@ -167,6 +183,20 @@ On the Agents page, open a role and its **Knowledge** tab. Switch a knowledge on
 
 A role with knowledge can look things up in it while it works.
 
+The same is on the knowledge's card, under **Used by:**: untick a role and it no longer uses the
+knowledge; choose another role in **+ Role…** and press **Give** to give it the knowledge, as **Map**. A role that is **Full** in it (an expert)
+has its tick marked "full" and greyed: change that on the role's **Knowledge** tab. A refusal is said
+on the card.
+
+## How agents look things up
+
+An agent has one tool to look things up: **Recall**. It looks in the project's
+[memory](memory.md#searching-memory) and earlier messages, and - for a role that uses knowledge here -
+in that knowledge's pages too: the parts that hold most of the question's words, each under its
+topic, page and line, as data. A role whose agent may not read the memory (KOLONİ's own Reviewer)
+looks in its knowledge's pages alone. Until 0.1.10 the pages had a tool of their own, `lookup`: a
+role, a prompt or a guide that still names it keeps working for one release, as it did.
+
 ## Experts
 
 An expert is a role that knows one topic and only advises. To make one: Agents → **New role** →
@@ -183,21 +213,9 @@ guide (**Add** / **Not now**); it is added the next time the knowledge learns.
 
 ## Project notes
 
-At the end of a turn, KOLONİ may ask **Add to Project notes?** It lists findings that were fixed and
-changes to the project's `docs/`, at most 8. Tick the ones to keep and press **Add**, or **Not now**.
+Since 0.1.10 the Project notes are part of the project's [Memory](memory.md#project-notes): the lines
+you keep from the **Add to Project notes?** card, under the project's rules, given to the Orchestrator
+every turn. They are no longer a knowledge, and this page no longer lists them; the folder
+`.koloni/knowledge/project-notes/` an earlier version wrote is left as it was.
 
-What you add goes into a knowledge called **Project notes**, made the first time you add. KOLONİ writes
-its guide itself, with no model.
-
-Where a project's Project notes are made by this version or a later one, its Orchestrator uses them
-from the first note, as a knowledge on **Map**: it is told where their guide is and can look things up
-in their pages. They are never given in another project, and any other role has them only if you
-switch them on for it ([Giving knowledge to a role](#giving-knowledge-to-a-role)). To take them from
-the Orchestrator, open the **Lead** role on the Agents page, its **Knowledge** tab, and switch
-**Project notes** off: it stays off, whatever you add later.
-
-A project that already had Project notes before that is not changed: no role reads them until you
-switch them on. Do it once, in the same place: Agents page, the **Lead** role, **Knowledge** tab,
-**Project notes** on.
-
-Project notes and Knowledge are not the project's [Memory](memory.md).
+Knowledge is not the project's [Memory](memory.md).

@@ -1,5 +1,5 @@
-import { useId, useState } from 'react'
-import { errorText } from '../api/client'
+import { type ReactNode, useEffect, useId, useState } from 'react'
+import { api, errorText } from '../api/client'
 import type { Away, AwayJob, Decision, Waiting } from '../api/types'
 import { STATE_WORD, clock } from '../backlog/awayText'
 import { stamp, whoOf } from './decisionLog'
@@ -145,7 +145,7 @@ function Head({ id, away, parked, onReport }: { id: string; away: Away; parked: 
   }
   return (
     <div className="night-head">
-      <h2 id={id}>{nightTitle(away)}</h2>
+      <h3 id={id}>{nightTitle(away)}</h3>
       <div className="night-tools">
         {onReport && (
           <button type="button" className="link-btn" onClick={onReport}>
@@ -153,7 +153,7 @@ function Head({ id, away, parked, onReport }: { id: string; away: Away; parked: 
           </button>
         )}
         <button type="button" className="btn btn-small" onClick={() => void copy()}>
-          Copy as Markdown
+          Copy report as Markdown
         </button>
         {said && (
           <span role="status" className="muted">
@@ -166,19 +166,42 @@ function Head({ id, away, parked, onReport }: { id: string; away: Away; parked: 
 }
 
 /**
- * Ready for you's night (karar defteri, Part B; §3.4): the project's last ☾ Away, once it ended - a lane per job, its bar
+ * Ready for you's night (karar defteri, Part B; §3.4; 0.1.10 the frame of its report, `children` under its title): the
+ * project's last ☾ Away, once it ended - a lane per job, its bar
  * from its start to its end as its turns' records say (none where they lack either), the decisions made for you in its
  * chat that night at their times, filled while they wait for your OK; what was not checked and what it spent; the whole
  * report and Copy as Markdown of it. Nothing of it is guessed: a time, a state or a cost no record holds is not drawn.
+ * On screen, the night is seen: KOLONİ opened from now on does not open Ready for you on it again (the morning, App).
  */
-export function NightStrip({ away, parked, onReport }: { away: Away; parked: Waiting[]; onReport?: () => void }) {
+export function NightStrip({
+  away,
+  parked,
+  onReport,
+  children,
+  foot,
+  hidden = false,
+}: {
+  away: Away
+  parked: Waiting[]
+  onReport?: () => void
+  children?: ReactNode
+  /** First in its foot: what was decided for you that night. */
+  foot?: ReactNode
+  /** Drawn on a tab not shown (Work's To-do shown): not on screen, so not seen yet. */
+  hidden?: boolean
+}) {
   const id = useId()
   const axis = away.status === 'ended' ? axisOf(away) : null
+  const unseen = axis && !away.seen_at && !hidden ? away.id : null
+  useEffect(() => {
+    if (unseen) void api.post('/away/' + unseen + '/seen').catch(() => {})
+  }, [unseen])
   if (!axis) return null
   const pushes = new Set(parked.flatMap(row => (row.kind === 'push' && !row.decision ? [row.task_id] : [])))
   return (
     <section className="night-strip" aria-labelledby={id}>
       <Head id={id} away={away} parked={parked} onReport={onReport} />
+      {children}
       <div className="night-row night-axis-row" aria-hidden="true">
         <span />
         <div className="night-axis">
@@ -195,6 +218,7 @@ export function NightStrip({ away, parked, onReport }: { away: Away; parked: Wai
         ))}
       </ol>
       <div className="night-foot">
+        {foot}
         <Legend away={away} />
         <Unchecked away={away} />
         <span>{spentLine(away)}</span>

@@ -4,13 +4,10 @@ import { OWN, contrasts, openFreshConversation, rail, shot } from './helpers'
 test.use({ viewport: { width: 1440, height: 900 } })
 
 const SECTIONS = [
-  'Agents',
-  'Asking and away',
-  'New chats start with',
+  'How agents work',
+  'When you’re asked',
+  'When the work is done',
   'Limits and money',
-  'Commands and secrets',
-  'Runs without asking',
-  'Checks and git',
   'Memory and web',
   'Notifications',
   'This folder',
@@ -104,14 +101,21 @@ test('secret files are hidden from commands until the box is cleared, and cleare
   const settings = page.getByRole('form', { name: 'Project settings' })
   const hide = settings.getByLabel(/^Hide secret files from commands/)
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
-  await settings.getByRole('button', { name: /^Commands/ }).click()
+  // (When you’re asked › More since 0.1.10)
+  await settings.getByRole('button', { name: /^When you’re asked/ }).click()
+  await settings.getByRole('button', { name: /^More ·/ }).click()
   await expect(hide).toBeChecked()
   await hide.uncheck()
   await settings.getByRole('button', { name: 'Save' }).click()
   await expect(settings.getByRole('status')).toHaveText('Saved')
   await page.reload()
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
-  await settings.getByRole('button', { name: /^Commands/ }).click()
+  await settings.getByRole('button', { name: /^When you’re asked/ }).click()
+  // (Set here now: More says so before it is opened.)
+  await expect(settings.getByRole('button', { name: /^More ·/ })).toHaveAccessibleName(
+    'More · 6 settings, 1 set here: secret files are not hidden from commands',
+  )
+  await settings.getByRole('button', { name: /^More ·/ }).click()
   await expect(hide).not.toBeChecked()
 })
 
@@ -168,7 +172,8 @@ for (const theme of ['light', 'dark'] as const) {
     expect((await sent).postDataJSON()).toEqual({ auto_notes: true })
     await expect(settings.getByRole('button', { name: /^Memory and web/ })).toHaveText('Memory and web')
     await expect(settings.getByRole('status')).toHaveText('Saved')
-    await expect(settings.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+    // (Nothing changed in it now: no save bar.)
+    await expect(settings.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
     await expect(settings.getByRole('button', { name: /^Limits and money/ })).toHaveText('Limits and moneynot saved')
     // (a state the row is described by, not a word of its name: "not saved" would be found as a Save button)
     await expect(settings.getByRole('button', { name: /^Limits and money/ })).toHaveAccessibleName('Limits and money')
@@ -179,6 +184,10 @@ for (const theme of ['light', 'dark'] as const) {
       // Every piece of text of the page - the list with its marks, and each section - reads at 4.5 or more.
       for (const section of SECTIONS) {
         await settings.getByRole('button', { name: new RegExp(`^${section}`) }).click()
+        // (what is folded under More too)
+        await settings
+          .locator('.set-more-rows')
+          .evaluateAll(rows => rows.forEach(row => ((row as HTMLElement).hidden = false)))
         await settings
           .locator('.hint-bubble')
           .evaluateAll(hints => hints.forEach(hint => ((hint as HTMLElement).hidden = false)))
@@ -188,9 +197,9 @@ for (const theme of ['light', 'dark'] as const) {
     }
 
     // The keyboard goes down the list, and where it is shows.
-    await settings.getByRole('button', { name: /^Agents/ }).click()
+    await settings.getByRole('button', { name: /^How agents work/ }).click()
     await page.keyboard.press('Tab')
-    const next = settings.getByRole('button', { name: /^Asking and away/ })
+    const next = settings.getByRole('button', { name: /^When you’re asked/ })
     await expect(next).toBeFocused()
     expect(await next.evaluate(row => getComputedStyle(row).outlineStyle)).toBe('solid')
 
@@ -202,8 +211,8 @@ for (const theme of ['light', 'dark'] as const) {
     await settings.getByRole('button', { name: /^Limits and money/ }).click()
     await expect(settings.getByLabel('Stop the work on a message over this many tokens')).toHaveValue('')
     // A page chosen on the rail closes it too.
-    await rail(page, 'To-do').click()
+    await rail(page, 'Work').click()
     await expect(settings).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: 'To-do' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Work', exact: true })).toBeVisible()
   })
 }

@@ -3,6 +3,7 @@ import { errorText } from '../api/client'
 import type { Role, Skill, SkillRecordRow } from '../api/types'
 import { modelName } from '../shell/modelName'
 import { money } from '../usage/cost'
+import { titleOf } from './agentStatus'
 import type { RoleChange } from './RolePanel'
 
 /** A row of the record says how its models did only from this many jobs (app/record.py SCORED_FROM). */
@@ -50,7 +51,7 @@ type Measure = (typeof MEASURES)[number]
 
 /** A row's provider, model and role, as far as the record has them. */
 const whereOf = (row: SkillRecordRow) =>
-  `${row.provider_name ?? 'a provider not on record'} · ${row.model_id ? modelName(row.model_id) : 'a model not on record'} · ${row.role_name}`
+  `${row.provider_name ?? 'a provider not on record'} · ${row.model_id ? modelName(row.model_id) : 'a model not on record'} · ${titleOf(row.role_name)}`
 /** A row's number in words, by what the bars show. */
 const saidOf = (row: SkillRecordRow, measure: Measure) =>
   measure === 'Taken in'
@@ -61,7 +62,7 @@ const saidOf = (row: SkillRecordRow, measure: Measure) =>
         ? '–'
         : `${Math.round(row.steps)} steps`
 /** How its agents were given the skill: read by them, whole in their brief - or given and never read. */
-const givenSaid = (row: SkillRecordRow) =>
+export const givenSaid = (row: SkillRecordRow) =>
   [
     row.used && `read in ${row.used} of ${row.agents}`,
     row.in_brief && `given in full in its brief in ${row.in_brief} of ${row.agents}`,
@@ -205,7 +206,7 @@ export function SkillWindow({ skill, roles, off, serversOff, onRecord, onPatchRo
                     }
                   />
                   <span>
-                    {not ? <span className="no">✗</span> : has && <span className="ok">✓</span>} {role.name}
+                    {not ? <span className="no">✗</span> : has && <span className="ok">✓</span>} {titleOf(role.name)}
                     {not && <span className="muted"> ({not})</span>}
                   </span>
                 </label>
@@ -227,7 +228,7 @@ export function SkillWindow({ skill, roles, off, serversOff, onRecord, onPatchRo
                           })
                         }
                       >
-                        Give {role.name} {group}
+                        Give {titleOf(role.name)} {group}
                       </button>
                     ))}
               </span>

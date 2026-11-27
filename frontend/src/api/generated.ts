@@ -1098,7 +1098,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Snapshot */
+        /**
+         * Snapshot
+         * @description A chat as it is: every turn - or, of `turns` (the page opening a long chat), its newest that
+         *     many, every older one that still waits for the user, and how many are left out (`older`):
+         *     `before` reads the page before that run. What needs the whole history (search, the decision
+         *     log, the night's report) reads it on the server, not here.
+         */
         get: operations["snapshot_api_conversations__conversation_id__get"];
         put?: never;
         post?: never;
@@ -2416,7 +2422,8 @@ export interface paths {
          * @description KOLONİ's record of the project gone for good, in one transaction: its chats with all
          *     of their turns, its memory, knowledge, To-do, nights and usage. Not
          *     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
-         *     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
+         *     are never touched - but KOLONİ's own worktrees and copies in .koloni/ (K-koloni-alan,
+         *     `copy_git.drop_project`); KOLONİ's own files of its chats go as a chat's delete takes them
          *     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
          *     app's clock is.
          *     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
@@ -2929,7 +2936,8 @@ export interface paths {
         };
         /**
          * List Knowledge
-         * @description The project's knowledge and every project's, oldest first.
+         * @description The project's knowledge and every project's, oldest first - not the Project notes of
+         *     0.1.9, which are Memory's since 0.1.10 (`project_notes`).
          */
         get: operations["list_knowledge_api_projects__project_id__knowledge_get"];
         put?: never;
@@ -3097,6 +3105,27 @@ export interface paths {
         /** Others Instructions */
         get: operations["others_instructions_api_projects__project_id__others_instructions_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/project-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Project Notes
+         * @description 0.1.10: the Project notes, the rules' second box - what the user kept at turns' ends, a
+         *     line each, as the user corrects them (`project_notes.check`); one text, as the preferences.
+         */
+        put: operations["set_project_notes_api_projects__project_id__project_notes_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -3562,28 +3591,6 @@ export interface paths {
         get: operations["provider_models_api_providers__provider_id__models_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/providers/{provider_id}/offers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Provider Offers
-         * @description What a Copilot account offers, as the Models page and the chat's model panel open: asked
-         *     (`models.list` and `account.getQuota`, no model turn) where that is due, the provider's rows
-         *     switched by it; the provider as it then is. Any other provider is answered as it is.
-         */
-        post: operations["provider_offers_api_providers__provider_id__offers_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4974,7 +4981,7 @@ export interface components {
          * @description 0.1.9: a job's branch as its turn left it (`away_branch.row`) - its name, its commit and
          *     the branch it was made from, its commits and files since, KOLONİ's checks' verdict, origin's
          *     address (never its password) and what moved outside it meanwhile (H2); `why`: what git said
-         *     where it could not look at the branch.
+         *     where it could not look at the branch; `gone`: git deleted it at its Take in or Discard.
          */
         AwayBranchOut: {
             /** Checks */
@@ -4985,6 +4992,11 @@ export interface components {
             files: number | null;
             /** From Head */
             from_head?: string | null;
+            /**
+             * Gone
+             * @default false
+             */
+            gone: boolean;
             /** Into */
             into: string | null;
             /**
@@ -5054,6 +5066,11 @@ export interface components {
              * @default []
              */
             decisions: components["schemas"]["Decision"][];
+            /**
+             * Discarded
+             * @default []
+             */
+            discarded: string[];
             /** Ended At */
             ended_at?: string | null;
             /**
@@ -5330,6 +5347,8 @@ export interface components {
              * @default false
              */
             not_in: boolean;
+            /** Notes */
+            notes?: components["schemas"]["StoryNoteOut"][] | null;
             /** Pending */
             pending: {
                 [key: string]: unknown;
@@ -5458,6 +5477,8 @@ export interface components {
             conflicts: components["schemas"]["BoardConflict"][];
             /** Conversations */
             conversations: components["schemas"]["BoardConversation"][];
+            /** Decided */
+            decided?: number | null;
             /** Limit */
             limit: number | null;
             /** Running */
@@ -6295,6 +6316,7 @@ export interface components {
             cache_write_tokens: number | null;
             /** Conversation Id */
             conversation_id: string;
+            cost?: components["schemas"]["CostOut"] | null;
             /** Input Tokens */
             input_tokens: number | null;
             /** Output Tokens */
@@ -6455,6 +6477,26 @@ export interface components {
             turns: number;
             /** Waiting */
             waiting: number;
+        };
+        /** DayUsage */
+        DayUsage: {
+            /** Agents */
+            agents: number;
+            /** Cache Read Tokens */
+            cache_read_tokens: number | null;
+            /** Cache Write Tokens */
+            cache_write_tokens: number | null;
+            cost: components["schemas"]["CostOut"] | null;
+            /** Day */
+            day: string;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Runs */
+            runs: number;
+            /** Unknown Agents */
+            unknown_agents: number;
         };
         /** DayWordsIn */
         DayWordsIn: {
@@ -7313,15 +7355,20 @@ export interface components {
          *     `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
          *     (`model` then "" where none was asked); "refuse", not run, its agent told the judge's sentence
          *     (the project's Refuse and go on; `seen` as above). Since §8 the check of the user's words is
-         *     the judge's too, `kind` "words" ("" on a record from before 0.1.9).
+         *     the judge's too, `kind` "words" ("" on a record from before 0.1.9). K5 (0.1.10): `kind` "said",
+         *     an "ask" whose card quotes the sentence of the user's own message (`quote`, `source`
+         *     "message") that asked for this push, pull request or merge (`judge.asked_for`) - which of
+         *     them, `action` (its card's verb; none on any other record).
          */
         Judged: {
+            /** Action */
+            action?: ("push" | "pr" | "merge") | null;
             /**
              * Kind
              * @default
              * @enum {string}
              */
-            kind: "" | "risk" | "words";
+            kind: "" | "risk" | "words" | "said";
             /**
              * Model
              * @default
@@ -7583,6 +7630,11 @@ export interface components {
         };
         /** LearnIn */
         LearnIn: {
+            /**
+             * Over Budget
+             * @default false
+             */
+            over_budget: boolean;
             /** Project Id */
             project_id: string;
         };
@@ -8177,17 +8229,18 @@ export interface components {
         };
         /**
          * MergeChoices
-         * @description For each file whose two sides clash, by its path: whose is taken - the agent's
-         *     ("agent") or the project's ("project"). `shown`: of Apply, each file the card showed,
-         *     by path, as its `shown` - where one is not as the card has it now, nothing is taken.
-         *     None (a Take in that shows no files): as the card was last shown - and choices
-         *     without it are refused (a page from before `shown`). As many as a copy has files.
+         * @description For each file whose two sides clash, by its path: whose is taken ("agent" or "project").
+         *     `shown`: of Apply, each file the card showed, by path, as its `shown` - one not as the card has
+         *     it now, and nothing is taken; None (a Take in that shows no files): as last shown, and choices
+         *     without it are refused. `files`: of Take in, only these (T93-01); the rest stay on the card.
          */
         MergeChoices: {
             /** Choices */
             choices?: {
                 [key: string]: "agent" | "project";
             };
+            /** Files */
+            files?: string[] | null;
             /**
              * Keep Branch
              * @default false
@@ -8496,8 +8549,12 @@ export interface components {
             input_tokens: number | null;
             /** Model Id */
             model_id: string | null;
+            /** Nano Aiu */
+            nano_aiu?: number | null;
             /** Output Tokens */
             output_tokens: number | null;
+            /** Premium Requests */
+            premium_requests?: number | null;
             /** Provider Id */
             provider_id?: string | null;
             /** Provider Name */
@@ -9040,6 +9097,8 @@ export interface components {
             past: components["schemas"]["MemoryOut"][];
             /** Preferences */
             preferences?: string | null;
+            /** Project Notes */
+            project_notes?: string | null;
             /** Proposals */
             proposals: components["schemas"]["MemoryOut"][];
             /** Rules */
@@ -10754,6 +10813,10 @@ export interface components {
              * @default []
              */
             notes_offers: components["schemas"]["NotesOfferOut"][];
+            /** Older */
+            older?: number | null;
+            /** Older From */
+            older_from?: string | null;
             /** Pending Roles */
             pending_roles: components["schemas"]["PendingRoleOut"][];
             /** Pending Skills */
@@ -11328,6 +11391,8 @@ export interface components {
         UsageOut: {
             /** By Conversation */
             by_conversation: components["schemas"]["ConversationUsage"][];
+            /** By Day */
+            by_day: components["schemas"]["DayUsage"][];
             /** By Model */
             by_model: components["schemas"]["ModelUsage"][];
             /** By Start */
@@ -13467,7 +13532,10 @@ export interface operations {
     };
     snapshot_api_conversations__conversation_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                turns?: number | null;
+                before?: string | null;
+            };
             header?: never;
             path: {
                 conversation_id: string;
@@ -17322,6 +17390,41 @@ export interface operations {
             };
         };
     };
+    set_project_notes_api_projects__project_id__project_notes_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     pull_request_ready_api_projects__project_id__pull_request_get: {
         parameters: {
             query?: never;
@@ -18162,37 +18265,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderModelsOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    provider_offers_api_providers__provider_id__offers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                provider_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProviderOut"];
                 };
             };
             /** @description Validation Error */

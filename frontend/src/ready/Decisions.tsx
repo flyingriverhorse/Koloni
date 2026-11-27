@@ -233,7 +233,11 @@ function Row({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (id: str
         <span className="decision-head">
           <b className={`decision-who who-${row.who}`}>{whoOf(row)}</b>
           {where && <span className="muted decision-where">{where}</span>}
-          {row.seen === false && <span className="decision-unseen">not seen</span>}
+          {row.seen === false && (
+            <span className="decision-unseen" title="Not seen yet: OK says you have">
+              new
+            </span>
+          )}
         </span>
         <span>
           {row.what}
@@ -263,8 +267,14 @@ const recordOf = (row: Decision) => row.id.slice(row.id.indexOf(':') + 1)
 const here = (row: Decision) =>
   row.conversation_id !== null && useApp.getState().conv?.conversation.id === row.conversation_id
 
-/** Your OK on a row: it stays, seen. On a To-do task it decides nothing - the Orchestrator's word seen, the task as it is. */
+/** Your OK on a row: it stays, seen. On a To-do task it decides nothing - the Orchestrator's word seen, the task as it is.
+ *  The project's board is read again with it: the pill and the chat's line say its count (K1). */
 async function ok(row: Decision): Promise<void> {
+  await okOnly(row)
+  await useApp.getState().loadBoard()
+}
+
+async function okOnly(row: Decision): Promise<void> {
   const s = useApp.getState()
   const id = recordOf(row)
   if (row.kind === 'task') return s.seenTask(id)

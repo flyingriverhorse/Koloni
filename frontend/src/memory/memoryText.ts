@@ -1,4 +1,6 @@
+import { titleOf } from '../agents/agentStatus'
 import type { MemoryRecord, ProjectMemory, SaidInTurn, ToolCall } from '../api/types'
+import type { CellFill, CellTone } from '../shell/Cell'
 
 /**
  * How a record's source stands, in the server's own words. "Unchanged" says only that the
@@ -47,7 +49,7 @@ export function moment(iso: string): string {
  * trigger's turn. Never an empty part between the dots (B-329).
  */
 export function saidWhere(said: SaidInTurn): string {
-  const who = said.kind === 'task' ? 'a To-do task closed by you' : said.who
+  const who = said.kind === 'task' ? 'a To-do task closed by you' : titleOf(said.who)
   const when = said.at ? moment(said.at) : 'a day not on record'
   return [who, said.conversation_title, when, said.trigger ? 'in a trigger’s turn' : ''].filter(Boolean).join(' · ')
 }
@@ -71,7 +73,7 @@ export function whoWhen(record: MemoryRecord): string {
         : 'written by you'
       : record.origin === 'auto'
         ? `noted by KOLONİ’s summariser (${summariser(record)}) from what was said on a message`
-        : `noted by ${record.agent_name || 'an agent'}`
+        : `noted by ${titleOf(record.agent_name || 'an agent')}`
   return `${who} · ${day(record.observed_at)}`
 }
 
@@ -118,7 +120,10 @@ export function wouldReplace(memory: ProjectMemory, note: MemoryRecord): MemoryR
 
 /** Whether a record has every word of what was typed, in its text, subject, file or writer. */
 export function matches(record: MemoryRecord, query: string): boolean {
-  return hasWords([record.text, record.about, record.source?.path, record.agent_name].join(' '), query)
+  return hasWords(
+    [record.text, record.about, record.source?.path, record.agent_name && titleOf(record.agent_name)].join(' '),
+    query,
+  )
 }
 
 /** Whether a text has every word of what was typed. */
@@ -131,14 +136,40 @@ export function hasWords(text: string, query: string): boolean {
     .every(word => hay.includes(word))
 }
 
-/** The page's tabs, by how a record reaches an agent. */
-export const TABS = [
-  ['told', 'Told'],
+/** One of the page's two parts (0.1.10): its tab's id, and its panel's with `-panel`. */
+export const partId = (sources: boolean) => `memory-part-${sources ? 'sources' : 'knows'}`
+
+/** The page's areas (0.1.10: side by side, History folded), by how a record reaches an agent: where a search hit is. */
+export const AREAS = [
+  ['told', 'Your words'],
   ['facts', 'Facts'],
   ['notes', 'Notes'],
   ['history', 'History'],
 ] as const
-export type Tab = (typeof TABS)[number][0]
+export type Area = (typeof AREAS)[number][0]
+
+/**
+ * How a fact of the core stands for agents: given, given to none until you look, or only found by looking - and one no
+ * work can name whose source changed, which looking again does not make given (`staleAsked`).
+ */
+export type FactStands = 'given' | 'stale' | 'asked' | 'staleAsked'
+
+/** Each one's cell (`shell/Cell.tsx`) and words: green says it is given, never that it is right. */
+export const FACT_CELL: Record<FactStands, { tone: CellTone; fill: CellFill; word: string }> = {
+  given: { tone: 'ok', fill: 'full', word: 'given when the work names its subject' },
+  stale: { tone: 'warn', fill: 'full', word: 'given to no agent until you look again' },
+  asked: { tone: 'plain', fill: 'none', word: 'only found by looking it up' },
+  staleAsked: { tone: 'warn', fill: 'full', word: 'its source changed: look again - only found by looking it up' },
+}
+
+/** The legend: one entry for each colour (`staleAsked` says its own words on its row). */
+export const FACT_LEGEND = [FACT_CELL.given, FACT_CELL.stale, FACT_CELL.asked]
+
+export function factStands(record: Pick<MemoryRecord, 'source_state' | 'given_unasked'>): FactStands {
+  const stale = record.source_state === 'changed' || record.source_state === 'moved'
+  if (record.given_unasked) return stale ? 'stale' : 'given'
+  return stale ? 'staleAsked' : 'asked'
+}
 
 /** The lines of your preferences or rules that say something. */
 export const linesOf = (text: string | null | undefined) => (text ?? '').split('\n').filter(line => line.trim())
@@ -154,7 +185,7 @@ export const decisionId = (decision: ProjectMemory['decisions'][number]) =>
 
 /** Who wrote a note, in a word: the Notes tab's filter. */
 export const writerOf = (record: MemoryRecord) =>
-  record.origin === 'auto' ? 'fast model' : record.origin === 'user' ? 'you' : record.agent_name || 'an agent'
+  record.origin === 'auto' ? 'fast model' : record.origin === 'user' ? 'you' : titleOf(record.agent_name || 'an agent')
 
 export interface Topic {
   /** The subject as first written; null for the records without one. */

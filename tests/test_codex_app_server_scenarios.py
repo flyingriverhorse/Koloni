@@ -22,6 +22,7 @@ from app.model_native import (
     _heredoc_patch,
     _unwrapped,
 )
+from tests.conftest import scaled
 from tests.test_agent_writes import wait_status
 from tests.test_attachment_agents import FAKE_CODEX, answered, plan, record
 from tests.test_claude_native import nothing_was_asked
@@ -250,7 +251,8 @@ def test_at_full_auto_a_patch_with_an_instruction_file_alone_is_not_a_card(
 
 def proposed(client, cid, path):
     """The change to `path` waiting for the user, once it is shown."""
-    for _ in range(500):
+    until = time.monotonic() + scaled(10)  # (10 s fell short on CI's macOS, 27 Nov)
+    while time.monotonic() < until:
         snap = client.get(f"/api/conversations/{cid}").json()
         waiting = [c for c in snap["file_changes"] if c["status"] == "proposed"]
         if [c["path"] for c in waiting] == [path]:
@@ -684,7 +686,8 @@ def test_a_command_said_to_run_outside_the_project_is_a_card_even_at_full_auto(
 
 def card_for(client, cid, command):
     """The command `command` waiting for the user, once it is shown; fails if it ran unasked."""
-    for _ in range(500):
+    until = time.monotonic() + scaled(10)  # (10 s fell short on CI's macOS, 27 Nov)
+    while time.monotonic() < until:
         snap = client.get(f"/api/conversations/{cid}").json()
         mine = [c for c in snap["commands"] if c["command"] == command]
         # (a new row is "proposed" for a moment even when it is not asked about)

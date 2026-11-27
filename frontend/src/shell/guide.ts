@@ -6,7 +6,7 @@
 export const GUIDE = {
   settingsApp: 'settings/#agents-in-every-project',
   settingsAgents: 'settings/#agents',
-  settingsAsking: 'settings/#asking-and-away',
+  settingsAsking: 'settings/#while-youre-away',
   settingsNewChats: 'settings/#new-chats-start-with',
   settingsLimits: 'settings/#limits-and-money',
   settingsChecks: 'settings/#checks-and-git',
@@ -26,7 +26,7 @@ export const GUIDE = {
   roleModel: 'models/tiers/#a-roles-model',
   editingRole: 'agents/roles/#editing-a-role',
   rolePanel: 'agents/roles/#a-roles-panel',
-  builtInTools: 'tools/built-in/#the-built-in-tab',
+  builtInTools: 'tools/built-in/#the-kolonis-tools-tab',
   mcpAdding: 'tools/mcp/#adding-a-server',
   mcpTrust: 'tools/mcp/#trust',
   mcpTools: 'tools/mcp/#reading-its-tools',

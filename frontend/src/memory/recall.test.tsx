@@ -15,6 +15,7 @@ const handlers = () => ({
   onCorrect: vi.fn().mockResolvedValue(undefined),
   onWrite: vi.fn().mockResolvedValue(undefined),
   onSaveRules: vi.fn().mockResolvedValue(undefined),
+  onSaveProjectNotes: vi.fn().mockResolvedValue(undefined),
   onSavePreferences: vi.fn().mockResolvedValue(undefined),
   onAddPreference: vi.fn().mockResolvedValue(undefined),
   onReload: vi.fn().mockResolvedValue(undefined),
@@ -31,15 +32,15 @@ const auto = memoryRecord('a1', {
 
 const BOX = 'Search everything this project remembers'
 const search = () => screen.getByRole('region', { name: 'Search' })
+/** The journal's area (0.1.10: beside the core, no tab). */
 async function notes() {
-  await userEvent.click(screen.getByRole('tab', { name: /^Notes/ }))
-  return screen.getByRole('tabpanel', { name: /^Notes/ })
+  return screen.getByRole('region', { name: 'Notes' })
 }
 
 test('a note made by itself is signed as the summariser’s, with the model that made it', async () => {
   expect(whoWhen(auto)).toMatch(/^noted by KOLONİ’s summariser \(Fast · quick\) from what was said on a message · /)
   expect(whoWhen({ ...auto, noted_by: null })).toMatch(/summariser \(not on record\)/)
-  expect(whoWhen(memoryRecord('n'))).toMatch(/^noted by Lead · /)
+  expect(whoWhen(memoryRecord('n'))).toMatch(/^noted by Orchestrator · /)
   expect(leftHow({ ...auto, status: 'superseded', decided_by: 'auto', decided_at: null })).toBe(
     'replaced by a newer note of KOLONİ’s summariser',
   )
@@ -179,7 +180,7 @@ test('a closed backlog task and a trigger’s turn are said as what they are, wi
   )
   expect(said[0]).toHaveTextContent('a To-do task closed by you · a day not on record')
   expect(said[0]).not.toHaveTextContent('· ·')
-  expect(said[1]).toHaveTextContent(`Lead · spin · ${moment('2026-10-13T10:01:00Z')} · in a trigger’s turn`)
+  expect(said[1]).toHaveTextContent(`Orchestrator · spin · ${moment('2026-10-13T10:01:00Z')} · in a trigger’s turn`)
   // the box emptied, what was found deeper goes with it
   await userEvent.clear(screen.getByLabelText(BOX))
   expect(within(search()).queryByRole('list', { name: 'In earlier messages' })).toBeNull()

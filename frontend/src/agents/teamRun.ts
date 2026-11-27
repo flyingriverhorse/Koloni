@@ -26,7 +26,7 @@ const HUES = [30, 215, 335, 175, 90, 265]
  * Teams tab if users want to pick it.
  */
 export function teamColours(teamIds: string[], after: string[] = []): Map<string, string> {
-  return spread([...[...teamIds].sort(), ...after], HUES, '45% 50%')
+  return spread([...[...teamIds].sort((a, b) => a.localeCompare(b)), ...after], HUES, '45% 50%')
 }
 
 // Who talked with whom on a canvas: more saturated than the teams' (their frames are a strip, a talk line dotted), no
@@ -38,7 +38,11 @@ const TALK_HUES = [205, 135, 295, 170, 330, 250]
  * pairs are far apart. shortcut: past six pairs colours repeat (who is on the 💬's hover).
  */
 export const talkColours = (pairs: string[]): Map<string, string> =>
-  new Map([...pairs].sort().map((pair, at) => [pair, `hsl(${TALK_HUES[at % TALK_HUES.length]} 65% 48%)`]))
+  new Map(
+    [...pairs]
+      .sort((a, b) => a.localeCompare(b))
+      .map((pair, at) => [pair, `hsl(${TALK_HUES[at % TALK_HUES.length]} 65% 48%)`]),
+  )
 
 // Each id its own hue, from its id, where that is free, else the next free one. (In one order whatever order they are
 // shown in: the same ids, the same colours on every screen.)

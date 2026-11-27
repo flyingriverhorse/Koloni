@@ -4,7 +4,7 @@ When you are away, questions can wait for you, or the Orchestrator can answer th
 
 ## Switching it on
 
-Settings › This project › Asking and away › **When you're away**:
+Settings › This project › When you're asked › **When you're away**:
 
 - **Everything waits for you**;
 - **The Orchestrator answers what it safely can**, after a number of minutes (0 to 1440).

@@ -5,7 +5,7 @@ import type { ChatRules } from '../api/types'
 import { webRule } from './AllowList'
 
 /**
- * Settings › This project › Runs without asking (tek-ev): each chat's "Always run" commands and web rules, by the chat's
+ * Settings › This project › When you’re asked › Runs without asking (tek-ev; its own section before 0.1.10): each chat's "Always run" commands and web rules, by the chat's
  * title, each removed here as it was in the chat. The open chat is listed even with none, so a host can be allowed for it.
  * No <form>: it sits in Project settings' own form, so Enter and the button add the host and never send the settings.
  */
@@ -48,7 +48,7 @@ export function ProjectRules({
       : chats
   return (
     <section aria-label="Commands and requests by chat" className="field">
-      <h2>Commands and requests, by chat</h2>
+      <h4>Commands and requests, by chat</h4>
       {listed?.length === 0 && <p className="muted">None yet: “Always run” on a card adds one.</p>}
       {listed?.map(rules => (
         <div key={rules.conversation_id} role="group" aria-label={rules.title} className="rules-chat">

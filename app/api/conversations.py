@@ -3,8 +3,8 @@ import contextlib
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import bindparam, delete, literal_column, select, text, update
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import bindparam, delete, func, literal_column, select, text, update
 from sqlalchemy.orm import Session
 
 from app import attachments, away, backlog, injection, project_map, project_notes, topics
@@ -191,17 +191,105 @@ async def create_conversation(project_id: str, session: Session = Depends(get_se
     return _made(session, project_id)
 
 
+def _waits_in(session: Session, runs: list[Run]) -> set[str]:
+    """Of a chat's older turns, those that hold what still waits for the user, whatever its age:
+    a plan, a message not sent (a restart), a comparison to choose from, a card to take in, a
+    question or a command not answered, a change or a request asked about, and what was decided
+    for them not OK'd yet - the page counts and answers each."""
+    ids = [run.id for run in runs]
+    unsent = {
+        run.id
+        for run in runs
+        if run.status == "interrupted" and run.started_at is None and run.by_user
+    }
+    held = unsent | {
+        run.id
+        for run in runs
+        if run.status not in TERMINAL or (run.plan or {}).get("status") == "proposed"
+    }
+    held |= set(
+        session.scalars(
+            select(Run.id)
+            .join(Compare, Compare.id == Run.compare_id)
+            .where(Run.id.in_(ids), Compare.status == "open")
+        )
+    )
+    for table, status in (
+        (Merge, ("pending", "interrupted")),
+        (Question, ("pending",)),
+        (Command, ("proposed", "parked")),
+        (FileChange, ("proposed",)),
+        (WebRequest, ("proposed",)),
+    ):
+        held |= set(
+            session.scalars(
+                select(table.run_id).where(table.run_id.in_(ids), table.status.in_(status))
+            )
+        )
+    held |= set(
+        session.scalars(
+            select(Question.run_id).where(
+                Question.run_id.in_(ids),
+                Question.status == "answered",
+                Question.lead_why.is_not(None),
+                Question.seen_at.is_(None),
+            )
+        )
+    )
+    judged = session.execute(
+        select(Command.run_id, Command.judged).where(
+            Command.run_id.in_(ids), func.json_type(Command.judged) == "object"
+        )
+    )
+    return held | {
+        run_id
+        for run_id, said in judged
+        if said.get("verdict") in ("run", "refuse") and not said.get("seen")
+    }
+
+
+def _page(
+    session: Session, runs: list[Run], turns: int, before: str | None
+) -> tuple[list[Run], int, str | None]:
+    """A long chat's page (`?turns=`): its newest `turns` turns - before run `before`, where given -
+    and, on the first page, every older one that holds what still waits (`_waits_in`). How many
+    turns before the page are not sent, and the run the next page is read before."""
+    ids = [run.id for run in runs]
+    if before is not None and before not in ids:
+        raise HTTPException(404, "no such turn in this chat")
+    end = ids.index(before) if before is not None else len(ids)
+    start = max(0, end - turns)
+    waiting = _waits_in(session, runs[:start]) if before is None and start else set()
+    shown = [run for run in runs[:start] if run.id in waiting] + runs[start:end]
+    return shown, start, runs[start].id if start else None
+
+
 @router.get("/conversations/{conversation_id}", response_model=SnapshotOut)
-async def snapshot(conversation_id: str, request: Request, session: Session = Depends(get_session)):
+async def snapshot(
+    conversation_id: str,
+    request: Request,
+    session: Session = Depends(get_session),
+    turns: int | None = Query(None, ge=1, le=1000),
+    before: str | None = Query(None, max_length=32),
+):
+    """A chat as it is: every turn - or, of `turns` (the page opening a long chat), its newest that
+    many, every older one that still waits for the user, and how many are left out (`older`):
+    `before` reads the page before that run. What needs the whole history (search, the decision
+    log, the night's report) reads it on the server, not here."""
     conversation = _conversation(session, conversation_id)
     # Read the cursor first: an event landing during the reads below is then seen in
     # both the snapshot and the stream, and applying it twice is harmless.
     last_event_id = request.app.state.bus.last_id(conversation_id)
-    runs = session.scalars(
-        select(Run)
-        .where(Run.conversation_id == conversation_id)
-        .order_by(Run.created_at, literal_column("runs.rowid"))
-    ).all()
+    runs = list(
+        session.scalars(
+            select(Run)
+            .where(Run.conversation_id == conversation_id)
+            .order_by(Run.created_at, literal_column("runs.rowid"))
+        )
+    )
+    older, older_from = 0, None
+    if turns is not None:
+        runs, older, older_from = _page(session, runs, turns, before)
     run_ids = [run.id for run in runs]
     topic_rows = session.scalars(
         select(Topic)
@@ -211,7 +299,10 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
     messages = session.scalars(
         select(Message)
         .join(Run, Run.id == Message.run_id)
-        .where(Message.conversation_id == conversation_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            *([Message.run_id.in_(run_ids)] if turns is not None else []),
+        )
         .order_by(
             Run.created_at,
             literal_column("runs.rowid"),
@@ -368,6 +459,8 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
         "notes_offers": project_notes.offers_of(session, conversation_id),
         "warnings": injection.listed(session, conversation_id),
         "last_event_id": last_event_id,
+        "older": older,
+        "older_from": older_from,
     }
 
 
@@ -741,9 +834,12 @@ async def patch_conversation(
     session: Session = Depends(get_session),
 ):
     conversation = _conversation(session, conversation_id)
-    if conversation.project_id is not None and PROJECT_WIDE & body.model_fields_set:
-        # tek-ev: every chat of a project follows its project's (`settings_of`); a plain chat
-        # keeps its own, here.
+    moved = "project_id" in body.model_fields_set
+    if (body.project_id if moved else conversation.project_id) and (
+        PROJECT_WIDE & body.model_fields_set
+    ):
+        # tek-ev: every chat of a project follows its project's (`settings_of`) - one this very
+        # request moves into one too: its own would be read by nothing. A plain chat keeps its own.
         raise HTTPException(
             422, "set in Settings › This project: every chat of the project follows it"
         )

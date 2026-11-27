@@ -59,8 +59,9 @@ const SUB_AGENT_DEFAULTS = {
   discussion_budget: null,
   // (Kanıtlı bitiş: the specs written before it count the commands and cards of turns that change files; its own sets it.)
   after_change: 'nothing',
-  // (Full auto's judge, 0.1.9: the e2e app has no Fast-tier model, so at Full auto it would stand aside and say so in each
-  // chat - the specs written before it read those chats; its own turns it on.)
+  // (Full auto's judge, 0.1.9: the e2e app has no Fast-tier model, so at Full auto each command it looks at would wait on
+  // a card - it fails closed since 0.1.10 - and the chat say so; the specs written before it count those cards and read
+  // those chats; its own turns it on.)
   full_auto_judge: false,
 }
 
@@ -220,10 +221,34 @@ export async function clickCanvas(page: Page) {
   await page.locator('.canvas-flow').click({ position: { x: chat.x + chat.width - canvas.x + 5, y: 5 } })
 }
 
-export const rail = (
-  page: Page,
-  name: 'Memory' | 'Canvas' | 'Chats' | 'Models' | 'Tools' | 'Usage' | 'Ready' | 'To-do',
-) => page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
+export const rail = (page: Page, name: 'Memory' | 'Canvas' | 'Chats' | 'Models' | 'Tools' | 'Usage' | 'Work') =>
+  page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
+
+/** To-do (0.1.10): the Work page's To-do tab, from the rail's Work - its region. */
+export async function todo(page: Page) {
+  await rail(page, 'Work').click()
+  await page.getByRole('tab', { name: /^To-do/ }).click()
+  const half = page.getByRole('region', { name: /^To-do/ })
+  await half.getByRole('heading', { name: /^To-do/ }).waitFor()
+  return half
+}
+
+/** A card of To-do, opened: its story's panel (the tasks of no story are the card "Without a story"). Another story's
+ *  panel, open over the cards, is closed first. */
+export async function story(page: Page, name: string) {
+  const panel = page.getByRole('complementary', { name, exact: true })
+  if (await panel.isVisible()) return panel
+  const other = page.locator('.todo-panel')
+  if (await other.isVisible())
+    await other
+      .locator('.todo-panel-head')
+      .getByRole('button', { name: /^Close / })
+      .click()
+  const card = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: \\d+ of \\d+ done$`)
+  await page.getByRole('button', { name: card }).click()
+  await panel.waitFor()
+  return panel
+}
 
 /** On the Agents page (slice 63b): a role's row in the library, or the Lead's strip. */
 export const roleRow = (page: Page, name: string) =>

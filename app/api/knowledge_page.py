@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 
 from app import code_map, knowledge, knows, koloni, project_notes, roles
 from app import memory as kept
-from app.agent import announce
+from app.agent import announce, announce_memory
 from app.api.deps import get_session, require_own_origin
-from app.api.usage import over_limit
+from app.api.usage import over_limit, over_month
 from app.config import is_local
 from app.db.models import Flag, NotesOffer, Project, ProjectKnowledge, Provider, Role, now
 from app.model_client import ModelUnavailable
@@ -147,7 +147,8 @@ def checked(session: Session, sent: Knowledge, root: str) -> dict:
 
 @router.get("/projects/{project_id}/knowledge", response_model=list[KnowledgeOut])
 def list_knowledge(project_id: str, session: Session = Depends(get_session)):
-    """The project's knowledge and every project's, oldest first."""
+    """The project's knowledge and every project's, oldest first - not the Project notes of
+    0.1.9, which are Memory's since 0.1.10 (`project_notes`)."""
     project = project_of(session, project_id)
     return [
         out(session, row, project.root_path)
@@ -160,6 +161,7 @@ def list_knowledge(project_id: str, session: Session = Depends(get_session)):
             )
             .order_by(ProjectKnowledge.created_at, ProjectKnowledge.id)
         )
+        if not knowledge.is_notes(knows.knowledge_of(row))
     ]
 
 
@@ -359,11 +361,16 @@ def learner(
 
 
 def start_learning(
-    request: Request, session: Session, row: ProjectKnowledge, project: Project
+    request: Request,
+    session: Session,
+    row: ProjectKnowledge,
+    project: Project,
+    over_budget: bool = False,
 ) -> KnowledgeStateOut:
     """Learn (again): its sources read and its guide written in the project, in the background -
     the page reads how it went. What its requests spend is on Usage as "KOLONİ itself", in the
-    project's budget (K-56)."""
+    project's budget (K-56) - and so it is held over that budget as a new turn is, unless the
+    user said to go on over it (`over_budget`)."""
     root, known = project.root_path, knows.knowledge_of(row)
     if knowledge.is_code(known):
         return scanning(root, known)
@@ -381,6 +388,8 @@ def start_learning(
             "this project's network access is off: its commands run in Docker without a network",
         )
     provider, model = learner(session, row)
+    if (over := over_month(session, project)) and not over_budget:
+        raise HTTPException(409, f"this project is {over}: say to go on over it")
     client = request.app.state.providers.client(provider, model)
     name, key, pid = provider.name, provider.api_key, provider.id
     asked = (name, mode_of(provider))  # (the guide is asked in the background, after this)
@@ -477,7 +486,7 @@ async def learn(
 ):
     project = project_of(session, body.project_id)
     row = row_in(session, knowledge_id, body.project_id)
-    start_learning(request, session, row, project)
+    start_learning(request, session, row, project, body.over_budget)
     return out(session, row, project.root_path)
 
 
@@ -616,7 +625,7 @@ def notes_offers(cid: str, session: Session = Depends(get_session)):
 
 @router.post(
     "/notes-offers/{offer_id}/answer", response_model=NotesOfferOut, dependencies=OWN
-)  # (it writes into the project's knowledge)
+)  # (it writes into the project's Memory: its Project notes)
 async def answer_notes_offer(
     offer_id: str, body: NotesAnswerIn, request: Request, session: Session = Depends(get_session)
 ):
@@ -636,4 +645,6 @@ async def answer_notes_offer(
     announce(
         request.app.state.session_factory, request.app.state.bus, project.id, project_notes.OFFERED
     )
+    if offer.status == "added":  # (Memory's Your words: its Project notes box)
+        announce_memory(request.app.state.session_factory, request.app.state.bus, project.id)
     return project_notes.out(offer)

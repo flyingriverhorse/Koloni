@@ -1,11 +1,11 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { download, keyRefused } from './api/client'
-import type { Board } from './api/types'
+import { api, download, keyRefused } from './api/client'
+import type { Board, Project } from './api/types'
 import { AgentsPage } from './agents/AgentsPage'
 import { type AgentAsks, AgentWindow } from './agents/AgentWindow'
 import { ChatTeams } from './agents/ChatTeams'
 import { AwayStatus } from './backlog/Away'
-import { BacklogPage } from './backlog/BacklogPage'
+import { BacklogPage, type TodoAsked } from './backlog/BacklogPage'
 import { OPEN_TODO } from './chat/TodoCards'
 import { doInChat } from './chat/todoActions'
 import { ConflictStrip } from './board/ConflictStrip'
@@ -27,6 +27,7 @@ import { Inspector } from './inspector/Inspector'
 import { ConversationList } from './shell/ConversationList'
 import { ModelBanner } from './shell/ModelBanner'
 import { KnowledgePage } from './knowledge/KnowledgePage'
+import { mayBeOld } from './knowledge/fresh'
 import { MemoryPage } from './memory/MemoryPage'
 import { ModelsPage } from './models/ModelsPage'
 import { FirstSteps } from './shell/FirstSteps'
@@ -38,8 +39,7 @@ import { kept, tabOf } from './shell/openTabs'
 import { type Place, Palette } from './shell/Palette'
 import { PageGuard } from './shell/PageGuard'
 import { HoldStatus } from './shell/HoldStatus'
-import { SECTIONS } from './shell/ProjectSettings'
-import { APP_SECTIONS, Settings } from './shell/Settings'
+import { Settings, settingsPlaces } from './shell/Settings'
 import { Rail, type View } from './shell/Rail'
 import { RunStatus } from './shell/RunStatus'
 import { Toasts } from './shell/Toasts'
@@ -61,7 +61,8 @@ import { PlanUse } from './usage/PlanUse'
 import { ReadyPage, ReadyPanel } from './ready/ReadyViews'
 import { useReady } from './ready/useReady'
 import { READY_PANEL } from './ready/ready'
-import { decidedOf, judgedCommands, waitingId } from './chat/waiting'
+import { waitingId } from './chat/waiting'
+import { useDecided } from './chat/DecidedLine'
 
 const HEALTH_POLL_MS = 15000
 // (A hash has no order: which of the two is newer is not known, so all three steps are said.)
@@ -113,17 +114,16 @@ const makeDefaultAndRead = async (providerId: string) => {
   await useApp.getState().loadHealth()
 }
 
-/** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds. */
+/** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds (and Work's two
+ *  tabs, each its own place: `openReady`, `openTodo`). */
 const PAGES: [View, string][] = [
   ['canvas', 'Canvas'],
   ['conversations', 'Chats (Conversations)'],
-  ['ready', 'Ready for you'],
-  ['backlog', 'To-do'],
   ['agents', 'Agents'],
   ['models', 'Models'],
   ['tools', 'Tools'],
   ['memory', 'Memory'],
-  ['knowledge', 'Knowledge'],
+  ['knowledge', 'Memory › Sources (Knowledge)'],
   ['usage', 'Usage'],
 ]
 
@@ -173,10 +173,22 @@ export function App() {
   const away = useApp(s => s.away)
   // What waits for your word anywhere (tek-ev §1): the pill, the rail's badge, the panel and the page.
   const waiting = useReady()
+  // The chats it has read: the open one and the others that wait (what Chats says waits in them is its rows alone).
+  const readyChats = useApp(s => s.readyChats)
   const readyPanel = useApp(s => s.readyPanel)
-  // (and the commands decided on your words, or refused by Full auto's judge: Decided for you is reached by the pill)
-  const decided = conv ? decidedOf(conv).length + judgedCommands(conv).length : 0
+  const readyTab = useApp(s => s.readyTab)
+  const { decided, where: decidedWhere } = useDecided(conv)
   const [view, setView] = useState<View>('canvas')
+  // Whether you opened another page since KOLONİ opened: the morning never takes you off it (M1).
+  const opened = useRef(false)
+  useEffect(() => {
+    if (view !== 'canvas') opened.current = true
+  }, [view])
+  // The morning (slice 106): KOLONİ opened after a night while you were away opens Ready for you, where the night's
+  // strip is - until the night has been on screen (the strip, or the report on the canvas, says so). Asked once, of the
+  // first answer about the night after the page opens: never over a page you opened meanwhile, nor later (a first read
+  // that failed, a night that ends while you are here) - M1.
+  const morning = useRef(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [settingsWanted, setSettingsOpen] = useState(false)
   // Where Ctrl+K went on a page - a role, a provider, a server, words to search: the page opens
@@ -212,6 +224,18 @@ export function App() {
   const go = (where: View, id: string) => {
     show(where)
     setPick(was => ({ view: where, id, n: (was?.n ?? 0) + 1 }))
+  }
+  // Work's two tabs (0.1.10): the rail's Work opens the one shown last; these, the one they name. To-do: its tab, in
+  // view - at a task's row, where one is asked (the tab shown first: what takes the focus there is not hidden).
+  const [todoAsked, setTodoAsked] = useState<TodoAsked | null>(null)
+  const openTodo = (task?: string) => {
+    show('ready')
+    useApp.setState({ readyTab: 'todo' })
+    setTodoAsked(was => ({ task, n: (was?.n ?? 0) + 1 }))
+  }
+  const openReady = () => {
+    show('ready')
+    useApp.setState({ readyTab: 'ready' })
   }
   // "Open chat" on Ready for you: the chat on the canvas, open - and, for a card of it (`key`), the panel at that card,
   // now under This chat; a To-do, Memory or night row has no card in the chat: the panel closes.
@@ -305,9 +329,18 @@ export function App() {
         .loadBudget()
         .catch(() => {})
       // ...and the night while you're away (slice 106): the top bar says it on every page.
+      const first = !morning.current
+      morning.current = true
       void useApp
         .getState()
         .loadAway()
+        .then(() => {
+          const night = useApp.getState().away
+          if (first && night?.status === 'ended' && !night.seen_at && !opened.current) {
+            setView('ready')
+            useApp.setState({ readyTab: 'ready' })
+          }
+        })
         .catch(() => {})
     }
     read()
@@ -315,9 +348,10 @@ export function App() {
     return () => clearInterval(timer)
   }, [projectId])
 
-  // K-bilgi: the project's knowledge is read when its page opens, and on Agents (a role's Knowledge tab).
+  // K-bilgi: the project's knowledge is read when Memory opens (either part: the sources' tab says how many may be old),
+  // and on Agents (a role's Knowledge tab).
   useEffect(() => {
-    if (projectId && (view === 'knowledge' || view === 'agents')) void useApp.getState().loadKnowledge()
+    if (projectId && ['memory', 'knowledge', 'agents'].includes(view)) void useApp.getState().loadKnowledge()
   }, [projectId, view])
 
   useEffect(() => {
@@ -341,29 +375,27 @@ export function App() {
         .getState()
         .loadBuiltinTools()
         .catch(() => {})
-    // And the backlog: its events read it again too.
-    if (projectId && view === 'backlog') void useApp.getState().loadBacklog()
+    // And the backlog, Work's To-do: its events read it again too.
+    if (projectId && view === 'ready') void useApp.getState().loadBacklog()
   }, [view, projectId])
-  // The morning (slice 106): KOLONİ opened after a night while you were away goes to that night's report on the
-  // canvas, at the first reading after the page opens - until the report has been on screen (its node says so).
-  // 0.1.8: a To-do card in a chat (Open it in To-do): the To-do page, at that task's row.
+  // 0.1.8: a To-do card in a chat (Open it in To-do), a To-do row of Decided for you: To-do, at that task's row.
+  const openTodoAt = useRef(openTodo)
   useEffect(() => {
-    const open = (event: Event) => {
-      setView('backlog')
-      setSettingsOpen(false)
-      const row = `task-${(event as CustomEvent<string>).detail}-title`
-      window.setTimeout(() => document.getElementById(row)?.scrollIntoView?.({ block: 'center' }), 300)
-    }
+    openTodoAt.current = openTodo
+  })
+  useEffect(() => {
+    const open = (event: Event) => openTodoAt.current((event as CustomEvent<string>).detail)
     window.addEventListener(OPEN_TODO, open)
     return () => window.removeEventListener(OPEN_TODO, open)
   }, [])
-  // "Open in Ready for you" (the chat's line, Usage's Today): the Ready for you page, its Decided for you in view - asked
+  // "Open in Ready for you" (the chat's line, Usage's Today): Work's Ready for you, its Decided for you in view - asked
   // until it is, or the page is left before it could be (then a later visit is as any).
   // ("unseen": at Not seen - the line or Today counted some that wait for your OK)
   const [decisionsAsked, setDecisionsAsked] = useState<'unseen' | 'any' | null>(null)
   useEffect(() => {
     const open = (event: Event) => {
       setView('ready')
+      useApp.setState({ readyTab: 'ready' })
       setSettingsOpen(false)
       setDecisionsAsked((event as CustomEvent<boolean>).detail ? 'unseen' : 'any')
     }
@@ -371,8 +403,11 @@ export function App() {
     return () => window.removeEventListener(OPEN_DECISIONS, open)
   }, [])
   useEffect(() => {
+    if (view === 'ready') return
+    // (Left, the page asked for is as any when it opens again: To-do, too, not opened at the task once asked.)
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (view !== 'ready') setDecisionsAsked(null)
+    setDecisionsAsked(null)
+    setTodoAsked(null)
   }, [view])
   const decisionsOpened = useCallback(() => setDecisionsAsked(null), [])
   // (One for the project: Decisions reads again only for another period.)
@@ -380,18 +415,6 @@ export function App() {
     (from: string | null, unseen?: boolean) => readDecisions(projectId ?? '', from, unseen),
     [projectId],
   )
-  const morning = useRef(false)
-  useEffect(() => {
-    if (!away || morning.current) return
-    morning.current = true
-    if (away.status !== 'ended' || away.seen_at) return
-    void useApp
-      .getState()
-      .openTurn(away.conversation_id, away.run_id)
-      .then(() => useApp.getState().select('away:' + away.id))
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setView('canvas')
-  }, [away])
   // B-150: the browser's Back (and Forward) opens the chat that was open before (`openConversation` keeps each in its history).
   useEffect(() => {
     const back = (event: PopStateEvent) => {
@@ -438,7 +461,7 @@ export function App() {
   // The open chat's main folder; none for a plain chat, whose pages of a folder say so (slice 86a).
   const project = projects.find(p => p.id === projectId) ?? null
   const settingsOpen = settingsWanted
-  // On the Ready page itself the list is there: no panel over it, nor the same cards twice.
+  // On the Work page itself the list is there: no panel over it, nor the same cards twice - the pill shows its tab.
   const onReadyPage = view === 'ready' && !settingsOpen
   const panelShown = readyPanel.open && !onReadyPage
   const noFolder = (page: string) => (
@@ -534,7 +557,7 @@ export function App() {
     const pillSaid =
       waiting.length > 0
         ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'} for you`
-        : `${decided} decided for you`
+        : `${decided} decided for you ${decidedWhere}`
     return (
       (waiting.length > 0 || decided > 0) && (
         <button
@@ -544,7 +567,7 @@ export function App() {
           title={pillSaid}
           aria-expanded={panelShown}
           aria-controls={READY_PANEL}
-          onClick={() => (onReadyPage ? undefined : useApp.getState().showReady(!readyPanel.open))}
+          onClick={() => (onReadyPage ? openReady() : useApp.getState().showReady(!readyPanel.open))}
         >
           {waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'}` : `${decided} decided`}
         </button>
@@ -584,7 +607,8 @@ export function App() {
         onNear={setNear}
       />
       <BudgetPill budget={budget} onOpen={() => show('usage')} />
-      <AwayStatus away={away} onOpen={() => show('backlog')} />
+      {/* (The night at work: its report, on Work's Ready for you.) */}
+      <AwayStatus away={away} onOpen={openReady} />
       <HoldStatus
         every={BOARD_POLL_MS}
         onOpen={async id => {
@@ -729,7 +753,7 @@ export function App() {
       onFill={useApp.getState().fillFromCatalogue}
       onFillNew={useApp.getState().fillNewFromCatalogue}
       onAvailability={useApp.getState().availability}
-      onOffers={useApp.getState().readOffers}
+      onProviders={useApp.getState().loadProviders}
       onFacts={useApp.getState().modelFacts}
       onSuggest={useApp.getState().suggest}
       onUpdateCatalogue={useApp.getState().updateCatalogue}
@@ -770,6 +794,9 @@ export function App() {
         onSkillRecord: useApp.getState().skillRecord,
         onPatchRole: useApp.getState().patchRole,
       }}
+      // (The skills agents proposed: Ready for you's rows of them; their yes is on their card there.)
+      proposals={waiting.flatMap(item => (item.what === 'card' && item.row.what === 'skill' ? [item.row.item] : []))}
+      onReady={openReady}
     />
   )
   const readyPage = () => (
@@ -801,14 +828,34 @@ export function App() {
             }
           : undefined
       }
+      todo={todoHalf()}
+      // (Its tab's count: the tasks not done - proposals wait on Ready for you -, once the list is read.)
+      todoOpen={
+        project && backlog ? backlog.filter(task => task.status !== 'proposed' && task.status !== 'done').length : null
+      }
     />
   )
-  const backlogPage = () =>
+  // The tasks whose push the night parked for you and you have not decided: their cells on To-do say so.
+  const pushes = new Set(
+    waiting.flatMap(item => (item.what === 'parked' && item.row.kind === 'push' ? [item.row.task_id] : [])),
+  )
+  /** To-do, Work's second tab (0.1.10). */
+  const todoHalf = () =>
     !project ? (
-      noFolder('To-do')
+      <section className="todo-half" aria-labelledby="todo-head">
+        <h2 id="todo-head" tabIndex={-1}>
+          To-do
+        </h2>
+        {noFolder('To-do')}
+      </section>
     ) : (
       <BacklogPage
         key={project.id}
+        asked={todoAsked}
+        pushes={pushes}
+        // (The settings over it, or Ready for you's tab shown: a narrow window's story leaves the rail, the top bar and
+        // the tabs within reach.)
+        covered={settingsOpen || readyTab !== 'todo'}
         backlog={backlog}
         error={backlogError}
         drafter={drafter}
@@ -871,22 +918,29 @@ export function App() {
               await useApp.getState().openTurn(id, runId)
               setView('canvas')
             }}
-            decisions={<DecidedToday onLoad={decisionsOf} />}
           />
         )
       }
+      decisions={projectId ? period => <DecidedToday onLoad={decisionsOf} period={period} /> : undefined}
       onOpen={id => {
         void useApp.getState().openConversation(id)
         setView('canvas')
       }}
     />
   )
+  // 0.1.10: Memory's two parts are one page, the same for either view (what is typed in one stays as the other is shown).
   const memoryPage = () =>
     !project ? (
       noFolder('Memory')
     ) : (
       <MemoryPage
         key={project.id}
+        sources={view === 'knowledge'}
+        onPart={sources => setView(sources ? 'knowledge' : 'memory')}
+        sourcesPart={knowledgePart(project)}
+        old={knowledge ? knowledge.filter(item => mayBeOld(item.state)).length : null}
+        linked={projects.filter(one => project.memory_links?.includes(one.id)).map(one => one.name)}
+        onLinked={() => useApp.getState().askSettings('memory')}
         searchFor={pick?.view === 'memory' ? { words: pick.id, n: pick.n } : undefined}
         memory={memory}
         error={memoryError}
@@ -897,6 +951,10 @@ export function App() {
         onCorrect={useApp.getState().correctMemory}
         onWrite={useApp.getState().writeFact}
         onSaveRules={useApp.getState().saveRules}
+        onSaveProjectNotes={async text => {
+          if (projectId) await api.put(`/projects/${projectId}/project-notes`, { text })
+          await useApp.getState().loadMemory()
+        }}
         onSavePreferences={useApp.getState().savePreferences}
         onAddPreference={useApp.getState().addPreference}
         onReload={useApp.getState().loadMemory}
@@ -904,27 +962,25 @@ export function App() {
         onExport={projectId ? () => download('GET', `/projects/${projectId}/memory/export`) : undefined}
       />
     )
-  const knowledgePage = () =>
-    !project ? (
-      noFolder('Knowledge page')
-    ) : (
-      <KnowledgePage
-        key={project.id}
-        items={knowledge}
-        error={knowledgeError}
-        projectName={project.name}
-        providers={providers}
-        otherProjects={projects.filter(one => one.id !== project.id)}
-        onReload={useApp.getState().loadKnowledge}
-        onAdd={useApp.getState().addKnowledge}
-        onSave={useApp.getState().saveKnowledge}
-        onDelete={useApp.getState().deleteKnowledge}
-        onLearn={useApp.getState().learnKnowledge}
-        onTry={useApp.getState().tryKnowledge}
-        onCopy={useApp.getState().copyKnowledge}
-        onReadFile={useApp.getState().knowledgeFile}
-      />
-    )
+  const knowledgePart = (project: Project) => (
+    <KnowledgePage
+      items={knowledge}
+      error={knowledgeError}
+      projectName={project.name}
+      providers={providers}
+      otherProjects={projects.filter(one => one.id !== project.id)}
+      roles={roles}
+      onUse={useApp.getState().useKnowledge}
+      onReload={useApp.getState().loadKnowledge}
+      onAdd={useApp.getState().addKnowledge}
+      onSave={useApp.getState().saveKnowledge}
+      onDelete={useApp.getState().deleteKnowledge}
+      onLearn={useApp.getState().learnKnowledge}
+      onTry={useApp.getState().tryKnowledge}
+      onCopy={useApp.getState().copyKnowledge}
+      onReadFile={useApp.getState().knowledgeFile}
+    />
+  )
   const conversationsPage = () => (
     <ConversationList
       conversations={conversations}
@@ -934,6 +990,10 @@ export function App() {
       onDelete={useApp.getState().deleteConversations}
       currentId={conv?.conversation.id ?? null}
       onRefresh={useApp.getState().loadConversations}
+      // (What waits for your word: the pill's own rows - each chat's on its row, all of them counted in Now.)
+      waiting={waiting}
+      readChats={[...(conv ? [conv.conversation.id] : []), ...Object.keys(readyChats)]}
+      onReady={openReady}
       onOpen={id => {
         void useApp.getState().openConversation(id)
         setView('canvas')
@@ -1023,7 +1083,7 @@ export function App() {
             if (kind === 'discussion') useApp.getState().openDiscussion(refId)
             if (kind === 'memory') setView('memory')
             // (The Scout's node, opened, or its To-do →.)
-            if (kind === 'po' || kind === 'backlog') setView('backlog')
+            if (kind === 'po' || kind === 'backlog') openTodo()
           }}
           onOpenList={() => useApp.getState().showReady(true)}
           onStopTeam={useApp.getState().stopTeam}
@@ -1083,10 +1143,9 @@ export function App() {
     models: modelsPage,
     tools: toolsPage,
     ready: readyPage,
-    backlog: backlogPage,
     usage: usagePage,
     memory: memoryPage,
-    knowledge: knowledgePage,
+    knowledge: memoryPage,
     conversations: conversationsPage,
   }
   /** The page shown: the one of its view, else the canvas. */
@@ -1116,7 +1175,7 @@ export function App() {
         openChat={openChat}
         onPage={() => {
           useApp.getState().showReady(false)
-          show('ready')
+          openReady()
         }}
         onClose={() => useApp.getState().showReady(false)}
       />
@@ -1126,6 +1185,8 @@ export function App() {
   const palette = () => {
     const places: Place[] = [
       ...PAGES.map(([page, name]) => ({ kind: 'Page', name, go: () => show(page) })),
+      { kind: 'Page', name: 'Work › Ready for you', go: openReady },
+      { kind: 'Page', name: 'Work › To-do', go: () => openTodo() },
       { kind: 'Page', name: 'Settings', go: () => setSettingsOpen(true) },
       ...conversations.map(c => ({
         kind: 'Conversation',
@@ -1138,13 +1199,12 @@ export function App() {
       ...roles.map(role => ({ kind: 'Role', name: role.name, go: () => go('agents', role.id) })),
       ...providers.map(provider => ({ kind: 'Model', name: provider.name, go: () => go('models', provider.id) })),
       ...mcpServers.map(server => ({ kind: 'Tool server', name: server.name, go: () => go('tools', server.id) })),
-      ...[...(project ? SECTIONS : []), ...APP_SECTIONS.map(([key, name]) => [key, `${name} (the app)`] as const)].map(
-        ([key, name]) => ({
-          kind: 'Setting',
-          name,
-          go: () => useApp.getState().askSettings(key),
-        }),
-      ),
+      ...settingsPlaces(!!project).map(({ place, name, also }) => ({
+        kind: 'Setting',
+        name,
+        also,
+        go: () => useApp.getState().askSettings(place),
+      })),
       { kind: 'Help', name: 'Show the first steps', go: firstSteps },
     ]
     return (
@@ -1182,7 +1242,8 @@ export function App() {
         {settingsPage()}
         {/* Hidden, not gone, under the settings: a message being typed and an open window stay. */}
         <div className="workspace" hidden={settingsOpen}>
-          <PageGuard key={view}>{page()}</PageGuard>
+          {/* (Memory's two parts are one page: what is typed in one stays as the other is shown.) */}
+          <PageGuard key={view === 'knowledge' ? 'memory' : view}>{page()}</PageGuard>
         </div>
       </div>
       {toasts()}

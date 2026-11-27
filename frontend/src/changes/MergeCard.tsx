@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { titleOf } from '../agents/agentStatus'
 import { DecisionCard, type SpawnDecision } from '../agents/SpawnApproval'
 import { errorText } from '../api/client'
 import type { Merge, MergeFile } from '../api/types'
@@ -506,8 +507,8 @@ function wayField(
         {branch.pr_off && <span className="muted"> — not now: {branch.pr_off}</span>}
       </label>
       <div className="muted cmd-approval-note">
-        Kept for this project; Settings › This project › Checks and git can change it. A pull request lets KOLONİ push
-        this project's finished branches to GitHub - it never merges one.
+        Kept for this project; Settings › This project › When the work is done can change it. A pull request lets KOLONİ
+        push this project's finished branches to GitHub - it never merges one.
       </div>
     </fieldset>
   )
@@ -576,7 +577,7 @@ const alsoOf = (merge: Merge, kept: boolean, branch: Branch | null, onContinue: 
  */
 export function MergeCard({
   merge,
-  name,
+  name: given,
   unfinished = false,
   also = '',
   onDecide,
@@ -592,6 +593,9 @@ export function MergeCard({
   // by an agent): what it takes in goes onto that other branch.
   const madeOn = useApp(s => s.conv?.agents.find(a => a.id === merge.agent_id)?.copy?.branch ?? null)
   const now = useApp(s => s.gitBranch)
+  // N11: its agent as the screen calls it, whatever name it is given - the Lead is the Orchestrator.
+  const teams = useApp(s => s.teams)
+  const name = titleOf(given, teams)
   const kept = isKept(merge)
   if (merge.status !== 'pending' && !kept) {
     return merge.commit ? <CommitStep merge={merge} name={name} onCommit={onCommit ?? (async () => {})} /> : null

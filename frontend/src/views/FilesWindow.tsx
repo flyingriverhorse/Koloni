@@ -1,6 +1,6 @@
 import { ArrowsIn, ArrowsOut, Columns, DotsSixVertical, X } from '@phosphor-icons/react'
 import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { api, errorText } from '../api/client'
+import { api, errorText, keyHeader } from '../api/client'
 import type { Agent, FileChange, FileHistory, GitChange, ProjectEntry, ProjectFile, View } from '../api/types'
 import { ChangeActions, type ChangeAction } from '../changes/ChangeActions'
 import { CHANGE_LABEL } from '../changes/changeLabel'
@@ -391,7 +391,7 @@ export function FilesWindow({
   const waiting = [...latest]
     .filter(([, c]) => c.status === 'proposed')
     .map(([key]) => key)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
   const next = () => show(waiting[(waiting.indexOf(chosen ?? '') + 1) % waiting.length])
   /**
    * A folder asked for (K-shared-bagli: the shared folder, from the canvas's column): it and the folders over it, open -
@@ -937,7 +937,7 @@ function Opened({
     ) : asChanged && inGit ? (
       <GitDiff projectId={projectId} path={path} branch={branch} stamp={gitStamp} split={split && wide} />
     ) : (
-      <Code projectId={projectId} path={path} branch={branch} />
+      <Code projectId={projectId} path={path} branch={branch} copy={branch ? null : (view && srcOf(view)) || null} />
     )
 
   /** What it draws, by its kind, from `src`. */
@@ -1069,19 +1069,52 @@ function GitDiff({
   return <DiffView diff={read.diff} path={path} split={split} />
 }
 
-/** A file of the project as read-only code: numbered, coloured as its name says (42a's colours). */
-function Code({ projectId, path, branch }: { projectId: string; path: string; branch: string | null }) {
+/** An agent's output read where its view is served (its working copy while the file is only there), as the project's read is. */
+async function readView(src: string): Promise<ProjectFile> {
+  // (With the page's key: a document is served on its keyless door only with it - `api.deps.keyed_if_read_by_the_app`.)
+  const answer = await fetch(src, { headers: keyHeader() })
+  if (answer.status === 413) return { text: null, size: 0, binary: false, too_large: true }
+  if (!answer.ok) throw new Error(String(answer.status))
+  const bytes = new Uint8Array(await answer.arrayBuffer())
+  const tooLarge = bytes.length > 256 * 1024
+  let text: string | null = null
+  try {
+    text = bytes.includes(0) || tooLarge ? null : new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    // (not UTF-8: not text)
+  }
+  return { text, size: bytes.length, binary: text === null && !tooLarge, too_large: tooLarge }
+}
+
+/**
+ * A file of the project as read-only code: numbered, coloured as its name says (42a's colours). `copy`: an agent's output's
+ * own address - where the project has no such file yet (it is only in the agent's working copy), it is read there.
+ */
+function Code({
+  projectId,
+  path,
+  branch,
+  copy,
+}: {
+  projectId: string
+  path: string
+  branch: string | null
+  copy: string | null
+}) {
   const [read, setRead] = useState<ProjectFile | 'failed' | null>(null)
   useEffect(() => {
     let gone = false
-    api.get<ProjectFile>(`/projects/${projectId}/file?path=${encodeURIComponent(path)}${onBranch(branch)}`).then(
-      file => !gone && setRead(file),
-      () => !gone && setRead('failed'),
-    )
+    api
+      .get<ProjectFile>(`/projects/${projectId}/file?path=${encodeURIComponent(path)}${onBranch(branch)}`)
+      .catch(err => (copy ? readView(copy) : Promise.reject(err)))
+      .then(
+        file => !gone && setRead(file),
+        () => !gone && setRead('failed'),
+      )
     return () => {
       gone = true
     }
-  }, [projectId, path, branch])
+  }, [projectId, path, branch, copy])
   if (read === null) return null
   // (a file outside the project is not read here: only a change to it is shown)
   if (read === 'failed') return <p className="view-empty muted">It could not be read.</p>

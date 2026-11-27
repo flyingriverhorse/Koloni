@@ -21,7 +21,8 @@ The chat panel has three tabs:
 - **Chat**: "Your conversation with the Orchestrator".
 - **Talk**: "What the agents say to each other, to hand work on or ask one another".
 - **Notes**: "A shared notebook: you and the agents leave notes here, kept from message to message and
-  given to new agents".
+  given to new agents". In a To-do story's or task's turn, and a night's job's, a note for the whole turn
+  also goes into that job's [notebook](../automation/todo.md#the-storys-notebook).
 
 **Hide chat** (or Esc) folds it to one line at the canvas's bottom left that says how many messages are
 unread and how many things wait for you.
@@ -67,7 +68,7 @@ unread and how many things wait for you.
   "2 wait"; at the narrowest **New topic** and **More** keep only their icon, **Settings** its word. The level always shows its name
   ("Ask", "Auto-edit", "Full auto").
 - Type `/` for slash commands: `/new`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's
-  name to hand it a task, and your own commands (Settings › This project › Slash commands).
+  name to hand it a task, and your own commands (Settings › This project › How agents work › More).
 
 ### What the chat shows
 
@@ -108,6 +109,10 @@ unread and how many things wait for you.
   next: Add a test · 📓 notes** - the story, the place of its task at work among its tasks, and its next
   task while one waits in the chat's queue. **📓 notes**, there once the notebook has a note, opens the
   story's [notebook](../automation/todo.md#the-storys-notebook). In a narrow chat only the story and its place stay.
+- A long chat opens on its newest 40 turns, and on every older one that still waits for you (a card to take in, a
+  question, a decision to OK). Over them, **Show 40 earlier turns** reads the 40 before, as often as you press it;
+  "560 older turns are not shown" says how many are left. The canvas's turns, the Workspace's **Changes** and
+  Undo reach the turns read so far; search, the decision log and the night's report read the whole chat.
 
 ### Undo and restore
 
@@ -175,7 +180,7 @@ Where the **Scout** - the role that looks for what is left after each turn - was
 on a dashed line down from the Orchestrator. It shows the model asked, how many tasks it proposed and
 dropped ("2 proposed · 1 dropped"), at Full auto how many the Orchestrator added ("Orchestrator added
 1"), its tokens ("–" where not reported) and **To-do →**. Click it for why each one was dropped; a double
-click, or **To-do →**, opens the To-do page. A turn where it was not asked has no such box. The legend
+click, or **To-do →**, opens Work's To-do tab. A turn where it was not asked has no such box. The legend
 has a row for its dashed line. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
 
 A step that runs in rounds, such as a review loop or **Evolve**'s tries, folds each earlier round into

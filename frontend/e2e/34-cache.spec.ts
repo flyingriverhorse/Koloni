@@ -44,13 +44,13 @@ test('what the model server read again from its cache is in the agent window and
   await own.getByRole('button', { name: 'Close agent window' }).click()
 
   await rail(page, 'Usage').click()
-  await page.getByLabel('Period').selectOption({ label: 'Today' })
+  await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'Today' }).click()
   // Earlier specs' turns are in the same project: this turn is told by its conversation's row.
-  await openFold(page, 'By conversation')
+  await openFold(page, 'Chats that spent most')
   const row = page
     .getByRole('table', { name: 'Usage by conversation' })
     .getByRole('row', { name: /hello from the cache spec/ })
-  await expect(row.getByRole('cell')).toHaveText(['1', '1', '120', '18']) // what was sent is as it was
+  await expect(row.getByRole('cell')).toHaveText(['1', '1', '120', '18', '–']) // what was sent is as it was
   await expect(row.getByText('64 read again from the cache', { exact: true })).toBeVisible()
   const models = page.getByRole('table', { name: 'Usage by provider and model' })
   const local = models.getByRole('row', { name: /Local · fake-qwen/ })
@@ -81,8 +81,8 @@ test('what the model server read again from its cache is in the agent window and
   await page.reload()
   await expect(page.locator('html')).toHaveClass(/\bdark\b/)
   await rail(page, 'Usage').click()
-  await page.getByLabel('Period').selectOption({ label: 'Today' })
-  await openFold(page, 'By conversation')
+  await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'Today' }).click()
+  await openFold(page, 'Chats that spent most')
   await expect(
     page
       .getByRole('table', { name: 'Usage by conversation' })

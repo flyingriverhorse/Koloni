@@ -2,6 +2,8 @@ import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App } from './App'
+import { OPEN_TODO } from './chat/TodoCards'
+import { greeting } from './ready/nightText'
 import { resetStoreForTests, useApp } from './state/store'
 import type { Discussion } from './api/types'
 import { agent, command, conversation, question, run } from './test-fixtures'
@@ -67,6 +69,7 @@ const snapshot = {
   last_event_id: 0,
 }
 /** What the server answers: the project, the model, one chat in the project (opened at the start) - or what `over` says of a path. */
+const BOARD = { limit: null, running: 0, conversations: [], conflicts: [], backlog_waiting: 0 }
 const answer = (url: string, over: Record<string, unknown> = {}) => {
   const said: Record<string, unknown> = {
     '/api/projects': [project],
@@ -174,7 +177,9 @@ test('with no folder and no chat KOLONİ opens on the canvas, not on a setup pag
   expect(screen.queryByRole('button', { name: /^Project settings for/ })).toBeNull()
   // Nothing is made at the start: the first message makes a plain chat.
   expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'To-do' }))
+  // (To-do is Work's second tab, 0.1.10.)
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Work' }))
+  await userEvent.click(screen.getByRole('tab', { name: 'To-do' }))
   const none = screen.getByText('This chat has no folder - pick one with the folder button to use the To-do.')
   // ...with the way to one beside it: the folder button's own panel.
   expect(screen.queryByRole('button', { name: 'Open a folder…' })).toBeNull()
@@ -218,7 +223,7 @@ test('in a project whose conversations are all archived, none is opened, and the
   await userEvent.click(screen.getByRole('button', { name: 'Hide the first steps' }))
   expect(await screen.findByText(/Local isn't answering at/)).toBeInTheDocument()
   const asked = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
-  expect(asked).not.toContain('/api/conversations/a')
+  expect(asked.filter(url => url.startsWith('/api/conversations/a'))).toEqual([])
 })
 
 test('a server that runs another API than the page was built against, or does not say which, is to be restarted', async () => {
@@ -479,6 +484,19 @@ const emptyPages = (over: Record<string, unknown> = {}) => {
     return answer(url, over)
   })
 }
+test('0.1.10: Memory opened on its first part reads its sources too, for the tab that says how many may be old', async () => {
+  const fetched = emptyPages()
+  vi.stubGlobal('fetch', fetched)
+  render(<App />)
+  await screen.findByText('this machine')
+  fetched.mockClear()
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Memory' }),
+  )
+  await vi.waitFor(() =>
+    expect(fetched.mock.calls.map(([url]) => String(url).split('?')[0])).toContain('/api/projects/p/knowledge'),
+  )
+})
 test('each page of the rail is the one in the workspace; a page of a folder, in a plain chat, asks for a folder, and Usage has no day', async () => {
   // (The canvas is known by its first steps: a test above may have hidden them.)
   localStorage.removeItem('koloni-first-steps')
@@ -502,12 +520,11 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
-    ['To-do', 'memory-page', 'To-do'],
+    ['Work', 'ready-page', 'Work'],
     ['Usage', 'memory-page', 'Usage'],
-    ['Memory', 'memory-page', 'Reading the project’s memory…'],
-    ['Knowledge', 'triggers-page knowledge-page', 'Knowledge'],
-    ['Chats', 'conv-page', 'Conversations'],
+    // (0.1.10: its heading, the three ways and its tabs stand while its memory is read)
+    ['Memory', 'memory-page', 'Memory'],
+    ['Chats', 'conv-page', 'Chats'],
     ['Canvas', 'stage', 'First steps'],
   ])
   await userEvent.click(rail('Usage'))
@@ -520,20 +537,23 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
-    ['To-do', 'memory-page', noFolder('To-do')],
+    ['Work', 'ready-page', 'Work'],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
-    ['Knowledge', 'memory-page', noFolder('Knowledge page')],
-    ['Chats', 'conv-page', 'Conversations'],
+    ['Chats', 'conv-page', 'Chats'],
     ['Canvas', 'stage', 'First steps'],
   ])
+  // (Work's Ready for you; its To-do, a tab since 0.1.10, asks for one there.)
+  await visit([['Work', 'ready-page', 'Work']])
+  expect(screen.getByRole('heading', { name: `Ready for you ${greeting()}` })).toBeVisible()
+  await userEvent.click(screen.getByRole('tab', { name: 'To-do' }))
+  expect(screen.getByRole('region', { name: 'To-do' })).toHaveTextContent(noFolder('To-do'))
   // (The day of a folder says it is read as soon as it is drawn: here there is none.)
   await visit([['Usage', 'memory-page', 'Usage']])
   expect(screen.queryByText(/^Reading the day…$|^The day could not be read/)).toBeNull()
 })
 
-test("the top bar's pill says what the Lead decided for you when nothing waits; it opens and shuts Ready for you, but not on the Ready page", async () => {
+test("the top bar's pill says what the Lead decided for you when nothing waits; it opens and shuts Ready for you, but not on the Work page - there it shows its tab", async () => {
   const decided = question('q', 'r', {
     status: 'answered',
     answer: 'yes',
@@ -542,10 +562,14 @@ test("the top bar's pill says what the Lead decided for you when nothing waits; 
   })
   vi.stubGlobal(
     'fetch',
-    emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] } }),
+    emptyPages({
+      '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] },
+      // (K1: the project's count - Not seen's, every chat's - not the open chat's)
+      '/api/projects/p/board': { ...BOARD, decided: 1 },
+    }),
   )
   render(<App />)
-  const pill = await screen.findByRole('button', { name: '1 decided for you' })
+  const pill = await screen.findByRole('button', { name: '1 decided for you in this project' })
   expect(pill).toHaveTextContent(/^1 decided$/)
   expect(pill).toHaveAttribute('aria-expanded', 'false')
   expect(document.getElementById('ready-panel')).toBeNull()
@@ -555,11 +579,16 @@ test("the top bar's pill says what the Lead decided for you when nothing waits; 
   await userEvent.click(pill)
   expect(document.getElementById('ready-panel')).toBeNull()
   await userEvent.click(pill)
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Ready' }))
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Work' }))
   expect(pill).toHaveAttribute('aria-expanded', 'false')
   expect(document.getElementById('ready-panel')).toBeNull()
   await userEvent.click(pill)
   expect(useApp.getState().readyPanel.open).toBe(true)
+  expect(document.getElementById('ready-panel')).toBeNull()
+  // (On To-do's tab the list is not in sight: the pill shows Ready for you's, not the panel over the page.)
+  await userEvent.click(screen.getByRole('tab', { name: /^To-do/ }))
+  await userEvent.click(pill)
+  expect(screen.getByRole('tab', { name: /^Ready for you/ })).toHaveAttribute('aria-selected', 'true')
   expect(document.getElementById('ready-panel')).toBeNull()
 })
 
@@ -593,16 +622,27 @@ function refusedByTheJudge() {
 
 test("the pill counts a command Full auto's judge refused; the chat says it in one line, and Ready for you has its OK", async () => {
   const { refused, log } = refusedByTheJudge()
-  const read = emptyPages({
+  let seen = false
+  const pages = emptyPages({
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
     '/api/projects/p/decisions': log,
     '/api/commands/k/seen': { ...refused, judged: { ...refused.judged, seen: true } },
+    // (K1: the pill, the chat's line and Not seen say the project's one count)
+    get '/api/projects/p/board'() {
+      return { ...BOARD, decided: seen ? 0 : 1 }
+    },
+  })
+  const read = vi.fn(async (url: string, _init?: RequestInit) => {
+    if (url === '/api/commands/k/seen') seen = true
+    return pages(url)
   })
   vi.stubGlobal('fetch', read)
   render(<App />)
-  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you' }))
+  await userEvent.click(await screen.findByRole('button', { name: '1 decided for you in this project' }))
   const panel = document.getElementById('ready-panel')!
-  expect(within(panel).getByText('While you were away, 1 thing was decided for you.')).toBeInTheDocument()
+  expect(
+    within(panel).getByText('While you were away, 1 thing was decided for you in this project.'),
+  ).toBeInTheDocument()
   await userEvent.click(within(panel).getByRole('button', { name: 'Open in Ready for you' }))
   const decided = await screen.findByRole('region', { name: /^Decided for you 1, 1 not seen/ })
   await vi.waitFor(() => expect(decided).toHaveFocus())
@@ -617,8 +657,8 @@ test("the pill counts a command Full auto's judge refused; the chat says it in o
   const calls = read.mock.calls as unknown as [string, RequestInit | undefined][]
   const asked = calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)
   expect(asked).toContain('POST /api/commands/k/seen')
-  // (the open chat's: told at once - the pill has nothing more)
-  await vi.waitFor(() => expect(screen.queryByRole('button', { name: '1 decided for you' })).toBeNull())
+  // (the project's board is read again after the OK - the pill has nothing more)
+  await vi.waitFor(() => expect(screen.queryByRole('button', { name: /decided for you/ })).toBeNull())
 })
 
 test("Usage's Today says the day's decisions in one line; Open in Ready for you brings its Decided for you in view, once", async () => {
@@ -626,6 +666,7 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   const pages = emptyPages({
     '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], commands: [refused] },
     '/api/projects/p/decisions': log,
+    '/api/projects/p/board': { ...BOARD, decided: 1 },
   })
   const day = { turns: 0, agents: [], changed_files: [], waiting: 0, failed: 0, conversations: [] }
   const read = vi.fn(async (url: string) =>
@@ -633,21 +674,143 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   )
   vi.stubGlobal('fetch', read)
   render(<App />)
-  await screen.findByRole('button', { name: '1 decided for you' })
+  await screen.findByRole('button', { name: '1 decided for you in this project' })
   const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
   await userEvent.click(rail('Usage'))
   expect(await screen.findByText("1 decision was made for you today, 1 of them you haven't seen.")).toBeInTheDocument()
   // (Usage keeps no list of them any more)
   expect(screen.queryByRole('region', { name: /Decisions|Decided for you/ })).toBeNull()
+  // (Work's To-do shown last: the ask opens its Ready for you tab all the same.)
+  act(() => useApp.setState({ readyTab: 'todo' }))
   await userEvent.click(screen.getByRole('button', { name: 'Open in Ready for you' }))
   const decided = await screen.findByRole('region', { name: /^Decided for you/ })
   await vi.waitFor(() => expect(decided).toHaveFocus())
   // The ask was taken: Ready for you opened later, from the rail, is as any.
   await userEvent.click(rail('Canvas'))
-  await userEvent.click(rail('Ready'))
+  await userEvent.click(rail('Work'))
   const again = await screen.findByRole('region', { name: /^Decided for you/ })
   await within(again).findByText("KOLONİ's judge")
   expect(again).not.toHaveFocus()
+})
+
+/** A night of project p that ended and is not seen yet. */
+const endedNight = {
+  id: 'a1',
+  project_id: 'p',
+  conversation_id: 'c',
+  run_id: 'r',
+  status: 'ended',
+  jobs: [],
+  kept_out: [],
+  until: null,
+  money: null,
+  started_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+  ended_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+  why: null,
+  seen_at: null,
+  tried: [],
+  slipped: [],
+  spent: null,
+  currency: 'USD',
+  job_minutes: null,
+  at_least: false,
+  counts: {},
+  proposed: [],
+  decided: [],
+}
+
+test('after a night while you were away KOLONİ opens on Ready for you, where its strip is, and marks it seen', async () => {
+  const read = vi.fn(async (url: string) =>
+    url === '/api/projects/p/away' ? new Response(JSON.stringify(endedNight), { status: 200 }) : answer(url),
+  )
+  vi.stubGlobal('fetch', read)
+  render(<App />)
+  expect(await screen.findByRole('heading', { name: /^Ready for you/ })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: /^Last night/ })).toBeInTheDocument()
+  await vi.waitFor(() => expect(read.mock.calls.some(([url]) => url === '/api/away/a1/seen')).toBe(true))
+})
+
+test('a page you opened before the night was read is never taken from you: the morning leaves it (M1)', async () => {
+  let release = () => {}
+  const held = new Promise<void>(go => (release = go))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url !== '/api/projects/p/away') return answer(url)
+      await held
+      return new Response(JSON.stringify(endedNight), { status: 200 })
+    }),
+  )
+  render(<App />)
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await screen.findByText('this machine')
+  await userEvent.click(rail('Agents'))
+  release()
+  await vi.waitFor(() => expect(useApp.getState().away?.id).toBe('a1'))
+  await act(async () => {})
+  expect(rail('Agents')).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
+})
+
+test('Work opens on the tab shown last, its arrows go between its two; the night is seen only once Ready for you is shown', async () => {
+  let release = () => {}
+  const held = new Promise<void>(go => (release = go))
+  const read = vi.fn(async (url: string) => {
+    if (url !== '/api/projects/p/away') return answer(url)
+    await held
+    return new Response(JSON.stringify(endedNight), { status: 200 })
+  })
+  vi.stubGlobal('fetch', read)
+  render(<App />)
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await screen.findByText('this machine')
+  // (Another page first: the morning leaves it, M1.)
+  await userEvent.click(rail('Agents'))
+  release()
+  await vi.waitFor(() => expect(useApp.getState().away?.id).toBe('a1'))
+  act(() => useApp.setState({ readyTab: 'todo' }))
+  await userEvent.click(rail('Work'))
+  const tab = (name: RegExp) => screen.getByRole('tab', { name })
+  expect(tab(/^To-do/)).toHaveAttribute('aria-selected', 'true')
+  expect(screen.queryByRole('region', { name: /^Last night/ })).toBeNull()
+  const seen = () => read.mock.calls.some(([url]) => url === '/api/away/a1/seen')
+  await act(async () => {})
+  expect(seen()).toBe(false)
+  tab(/^To-do/).focus()
+  await userEvent.keyboard('{ArrowLeft}')
+  expect(tab(/^Ready for you/)).toHaveFocus()
+  expect(tab(/^Ready for you/)).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('region', { name: /^Last night/ })).toBeVisible()
+  await vi.waitFor(() => expect(seen()).toBe(true))
+  await userEvent.keyboard('{End}')
+  expect(tab(/^To-do/)).toHaveFocus()
+  await userEvent.keyboard('{Home}')
+  expect(tab(/^Ready for you/)).toHaveAttribute('aria-selected', 'true')
+})
+
+test('the morning is asked of the first answer about the night alone: a later one never moves you (M1)', async () => {
+  // (the first read fails; the next, a minute later, finds the night ended - you may be typing by then)
+  let failed = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url !== '/api/projects/p/away') return answer(url)
+      if (!failed) {
+        failed = true
+        return new Response('{"detail":"down"}', { status: 500 })
+      }
+      return new Response(JSON.stringify(endedNight), { status: 200 })
+    }),
+  )
+  render(<App />)
+  await screen.findByText('this machine')
+  await vi.waitFor(() => expect(failed).toBe(true))
+  await act(async () => {
+    await useApp.getState().loadAway()
+  })
+  expect(useApp.getState().away?.id).toBe('a1')
+  expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
+  expect(screen.getByLabelText('Message')).toBeVisible()
 })
 
 test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {
@@ -684,4 +847,78 @@ test("an agent's window and a discussion's open over the canvas only with a chat
   expect(screen.queryByRole('region', { name: 'Agent window' })).toBeNull()
   expect(screen.queryByRole('region', { name: 'Discussion' })).toBeNull()
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
+})
+
+test('To-do is a tab of Work (0.1.10): no rail button of its own; a chat’s Open it in To-do lands there, at its task', async () => {
+  const stuck = {
+    id: 't1',
+    title: 'Fix the login',
+    detail: null,
+    criteria: null,
+    priority: 'normal',
+    status: 'blocked',
+    position: 0,
+    conversation_id: null,
+    created_by: 'user',
+    pending: null,
+    assessment: null,
+    not_in: false,
+    after: [],
+    stuck: 'two tests fail',
+    waiting: false,
+    kind: 'task',
+    created_at: '2026-10-05T10:00:00Z',
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/projects/p/backlog': [stuck] })),
+  )
+  render(<App />)
+  const rail = (name: string) =>
+    within(screen.getByRole('navigation', { name: 'Main' })).queryByRole('button', { name })
+  await screen.findByText('this machine')
+  expect(rail('To-do')).toBeNull()
+  act(() => void window.dispatchEvent(new CustomEvent(OPEN_TODO, { detail: 't1' })))
+  const panel = await screen.findByRole('complementary', { name: 'Without a story' })
+  expect(rail('Work')).toHaveAttribute('aria-pressed', 'true')
+  // (Its tab says its open tasks: the one stuck.)
+  expect(screen.getByRole('tab', { name: 'To-do · 1' })).toHaveAttribute('aria-selected', 'true')
+  await vi.waitFor(() => expect(within(panel).getByRole('button', { name: 'Fix the login' })).toHaveFocus())
+  // Its card says how it stands, in a word beside its cell.
+  expect(screen.getByRole('button', { name: 'Without a story: 0 of 1 done' })).toHaveTextContent('Fix the login: stuck')
+})
+
+test('To-do asked at a task opens there once: Work opened again from the rail is on its To-do, as any', async () => {
+  const task = {
+    id: 't1',
+    title: 'Fix the login',
+    detail: null,
+    criteria: null,
+    priority: 'normal',
+    status: 'todo',
+    position: 0,
+    conversation_id: null,
+    created_by: 'user',
+    pending: null,
+    assessment: null,
+    not_in: false,
+    after: [],
+    stuck: null,
+    waiting: false,
+    kind: 'task',
+    created_at: '2026-10-05T10:00:00Z',
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => answer(url, { '/api/projects/p/backlog': [task] })),
+  )
+  render(<App />)
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await screen.findByText('this machine')
+  act(() => void window.dispatchEvent(new CustomEvent(OPEN_TODO, { detail: 't1' })))
+  expect(await screen.findByRole('complementary', { name: 'Without a story' })).toBeInTheDocument()
+  await userEvent.click(rail('Usage'))
+  await userEvent.click(rail('Work'))
+  await screen.findByRole('button', { name: 'Without a story: 0 of 1 done' })
+  expect(screen.queryByRole('complementary', { name: 'Without a story' })).toBeNull()
 })

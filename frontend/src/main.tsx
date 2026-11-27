@@ -17,6 +17,7 @@ import './theme/memory.css'
 import './theme/hold.css'
 import './theme/usage.css'
 import './theme/board.css'
+import './theme/cell.css'
 
 // A new link pasted into this tab changes only the hash: the page starts again, with its key.
 window.addEventListener('hashchange', () => {

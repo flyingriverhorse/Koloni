@@ -15,8 +15,12 @@ plan meter does, in an empty home of KOLONİ's own, signed in with your `gh` log
 It asks:
 
 - as the provider is added (the top bar reads it within seconds),
-- as the **Models** page or the chat's model panel opens, at most once in 10 minutes,
+- by the top bar's plan meter, at most once in 10 minutes, and on **Read now** on its card in **Models**,
+- when you fill its tiers (**Fill from the catalogue**, **Fill tiers**),
 - at once after Copilot refuses a model or a routing.
+
+Opening the **Models** page or the chat's model panel asks nothing: they show what your account offered when it
+was last asked.
 
 A Copilot on a model server of your own is never asked: its models are the server's.
 

@@ -33,7 +33,7 @@ def test_the_secrets_held_back_are_said_once_not_in_each_result(
     # (KOLONİ's own sentence, after the decisions - not in a line's quoted output)
     assert "PARK_NOTES_TOKEN" in said.split("Go on with the task.")[-1]
     assert said.endswith(
-        " - the user can pass one in Settings › This project › Commands and secrets)"
+        " - the user can pass one in Settings › This project › When you're asked, under More)"
     )
     results = [row["result"] for row in waiting(client, done["id"])]
     assert all(result and "held back" not in result for result in results), results

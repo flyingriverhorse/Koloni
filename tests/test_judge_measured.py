@@ -3,7 +3,9 @@ judge model whose measurement passed (`judge.MEASURED_MODELS`: none yet - Claude
 measured on 25 Nov 2026, let 2 commands run wrongly in one of three repeats) run as it was measured
 (`judge.measured`: its own service, a session or natively, no setup or environment that points it
 elsewhere), and only where it is the user's pick or, none made, the Fast tier's first - or where the
-project's old choice was "judge". Else the delete waits on its card, and the model is not asked.
+project's old choice was "judge". Else the delete waits on its card, and the model is not asked of
+the user's words (since 0.1.10 Full auto's judge looks at the delete - K3 -: here it reads no verdict
+in a words check's answer, and the card stays).
 How a measured model would be treated is tried with haiku as one (`as_if_measured`)."""
 
 import hashlib
@@ -32,6 +34,15 @@ PROMPT_SHA = "c5b32d758f3094f822abdb03db5711bc9ce99a2e33abee6db5b817531196a674"
 def as_if_measured(monkeypatch):
     """Claude Code's haiku in `judge.MEASURED_MODELS`, as a model whose measurement passed would be."""
     monkeypatch.setattr(judge, "MEASURED_MODELS", frozenset({("claude_cli", "haiku")}))
+
+
+RISK_ASKED = "should this command run without asking the user, at Full auto?"
+
+
+def words_asked(model: ScriptedModel) -> list:
+    """The requests of the check of the user's words a model got - never Full auto's judge's
+    (`RISK_ASKED`), which since K3 (0.1.10) looks at a delete the check did not let by."""
+    return [one for one in model.calls if RISK_ASKED not in one[0]["content"]]
 
 
 @pytest.fixture(autouse=True)
@@ -158,7 +169,7 @@ def test_claude_codes_haiku_is_not_measured_and_the_delete_waits(app_with, wait_
     )
     _, cid, run_id = begin(client, project_dir, "tidy up", check="ask", words=True, rules=RULE)
     carded(client, cid, run_id, wait_run)
-    assert asked.calls == [] and executor.started == []
+    assert words_asked(asked) == [] and executor.started == []
     assert client.get("/api/judge").json()["now"]["measured"] is False
 
 
@@ -194,7 +205,7 @@ def test_a_model_not_run_as_measured_is_not_asked_and_the_delete_waits(
     )
     _, cid, run_id = begin(client, project_dir, "tidy up", check="ask", words=True, rules=RULE)
     carded(client, cid, run_id, wait_run)
-    assert asked.calls == [] and executor.started == []
+    assert words_asked(asked) == [] and executor.started == []
     assert client.get("/api/judge").json()["now"]["measured"] is False
 
 
@@ -217,7 +228,7 @@ def test_a_fallback_to_haiku_while_the_chosen_judge_is_down_never_makes_the_chec
     assert (now["model_id"], now["measured"]) == ("haiku", False)
     _, cid, run_id = begin(client, project_dir, "tidy up", check="ask", words=True, rules=RULE)
     carded(client, cid, run_id, wait_run)
-    assert haiku.calls == [] and quick.calls == [] and executor.started == []
+    assert words_asked(haiku) == [] and words_asked(quick) == [] and executor.started == []
 
 
 @pytest.mark.parametrize(

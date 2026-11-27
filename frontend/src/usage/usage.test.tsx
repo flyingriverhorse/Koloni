@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Project, Provider, Usage } from '../api/types'
-import { since } from './period'
+import { since, stripFrom } from './period'
 import { UsagePage } from './UsagePage'
 
 const project = { id: 'p', name: 'demo' } as Project
@@ -97,7 +97,13 @@ const usage: Usage = {
       cost: null,
     },
   ],
+  by_day: [],
 }
+/** The button pressed in a group of the page's head: the period, the projects. */
+const pressed = (group: string) =>
+  within(screen.getByRole('group', { name: group })).getByRole('button', { pressed: true })
+const choose = (name: string) => userEvent.click(screen.getByRole('button', { name }))
+
 const cells = (row: HTMLElement) =>
   within(row)
     .getAllByRole('cell')
@@ -128,7 +134,8 @@ test('three tables say what was reported: what is not known is "–", never a ze
     ),
   ).toBeInTheDocument()
 
-  // Every conversation is opened from its row (slice 86a: opened, its folder is the one open); one of another project is named.
+  // Every conversation is opened from its row (slice 86a: opened, its folder is the one open); one of another project is
+  // named. A chat's cost is its models' added up: none here.
   const talks = within(screen.getByRole('table', { name: 'Usage by conversation' }))
   expect(talks.getAllByRole('columnheader').map(h => h.textContent)).toEqual([
     'Conversation',
@@ -136,7 +143,9 @@ test('three tables say what was reported: what is not known is "–", never a ze
     'Agents',
     'Tokens sent',
     'Tokens written',
+    'Cost',
   ])
+  expect(cells(talks.getByRole('row', { name: /^Fix greeting/ }))).toEqual(['3', '5', '1,200,800', '4,500', '–'])
   await userEvent.click(talks.getByRole('button', { name: 'Fix greeting' }))
   expect(onOpen).toHaveBeenCalledWith('c1')
   expect(talks.getByRole('row', { name: /Another · elsewhere/ })).toBeInTheDocument()
@@ -175,7 +184,7 @@ test('what KOLONİ asked a model with no message is a row of its own, KOLONİ it
     />,
   )
   const starts = within(await screen.findByRole('table', { name: 'Usage by who sent the message' }))
-  // Its requests are no agents: said under its name, not in the Agents column, nor in the box on top.
+  // Its requests are no agents: said under its name, not in the Agents column, nor among the box's agents.
   const row = starts.getByRole('row', { name: /^KOLONİ itself/ })
   expect(cells(row)).toEqual(['0', '—', '900', '40', '≈ 0.01 USD'])
   expect(within(row).getByText('2 requests of its own, in no message')).toBeInTheDocument()
@@ -186,22 +195,65 @@ test('what KOLONİ asked a model with no message is a row of its own, KOLONİ it
   ).toBeInTheDocument()
 })
 
+test('a model’s row counts KOLONİ’s own requests among its agents: the box and the table say so, and add up', async () => {
+  // As the API adds them: every agent and request is under one model and one starter (the guide's picture had 12 + 1).
+  const numbers = { cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 0 }
+  const asRead: Usage = {
+    by_model: [
+      {
+        provider_name: 'Local',
+        model_id: 'fake-qwen',
+        runs: 10,
+        agents: 13,
+        input_tokens: 2400,
+        output_tokens: 360,
+        ...numbers,
+        cost: null,
+      },
+    ],
+    by_conversation: [],
+    by_start: [
+      { started_by: 'user', runs: 10, agents: 12, input_tokens: 2300, output_tokens: 350, ...numbers, cost: null },
+      { started_by: 'koloni', runs: 0, agents: 1, input_tokens: 100, output_tokens: 10, ...numbers, cost: null },
+    ],
+    by_day: [],
+  }
+  render(
+    <UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(asRead)} onOpen={vi.fn()} />,
+  )
+  const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
+  expect(cells(models.getByRole('row', { name: /Local · fake-qwen/ }))[1]).toBe('13')
+  expect(box('Messages')).toEqual(['10', '12 agents', '1 request by KOLONİ itself'])
+  // Its own line: the cost's words under the table begin as they did.
+  expect(screen.getByText('Agents here include 1 request by KOLONİ itself, in no message.')).toBeInTheDocument()
+  expect(screen.getByText(/^Cost shows for a model with a price/)).toBeInTheDocument()
+})
+
 test('it starts on this project and Today, and reads again when either is changed', async () => {
-  const onLoad = vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })
+  const onLoad = vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [], by_day: [] })
   render(<UsagePage project={project} projects={[project]} onLoad={onLoad} onOpen={vi.fn()} />)
   expect(await screen.findByText('No agent reported usage today.')).toBeInTheDocument()
-  expect(screen.getByLabelText('Projects')).toHaveValue('this')
+  expect(pressed('Projects')).toHaveTextContent('This project')
   expect(
-    within(screen.getByLabelText('Period'))
-      .getAllByRole('option')
+    within(screen.getByRole('group', { name: 'Period' }))
+      .getAllByRole('button')
       .map(o => o.textContent),
-  ).toEqual(['Today', '7 days', '30 days', 'All'])
-  expect(screen.getByLabelText('Period')).toHaveValue('today')
-  expect(onLoad).toHaveBeenLastCalledWith('p', since('today'))
-  await userEvent.selectOptions(screen.getByLabelText('Projects'), 'All projects')
-  expect(onLoad).toHaveBeenLastCalledWith(null, expect.any(String))
-  await userEvent.selectOptions(screen.getByLabelText('Period'), 'All')
+  ).toEqual(['Today', '7 days', 'This month', '30 days', 'All'])
+  expect(pressed('Period')).toHaveTextContent('Today')
+  // The strip's 30 days first, whatever the period; then the period's own.
+  expect(onLoad.mock.calls).toEqual([
+    ['p', stripFrom()],
+    ['p', since('today')],
+  ])
+  await choose('All projects')
+  expect(onLoad).toHaveBeenLastCalledWith(null, since('today'))
+  expect(onLoad).toHaveBeenCalledWith(null, stripFrom())
+  // This month is this calendar month here, as the budget counts it.
+  await choose('This month')
+  expect(onLoad).toHaveBeenLastCalledWith(null, since('month'))
+  await choose('All')
   expect(onLoad).toHaveBeenLastCalledWith(null, null)
+  expect(pressed('Period')).toHaveTextContent('All')
   expect(await screen.findByText('No agent ran in this period.')).toBeInTheDocument()
 })
 
@@ -223,8 +275,8 @@ test('while it is read it says so; with nothing costed it says where a cost woul
   expect(
     screen.getByText(/^Prices come from what you write under Prices, or else from models.dev, in USD\./),
   ).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'By conversation' }).querySelector('summary')).toHaveTextContent(
-    'By conversation1 conversation',
+  expect(screen.getByRole('region', { name: 'Chats that spent most' }).querySelector('summary')).toHaveTextContent(
+    '1 chat, in numbers',
   )
 })
 
@@ -278,14 +330,31 @@ test('Plan limits are beside the boxes where a plan can be read, and the budget 
   )
   expect(await screen.findByRole('region', { name: 'Plan limits' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'This month’s budget' })).toBeInTheDocument()
-  await userEvent.selectOptions(screen.getByLabelText('Projects'), 'All projects')
+  await choose('All projects')
   expect(screen.queryByRole('region', { name: 'This month’s budget' })).toBeNull()
   expect(screen.getByRole('region', { name: 'Plan limits' })).toBeInTheDocument()
 })
 
-test('a period starts at a moment: today at this day’s midnight here, the others so many days back', () => {
+test('the summary is worded by the period its reading is of: another period chosen says nothing of its own until read', async () => {
+  // (the strip's reading and Today's; then 7 days', which does not come)
+  const onLoad = vi
+    .fn()
+    .mockResolvedValueOnce(usage)
+    .mockResolvedValueOnce(usage)
+    .mockReturnValue(new Promise<Usage>(() => {}))
+  render(<UsagePage project={project} projects={[project]} onLoad={onLoad} onOpen={vi.fn()} />)
+  expect(await screen.findByText('Today about 1.2346 USD was spent.')).toBeInTheDocument()
+  await choose('7 days')
+  expect(screen.getByText('Today about 1.2346 USD was spent.')).toBeInTheDocument()
+  expect(screen.queryByText(/^In the last 7 days/)).toBeNull()
+})
+
+test('a period starts at a moment: today at this day’s midnight here, this month at its first, the others so many days back', () => {
   const now = new Date(2026, 9, 11, 15, 30)
   expect(since('today', now)).toBe(new Date(2026, 9, 11).toISOString())
+  expect(since('month', now)).toBe(new Date(2026, 9, 1).toISOString())
+  // (the strip: 30 days with today, from midnight here)
+  expect(stripFrom(now)).toBe(new Date(2026, 8, 12).toISOString())
   expect(since('7', now)).toBe(new Date(2026, 9, 4, 15, 30).toISOString())
   expect(since('30', now)).toBe(new Date(now.getTime() - 30 * 86400000).toISOString())
   expect(since('all', now)).toBeNull()
@@ -325,10 +394,15 @@ test('a cost over agents that are unknown is "at least", and an amount that is n
 })
 
 test('after a reading that failed, the table read before is not left under the new period', async () => {
-  const onLoad = vi.fn().mockResolvedValueOnce(usage).mockRejectedValueOnce({ detail: 'the server is away' })
+  // (the strip's reading, the period's, then the next period's)
+  const onLoad = vi
+    .fn()
+    .mockResolvedValueOnce(usage)
+    .mockResolvedValueOnce(usage)
+    .mockRejectedValueOnce({ detail: 'the server is away' })
   render(<UsagePage project={project} projects={[project]} onLoad={onLoad} onOpen={vi.fn()} />)
   expect(await screen.findByRole('table', { name: 'Usage by provider and model' })).toBeInTheDocument()
-  await userEvent.selectOptions(screen.getByLabelText('Period'), '30 days')
+  await choose('30 days')
   expect(await screen.findByRole('alert')).toHaveTextContent('the server is away')
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
   expect(screen.queryByText('Reading the usage…')).not.toBeInTheDocument()
@@ -351,7 +425,7 @@ test('what was read again from a cache and written to it is told on a row where 
     <UsagePage
       project={project}
       projects={[project]}
-      onLoad={vi.fn().mockResolvedValue({ by_model, by_conversation, by_start })}
+      onLoad={vi.fn().mockResolvedValue({ by_model, by_conversation, by_start, by_day: [] })}
       onOpen={vi.fn()}
     />,
   )
@@ -459,11 +533,11 @@ test('Today, of this project, has the day beside the boxes; another period or ev
   expect(screen.getByText('the day')).toBeInTheDocument()
   // The boxes the usage adds up stay: the day adds only what it alone knows.
   expect(box('Messages')).toEqual(['4', '6 agents'])
-  await userEvent.selectOptions(screen.getByLabelText('Period'), '7 days')
+  await choose('7 days')
   expect(screen.queryByText('the day')).toBeNull()
-  await userEvent.selectOptions(screen.getByLabelText('Period'), 'Today')
+  await choose('Today')
   expect(screen.getByText('the day')).toBeInTheDocument()
-  await userEvent.selectOptions(screen.getByLabelText('Projects'), 'All projects')
+  await choose('All projects')
   expect(screen.queryByText('the day')).toBeNull()
 })
 
@@ -563,11 +637,12 @@ test('"set prices" opens the folded Prices and moves there; the folded sections 
   )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   const fold = (name: string) => screen.getByRole('region', { name }).querySelector('details')!
-  // Open: the table by model. Folded: the others, each with its count.
-  expect(fold('By conversation')).not.toHaveAttribute('open')
-  expect(fold('By conversation').querySelector('summary')).toHaveTextContent('By conversation2 conversations')
-  expect(fold('Who started it').querySelector('summary')).toHaveTextContent(
-    'Who started it3 messages by you · 1 message by a trigger',
+  // Open: the table by model. Folded: the others in numbers, the chats counted.
+  expect(fold('Chats that spent most')).not.toHaveAttribute('open')
+  expect(fold('Chats that spent most').querySelector('summary')).toHaveTextContent('All 2 chats, in numbers')
+  expect(fold('Who started it')).not.toHaveAttribute('open')
+  expect(screen.getByRole('region', { name: 'Who started it' })).toHaveTextContent(
+    '3 messages by you · 1 message by a trigger',
   )
   expect(fold('Prices').querySelector('summary')).toHaveTextContent('Prices1 model · 1 priced')
   expect(fold('Prices')).not.toHaveAttribute('open')
@@ -583,7 +658,7 @@ test('a period with nothing in it has no boxes on top; how the page counts is fo
     <UsagePage
       project={project}
       projects={[project]}
-      onLoad={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })}
+      onLoad={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [], by_day: [] })}
       onOpen={vi.fn()}
     />,
   )
@@ -696,10 +771,10 @@ test('in a plain chat every folder’s usage is shown, and a plain chat’s row 
   render(<UsagePage project={null} projects={[project, other]} onLoad={onLoad} onOpen={() => {}} />)
   const talks = within(await screen.findByRole('table', { name: 'Usage by conversation' }))
   expect(onLoad.mock.calls[0][0]).toBeNull()
-  expect(screen.getByLabelText('Projects')).toHaveValue('all')
+  expect(pressed('Projects')).toHaveTextContent('All projects')
   expect(
-    within(screen.getByLabelText('Projects'))
-      .getAllByRole('option')
+    within(screen.getByRole('group', { name: 'Projects' }))
+      .getAllByRole('button')
       .map(o => o.textContent),
   ).toEqual(['All projects'])
   expect(talks.getByRole('row', { name: /What is a CRDT\? · No folder/ })).toBeInTheDocument()

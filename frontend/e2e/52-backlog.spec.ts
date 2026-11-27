@@ -1,9 +1,9 @@
-// Slice 52 in the browser: the project's To-do page in the rail (Backlog before slice 106). The user adds tasks and
-// orders them by keyboard; a task the Lead proposes waits on a card (and on the rail's badge)
-// until it is approved; one waits for another (⋯, Waits for). Running tasks is Do in chat's since 0.1.8
-// (52-todo-in-chat). The page reads at 4.5 in both themes.
+// Slice 52 in the browser: the project's To-do - since 0.1.10 a tab of Work, each story a card. The user
+// adds tasks and orders them by keyboard in a card's panel; a task the Lead proposes waits under Waiting for your word
+// (and on the rail's badge) until it is approved; one waits for another (⋯, Waits for). Running tasks is Do in chat's
+// since 0.1.8 (52-todo-in-chat). The page reads at 4.5 in both themes.
 import { expect, test, type Locator, type Page } from './fixtures'
-import { OWN, contrasts, e2eProject, openFreshConversation, rail, say, shot } from './helpers'
+import { OWN, contrasts, e2eProject, openFreshConversation, rail, say, shot, story, todo } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -46,11 +46,14 @@ async function storyRows(page: Page, theme: string) {
   expect((await page.request.patch(`/api/backlog/${bug}`, { headers: OWN, data: { status: 'blocked' } })).ok()).toBe(
     true,
   )
-  const tasks = page.getByRole('list', { name: 'Tasks' })
-  await expect(tasks.getByRole('listitem', { name: `A stuck story (${theme})` })).toContainText('⚠ stuck')
-  await expect(tasks.getByRole('listitem', { name: `A goal to read (${theme})` })).toHaveCount(0)
-  await reads(tasks.getByRole('listitem', { name: `A stuck story (${theme})` }), 4)
-  await reads(tasks.getByRole('listitem', { name: `A stuck bug (${theme})` }), 3)
+  const card = page.getByRole('button', { name: new RegExp(`^A stuck story \\(${theme}\\): 0 of 1 done$`) })
+  await expect(card).toContainText('stuck')
+  await expect(page.getByRole('button', { name: new RegExp(`^A goal to read`) })).toHaveCount(0)
+  await reads(card, 4)
+  const panel = await story(page, `A stuck story (${theme})`)
+  await expect(panel).toContainText('⚠ stuck')
+  await reads(panel, 6)
+  await reads(panel.getByRole('listitem', { name: `A stuck bug (${theme})` }), 3)
 }
 
 async function reads(root: Locator, least: number) {
@@ -66,7 +69,7 @@ async function add(page: Page, title: string, priority: 'high' | 'normal' | 'low
   await form.getByLabel('Done when (optional)').fill(criteria)
   await form.getByLabel('Priority').selectOption(priority)
   await form.getByRole('button', { name: 'Add task' }).click()
-  await expect(page.getByRole('list', { name: 'Tasks' }).getByText(title, { exact: true })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Stories' }).getByText(title, { exact: true })).toBeVisible()
 }
 
 for (const theme of ['light', 'dark'] as const)
@@ -79,19 +82,21 @@ for (const theme of ['light', 'dark'] as const)
     await say(page, 'please keep the backlog', 'Proposed a task for your backlog.')
     await expect(page.locator('#rail-waiting')).toHaveText(/[1-9]\d* waiting/, { timeout: 10_000 })
 
-    await rail(page, 'To-do').click()
-    await expect(page.getByRole('heading', { name: 'To-do' })).toBeVisible()
-    const waiting = page.getByRole('region', { name: 'Waiting for you' })
+    // (It waits on Work's Ready for you; the tasks are on its To-do tab - 0.1.10.)
+    await rail(page, 'Work').click()
+    const waiting = page.getByRole('region', { name: /^Waiting for your word/ })
     const card = waiting.getByRole('group', { name: 'Proposed task: Add a farewell' }).first()
     await expect(card).toContainText('prints bye')
     await reads(card, 3)
 
     // Two tasks of the user's, one high: high ones come first.
+    await todo(page)
     const first = `Greet in French (${theme})`
     const second = `Greet in German (${theme})`
     await add(page, first, 'high', 'prints bonjour')
     await add(page, second, 'high')
-    const tasks = page.getByRole('list', { name: 'Tasks' })
+    // (A card's tasks, opened: its panel - the tasks of no story are one card.)
+    const tasks = (await story(page, 'Without a story')).getByRole('list', { name: 'Tasks' })
     const titles = () => tasks.locator('.backlog-task strong').allTextContents()
     expect((await titles()).indexOf(first)).toBeLessThan((await titles()).indexOf(second))
     // Ordered from the keyboard, from its ⋯: the second goes up past the first.
@@ -103,18 +108,22 @@ for (const theme of ['light', 'dark'] as const)
     await dots(second).click()
     await page.getByRole('menuitem', { name: 'Move down' }).click()
     await expect.poll(async () => (await titles()).indexOf(first) < (await titles()).indexOf(second)).toBe(true)
-    await reads(page.locator('.memory-page'), 10)
+    await reads(page.locator('.ready-page'), 10)
     await storyRows(page, theme)
     if (process.env.KOLONI_SHOTS) await shot(page, `52-backlog-${theme}`)
 
-    // Add / Edit / Reject (6 Nov): Edit opens its title and detail, and adds it as changed.
-    await expect(card.getByRole('button', { name: 'Reject', exact: true })).toBeVisible()
+    // Add to To-do / Edit / Not wanted (6 Nov; 0.1.10 the spec's words): Edit opens its title and detail, and adds
+    // it as changed.
+    await page.getByRole('tab', { name: /^Ready for you/ }).click()
+    await expect(card.getByRole('button', { name: 'Not wanted', exact: true })).toBeVisible()
     await card.getByRole('button', { name: 'Edit', exact: true }).click()
     await card.getByLabel('Detail').fill('prints bye, then exits')
-    await card.getByRole('button', { name: 'Add', exact: true }).click()
+    await card.getByRole('button', { name: 'Add to To-do', exact: true }).click()
     await expect(card).toBeHidden()
 
     // The second waits for the first, chosen from its ⋯.
+    await page.getByRole('tab', { name: /^To-do/ }).click()
+    await story(page, 'Without a story')
     await dots(second).click()
     await page.getByRole('menuitem', { name: 'Edit' }).click()
     await page

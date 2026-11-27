@@ -1,10 +1,12 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import type { KnowledgeItem, KnowledgeState, Project, Provider } from '../api/types'
+import type { KnowledgeItem, KnowledgeState, Project, Provider, Role } from '../api/types'
 import { Rail } from '../shell/Rail'
+import { MemoryParts } from '../memory/MemoryParts'
 import { KnowledgePage } from './KnowledgePage'
+import { freshCell, mayBeOld } from './fresh'
 
 // K-bilgi part 1: the project's Knowledge page - a card for each knowledge (layout A), opened to its tabs, with Try it, and "+ Add knowledge"
 // in one window (sample D1) that names no role: roles choose on their own Knowledge tab.
@@ -78,15 +80,27 @@ const page = (over: object = {}) => {
     onTry: vi.fn().mockResolvedValue('Use set_registered_model_alias (guide/registry.md:41).'),
     ...over,
   }
-  render(<KnowledgePage {...props} />)
-  return props
+  const { rerender } = render(<KnowledgePage {...props} />)
+  // (Drawn again with what the page reads next.)
+  return Object.assign(props, { again: (next: object) => rerender(<KnowledgePage {...props} {...next} />) })
 }
 
-test('the rail has Knowledge between Memory and Usage', () => {
-  render(<Rail view="knowledge" onView={vi.fn()} theme="dark" onToggleTheme={vi.fn()} waiting={0} />)
+test('0.1.10: the rail has no Knowledge - its sources are Memory’s second part, the Memory button pressed', async () => {
+  const onView = vi.fn()
+  render(<Rail view="knowledge" onView={onView} theme="dark" onToggleTheme={vi.fn()} waiting={0} />)
   const names = screen.getAllByRole('button').map(one => one.getAttribute('aria-label'))
-  expect(names.slice(names.indexOf('Memory'), names.indexOf('Memory') + 3)).toEqual(['Memory', 'Knowledge', 'Usage'])
-  expect(screen.getByRole('button', { name: 'Knowledge' })).toHaveAttribute('aria-pressed', 'true')
+  expect(names.slice(names.indexOf('Memory'), names.indexOf('Memory') + 2)).toEqual(['Memory', 'Usage'])
+  expect(screen.getByRole('button', { name: 'Memory' })).toHaveAttribute('aria-pressed', 'true')
+  cleanup()
+  const onPart = vi.fn()
+  render(<MemoryParts sources onPart={onPart} waiting={0} old={1} />)
+  const parts = screen.getByRole('tablist', { name: 'Memory’s parts' })
+  expect(within(parts).getByRole('tab', { name: 'Sources to look things up in 1 may be old' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await userEvent.click(within(parts).getByRole('tab', { name: 'What the project knows' }))
+  expect(onPart).toHaveBeenCalledWith(false)
 })
 
 const card = (topic: string) => screen.getByRole('article', { name: topic })
@@ -101,8 +115,13 @@ test('a card says how much of what was read is in its guide, how fresh, what it 
   expect(mlflow).toHaveTextContent('Fresh: 2 days')
   expect(mlflow).toHaveTextContent('Spent: 0.18 of 1.00 USD')
   expect(mlflow).toHaveTextContent('Learns with: a role’s model')
-  expect(within(mlflow).getByText('ML engineer · full')).toBeInTheDocument()
-  expect(within(mlflow).getByText('Coder · map')).toBeInTheDocument()
+  // 0.1.10: who uses it, a tick each; an expert's own is changed on the role's Knowledge tab
+  const roles = within(mlflow).getByRole('group', { name: 'Roles that use MLflow' })
+  expect(within(roles).getByRole('checkbox', { name: 'ML engineer full' })).toBeChecked()
+  expect(within(roles).getByRole('checkbox', { name: 'ML engineer full' })).toBeDisabled()
+  expect(within(roles).getByRole('checkbox', { name: 'Coder' })).toBeChecked()
+  // its cell says how it stands: learned, green, in words too
+  expect(within(mlflow).getByRole('img', { name: 'learned' })).toHaveClass('cell-ok', 'cell-full')
   // Pages left for its limits: Learn more, with what it spends in sight beside it.
   const more = within(mlflow).getByRole('button', { name: 'Learn more' })
   expect(more.previousElementSibling).toHaveTextContent('≈ 0.42 USD')
@@ -111,10 +130,100 @@ test('a card says how much of what was read is in its guide, how fresh, what it 
   // Never learned, and every project's.
   const tomli = card('tomli')
   expect(tomli).toHaveTextContent('Fresh: not learned')
+  expect(within(tomli).getByRole('img', { name: 'not learned' })).toHaveClass('cell-plain', 'cell-none')
   expect(within(tomli).getByText('every project')).toHaveClass('tag')
   expect(within(tomli).getByRole('button', { name: 'Learn' })).toBeInTheDocument()
   expect(within(tomli).getByText('unknown cost')).toBeVisible()
   expect(within(tomli).queryByRole('meter')).not.toBeInTheDocument()
+})
+
+test('0.1.10: a card’s cell says how it stands - learning, failed, may be old, learned (never “fresh”: only no change known), not learned - and the tab counts those that may be old', () => {
+  expect(freshCell({ ...LEARNED, learning: true })).toMatchObject({ tone: 'honey', word: 'learning' })
+  expect(freshCell({ ...LEARNED, learning: true }, true).word).toBe('scanning')
+  expect(freshCell({ ...LEARNED, failed: 'no model' })).toMatchObject({
+    tone: 'warn',
+    word: 'its last learning failed',
+  })
+  expect(freshCell({ ...LEARNED, stale: 'a week old' })).toMatchObject({ tone: 'warn', word: 'may be old' })
+  expect(freshCell(LEARNED)).toMatchObject({ tone: 'ok', word: 'learned' })
+  expect(freshCell(LEARNED, true).word).toBe('scanned')
+  // (never learned, its "no guide yet" is not an old guide)
+  expect(freshCell(NEW.state)).toMatchObject({ tone: 'plain', word: 'not learned' })
+  expect([{ ...LEARNED, stale: 'a week old' }, NEW.state, LEARNED].filter(mayBeOld)).toHaveLength(1)
+})
+
+test('0.1.10: a role is given a source on its card, or no longer uses it, as on its Knowledge tab; a refusal is said on the card', async () => {
+  const onUse = vi.fn().mockResolvedValue(undefined)
+  const roles = [
+    { id: 'r1', name: 'ML engineer' },
+    { id: 'r2', name: 'Coder' },
+    { id: 'r3', name: 'Reviewer' },
+  ] as Role[]
+  page({ roles, onUse })
+  const used = within(card('MLflow')).getByRole('group', { name: 'Roles that use MLflow' })
+  await userEvent.click(within(used).getByRole('checkbox', { name: 'Coder' }))
+  expect(onUse).toHaveBeenLastCalledWith('k1', 'r2', null)
+  const give = within(used).getByRole('combobox', { name: 'Give MLflow to a role' })
+  expect(
+    within(give)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['+ Role…', 'Reviewer'])
+  // choosing gives nothing yet (the keyboard's arrows go through the list): Give does
+  const button = within(used).getByRole('button', { name: 'Give' })
+  expect(button).toBeDisabled()
+  onUse.mockClear()
+  give.focus()
+  await userEvent.keyboard('{ArrowDown}')
+  await userEvent.selectOptions(give, 'r3')
+  expect(onUse).not.toHaveBeenCalled()
+  onUse.mockRejectedValueOnce(new ApiError(409, 'that role cannot use it'))
+  await userEvent.click(button)
+  expect(onUse).toHaveBeenLastCalledWith('k1', 'r3', 'map')
+  expect(give).toHaveValue('')
+  expect(await within(used).findByRole('alert')).toHaveTextContent('that role cannot use it')
+  // no role uses it yet: said so, and one can be given it
+  expect(within(card('tomli')).getByRole('group', { name: 'Roles that use tomli' })).toHaveTextContent('no role yet')
+})
+
+test('0.1.10: unticked, the focus goes to the tick in its place, else to + Role…; a Full tick says why it is greyed', async () => {
+  let done = () => {}
+  const onUse = vi.fn(() => new Promise<void>(resolve => (done = resolve)))
+  const roles = [
+    { id: 'r1', name: 'ML engineer' },
+    { id: 'r2', name: 'Coder' },
+    { id: 'r3', name: 'Reviewer' },
+  ] as Role[]
+  const coder = { role_id: 'r2', name: 'Coder', mode: 'map' as const }
+  const reviewer = { role_id: 'r3', name: 'Reviewer', mode: 'map' as const }
+  const expert = { role_id: 'r1', name: 'ML engineer', mode: 'full' as const }
+  const p = page({ items: [{ ...MLFLOW, used_by: [expert, coder, reviewer] }], roles, onUse })
+  const used = () => within(card('MLflow')).getByRole('group', { name: 'Roles that use MLflow' })
+  expect(within(used()).getByRole('checkbox', { name: 'ML engineer full' })).toHaveAccessibleDescription(
+    'An expert in it (Full): change it on the role’s Knowledge tab',
+  )
+  await userEvent.click(within(used()).getByRole('checkbox', { name: 'Coder' }))
+  // read again without it, then done: the tick that took its place has the focus
+  p.again({ items: [{ ...MLFLOW, used_by: [expert, reviewer] }] })
+  await act(async () => done())
+  expect(within(used()).getByRole('checkbox', { name: 'Reviewer' })).toHaveFocus()
+  await userEvent.click(within(used()).getByRole('checkbox', { name: 'Reviewer' }))
+  p.again({ items: [{ ...MLFLOW, used_by: [expert] }] })
+  await act(async () => done())
+  expect(within(used()).getByRole('combobox', { name: 'Give MLflow to a role' })).toHaveFocus()
+})
+
+test('0.1.10: the cards stand in a grid, one opened goes across the row; what is offered is a dashed card of its own', async () => {
+  page()
+  expect(card('MLflow').parentElement).toHaveClass('knowledge-cards')
+  expect(card('MLflow')).not.toHaveClass('knowledge-card-wide')
+  await userEvent.click(within(card('MLflow')).getByRole('button', { name: '▸ MLflow' }))
+  expect(card('MLflow')).toHaveClass('knowledge-card-wide')
+  for (const offered of ['Scan the code', 'Add KOLONİ’s own guide']) {
+    const offer = screen.getByRole('button', { name: offered }).closest('.knowledge-card')
+    expect(offer).toHaveClass('knowledge-offer')
+    expect(offer?.parentElement).toHaveClass('knowledge-cards')
+  }
 })
 
 test('decision 4: the coverage sentence says only what the API says - the money limit, no known price, and Learn more with its requests', () => {
@@ -573,30 +682,6 @@ test('the code is offered for a scan, then its card says when, how many files an
   expect(again.onLearn).toHaveBeenCalledWith('kc')
 })
 
-test('Project notes: its notes counted, nothing to learn or to set, Try it as any knowledge', async () => {
-  // K-bilgi 6: written from what the user accepted at a turn's end - no Learn, no sources, no cost.
-  const notes: KnowledgeItem = {
-    ...MLFLOW,
-    id: 'k7',
-    knowledge: { ...MLFLOW.knowledge, topic: 'Project notes', sources: ['notes:'] },
-    state: {
-      ...LEARNED,
-      estimate: null,
-      requests: null,
-      learned: { ...LEARNED.learned!, guide_from: 2, cost: null, left: 0, pages: LEARNED.learned!.pages.slice(0, 2) },
-    },
-  }
-  page({ items: [notes] })
-  expect(card('Project notes')).toHaveTextContent('2 notes')
-  expect(screen.getByText('written as you accept them')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /Learn/ })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: /Project notes/ }))
-  expect(screen.queryByLabelText('Sources')).not.toBeInTheDocument()
-  expect(screen.queryByRole('tab', { name: /Not known yet/ })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Try it' }))
-  expect(screen.getByLabelText(/Try it/)).toBeInTheDocument()
-})
-
 test('Try it says the model that will answer before you ask, and is off where none can', async () => {
   // B-372: a knowledge no role uses answers on a new chat's model - maybe a paid one, so it is said first.
   const paid: KnowledgeItem = {
@@ -756,4 +841,15 @@ test('Remove asks first - one of every project is taken from all of them - and a
   await userEvent.click(within(asked).getByRole('button', { name: 'Remove' }))
   expect(props.onDelete).toHaveBeenCalledWith('k2')
   expect(await within(card('tomli')).findByRole('alert')).toHaveTextContent(/^a role still uses it$/)
+})
+
+test('a learning held over the month’s budget asks to go on, as a new turn does', async () => {
+  const { ApiError } = await import('../api/client')
+  const held = new ApiError(409, "this project is over this month's budget (10.50 of 10.00 USD): say to go on over it")
+  const props = page({ onLearn: vi.fn().mockRejectedValueOnce(held).mockResolvedValue(undefined) })
+  await userEvent.click(within(card('MLflow')).getByRole('button', { name: 'Learn more' }))
+  expect(await screen.findByRole('group', { name: 'Over this month’s budget' })).toHaveTextContent('Learn anyway?')
+  await userEvent.click(screen.getByRole('button', { name: 'Go on anyway' }))
+  expect(props.onLearn).toHaveBeenLastCalledWith('k1', true)
+  expect(screen.queryByRole('group', { name: 'Over this month’s budget' })).not.toBeInTheDocument()
 })

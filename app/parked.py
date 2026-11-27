@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import away, backlog, injection
@@ -182,6 +182,31 @@ def where(session: Session, row: Parked) -> tuple[Literal["copy", "project", "go
         else None
     )
     return ("project" if merge is not None and merge.status == "applied" else "gone"), merge
+
+
+def gone_on_in(session: Session, run_id: str) -> Merge | None:
+    """The kept copy a morning's going-on turn (`run_id`) goes on in, by its rows' own record: the
+    newest of the copies its commands were parked in - else the newest kept by the turns that parked
+    them -, none of it taken in. Never the chat's newest kept copy of another turn: another topic's,
+    a message of the user's. None: a fresh copy."""
+    rows = session.scalars(select(Parked).where(Parked.went_on == run_id)).all()
+    copies = {row.data.get("copy") for row in rows} - {None}
+    asked = {"command": Command, "question": Question}
+    turns = {
+        one.run_id
+        for row in rows
+        if row.kind in asked and (one := session.get(asked[row.kind], row.ref_id or ""))
+    }
+    kept = session.scalars(
+        select(Merge)
+        .where(Merge.status == "interrupted", Merge.kept_in.is_not(None))
+        .where(or_(Merge.kept_in.in_(copies), Merge.run_id.in_(turns)))
+        .order_by(Merge.created_at.desc())
+    ).all()
+    found = next((one for one in kept if one.kept_in in copies), None) or next(iter(kept), None)
+    if found is None or any(one.get("state") == "applied" for one in found.files):
+        return None
+    return found
 
 
 def _command_closed(session: Session, row: Parked, task: BacklogTask) -> str | None:
@@ -464,7 +489,7 @@ ENDED["stopped"] = "ran {what}, which was stopped ({said})"
 # ...and, once for all of them (F411 P4), the secrets held back from them (`AwayMixin._morning`).
 HELD = (
     "(secret variables held back from these commands: {names} - the user can pass one in "
-    "Settings › This project › Commands and secrets)"
+    "Settings › This project › When you're asked, under More)"
 )
 
 

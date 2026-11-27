@@ -104,6 +104,7 @@ import { chatOf, closing, kept, opened, remember, rememberChat, remembered, tabO
 import { keyOf } from '../views/views'
 import { waitCount } from '../board/waiting'
 import { activeRun, applyEvent, fromSnapshot, type ConvState } from './applyEvent'
+import { TURNS_PAGE, earlierPage, reachTurn, turnsOf, withEarlier } from './earlier'
 
 /** K-dal-takim D2: what else Merge says on a branch's card - keep the branch after it, and which way finished work goes. */
 export interface BranchSaid {
@@ -173,6 +174,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Ready for you's panel (tek-ev §1): open or not, and the row it was asked to bring into view. */
   readyPanel: { open: boolean; at: string | null }
   showReady(open: boolean, at?: string): void
+  /** The Work page's tab shown (0.1.10): Ready for you or To-do - kept while you go to other pages, not over a reload. */
+  readyTab: 'ready' | 'todo'
   /** A place in Settings asked for (Ctrl+K, a chat's "run without asking" link, a page's link), each time with a new count: Settings opens on it. */
   settingsAsked: { section: SettingsPlace; n: number } | null
   askSettings(section: SettingsPlace): void
@@ -264,9 +267,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   testProvider(providerId: string, run?: boolean): Promise<ProviderTest>
   /** Model names a provider can offer; never throws for a provider that lists none. */
   providerModels(providerId: string): Promise<OfferedModels>
-  /** Copilot on your GitHub account: what its account offers, asked where due (at most once in 10 minutes), the
-   *  provider then as the server has it - its rows switched by it. Throws ApiError. */
-  readOffers(providerId: string): Promise<void>
   /** A team guide proposed from the catalogue; nothing is saved. Throws ApiError. */
   fillFromCatalogue(providerId: string): Promise<CatalogueFill>
   /** The same for a provider not added yet: the catalogue only. Throws ApiError. */
@@ -358,7 +358,7 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   addKnowledge(body: KnowledgeIn): Promise<KnowledgeItem>
   saveKnowledge(knowledgeId: string, body: Knowledge): Promise<void>
   deleteKnowledge(knowledgeId: string): Promise<void>
-  learnKnowledge(knowledgeId: string): Promise<void>
+  learnKnowledge(knowledgeId: string, overBudget?: boolean): Promise<void>
   /** Its guide copied into another of the user's projects; a guide's section read. */
   copyKnowledge(knowledgeId: string, toProjectId: string, replace?: boolean): Promise<void>
   knowledgeFile(path: string): Promise<ProjectFile>
@@ -406,6 +406,7 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Delete a kept skill: every role loses it. Throws ApiError. */
   deleteSkill(skillId: string): Promise<void>
   openConversation(id: string): Promise<void>
+  loadEarlier(): Promise<void> // (a long chat's older turns, a page more: `ConvState.older`; throws ApiError)
   /** The tabs over the canvas, one per project - its id, or 'none' - in their order (slice 86e); remembered in this browser. */
   tabs: string[]
   /** Go to a project's tab: the chat opened last in it, else its newest, else a new one in it. */
@@ -810,16 +811,14 @@ export const useApp = create<AppStore>()((set, get) => {
     chatTab: 'Chat',
     chatOpenAsked: 0,
     chatAt: null,
-
     showChatTab(tab, open = false, at) {
       set({ chatTab: tab, chatAt: at ?? null, ...(open && { chatOpenAsked: get().chatOpenAsked + 1 }) })
     },
-
     readyPanel: { open: false, at: null },
     showReady(open, at) {
       set({ readyPanel: { open, at: at ?? null } })
     },
-
+    readyTab: 'ready',
     settingsAsked: null,
     askSettings(section) {
       set(s => ({ settingsAsked: { section, n: (s.settingsAsked?.n ?? 0) + 1 } }))
@@ -832,8 +831,8 @@ export const useApp = create<AppStore>()((set, get) => {
       const fresh = new Set(again === true ? readyRows.keys() : again ? [again] : [])
       for (const id of fresh) readyRows.delete(id)
       const open = get().conv?.conversation.id
-      // Each other chat the Board says waits; read again only when what of its row says it waits changed (no events
-      // come from it) - not each step its other agents take meanwhile.
+      // Each other chat the Board says waits, by its newest page (older turns that wait come too); read again only when
+      // what of its row says it waits changed (no events come from it) - not each step its other agents take meanwhile.
       // shortcut: a chat whose only waiting cards are ones the Board does not count (a Project notes offer, a
       // night to start) is not read; they show in their own chat. Count them in app/api/board.py if missed.
       const rows = new Map(
@@ -859,7 +858,7 @@ export const useApp = create<AppStore>()((set, get) => {
             const mark = fresh.has(id) ? `read ${++readyReads}` : row
             readyRows.set(id, mark)
             try {
-              const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}`))
+              const read = fromSnapshot(await api.get<Snapshot>(`/conversations/${id}?turns=${TURNS_PAGE}`))
               // (Not over a later read's answer.)
               set(s => (readyRows.get(id) === mark ? { readyChats: { ...s.readyChats, [id]: read } } : s))
             } catch {
@@ -1213,11 +1212,6 @@ export const useApp = create<AppStore>()((set, get) => {
       return api.get<OfferedModels>(`/providers/${providerId}/models`)
     },
 
-    async readOffers(providerId) {
-      const provider = await api.post<Provider>(`/providers/${providerId}/offers`)
-      set(s => ({ providers: s.providers.map(p => (p.id === provider.id ? provider : p)) }))
-    },
-
     async fillFromCatalogue(providerId) {
       return api.post<CatalogueFill>(`/providers/${providerId}/fill-from-catalogue`)
     },
@@ -1493,8 +1487,8 @@ export const useApp = create<AppStore>()((set, get) => {
       await api.delete(`/knowledge/${knowledgeId}?project_id=${get().projectId}`)
       await Promise.all([get().loadKnowledge(), get().loadRoles()])
     },
-    async learnKnowledge(knowledgeId) {
-      await api.post(`/knowledge/${knowledgeId}/learn`, { project_id: get().projectId })
+    async learnKnowledge(knowledgeId, overBudget = false) {
+      await api.post(`/knowledge/${knowledgeId}/learn`, { project_id: get().projectId, over_budget: overBudget })
       await get().loadKnowledge()
     },
     async copyKnowledge(knowledgeId, toProjectId, replace = false) {
@@ -1637,6 +1631,12 @@ export const useApp = create<AppStore>()((set, get) => {
       if (mine === healthRuns && kept() && (get().conv?.conversation.id ?? null) === of) set({ inUse: { of, ...now } })
     },
 
+    async loadEarlier() {
+      const { conv } = get()
+      const page = conv?.olderFrom ? await earlierPage(conv) : null
+      if (page) set(s => (s.conv?.conversation.id === conv!.conversation.id ? { conv: withEarlier(s.conv, page) } : s))
+    },
+
     async openConversation(id) {
       // Only the latest call may install a stream: an earlier one that is still
       // waiting for its snapshot would otherwise leave a second stream behind.
@@ -1652,7 +1652,7 @@ export const useApp = create<AppStore>()((set, get) => {
       opening = id
       let snapshot: Snapshot
       try {
-        snapshot = await api.get<Snapshot>(`/conversations/${id}`)
+        snapshot = await api.get<Snapshot>(`/conversations/${id}?turns=${turnsOf(get().conv, sameAsOpen)}`)
       } finally {
         if (mine === generation) opening = null
       }
@@ -2120,7 +2120,7 @@ export const useApp = create<AppStore>()((set, get) => {
     async openTurn(conversationId, runId) {
       // Opening another conversation forgets the turn picked in the one before: so first that.
       if (get().conv?.conversation.id !== conversationId) await get().openConversation(conversationId)
-      if (get().conv?.conversation.id === conversationId) set({ turnId: runId })
+      if (await reachTurn(get, conversationId, runId)) set({ turnId: runId })
     },
 
     filesOpen: false,

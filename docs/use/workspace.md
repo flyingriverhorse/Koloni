@@ -23,8 +23,8 @@ wrote or showed, and what waits for you". Its number is what waits for you in th
 
 ## Working copies
 
-Each sub-agent changes files in its own copy of the project, outside your folder. Your folder does not
-change until its work is taken in.
+Each sub-agent changes files in its own copy of the project (where it is, [below](#where-copies-and-worktrees-are)).
+Your folder does not change until its work is taken in.
 
 - `.git` and caches are not copied. `node_modules`, `.venv` and `venv` are linked, not copied.
 - A project over 20,000 files or 500 MB gets no copy: the agent works in the project itself.
@@ -55,6 +55,36 @@ runs in its copy is asked at every level, Full auto too, when it:
 
 KOLONİ reads the command as written: a path built in a script is not seen.
 
+### Where copies and worktrees are
+
+| Your project | A sub-agent's copy | A branch's worktree (a ☾ Away job's, a team's on a branch) |
+|---|---|---|
+| In git | Outside it: `runtime/copies/`, or your data folder (`%LOCALAPPDATA%\KOLONI\copies\` on Windows, `~/.local/share/KOLONI/copies/` elsewhere) where the runtime folder sits in a repository or beside an `AGENTS.md` / `CLAUDE.md` | In the project: `.koloni/worktrees/<id>/<agent>/tree` |
+| Not in git | In the project: `.koloni/copies/<id>/<agent>/tree` | - (no git, no branch) |
+
+- `<id>` is this KOLONİ's own folder there: two KOLONİs on one project (yours and a test copy) never
+  clear away each other's.
+- A copy inside a project in git would have no `.git` of its own, so `git` in it would answer with your
+  repository: that is why such copies stay outside. A worktree has its own `.git`, so git in it answers
+  with its branch. Whether your project is in git is looked at each time a copy is made: once you
+  `git init`, the next copy is made outside.
+- The first time a worktree is made, KOLONİ adds `/.koloni/worktrees/` and `/.koloni/copies/` to your
+  repository's own `.git/info/exclude` (in a linked worktree of yours, the main repository's), so
+  `git status` stays clean. Your `.gitignore` is not touched. In a project with no git,
+  `.koloni/copies/` holds a `.gitignore` of its own that ignores all of it, so the copies stay out of
+  the git it gets later; KOLONİ's `.koloni/.gitignore` lists `worktrees/` and `copies/` too once it
+  writes one for its scratch (a line it lacks is added after yours).
+- Each is one agent's work: that agent works in it as its own folder; any other agent, or a command
+  at the project's root, may look in but not write, delete or run anything there
+  ([permissions](permissions.md#the-folders-koloni)).
+- Neither is copied into another copy, shown in the Files window, searched by an agent's search, nor
+  listed as a change of your project. When you delete the project from KOLONİ, they go with it (your
+  branches stay). A worktree whose records your `git clean -fdx` removed is left as it is, with its
+  uncommitted work, for you to delete.
+- A CLI started in a copy or worktree in `.koloni/` reads your project's `AGENTS.md` / `CLAUDE.md`
+  from the folders above it, and the copy's own as well: the same words, read twice.
+- Copies and worktrees made before 0.1.10 stay where they were made, and are found and decided there.
+
 [![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: a locked worktree made from your folder as it is, its work committed when it stops, go on on the same branch or in a copy, a merge that waits for your commit, a pull request that never sends your unpushed commits, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
 
 *A working copy's life, from the copy to your project; the "On a branch" lane is [Branches](#branches) below. ([full size](../diagrams/working-copy.svg))*
@@ -72,6 +102,13 @@ agent finished, nothing clashes and the tests it wrote passed. See [Permission l
   only at Full auto, so at Auto-edit the card waits for this click. One that wrote no test has none to
   run: "No tests of its own to run before it is added - KOLONİ's check at the turn's end runs every
   test." See [Checked](checked.md#when-the-tests-fail).
+- **Part of it taken**: a card can take some of its files and keep the rest - a file that changed since you
+  looked is shown again, not taken, and the API's Take in may name the files it takes (`files`). Those taken
+  say they are in the project; the rest wait on the same card for **Take in** or **Discard**, the agent's
+  copy kept for them. **Discard** then throws away only the rest: what was taken stays, and the card says
+  its work was taken in. The commit offered once the card closes holds only the agent's change in each file
+  taken, whichever step took it - even across a restart of KOLONİ. A branch's work goes in whole: naming
+  some of its files is refused, also on the card of a branch copy kept after KOLONİ stopped.
 
 A team's recipe keeps its work in one copy until you press **Take in** on the **Teams' work is ready** card. See
 [Ready and approval cards](ready.md).
@@ -87,7 +124,7 @@ A team's recipe keeps its work in one copy until you press **Take in** on the **
 ## Branches
 
 The Orchestrator can give a team's work a git branch of its own. Then the card offers **Merge** or **Open
-pull request**, as you chose under Settings › This project › Checks and git › **How a team's finished branch reaches
+pull request**, as you chose under Settings › This project › When the work is done › **How a team's finished branch reaches
 yours**. Until you choose, the first finished branch on a GitHub project asks. A pull request lets KOLONİ
 push the branch; it never merges one. **Keep this branch after merging** keeps the branch.
 
@@ -120,8 +157,11 @@ such a value holds alone (a `DATABASE_URL`'s password in a settings.py) - go up 
 branch, in a file or in its name: KOLONİ's own commit leaves such a file out and its card says so, and
 a branch an agent committed one on itself is neither merged nor pushed ("take it off the branch
 first"). The rest of the work goes on; an ordinary value (`production`, a path) stops nothing. A
+file named as a secret (`.env.local`, `token.json`, a data file in a `secrets` folder -
+[which names](../reference/known-limits.md#git)) goes up with a pull request only on your click, at
+Full auto too: its card says "token.json: named as a secret - it goes to GitHub only on your click". A
 task's name goes up as the commit's subject and the pull request's title mentioning nobody and closing
-no issue: a zero-width joiner follows each `@` and comes before the number a closing keyword names
+no issue, a token by its shape (`ghp_…`, a password in an address) masked: a zero-width joiner follows each `@` and comes before the number a closing keyword names
 (`Fixes #12`, `Fixes GH-9`, an issue's link), and no control character is kept; the pull request's
 body puts what an agent wrote - the task, the files' names, the check, its notes - in code.
 Where git checks your files
@@ -142,7 +182,9 @@ and new files that git does not ignore are in the agent's worktree. KOLONİ make
 ("KOLONİ: your folder as koloni/*name* began") from an index of its own, so your files, your index,
 your branch and HEAD are not touched; it is the branch's first commit and shows in `git log
 koloni/*name*`. Left out, whether you staged them or not: what git ignores (`.env`, build output),
-files named as secrets (`.env.local`, a key file, `credentials.json`, `token.json`), `node_modules`,
+files named as secrets (`.env.local`, `.env.sample`, a key file, `credentials.json`, `token.json`, a
+data file in a `credentials` or `secrets` folder - [which names](../reference/known-limits.md#git)),
+`node_modules`,
 `.venv` and `venv` (linked in instead), a git repository inside your folder, KOLONİ's own `.koloni`
 folder, and every link or junction with what it leads to. Code named like a secret (`credentials.py`,
 `.env.example`) is taken as any file. The card says in one line which of your files were left out as a
@@ -168,7 +210,7 @@ could not take your folder as it is (a file another program holds open, a path t
 folder it may not read, or longer than three minutes), the branch starts from your last commit as
 before, and its card says so in one line under its heading: your uncommitted changes were not in it.
 
-Its worktree, in KOLONİ's copies folder, is locked while the agent works (`git worktree list -v` says
+Its worktree, in your project's `.koloni/worktrees/` ([where](#where-copies-and-worktrees-are)), is locked while the agent works (`git worktree list -v` says
 "KOLONİ: an agent works here; KOLONİ removes it"), so your own `git worktree prune`, `remove` or `move`
 leaves it alone. KOLONİ unlocks it before it removes it. When KOLONİ starts, it removes git's records of
 its own worktrees whose folder is gone (after a crash, say), and nothing else: never your worktrees,
@@ -266,6 +308,6 @@ no issues are listed. The project folder must be a git repository. Listing issue
 
 ## Committing
 
-With **Save each sub-agent's work as a git commit** on (Settings › This project › Checks and git), the card offers a
+With **Save each sub-agent's work as a git commit** on (Settings › This project › When the work is done), the card offers a
 commit once the changes are in: one commit per piece of work, only where the folder is the top of a git
 repository. It is always your click, and nothing is pushed.

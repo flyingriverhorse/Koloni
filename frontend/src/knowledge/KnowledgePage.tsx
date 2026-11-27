@@ -1,19 +1,23 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useState } from 'react'
-import { errorText } from '../api/client'
+import { errorText, overWhat } from '../api/client'
 import type {
   Knowledge,
   KnowledgeIn,
   KnowledgeItem,
   KnowledgeState,
+  KnowsMode,
   Project,
   ProjectFile,
   Provider,
+  Role,
 } from '../api/types'
 import { Markdown } from '../chat/Markdown'
+import { Cell } from '../shell/Cell'
 import { useConfirm } from '../shell/Confirm'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
-import { CopyGuide, Guide, Pages, type Sent, Sources } from './KnowledgeParts'
+import { freshCell } from './fresh'
+import { CopyGuide, Guide, Offer, Pages, RoleTicks, type Sent, Sources } from './KnowledgeParts'
 
 interface Props {
   /** The project's knowledge and every project's; null while it is read. */
@@ -23,12 +27,16 @@ interface Props {
   providers: Provider[]
   /** The user's other projects: a guide is copied into one of them. */
   otherProjects: Project[]
+  /** 0.1.10: the roles a card gives its knowledge to, a tick each (as a role's Knowledge tab does); left out, only shown. */
+  roles?: Role[]
+  onUse?(knowledgeId: string, roleId: string, mode: KnowsMode | null): Promise<void>
   onReload(): Promise<void>
   onAdd(body: KnowledgeIn): Promise<KnowledgeItem>
   /** Each of these throws ApiError with the server's reason. */
   onSave(knowledgeId: string, body: Knowledge): Promise<void>
   onDelete(knowledgeId: string): Promise<void>
-  onLearn(knowledgeId: string): Promise<void>
+  /** `overBudget`: the user's word to learn over the project's monthly budget. */
+  onLearn(knowledgeId: string, overBudget?: boolean): Promise<void>
   onTry(knowledgeId: string, question: string): Promise<string>
   onCopy(knowledgeId: string, toProjectId: string, replace?: boolean): Promise<void>
   /** A file of the project: a section of a guide. */
@@ -54,8 +62,6 @@ const minutesAgo = (iso: string) => {
 // K-bilgi 8: this project's code - its only source (app/knowledge.py CODE), scanned with no model.
 const CODE = 'code:'
 const isCode = (known: Knowledge) => known.sources.length === 1 && known.sources[0] === CODE
-// K-bilgi 6: the Project notes - notes KOLONİ writes from what you accept at a turn's end (app/project_notes.py); nothing to learn.
-const isNotes = (known: Knowledge) => known.sources.length === 1 && known.sources[0] === 'notes:'
 // KOLONİ's own guide, its docs/ (app/knowledge.py KOLONI_GUIDE): only the learner reads it, only on Learn.
 const KOLONI_GUIDE = 'koloni-guide:'
 // K-bilgi-repo: a repository, cloned on Learn outside the project (app/knowledge.py REPO) - its docs' pages, its code files and its free scan;
@@ -107,7 +113,6 @@ function coverageLine(state: KnowledgeState): string | null {
   return said.join(' ') || null
 }
 
-/** K-bilgi: the project's Knowledge page - a card for each knowledge, opened to its tabs (layout A). */
 /** KOLONİ's own guide, offered until it is added. Added only: learning it costs model calls, so it waits for Learn on its card. */
 function AddOwnGuide({
   items,
@@ -126,16 +131,16 @@ function AddOwnGuide({
     )
   }
   return (
-    <p className="muted">
-      <strong>KOLONİ’s own guide</strong> — how KOLONİ works, for agents to look up when you ask about it. Only its
-      pages are read, not KOLONİ’s code. Learning it costs model calls: it learns when you press Learn on its card.{' '}
-      <button type="button" className="btn btn-small" onClick={add}>
-        Add KOLONİ’s own guide
-      </button>
-    </p>
+    <Offer
+      name="KOLONİ’s own guide"
+      button="Add KOLONİ’s own guide"
+      onClick={add}
+      line="How KOLONİ works, for agents to look up when you ask about it. Only its pages are read, not KOLONİ’s code. Learning it costs model calls: it learns when you press Learn on its card."
+    />
   )
 }
 
+/** K-bilgi, 0.1.10 as cells: Memory's sources - a card for each knowledge in a grid, opened to its tabs across the row. */
 export function KnowledgePage(props: Props) {
   const { items, error, projectName, providers, onReload, onAdd, onLearn } = props
   const [open, setOpen] = useState<string | null>(null)
@@ -148,9 +153,16 @@ export function KnowledgePage(props: Props) {
     const again = setTimeout(() => void onReload(), 1000)
     return () => clearTimeout(again)
   }, [learning, items, onReload])
-  const learn = (id: string) => {
+  // Held over the month's budget, as a new turn is: the user is asked to go on (`over`: which, and why).
+  const [over, setOver] = useState<{ id: string; said: string } | null>(null)
+  const learn = (id: string, overBudget = false) => {
     setSaid(null)
-    onLearn(id).catch(err => setSaid(errorText(err)))
+    setOver(null)
+    ;(overBudget ? onLearn(id, true) : onLearn(id)).catch(err => {
+      const held = overBudget ? null : overWhat(err)
+      if (held) setOver({ id, said: held })
+      else setSaid(errorText(err))
+    })
   }
   const [scanning, setScanning] = useState(false)
   // Its card, once asked for: a knowledge of the project like any other, that roles turn on on their Knowledge tab.
@@ -164,56 +176,69 @@ export function KnowledgePage(props: Props) {
       .finally(() => setScanning(false))
   }
   return (
-    <div className="triggers-page knowledge-page">
-      <div className="conv-head">
-        <h2>Knowledge</h2>
-        <span className="muted trigger-lede">
-          What agents can look things up in.{' '}
+    <div className="knowledge-page">
+      <div className="memory-area-head">
+        <h3>Sources to look things up in</h3>
+        <span className="muted memory-hint knowledge-lede">
+          KOLONİ reads each once into a short guide; a role looks only in those you give it.{' '}
           <Hint doc={GUIDE.knowledge}>
-            What the agents of {projectName} can look things up in. A role uses only what you give it, on its Knowledge
-            tab. Knowledge marked “every project” is in all of your projects; “+ Add knowledge” adds to this one.
+            What the agents of {projectName} can look things up in. A role uses only what you give it: tick it on the
+            card, or on the role’s Knowledge tab. Knowledge marked “every project” is in all of your projects; “+ Add
+            knowledge” adds to this one.
           </Hint>
         </span>
-        <div className="memory-actions">
-          <button type="button" className="btn btn-primary btn-small" onClick={() => setAdding(true)}>
-            + Add knowledge
-          </button>
-        </div>
+        <button type="button" className="btn btn-primary btn-small" onClick={() => setAdding(true)}>
+          + Add knowledge
+        </button>
       </div>
       {(error || said) && (
         <div role="alert" className="alert">
           {error ?? said}
         </div>
       )}
-      {items === null ? (
-        !error && <p className="muted">Reading the project’s knowledge…</p>
-      ) : items.length === 0 ? (
-        <p className="muted hive-empty">
-          No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide agents
-          can look things up in: press + Add knowledge.
-        </p>
-      ) : (
-        items.map(item => (
-          <Card
-            key={item.id}
-            item={item}
-            open={open === item.id}
-            page={props}
-            onOpen={() => setOpen(open === item.id ? null : item.id)}
-            onLearn={() => learn(item.id)}
-          />
-        ))
-      )}
-      {items !== null && !items.some(one => isCode(one.knowledge)) && (
-        <p className="muted">
-          <strong>This project’s code</strong> — what each file defines, who calls it and its tests, for agents to look
-          up. Free: KOLONİ reads the files here, no model.{' '}
-          <button type="button" className="btn btn-small" disabled={scanning} onClick={scan}>
-            Scan the code
+      {over && (
+        <div role="group" aria-label={over.said} className="composer-warning composer-budget">
+          <span role="alert">{over.said}. Learn anyway?</span>
+          <button type="button" className="btn btn-small" autoFocus onClick={() => learn(over.id, true)}>
+            Go on anyway
           </button>
-        </p>
+          <button type="button" className="btn btn-small" onClick={() => setOver(null)}>
+            Cancel
+          </button>
+        </div>
       )}
-      <AddOwnGuide items={items} onAdd={onAdd} onSaid={setSaid} />
+      {items === null
+        ? !error && <p className="muted">Reading the project’s knowledge…</p>
+        : items.length === 0 && (
+            <p className="muted hive-empty">
+              No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide
+              agents can look things up in: press + Add knowledge.
+            </p>
+          )}
+      {items !== null && (
+        <div className="knowledge-cards">
+          {items.map(item => (
+            <Card
+              key={item.id}
+              item={item}
+              open={open === item.id}
+              page={props}
+              onOpen={() => setOpen(open === item.id ? null : item.id)}
+              onLearn={() => learn(item.id)}
+            />
+          ))}
+          {!items.some(one => isCode(one.knowledge)) && (
+            <Offer
+              name="This project’s code"
+              button="Scan the code"
+              disabled={scanning}
+              onClick={scan}
+              line="What each file defines, who calls it and its tests, for agents to look up. Free: KOLONİ reads the files here, no model."
+            />
+          )}
+          <AddOwnGuide items={items} onAdd={onAdd} onSaid={setSaid} />
+        </div>
+      )}
       {adding && (
         <AddKnowledge
           projectName={projectName}
@@ -305,8 +330,7 @@ function Card({
   // K-uzman-derin: every page under its sources is read; its guide is written from as many as its money limit pays for.
   const written = learned?.guide_from ?? 0
   const code = isCode(known)
-  const notes = isNotes(known)
-  const web = !code && !notes
+  const web = !code
   const fresh = freshOf(state, code)
   const more = goesOn(learned)
   const button = buttonOf(code, learned, more)
@@ -376,18 +400,6 @@ function Card({
     setTab(next)
     document.getElementById(tabId(next))?.focus()
   }
-  const usedBy = (
-    <span>
-      Used by:{' '}
-      {item.used_by.length === 0
-        ? 'no role yet'
-        : item.used_by.map(one => (
-            <span key={one.role_id} className="chip">
-              {one.name} · {one.mode}
-            </span>
-          ))}
-    </span>
-  )
   /** The Guide tab: when it was learned and on what, then the guide. */
   const guideTab = () => (
     <>
@@ -412,12 +424,7 @@ function Card({
         {known.topic} · it names its folder, {state.folder}
       </p>
       {/* (Anew once saved: what is saved is what it shows.) */}
-      {notes ? (
-        <p className="muted">
-          Notes KOLONİ writes from what you tick on a turn’s “Add to Project notes?” card: fixed findings and docs/
-          changes, one page each.
-        </p>
-      ) : code ? (
+      {code ? (
         <p className="muted">
           The Python and JS/TS files here, as the agents’ file tools see them: no secret, no node_modules or build
           output.
@@ -439,38 +446,38 @@ function Card({
       </button>
     </>
   )
-  /** Its head: the topic that opens it, where it is from, Try it, and what its next learning spends beside the button that spends it. */
+  const cell = freshCell(state, code)
+  /** Its head: how fresh it is as a cell, the topic that opens it, and where it is from. */
   const head = () => (
     <div className="knowledge-card-head">
+      <Cell tone={cell.tone} fill={cell.fill} label={cell.word} />
       <button type="button" className="link-btn knowledge-topic" aria-expanded={open} onClick={onOpen}>
         {open ? '▾' : '▸'} {known.topic}
       </button>
+      {item.project_id === null && <span className="tag">every project</span>}
       <span className="muted knowledge-source">
-        {code ? 'scanned from the project' : notes ? 'decisions the project kept' : known.sources[0]}
+        {code ? 'scanned from the project' : known.sources[0]}
         {known.sources.length > 1 && ` +${known.sources.length - 1}`}
       </span>
-      {item.project_id === null && <span className="tag">every project</span>}
-      <span className="knowledge-spacer" />
+    </div>
+  )
+  /** Its buttons: Try it, and what its next learning spends beside the button that spends it. */
+  const acts = () => (
+    <div className="knowledge-acts">
       <button type="button" className="btn btn-small" aria-expanded={trying} onClick={() => setTrying(!trying)}>
         Try it
       </button>
-      {notes ? (
-        <span className="muted">written as you accept them</span>
-      ) : (
-        <>
-          {/* What its next learning spends: in sight beside the button that spends it. */}
-          <span className="muted knowledge-cost">{cost}</span>
-          <button
-            type="button"
-            className="btn btn-primary btn-small"
-            disabled={state.learning || dirty}
-            title={dirty ? 'Save first: Save and learn uses what you changed' : undefined}
-            onClick={onLearn}
-          >
-            {button}
-          </button>
-        </>
-      )}
+      {/* What its next learning spends: in sight beside the button that spends it. */}
+      <span className="muted knowledge-cost">{cost}</span>
+      <button
+        type="button"
+        className="btn btn-primary btn-small"
+        disabled={state.learning || dirty}
+        title={dirty ? 'Save first: Save and learn uses what you changed' : undefined}
+        onClick={onLearn}
+      >
+        {button}
+      </button>
     </div>
   )
   /** How much of what was read is in its guide, a repository's code files, and why it holds fewer. */
@@ -622,26 +629,14 @@ function Card({
       ))}
     </>
   )
-  /** Its facts - a scan's, the notes' or a learned guide's - and who uses it. */
-  const facts = () => (
-    <div className="knowledge-facts">
-      {code ? (
-        codeFacts()
-      ) : notes ? (
-        <span>
-          <b>{written}</b> notes
-        </span>
-      ) : (
-        learnedFacts()
-      )}
-      {usedBy}
-    </div>
-  )
   return (
-    <article className="knowledge-card" aria-label={known.topic}>
+    // Opened, or asked: across the row, its tabs and its answer read at full width.
+    <article className={`knowledge-card${open || trying ? ' knowledge-card-wide' : ''}`} aria-label={known.topic}>
       {head()}
+      <div className="knowledge-facts">{code ? codeFacts() : learnedFacts()}</div>
       {cover()}
-      {facts()}
+      <RoleTicks item={item} roles={page.roles} onUse={page.onUse} />
+      {acts()}
       {told()}
       {confirm.shown()}
       {trying && <TryIt state={state} onTry={question => page.onTry(item.id, question)} />}

@@ -1,7 +1,7 @@
 // Slice 106 in the browser, as ☾ Away: told the user goes to sleep, the Orchestrator puts the work on To-do and offers
 // one line to go away; nothing starts before Go away. Change opens the Away panel there; Go away works the To-do
 // through, each task in a chat of its own, the status line saying where it stands; I'm back writes one summary in the
-// chat, the To-do page shows the same, and the report is on the canvas - which KOLONİ goes to once.
+// chat, Ready for you's report shows the same, and the report is on the canvas - the morning opens Ready on it once.
 import { expect, test, type Locator } from './fixtures'
 import { contrasts, openFreshConversation, rail, say, shot } from './helpers'
 
@@ -44,16 +44,27 @@ test('the work goes on To-do with a Go away line; Away works it through until I�
   await expect(line).toContainText('Away · To-do 2 of 2 looked at', { timeout: 30_000 })
   await expect(page.getByLabel('Message')).toHaveAttribute('placeholder', 'Write to come back…')
 
-  // The To-do page shows the same.
-  await rail(page, 'To-do').click()
-  await expect(page.getByRole('heading', { name: 'To-do' })).toBeVisible()
-  const night = page.getByRole('region', { name: "While you're away" })
-  await expect(night).toContainText('2 of 2 done')
+  // Work's Ready for you shows the same (0.1.10): the night's report as it goes.
+  await rail(page, 'Work').click()
+  const night = page.getByRole('region', { name: /^☾ While you're away, since / })
+  await expect(night).toContainText("At work while you're away: 2 of 2 jobs done.")
   await reads(night, 2)
+  // I'm back from a page that does not show the night - the top bar has it on every page: the night ended is not on
+  // screen yet (Ready's report, or its node on the canvas, marks it seen), so the morning comes for it.
+  await rail(page, 'Usage').click()
   await page.getByRole('button', { name: 'I’m back' }).first().click()
-  await rail(page, 'Canvas').click()
+  await expect(page.getByRole('button', { name: 'I’m back' })).toHaveCount(0, { timeout: 10_000 })
 
-  // Back: one summary in the chat - its span, both done.
+  // The morning (M1): KOLONİ opened again opens Ready for you, on the night - and its whole report is on the canvas.
+  await page.reload()
+  const strip = page.getByRole('region', { name: /^Last night/ })
+  await expect(strip).toBeVisible({ timeout: 10_000 })
+  await expect(strip).toContainText('2 of 2 jobs done.')
+  await expect(page.getByRole('heading', { name: /^Ready for you/ })).toBeVisible()
+  await strip.getByRole('button', { name: 'The whole report' }).click()
+  await expect(page.locator('.away-node')).toBeVisible()
+
+  // Back: one summary in the chat it went away from - its span, both done.
   const summary = chat.getByRole('region', { name: 'While you were away' })
   await expect(summary.getByRole('heading')).toHaveText(/While you were away \(\d\d:\d\d – \d\d:\d\d\)/, {
     timeout: 10_000,

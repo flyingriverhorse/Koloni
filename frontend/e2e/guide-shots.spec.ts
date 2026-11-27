@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { type Browser, expect, type Locator, type Page, test } from './fixtures'
+import { type APIRequestContext, type Browser, expect, type Locator, type Page, test } from './fixtures'
 import {
   LINK,
   OWN,
@@ -13,6 +13,8 @@ import {
   say,
   setProject,
   settled,
+  story,
+  todo,
 } from './helpers'
 import { APP_URL, PROJECT_DIR, REPO_ROOT } from './paths.mjs'
 
@@ -160,6 +162,26 @@ test('a team on the canvas, and Take in', async ({ page, request }) => {
   await expect(ready).toContainText('In the project ✓', { timeout: 20_000 })
 })
 
+/** The fake model the Fast tier's first while `then` runs, as on a machine set up: Full auto's judge has a model to
+ *  ask, and Settings says so. */
+async function withFastJudge(page: Page, then: () => Promise<void>) {
+  type Local = { id: string; models: { name: string }[] }
+  const local: Local = (await (await page.request.get('/api/providers')).json()).find(
+    (one: { name: string }) => one.name === 'Local',
+  )
+  const tiered = [...local.models.filter(one => one.name !== 'fake-qwen'), { name: 'fake-qwen', tier: 'fast' }]
+  const models = async (data: unknown[]) =>
+    expect(
+      (await page.request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: data } })).ok(),
+    ).toBe(true)
+  await models(tiered)
+  try {
+    await then()
+  } finally {
+    await models(local.models)
+  }
+}
+
 test('the Models, Settings › This project and Knowledge pages', async ({ page }) => {
   await openFreshConversation(page)
   await rail(page, 'Models').click()
@@ -170,33 +192,33 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await setProject(page, { when_away: 'lead', away_minutes: 5, full_auto_judge: true })
   await page.reload()
   await page.getByLabel('Message').waitFor()
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
-  // (At Asking and away: when you're away, Full auto's judge (0.1.9) and its box for your words (§8), disposable deletes.)
-  await settings.getByRole('button', { name: /^Asking and away/ }).click()
-  await expect(settings.getByRole('checkbox', { name: /^Full auto’s judge/ })).toBeChecked()
-  await expect(settings.getByRole('checkbox', { name: /^It also lets a delete or a push run/ })).toBeDisabled()
-  await picture(page, 'settings-project')
-  await page.getByRole('button', { name: 'Close settings' }).click()
-  await page.getByRole('button', { name: 'Knowledge', exact: true }).click()
+  await withFastJudge(page, async () => {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
+    // (At When you’re asked: its sentence, Full auto's judge (0.1.9) and its box for your words (§8), when you're
+    // away; disposable deletes under More.)
+    await settings.getByRole('button', { name: /^When you’re asked/ }).click()
+    await expect(settings.getByRole('checkbox', { name: /^Full auto’s judge/ })).toBeChecked()
+    await expect(settings.getByRole('checkbox', { name: /^It also lets a delete or a push run/ })).toBeDisabled()
+    await expect(settings.locator('.set-said')).toContainText('a small model looks at each command')
+    await picture(page, 'settings-project')
+    await page.getByRole('button', { name: 'Close settings' }).click()
+  })
+  await page.getByRole('button', { name: 'Memory', exact: true }).click()
+  await page.getByRole('tab', { name: /^Sources to look things up in/ }).click()
   await expect(page.getByRole('article', { name: 'MLflow' })).toBeVisible()
   await picture(page, 'knowledge')
 })
 
-test('the To-do page with the Hive keeper’s draft', async ({ page }) => {
+test('To-do’s rough note, split into tasks by the Hive keeper', async ({ page }) => {
   await openFreshConversation(page)
-  await rail(page, 'To-do').click()
-  await page
-    .getByRole('toolbar', { name: 'To-do' })
-    .getByRole('button', { name: 'Write it with the Hive keeper' })
-    .click()
-  const box = page.getByRole('form', { name: 'Write it with the Hive keeper' })
-  await box.getByLabel('Your note').fill('the login page breaks on mobile, and we need a password reset')
-  await box.getByRole('button', { name: 'Write it', exact: true }).click()
+  const half = await todo(page)
+  const box = half.getByRole('form', { name: 'Your rough note' })
+  await box.getByLabel('Your rough note').fill('the login page breaks on mobile, and we need a password reset')
+  await box.getByRole('button', { name: 'Split into tasks', exact: true }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
   await box.scrollIntoViewIfNeeded()
-  await page.mouse.wheel(0, 120)
   await picture(page, 'todo-draft')
 })
 
@@ -234,15 +256,16 @@ test('the To-do tree', async ({ page }) => {
       await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { status: 'done' } })
     await page.request.patch(`/api/stories/${login}`, { headers: OWN, data: { closed: true } })
     await page.request.patch(`/api/backlog/${mail}`, { headers: OWN, data: { status: 'doing' } })
-    await rail(page, 'To-do').click()
-    const list = page.getByRole('list', { name: 'Tasks' })
-    await expect(list.getByRole('listitem', { name: 'Password reset' })).toContainText('● running')
-    await expect(list.getByRole('listitem', { name: 'Login works on mobile' })).toContainText('✓ done')
-    // (0.1.8: two ticked - the dock under the tree says what Do in chat does.)
-    for (const name of ['Rate-limit the reset form', 'The footer shows last year'])
-      await list.getByRole('listitem', { name }).getByRole('checkbox').first().check()
-    await expect(page.getByRole('region', { name: 'Selected tasks' })).toContainText('2 selected')
-    await list.scrollIntoViewIfNeeded()
+    const half = await todo(page)
+    await expect(half.getByRole('button', { name: 'Password reset: 0 of 2 done' })).toContainText('at work')
+    await expect(half.getByRole('button', { name: 'Login works on mobile: 2 of 2 done' })).toBeVisible()
+    // (0.1.10: Work's To-do tab - the stories' cards, the rough note and what the cells mean.)
+    await picture(page, 'ready-todo')
+    // (A story opened: its panel over To-do - its facts, its notebook, its tasks; one ticked, the dock says what Do in
+    // chat does.)
+    const panel = await story(page, 'Password reset')
+    await panel.getByRole('checkbox', { name: 'Tick Rate-limit the reset form' }).check()
+    await expect(panel.getByRole('region', { name: 'Selected tasks' })).toContainText('1 selected')
     await picture(page, 'todo-tree')
   } finally {
     // (Gone again, whatever happened: the pictures after it show their own To-do.)
@@ -273,10 +296,10 @@ test('To-do in a chat', async ({ page }) => {
     await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
   ).json()
   try {
-    await rail(page, 'To-do').click()
-    const list = page.getByRole('list', { name: 'Tasks' })
-    await list.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
-    await page
+    await todo(page)
+    const panel = await story(page, 'Two-step sign-in')
+    await panel.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
+    await panel
       .getByRole('region', { name: 'Selected tasks' })
       .getByRole('button', { name: /Do in chat/ })
       .click()
@@ -317,12 +340,10 @@ test('a story’s strip and notebook', async ({ page }) => {
     // (The two after the first wait for it: once it waits at "done?", the strip says the next.)
     const [first, ...later] = added.task_ids
     for (const id of later) await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { after: [first] } })
-    await rail(page, 'To-do').click()
-    await page
-      .getByRole('list', { name: 'Tasks' })
-      .getByRole('checkbox', { name: 'Tick the story Two-step sign-in' })
-      .check()
-    await page
+    await todo(page)
+    const panel = await story(page, 'Two-step sign-in')
+    await panel.getByRole('checkbox', { name: 'Tick the story Two-step sign-in' }).check()
+    await panel
       .getByRole('region', { name: 'Selected tasks' })
       .getByRole('button', { name: /Do in chat/ })
       .click()
@@ -344,6 +365,65 @@ test('a story’s strip and notebook', async ({ page }) => {
   }
 })
 
+/** Everything in effect or waiting goes to Past, and your words are emptied: the pictures after start from an empty memory. */
+async function clearMemory(request: APIRequestContext, pid: string) {
+  const memory = await (await request.get(`/api/projects/${pid}/memory`)).json()
+  for (const one of [...memory.proposals, ...memory.core, ...memory.journal] as { id: string }[])
+    await request.post(`/api/memory/${one.id}/reject`, { headers: OWN })
+  await request.put(`/api/projects/${pid}/rules`, { headers: OWN, data: { rules: '' } })
+  await request.put(`/api/projects/${pid}/project-notes`, { headers: OWN, data: { text: '' } })
+  await request.put('/api/preferences', { headers: OWN, data: { text: '' } })
+}
+
+test('the Memory page as cells', async ({ page, request }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const shown = path.join(PROJECT_DIR, 'settings.txt')
+  const moved = path.join(PROJECT_DIR, 'deploy-notes.txt')
+  await clearMemory(request, pid)
+  writeFileSync(shown, '# settings\nThe service listens on port 8123.\n')
+  writeFileSync(moved, '# deploy\nStaging runs on host stage-1.\n')
+  const write = async (data: object) =>
+    expect((await request.post(`/api/projects/${pid}/memory`, { headers: OWN, data })).status()).toBe(201)
+  try {
+    // A fact the lead's note would take the place of; one of your words; one too general to be given; one whose lines
+    // change after it was written.
+    await write({ text: 'The service listens on port 8000.', about: 'port', file: 'settings.txt', start_line: 1 })
+    await write({ text: 'Commits are signed off.', about: 'commits' })
+    await write({ text: 'Docs are Markdown.', about: 'md' })
+    await write({
+      text: 'Staging runs on host stage-1.',
+      about: 'staging host',
+      file: 'deploy-notes.txt',
+      start_line: 2,
+    })
+    writeFileSync(moved, '# deploy\nStaging runs on host stage-2.\n')
+    await request.put('/api/preferences', { headers: OWN, data: { text: 'Answer in short sentences.' } })
+    await request.put(`/api/projects/${pid}/rules`, {
+      headers: OWN,
+      data: { rules: 'Sign off every commit.\nNever push to main.' },
+    })
+    await request.put(`/api/projects/${pid}/project-notes`, {
+      headers: OWN,
+      data: { text: '- The export module is being rewritten: leave export.py alone.' },
+    })
+    await say(page, 'note the port', 'Noted where the port is set. It waits for you.')
+    // (Loaded again: the turn's "Done" toast is not in the picture.)
+    await page.reload()
+    await rail(page, 'Memory').click()
+    await expect(
+      page.getByRole('region', { name: 'Waits for you' }).getByRole('group', { name: 'Would replace' }),
+    ).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Facts', exact: true }).getByRole('article')).toHaveCount(4)
+    // (Taller than the others: the box that waits, the facts with their cells and your words, in one picture.)
+    await page.setViewportSize({ width: 1280, height: 1300 })
+    await picture(page, 'memory')
+  } finally {
+    await clearMemory(request, pid)
+    rmSync(moved, { force: true })
+  }
+})
+
 test('Memory search and Usage', async ({ page, request }) => {
   const id = await openFreshConversation(page)
   await say(page, 'Answer only: The ZEPPELIN hangar is in Kayseri.', 'The ZEPPELIN hangar is in Kayseri.')
@@ -359,9 +439,190 @@ test('Memory search and Usage', async ({ page, request }) => {
   await expect(search.getByRole('list', { name: 'In earlier messages' }).getByRole('listitem').first()).toBeVisible()
   await picture(page, 'memory-search')
 
-  await rail(page, 'Usage').click()
-  await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
-  await picture(page, 'usage')
+  // Usage's picture: a price for the model and a monthly budget three times what the month spent at it (the earlier
+  // pictures' turns too), so that the summary says what was spent and a third of the budget's cells fill. Both are
+  // taken away after it, whatever happens: the backend is shared.
+  const project = await e2eProject(page)
+  const price = { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' }
+  const budget = (monthly_budget: number | null) =>
+    request.patch(`/api/projects/${project}`, { headers: OWN, data: { monthly_budget } })
+  try {
+    expect((await request.put('/api/prices', { headers: OWN, data: price })).ok()).toBe(true)
+    const { spent } = await (await request.get(`/api/projects/${project}/budget`)).json()
+    expect((await budget(Math.max(spent * 3, 0.5))).ok()).toBe(true)
+    await page.reload()
+    await rail(page, 'Usage').click()
+    await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'This month' }).click()
+    await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
+    await expect(page.getByRole('meter', { name: 'Monthly budget used' })).toBeVisible()
+    await picture(page, 'usage')
+  } finally {
+    await request.delete('/api/prices?model_id=fake-qwen', { headers: OWN })
+    await budget(null)
+  }
+})
+
+test('the Chats page: each chat’s cell and line, and Now', async ({ page, request }) => {
+  test.setTimeout(90_000)
+  const name = (id: string, title: string) =>
+    request
+      .patch(`/api/conversations/${id}`, { headers: OWN, data: { title } })
+      .then(said => expect(said.ok()).toBe(true))
+  await name(await openFreshConversation(page), 'Ideas for the logo')
+  const done = await openFreshConversation(page)
+  await say(page, 'review the greeting', 'The reviewer found no problems.')
+  await name(done, 'Review the greeting')
+  const asks = await openFreshConversation(page)
+  expect(
+    (await request.patch(`/api/conversations/${asks}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+  ).toBe(true)
+  await say(page, 'run the tests', 'Run this command?')
+  await name(asks, 'Run the tests')
+  // (Loaded again: the turn's "Done" toast is not in the picture.)
+  await page.reload()
+  await rail(page, 'Chats').click()
+  const list = page.locator('.conv-page')
+  await expect(list.getByRole('button', { name: /^Run the tests/ })).toContainText('Waits for your word · Command')
+  await expect(list.getByRole('button', { name: /^Review the greeting/ })).toContainText('Done')
+  await expect(list.getByRole('complementary', { name: 'Now every folder' })).toContainText(
+    '1 thing waits for your word',
+  )
+  await picture(page, 'chats')
+  // (Answered: what runs after finds nothing waiting.)
+  await list.getByRole('button', { name: /^Run the tests/ }).click()
+  await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: 'Reject' }).click()
+  await expect(page.getByText('Okay, I left hello.py unchanged.')).toBeVisible({ timeout: 20_000 })
+})
+
+test('the Tools page: its cells, a server watched, one trusted and one whose trust a reading took back; KOLONİ’s tools; skills', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000)
+  // The stand-in MCP server, started as `python -m` with its folder in a variable: no folder of this machine is on a
+  // card. Each server its own plan: its own tools, in place of the stand-in's.
+  const plans = path.join(os.tmpdir(), `koloni-guide-mcp-${process.env.KOLONI_E2E_PORT ?? 'e2e'}`)
+  mkdirSync(plans, { recursive: true })
+  const tool = (name: string, description: string) => ({
+    name,
+    description,
+    inputSchema: { type: 'object', properties: {} },
+  })
+  const OWN_TOOLS = ['echo', 'where', 'boom', 'picture', 'big', 'hang', 'die', 'sample']
+  const plan = (name: string, tools: ReturnType<typeof tool>[]) => {
+    const file = path.join(plans, `${name}.json`)
+    writeFileSync(file, JSON.stringify({ record: path.join(plans, 'record.jsonl'), without: OWN_TOOLS, more: tools }))
+    return file
+  }
+  const serve = async (name: string, tools: ReturnType<typeof tool>[]) => {
+    const added = await request.post('/api/mcp-servers', {
+      headers: OWN,
+      data: {
+        name,
+        command: ['python', '-m', 'tests.fake_mcp_server'],
+        env: { PYTHONPATH: REPO_ROOT, FAKE_MCP_PLAN: plan(name, tools) },
+      },
+    })
+    expect(added.status()).toBe(201)
+    const { id } = await added.json()
+    const read = await request.post(`/api/mcp-servers/${id}/read`, { headers: OWN, data: { osv: false } })
+    expect((await read.json()).server.read_error).toBeNull()
+    return id as string
+  }
+  const trust = (id: string, marks?: Record<string, string>) =>
+    request.patch(`/api/mcp-servers/${id}`, { headers: OWN, data: { trusted: true, ...(marks && { marks }) } })
+  const browserTools = [
+    tool('take_screenshot', 'Takes a picture of the page'),
+    tool('read_console', 'Reads the console'),
+  ]
+  const ids = [
+    await serve('browser-tools', browserTools),
+    await serve('github', [
+      tool('list_issues', 'Lists the issues of a repository'),
+      tool('create_issue', 'Opens an issue'),
+    ]),
+    await serve('postgres', [
+      tool('query', 'Runs a read-only SQL query'),
+      tool('list_tables', 'Lists the tables'),
+      tool('describe', 'Shows a table’s columns'),
+      tool('vacuum', 'Reclaims storage'),
+    ]),
+  ]
+  const [browserId, , postgresId] = ids
+  expect((await trust(browserId)).ok()).toBe(true)
+  expect((await trust(postgresId, { query: 'free', list_tables: 'free', describe: 'ask', vacuum: 'off' })).ok()).toBe(
+    true,
+  )
+  // Two skills, uploaded (a folder's path would name this machine's folders).
+  const upload = (name: string, line: string, text: string) =>
+    request.post('/api/skills', {
+      headers: OWN,
+      data: {
+        upload: {
+          files: [
+            {
+              path: `${name}/SKILL.md`,
+              data: Buffer.from(`---\nname: ${name}\ndescription: ${line}\n---\n${text}\n`).toString('base64'),
+            },
+          ],
+        },
+      },
+    })
+  const skills = [
+    await upload('release-notes', 'Writes a CHANGELOG entry in the user’s words.', 'Added, Changed, Fixed.'),
+    await upload('systematic-debugging', 'Finds the root cause before a fix.', 'Read, repeat, find what changed.'),
+  ]
+  const skillIds = await Promise.all(skills.map(async added => ((await added.json()) as { id: string }).id))
+  // The Coder is given postgres and release-notes: their cards name it.
+  type Given = { id: string; name: string; mcp: string[]; skills: string[] }
+  const coder = ((await (await request.get('/api/roles')).json()) as Given[]).find(role => role.name === 'Coder')!
+  const give = (mcp: string[], skills: string[]) =>
+    request.patch(`/api/roles/${coder.id}`, { headers: OWN, data: { mcp, skills } })
+  expect((await give([...coder.mcp, 'postgres'], [...coder.skills, 'release-notes'])).ok()).toBe(true)
+  try {
+    await openFreshConversation(page)
+    // (A server's trust taken back is known from a reading on the page: the plan grows a tool, then it is read there.)
+    writeFileSync(
+      path.join(plans, 'browser-tools.json'),
+      JSON.stringify({
+        record: path.join(plans, 'record.jsonl'),
+        without: OWN_TOOLS,
+        more: [...browserTools, tool('evaluate', 'Runs a script in the page')],
+      }),
+    )
+    await rail(page, 'Tools').click()
+    const head = (name: string) => page.getByRole('button', { name: new RegExp(`^${name}`) })
+    await expect(head('browser-tools')).toHaveAttribute('aria-expanded', 'true')
+    await page.getByRole('button', { name: 'Read its tools' }).click()
+    await expect(head('browser-tools')).toContainText('trust taken back')
+    // every card closed: their heads, their cells and their trust
+    await head('browser-tools').click()
+    await page.getByRole('button', { name: 'See the difference' }).click()
+    await expect(page.getByText(/^New: evaluate\./)).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Servers 2 watching' })).toBeVisible()
+    await picture(page, 'tools-servers')
+    // the trusted one open: its tools, each with its three marks
+    await head('postgres').click()
+    const postgres = page.getByRole('listitem').filter({ has: head('postgres') })
+    await expect(postgres.getByRole('table', { name: 'Tools of postgres' })).toBeVisible()
+    // (Taller than the window: a window it fits in, so that the page's own scroll box does not cut it.)
+    await page.setViewportSize({ width: 1280, height: 1400 })
+    await picture(postgres, 'tools-server-open')
+    await page.setViewportSize({ width: 1280, height: 800 })
+
+    await page.getByRole('tab', { name: /^KOLONİ’s tools/ }).click()
+    await expect(page.getByRole('region', { name: 'KOLONİ’s tools' })).toBeVisible()
+    await picture(page, 'tools-koloni')
+
+    await page.getByRole('tab', { name: /^Skills/ }).click()
+    await expect(page.getByRole('button', { name: /^systematic-debugging/ })).toBeVisible()
+    await picture(page, 'tools-skills')
+  } finally {
+    for (const id of ids) await request.delete(`/api/mcp-servers/${id}`, { headers: OWN })
+    await give(coder.mcp, coder.skills)
+    for (const id of skillIds) await request.delete(`/api/skills/${id}`, { headers: OWN })
+    rmSync(plans, { recursive: true, force: true })
+  }
 })
 
 test.describe('the guide’s videos', () => {
@@ -501,6 +762,11 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
   const summary = chat.getByRole('region', { name: 'While you were away' })
   await expect(summary).toContainText('2 of 2 To-do done', { timeout: 10_000 })
   await picture(page, 'away-summary')
+  // (0.1.10: the morning's Work, on Ready for you - the night's report, what waits for your word.)
+  await rail(page, 'Work').click()
+  await expect(page.getByRole('region', { name: /^Last night, / })).toContainText('2 of 2 jobs done.')
+  await picture(page, 'ready-morning')
+  await rail(page, 'Canvas').click()
   // (Seen: KOLONİ goes to the report once, and not again in the tests after this one.)
   await summary.getByRole('button', { name: 'On the canvas' }).click()
   await expect(page.locator('.away-node')).toBeVisible()
@@ -565,28 +831,18 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(chat.getByRole('switch', { name: 'Full auto’s judge' })).toBeChecked()
     await picture(page, 'level-menu-checks')
     await page.keyboard.press('Escape')
-    // This project › Checks and git: After a change with its live line, Fix rounds (Then a stronger model, once in),
-    // Check by kind of work, Found by KOLONİ.
+    // This project › When the work is done: its sentence, After a change with its live line, Fix rounds, Then a stronger
+    // model (Check by kind of work and Found by KOLONİ are under its More, below).
     await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
     const settings = page.getByRole('form', { name: 'Project settings' })
-    await settings.getByRole('button', { name: /^Checks and git/ }).click()
+    await settings.getByRole('button', { name: /^When the work is done/ }).click()
     await expect(settings.getByLabel('After a change')).toBeVisible()
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
     // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental features and the
     // Judge model (0.1.9) under Save (read once shown) - the fake model the Fast tier's first, as on a machine set up.
-    type Local = { id: string; models: { name: string }[] }
-    const local: Local = (await (await page.request.get('/api/providers')).json()).find(
-      (one: { name: string }) => one.name === 'Local',
-    )
-    const tiered = [...local.models.filter(one => one.name !== 'fake-qwen'), { name: 'fake-qwen', tier: 'fast' }]
-    const models = async (data: unknown[]) =>
-      expect(
-        (await page.request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: data } })).ok(),
-      ).toBe(true)
-    await models(tiered)
-    try {
+    await withFastJudge(page, async () => {
       const app = await appSettings(page, 'Agents')
       const experimental = app.getByRole('checkbox', { name: /Show experimental features/ })
       await expect(experimental).toBeEnabled()
@@ -600,9 +856,7 @@ test.describe('proven finish (0.1.6)', () => {
       await expect(app.getByText('Test processes per run')).toBeInViewport()
       await expect(experimental).toBeInViewport()
       await picture(page, 'settings-app-test-runs')
-    } finally {
-      await models(local.models)
-    }
+    })
   })
 
   test('Checked under the answer, and the Checks node with its ⋯ menu', async ({ page }) => {
@@ -632,7 +886,7 @@ test.describe('proven finish (0.1.6)', () => {
     await picture(page, 'checks-running')
     await page.getByRole('menuitem', { name: 'Stop this check' }).click()
     const checked = page.getByRole('region', { name: 'Chat' }).getByRole('region', { name: 'Checked' })
-    await expect(checked).toContainText('Tests not run: you stopped the check', { timeout: 20_000 })
+    await expect(checked).toContainText('stopped by you at', { timeout: 20_000 })
     await picture(checked, 'checked-stopped')
   })
 

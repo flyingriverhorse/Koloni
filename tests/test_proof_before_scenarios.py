@@ -63,12 +63,14 @@ def told(model, at):
 
 
 def throwaways(client) -> list[Path]:
-    where = copies.folder(client.app.state.runner.settings.runtime_root)
-    return (
-        [one for one in where.iterdir() if one.name.startswith("before-")]
-        if where and (where.exists())
-        else []
-    )
+    held = copies.folders(client.app.state.runner.settings.runtime_root)  # (K-koloni-alan)
+    return [
+        one
+        for where in held
+        if where.is_dir()
+        for one in where.iterdir()
+        if one.name.startswith("before-")
+    ]
 
 
 def notes(client, test):

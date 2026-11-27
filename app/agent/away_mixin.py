@@ -30,7 +30,6 @@ from app.commands import (
     installs,
     reaches_shared_git,
     runs_another,
-    scratch_delete_only,
     switches_branch,
     with_cwd,
 )
@@ -50,7 +49,8 @@ from app.db.models import (
 )
 from app.model_cli import CliStepClient
 from app.model_native import ClaudeNativeClient
-from app.roles import LEAD
+from app.roles import LEAD, title_of
+from app.scratch_delete import scratch_delete_only
 from app.serialize import command_out, message_out, run_out
 from app.tools import ToolError
 from app.workspace import Workspace
@@ -92,7 +92,7 @@ def branch_held(
         .limit(1)
     ).first()
     if found or session.scalar(busy.limit(1)):
-        whose = (found.name or found.role_name) if found else "a turn"
+        whose = title_of(found.name or found.role_name) if found else "a turn"
         return whose, (
             f"{whose} is at work — wait for the turn to end"
             if found
@@ -112,7 +112,7 @@ def branch_held(
         .limit(1)
     ).first()
     if merge:
-        whose = merge.name or merge.role_name
+        whose = title_of(merge.name or merge.role_name)
         held = "finished work waits" if merge.status == "pending" else "work is kept in its copy"
         return whose, f"{whose}'s {held} — Take in or Discard it first"
     return None
@@ -569,7 +569,8 @@ class AwayMixin(AwayBranchMixin):
             kept = away.kept_out(night, path, command, root=roots, cwd=cwd)
             if night is None or kept is None:
                 return None
-            away.tried(session, night, task.id if task else None, f"{ctx.name or ctx.role}: {what}")
+            who = self._title(session, ctx.cid, ctx.name or ctx.role)  # (as the screen names it)
+            away.tried(session, night, task.id if task else None, f"{who}: {what}")
         return away.KEPT_OUT.format(path=kept)
 
     def _no_away(self: "AgentRunner", session, ctx: Ctx) -> str | None:
@@ -731,13 +732,9 @@ class AwayMixin(AwayBranchMixin):
             )
         held = await self._hold_merges(rows, cid)
         with self._factory() as session:
-            kept = away.kept_copies(session, cid)
-            # (untouched: nothing of it taken in - its Take in held off by this morning itself)
-            last = (
-                kept[-1]
-                if kept and not any(f["state"] == "applied" for f in kept[-1].files)
-                else None
-            )
+            # (untouched - its Take in held off by this morning itself - and its rows' own, by
+            # their record: never the chat's newest of another turn)
+            last = parked.gone_on_in(session, run_id)
             places = {row.id: parked.where(session, row) for row in rows}
         opened: dict[str, copies.Copy] = {}
         common: list[str] | None = None  # (F411 P4: the secrets held back, said once - `told`)
@@ -819,6 +816,7 @@ class AwayMixin(AwayBranchMixin):
                         Path(root),
                         self.settings.runtime_root,
                         copies.named(self.settings.runtime_root, merge.kept_in),
+                        at=merge.kept_in,  # (K-koloni-alan: nowhere else of that name)
                     )
                     copies.relink(copy)
                 except (OSError, ValueError) as exc:

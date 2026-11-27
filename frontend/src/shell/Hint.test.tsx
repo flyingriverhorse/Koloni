@@ -154,7 +154,7 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
   ]
   const warned = new Set<RegExp>()
   let hinted = 0
-  expect(sections).toHaveLength(11)
+  expect(sections).toHaveLength(7)
   for (const section of sections) {
     await userEvent.click(section)
     const hints = Array.from(document.querySelectorAll('.hint-bubble'))
@@ -227,13 +227,14 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
           onCorrect={none}
           onWrite={none}
           onSaveRules={none}
+          onSaveProjectNotes={none}
           onSavePreferences={none}
           onAddPreference={none}
           onReload={none}
           onSearch={vi.fn()}
         />,
       )
-      await userEvent.click(screen.getByRole('tab', { name: /^Told/ }))
+      // (0.1.10: your words are beside the core, no tab to open.)
     },
     [/Added, it is told to every agent in every project as your instruction\./],
   ],

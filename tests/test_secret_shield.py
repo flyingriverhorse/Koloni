@@ -15,7 +15,7 @@ import tempfile
 import pytest
 from alembic import command
 
-from app import commands
+from app import commands, workspace
 from app.agent import sandbox_denied
 from app.config import load_settings
 from app.db.models import Project
@@ -62,7 +62,7 @@ def test_the_secret_files_are_each_one_in_the_folder_and_a_secret_folder_as_itse
         "venv/Lib/site-packages/certifi/cacert.pem",
         "env/lib/site-packages/x/cacert.pem",
     )
-    commands._held.clear()
+    workspace._held.clear()
     root = tmp_path.resolve()
     assert sorted(commands.secret_files(root)) == [
         ".env",
@@ -70,7 +70,7 @@ def test_the_secret_files_are_each_one_in_the_folder_and_a_secret_folder_as_itse
         "config/.env.local",
         "keys/id_rsa",
     ]
-    assert commands.secret_held(root) == ".env"  # the search card's walk is the same one
+    assert workspace.secret_held(root) == ".env"  # the search card's walk is the same one
 
 
 # --- which variables ----------------------------------------------------------------------------
@@ -156,7 +156,7 @@ def test_a_command_is_told_which_secret_variables_were_held_back(
     held = said.splitlines()[-1]
     assert held.startswith("(secret variables held back from this command: ")
     assert "SHIELD_TEST_TOKEN" in held and held.endswith(
-        " - the user can pass one in Settings › This project › Commands and secrets)"
+        " - the user can pass one in Settings › This project › When you're asked, under More)"
     )
     assert "a-value-never-said" not in said
 
@@ -255,7 +255,7 @@ async def test_docker_covers_the_secrets_it_walks_and_none_with_the_setting_off(
     monkeypatch.setattr(docker, "_exec", fine)
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
     docker.forget_status()
-    commands._held.clear()
+    workspace._held.clear()
     await DockerExecutor(project, "alpine", False, empty).start("k1", "ls", project)
     assert mounts(ran[0]) == [f"{project}:/workspace", f"{empty / 'file'}:/workspace/.env:ro"]
     assert (empty / "file").read_bytes() == b"" and list((empty / "folder").iterdir()) == []
@@ -333,7 +333,7 @@ def test_from_a_copy_copilots_sandbox_denies_the_projects_secret_files_too(tmp_p
     project, copy, data = tmp_path / "p", tmp_path / "copies" / "a1" / "tree", tmp_path / "data"
     made(project, ".env", "app.py")
     made(copy, "keys/id_rsa", "app.py")
-    commands._held.clear()
+    workspace._held.clear()
     homes, logins = tmp_path / "agy-home", tmp_path / "cli-homes"
     assert sandbox_denied(copy, project, data, homes, logins) == (
         str(copy / "keys" / "id_rsa"),
@@ -356,7 +356,7 @@ def test_copilots_sandbox_denies_the_keys_to_the_other_runs_tool_servers(tmp_pat
     made(homes, "agy-x/.gemini/config/koloni-door.json", "agy-x/.gemini/config/hooks.json")
     project, data = tmp_path / "p", tmp_path / "data"
     made(project, "app.py")
-    commands._held.clear()
+    workspace._held.clear()
     assert sandbox_denied(project, project, data, homes, tmp_path / "cli-homes") == (
         str(data),
         str(tmp_path / "cli-homes"),
@@ -379,7 +379,7 @@ def test_copilots_commands_run_in_its_sandbox_with_the_secret_files_denied(
     made(temp, "koloni-cli-other/bridge.json")
     monkeypatch.setattr(tempfile, "tempdir", str(temp))
     made(project_dir, ".env", ".ssh/id_rsa")
-    commands._held.clear()
+    workspace._held.clear()
     monkeypatch.setenv("SHIELD_TEST_TOKEN", "a-value")
     monkeypatch.setenv("SHIELD_PASSED_TOKEN", "a-value")
     client, provider = copilot_native(

@@ -160,6 +160,55 @@ def test_what_a_command_of_native_claude_code_writes_into_the_project_is_found_a
     assert hello(project_dir) == "print('straight in')\n"
 
 
+def test_a_change_written_into_the_project_again_after_it_went_back_is_on_record_again(
+    claude_app,
+    wait_run,
+    project_dir,
+    settings_env,  # noqa: F811
+):
+    """Two native CLIs in copies, each looking at the project after its commands (C2): the
+    first's command changes a file there, the file goes back by hand, the second's command
+    writes the same again - on record twice, once under each. (A hand-off of what one look put
+    on record to the other looks, tried for k-kucuk-018 L3, left the second write on none.)"""
+    straight = {
+        "tool": "Bash",
+        "input": {"command": "python fix.py"},
+        "write": ["PROJECT/hello.py", "print('straight in')\n"],
+        "result": "",
+    }
+    both = step(
+        call("spawn_agent", {"role": "Coder", "task": "fix A"}, "s1"),
+        call("spawn_agent", {"role": "Coder", "task": "fix B"}, "s2"),
+    )
+    leave = text("Leave it to the user.")  # (at Full auto the Lead is asked first, for each)
+    client, provider, _ = claude_app(
+        [{"koloni": "ask_user", "args": {"question": "Go on?"}}, straight, {"say": "Done."}],
+        default_steps=[both, leave, leave, text("The coders did it.")],
+    )
+    was = hello(project_dir)
+    cid, run_id = begin(client, project_dir, provider)
+    # Both at work, each having seen the project before anything was written there.
+    snap = until(client, cid, lambda s: len(s["questions"]) >= 2, timeout=20)
+    first, second = snap["questions"][:2]
+    client.post(f"/api/questions/{first['id']}/answer", json={"answer": "yes"})
+    until(
+        client,
+        cid,
+        lambda s: any(
+            a["id"] == first["agent_id"] and a["status"] == "completed" for a in s["agents"]
+        ),
+        timeout=20,
+    )
+    (project_dir / "hello.py").write_text(was, encoding="utf-8")  # (back, by hand)
+    client.post(f"/api/questions/{second['id']}/answer", json={"answer": "yes"})
+    snap = wait_run(client, cid, run_id, timeout=20)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    said = by_the_cli(snap)
+    assert said.count(f"{IN_THE_PROJECT}: hello.py (+1 -1)") == 2, said
+    by = {c["agent_id"] for c in snap["file_changes"] if c["path"] == "hello.py"}
+    assert by == {first["agent_id"], second["agent_id"]}, snap["file_changes"]
+
+
 def test_one_look_over_a_mid_size_project_after_a_command_costs_little(tmp_path):
     """What C2's look after each command of a CLI in a copy costs (`_look_at_project`): one walk
     of the project with a stat of each file, nothing read where nothing changed - measured on
@@ -179,6 +228,22 @@ def test_one_look_over_a_mid_size_project_after_a_command_costs_little(tmp_path)
     assert view.changes() == []
     took = time.perf_counter() - started
     assert took < (30 if os.environ.get("CI") else 5), took
+
+
+def test_a_watch_reads_whether_its_clis_commands_are_held_at_each_look(tmp_path):
+    """C2's twin: Copilot says whether its session has a sandbox only once that session starts -
+    after its watch was made - so the watch reads it at each look, never once at its start."""
+    from app.agent.ctx import _Watch
+    from app.project_view import ProjectView
+
+    watch = _Watch(ProjectView(tmp_path))
+    assert not watch.unheld  # (in the project: no look over it)
+    watch.project = ProjectView(tmp_path)  # (in a copy)
+    assert not watch.unheld
+    watch.held = False  # (its session started with no sandbox)
+    assert watch.unheld
+    watch.held, watch.unboxed = True, True  # (native agy: held to no folder)
+    assert watch.unheld
 
 
 def test_what_a_native_codex_sub_agent_would_write_straight_into_the_project_is_refused(
@@ -588,7 +653,9 @@ def test_a_reading_agy_below_an_agent_with_a_copy_reads_in_that_copy(
     assert agent(snap, "Helper")["status"] == "completed"
     assert agent(snap, "Coder")["copy"] == {"state": "own"}
     seen = agy_app.record()
-    assert Path(seen["cwd"]).is_relative_to(copies.folder(load_settings(settings_env).runtime_root))
+    assert Path(seen["cwd"]).is_relative_to(
+        copies.folder(load_settings(settings_env).runtime_root, project_dir)
+    )
     assert Path(seen["cwd"]).name == copies.TREE
     assert "--dangerously-skip-permissions" not in seen["argv"]
 
@@ -832,6 +899,7 @@ def test_a_copy_kept_in_the_users_data_folder_is_still_found_once_copies_live_in
     """Where copies are made is told by what is above the runtime root now; where a kept
     one is, by where it was made."""
     mark(tmp_path / "runtime", "AGENTS.md")  # copies are made in the user's data
+    (project_dir / ".git").mkdir()  # (K-koloni-alan: a project in git: its copies outside it)
     cid = interrupted(settings_env, project_dir)
     (folder,) = kept_folders(settings_env)
     assert folder.is_relative_to(tmp_path / "user-data")

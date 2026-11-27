@@ -7,7 +7,7 @@ writes it from its own records, not from the model's words, and no model is aske
 
 It works the same for every model and CLI.
 
-![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (3 lines, 2 files); No new test: the Orchestrator said "Updated the greeting in hello.py."](../images/checked-section.png)
+![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (1 lines, 1 files); Not checked: a test for the change switched off for this project](../images/checked-section.png)
 
 [![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides, config files and scripts, the project's own code style and type checks and pages (console, width, accessibility), a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; apart from them, a sub-agent's own tests before its work is taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
 
@@ -73,7 +73,7 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
   the first. A run whose card waits for your yes holds up no other: it takes its turn once you
   answer.
 
-**Settings › This project › Checks and git › After a change** turns it on or off for the
+**Settings › This project › When the work is done › After a change** turns it on or off for the
 project:
 
 - **Test and review** (the default) runs the tests, and has a big or security-touching change
@@ -82,7 +82,7 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
-![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data, Pages, Config, Scripts and Code style and types](../images/settings-checks.png)
+![Settings, This project, When the work is done: its sentence, After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, and Then a stronger model ticked; Check by kind of work is under its More](../images/settings-checks.png)
 
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
@@ -209,7 +209,7 @@ failed), KOLONİ saves it as this project's test command for that folder, with n
 section says "Saved as this project's test command - change it in Settings". A guess that ran no
 test, or no test tool, is never saved, and a command of yours is never replaced.
 
-Settings › This project › Checks and git shows each saved command under **Found by KOLONİ** as
+Settings › This project › When the work is done shows each saved command under **Found by KOLONİ** as
 soon as it is saved, where it came from and when. **Forget it** clears them; they are found again
 at the next change. A saved command runs as the project's for this check only, and below **Full
 auto** on a card until you say **Always** on it (see [Asking](#asking)). Agents do not get to run
@@ -258,7 +258,7 @@ The Orchestrator is told that the tests failed, with the end of their output, an
 what fails, by itself or with an agent that writes code. It is told never to delete or skip a
 test to make it pass. Then KOLONİ runs the tests again.
 
-How often is **Settings › This project › Checks and git › Fix rounds** - one count with the
+How often is **Settings › This project › When the work is done › Fix rounds** - one count with the
 Reviewer's findings and the other checks:
 
 - **Until it passes** (the default): it goes back while each round makes progress. It stops - and
@@ -401,7 +401,7 @@ stopped so tries no tier more. Each tier
 tries at most once a turn, and its model's use is always said: "Handed to `model` (Strongest)
 after 2 rounds by `model`". A tier whose provider is over its limit is skipped ("Strongest
 skipped: over its limit"), and none is tried where the project's month budget or the turn's
-token limit is spent. Switch it off in **Settings › This project › Checks and git › Then a
+token limit is spent. Switch it off in **Settings › This project › When the work is done › Then a
 stronger model**; then the work waits after the first model's rounds.
 
 Before the stronger model's rounds, KOLONİ looks at what is not this turn's: a flaky test and one
@@ -537,7 +537,7 @@ did not make it. A file KOLONİ cannot read (over 8 MB - or over 8 MB once its z
 draw.io pages are inflated, all together, whatever size the file says they are; a deck of over
 1,000 slides - outside the project, an XML file that declares a DTD or entities in any encoding, a
 CSV field over the reader's limit) is said as not checked; one file gives at most 12 lines. Each kind can be switched off in **Settings › This project
-› Checks and git › Check by kind of work**; then its line says "Not checked: slides switched off
+› When the work is done › Check by kind of work**; then its line says "Not checked: slides switched off
 for this project". Where the turn ended before the check, or changed such a file after it, the
 section says so instead of an old result. On the canvas, the Checks node shows each kind as one
 line: "documents · 2 ✓ · 1 ✗".
@@ -568,7 +568,7 @@ PowerShell, its scripts are said as not checked.
 
 ### Pages
 
-Off unless you tick **Pages** in **Settings › This project › Checks and git › Check by kind of
+Off unless you tick **Pages** in **Settings › This project › When the work is done › Check by kind of
 work** (since 0.1.10; a project where you had ticked it keeps it). Unticked, a turn that wrote a
 page says "Not checked: pages switched off for this project". Ticked, a changed web page
 (`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
@@ -665,7 +665,7 @@ out. A text's opacity (its own or a parent's), its shadow, an outline drawn by a
 
 ## A test for the change
 
-Off unless you tick **A test for the change** in **Settings › This project › Checks and git ›
+Off unless you tick **A test for the change** in **Settings › This project › When the work is done ›
 Check by kind of work** (since 0.1.10). Unticked, a turn that changed code and no test says "Not
 checked: a test for the change switched off for this project". Ticked, it is asked under **Test
 and review** and **Tests only** alike. A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
@@ -720,7 +720,7 @@ Lines a test could run but none did go to the Reviewer, as data: "New lines no t
 
 ## The review
 
-![The Checked section of a reviewed change: Tests passed: python check.py - 2 passed; Review: Reviewer (Local · fake-qwen) - MERGE, no findings](../images/checked-review.png)
+![The Checked section of a reviewed change: Tests passed: python check.py - 2 passed; Review: Reviewer (Local · fake-qwen) - MERGE, no findings; Not checked: a test for the change switched off for this project](../images/checked-review.png)
 
 Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
 config or screens - or one that touches security - is looked over by the **Reviewer**, an agent
@@ -948,7 +948,7 @@ itself, the end works like a pull request's CI:
     run: the related tests fail".
 
 The whole suite's own limit is the project's **Longest command**, 10 minutes unless you raise it
-(up to 60, in [Settings › This project › Commands and secrets](../settings.md#commands-and-secrets)).
+(up to 60, in [Settings › This project › When you're asked](../settings.md#commands-and-secrets)).
 Past it the section says "Tests timed out after 10 min" (or the minutes you set).
 
 **Stop this check**, under a suite running after the answer, stops it: what finished stays, and
@@ -958,7 +958,7 @@ level. The canvas's Checks node has it too, in its **⋯** menu, also while the 
 the related tests (see [On the canvas](#on-the-canvas)). Stopped while the answer still waits for
 them, the line says "Tests not run: you stopped the check".
 
-![The Checked section after Stop this check: Tests not run: you stopped the check](../images/checked-stopped.png)
+![The Checked section after Stop this check: Full tests stopped by you at 0:00 - not checked](../images/checked-stopped.png)
 
 - A newer turn that changes the same project and runs the same suite stops one still running in
   the background, as a new push stops a pull request's old CI run: "Tests not finished: the
@@ -989,7 +989,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ### How many run at once
 
-![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits; under Save, the Show experimental features switch, off, and the Judge model: Fast tier's first (now: fake-qwen)](../images/settings-app-test-runs.png)
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under More limits with the other limits; below them, the Show experimental features switch, off, and the Judge model: Fast tier's first (now: fake-qwen)](../images/settings-app-test-runs.png)
 
 KOLONİ's own test runs queue: **Settings › The app › More limits › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says

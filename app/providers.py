@@ -65,7 +65,9 @@ CLI_AT_ONCE, SERVICE_AT_ONCE = 3, 8
 # 0.1.8 (the user, 24 Nov): agy - and since 0.1.10 Native - are offered only with Show
 # experimental features on (Settings › The app › Agents; a Flag of this name, which the Models
 # page reads). A provider already set so runs as before, tagged Experimental; nothing here
-# refuses it.
+# refuses it - nor a new one by the API (`POST /api/providers` takes agy and Native with the
+# switch off, N6): the switch is what the page offers. shortcut: refuse a new one there (422)
+# if an API caller is to be held to it too - the tests' native providers then turn it on.
 EXPERIMENTAL_FLAG = "experimental_clis"
 # How each CLI can be run, the first being its default. A session needs the CLI's own
 # tools to be really off while KOLONİ's reach it over MCP: Codex's patch tool cannot be

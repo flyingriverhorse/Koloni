@@ -208,9 +208,14 @@ def no_cwd_search(env: dict[str, str]) -> dict[str, str]:
     """W1: `env` where cmd.exe finds a bare program name (an npm `.cmd` shim's `node`) on PATH
     alone, never first in the folder it runs in - where an agent may have written a `node.cmd`
     (as `app/git.py` has it) - over any spelling of it the user's own holds (Windows' names
-    ignore case: two would both go to the process)."""
+    ignore case: two would both go to the process). And no `CDPATH` (K3's review): `cd src` is
+    the folder's own `src`, never one a CDPATH names."""
     return {
-        **{k: v for k, v in env.items() if k.upper() != "NODEFAULTCURRENTDIRECTORYINEXEPATH"},
+        **{
+            k: v
+            for k, v in env.items()
+            if k.upper() not in ("NODEFAULTCURRENTDIRECTORYINEXEPATH", "CDPATH")
+        },
         "NoDefaultCurrentDirectoryInExePath": "1",
     }
 

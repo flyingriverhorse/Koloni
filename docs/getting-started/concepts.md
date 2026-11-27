@@ -26,15 +26,15 @@ how they hang together.
 
 ## Who does the work
 
-**The Orchestrator (Lead)**
+**The Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
-  sub-agents, unless you let it change files itself (Settings › This project › Agents › **Who
+  sub-agents, unless you let it change files itself (Settings › This project › How agents work › **Who
   changes the files**). Behind the scenes its role is named Lead. See [Roles](../agents/roles.md).
 
 **Sub-agent**
 : An agent that the Orchestrator, or another agent, opens for one part of the work. It changes files
   in its own working copy, not in your folder. Opening one can ask you first (Settings › This project ›
-  Asking and away › **Opening a sub-agent**). See [Permission levels](../use/permissions.md#sub-agents).
+  When you're asked › **Opening a sub-agent**). See [Permission levels](../use/permissions.md#sub-agents).
 
 **Role**
 : What an agent is for: a description, instructions, the tools it may use and, if you like, its own
@@ -67,15 +67,15 @@ how they hang together.
 ## Your say
 
 **Working copy and Take in**
-: A sub-agent changes files in a copy of your project, outside your folder, so your folder does not
-  change until you say so. Its work comes back on a card: **Take in** or **Discard**. A team's recipe keeps
+: A sub-agent changes files in a copy of your project (outside your folder, or in its `.koloni/copies/`
+  where it has no git), so your folder does not change until you say so. Its work comes back on a card: **Take in** or **Discard**. A team's recipe keeps
   its work in one copy until you press **Take in**. See
   [Working copies and Take in](../use/workspace.md).
 
 **Ready for you (cards)**
 : A card is a box that waits for your answer, such as "Run this command?" or a file change. Everything
-  that waits is listed in the **Ready for you** panel (the pill in the top bar) and on the **Ready**
-  page. The card where a recipe's work ends is **Teams' work is ready**, with **Take in**,
+  that waits is listed in the **Ready for you** panel (the pill in the top bar) and on the **Work**
+  page's **Ready for you** tab. The card where a recipe's work ends is **Teams' work is ready**, with **Take in**,
   **Fix the findings** and **Ask for changes**. See [Ready and approval cards](../use/ready.md).
 
 **Permission levels**
@@ -95,12 +95,14 @@ how they hang together.
 **Knowledge**
 : What agents can look things up in: a docs site, files, a repository or a topic, read once and turned
   into a short guide. A role uses a knowledge only if you give it to the role. Memory is what the project
-  learned; knowledge is reading you hand to agents. See [Knowledge and experts](../knowledge.md).
+  learned; knowledge is reading you hand to agents - both on the Memory page, its two parts, and one
+  tool, **Recall**, looks in both. See [Sources to look things up in](../knowledge.md).
 
 ## Work that starts by itself
 
 **To-do**
-: A project's tasks, in your order: a story holds tasks and bugs. Tick tasks and
+: A project's tasks, in your order, on the **Work** page's **To-do** tab, beside **Ready for you**: a story holds tasks
+  and bugs. Tick tasks and
   give them to a chat (**Do in chat**): they wait in its queue and run there one by one, each story in a
   topic of its own, with a short notebook. Agents can propose tasks, and you decide when a task is done.
   See [To-do](../automation/todo.md).

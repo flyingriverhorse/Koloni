@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { BacklogTask, Story } from '../api/types'
-import { inFilter, treeOf, type TreeRow } from './tree'
+import { cardsOf, inFilter, treeOf, type TreeRow } from './tree'
 
 const task = (over: Partial<BacklogTask>): BacklogTask => ({
   id: over.title ?? 't',
@@ -110,4 +110,24 @@ test('a story of the agent with only proposed tasks is not shown', () => {
   expect(treeOf([proposed], [theirs], 'all')).toEqual([])
   // Once one of its tasks is added, it is.
   expect(treeOf([{ ...proposed, status: 'todo' }], [theirs], 'all').map(label)).toEqual(['story:Agent’s', 'task:idea'])
+})
+
+test('the tree as cards (0.1.10): each story with its tasks - one with none shown too -, then one card of the tasks of no story', () => {
+  const stories = [story({ title: 'Login' }), story({ title: 'Empty', position: 1 })]
+  const tasks = [
+    task({ title: 'form', story_id: 'Login' }),
+    task({ title: 'reset', story_id: 'Login', position: 1 }),
+    task({ title: 'loose' }),
+    task({ title: 'bug', kind: 'bug', position: 1 }),
+  ]
+  const cards = cardsOf(treeOf(tasks, stories, 'all'))
+  expect(cards.map(card => [card.key, card.tasks.map(one => one.title)])).toEqual([
+    ['Login', ['form', 'reset']],
+    ['Empty', []],
+    ['none', ['loose', 'bug']],
+  ])
+  // A list of no story at all is one card.
+  expect(cardsOf(treeOf([task({ title: 'only' })], [], 'all')).map(card => [card.story, card.tasks.length])).toEqual([
+    [null, 1],
+  ])
 })

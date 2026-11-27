@@ -9,12 +9,17 @@ import { PROJECT_DIR } from './paths.mjs'
 // .koloni/knowledge/pay/; its row says what was read, when, on what, and shows the guide. What a spec makes it takes away.
 const DOCS = path.join(PROJECT_DIR, 'docs-uzman')
 const KEPT = path.join(PROJECT_DIR, '.koloni', 'knowledge', 'pay')
+// The second test's team and its expert, a long name: none of KOLONİ's ready teams holds an expert since 0.1.10 (0194).
+const TEAM = 'Expert chips'
+const LONG = 'Payments, refunds and invoicing expert'
 type Named = { id: string; name: string }
 
 test.afterEach(async ({ request }) => {
   for (const role of (await (await request.get('/api/roles')).json()) as Named[])
-    if (role.name === 'Pay expert')
+    if (role.name === 'Pay expert' || role.name === LONG)
       expect((await request.delete(`/api/roles/${role.id}`, { headers: OWN })).ok()).toBe(true)
+  for (const team of (await (await request.get('/api/teams')).json()) as Named[])
+    if (team.name === TEAM) expect((await request.delete(`/api/teams/${team.id}`, { headers: OWN })).ok()).toBe(true)
   await dropKnowledge(request, 'Pay')
   rmSync(DOCS, { recursive: true, force: true })
   rmSync(KEPT, { recursive: true, force: true })
@@ -57,7 +62,7 @@ for (const theme of ['light', 'dark'] as const) {
 
     // What it read and its guide: on the Knowledge page.
     await panel.getByRole('button', { name: 'on Knowledge →' }).click()
-    const row = page.locator('.knowledge-card').filter({ hasText: 'Pay expert · full' })
+    const row = page.locator('.knowledge-card').filter({ hasText: 'Pay expert full' })
     await row.getByRole('button', { name: /Pay/ }).click()
     await row.getByRole('tab', { name: 'Settings' }).click()
     const knowledge = page.locator('.knowledge-page')
@@ -88,9 +93,25 @@ for (const theme of ['light', 'dark'] as const) {
     page,
   }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
-    await openFreshConversation(page)
+    const id = await openFreshConversation(page)
+    // A team of the user's with an expert in its Plan stage, as Agents -> New role -> An expert makes one from a stage.
+    mkdirSync(DOCS, { recursive: true })
+    writeFileSync(path.join(DOCS, 'pay.md'), '# Pay\n\npay(amount) takes a payment.\n')
+    const projectId: string = (await (await page.request.get(`/api/conversations/${id}`)).json()).conversation
+      .project_id
+    const team: Named = await (await page.request.post('/api/teams', { headers: OWN, data: { name: TEAM } })).json()
+    const made = await page.request.post('/api/roles/experts', {
+      headers: OWN,
+      data: {
+        project_id: projectId,
+        role: { name: LONG, tools: ['list_dir', 'read_file'], kind: 'plan', teams: [team.id] },
+        knowledge: { topic: 'Pay', sources: ['docs-uzman/pay.md'] },
+      },
+    })
+    expect(made.ok(), await made.text()).toBe(true)
+    await page.reload() // (the page reads the teams afresh)
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
-    await page.getByRole('button', { name: /^ML Plan/, expanded: false }).click()
+    await page.getByRole('button', { name: new RegExp(`^${TEAM}`), expanded: false }).click()
     const chips = page.locator('.team-mini', { has: page.locator('.chip-knows') })
     await expect(chips.first()).toBeVisible()
     for (const width of [1440, 1100, 900]) {

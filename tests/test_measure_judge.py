@@ -15,6 +15,7 @@ import pytest
 
 from app.model_client import OpenAICompatClient, StepResult
 from app.model_session import ClaudeSessionClient, CopilotSessionClient
+from app.risk_judge import DESTRUCTIVE, action
 from tests.fakes import Script
 from tests.test_agent_commands import cmd
 from tests.test_agent_writes import write
@@ -185,10 +186,41 @@ def test_the_dry_run_builds_every_cases_prompt_and_asks_nothing(capsys):
     every = [(which, case) for which in measure.FILES for case in measure.cases(which)]
     assert measure.main(["--dry-run"]) == 0
     shown = capsys.readouterr().out
-    assert shown.startswith(f"{len(every)} prompts built; the first (words-01):")
+    assert shown.startswith(f"{len(every)} prompts built, Full auto's judge's with prompt B (")
     assert measure.prompt("words", measure.cases("words")[0]) in shown
+    # (the gate's prompt, B)
+    assert measure.prompt("risk", measure.cases("risk")[0]) in shown and DESTRUCTIVE in shown
     for which, case in every:
         assert json.dumps(case["command"]["command"])[1:-1] in measure.prompt(which, case)
+    # (the words alone: nothing said of Full auto's judge)
+    assert measure.main(["--dry-run", "--only", "words"]) == 0
+    shown = capsys.readouterr().out
+    assert shown.startswith(f"{len(measure.cases('words'))} prompts built\n")
+    assert "Full auto's judge" not in shown and DESTRUCTIVE not in shown
+
+
+def test_prompt_a_is_asked_and_said_and_a_stopped_case_never(tmp_path, capsys):
+    # (K4: the prompt before the gate's B is still measured against; a risk case KOLONİ's list
+    # stops before the judge today spends no call)
+    stopped = [one for one in measure.every_case("risk") if one.get("stopped")]
+    assert stopped and not [one for one in measure.cases("risk") if one.get("stopped")]
+    assert measure.main(["--dry-run", "--only", "risk", "--prompt", "A"]) == 0
+    shown = capsys.readouterr().out
+    assert f"with prompt A ({len(stopped)} risk cases the gate stops" in shown
+    assert measure.prompt("risk", measure.cases("risk")[0], "A") in shown
+    assert DESTRUCTIVE not in shown
+    out = tmp_path / "a.json"
+    model = Ruled({"Reply with one line": {"verdict": "risky", "why": "Deletes."}})
+    argv = ["--kind", "openai_compat", "--model", "quick", "--base-url", "http://127.0.0.1:9/v1"]
+    argv += ["--only", "risk", "--prompt", "A", "--limit", "2", "--out", str(out)]
+    assert measure.main(argv, model) == 0
+    assert len(model.prompts) == 2 and not [one for one in model.prompts if DESTRUCTIVE in one]
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["summary"]["prompt"] == "A"
+    # (fine-01 and -02 called risky: false alarms, by id)
+    assert report["summary"]["risk"]["fine_called_risky"] == ["fine-01", "fine-02"]
+    shown = capsys.readouterr().out
+    assert "(2 cases, prompt A)" in shown and "fine called risky: 2" in shown
 
 
 @pytest.mark.parametrize(
@@ -229,7 +261,11 @@ def test_the_risk_prompt_is_the_gates(judging, wait_run, project_dir):  # noqa: 
     case = {
         "said": {"preferences": [PREFERENCES], "rules": [RULE], "message": [MESSAGE]},
         "command": _command("python gen.py"),
-        "earlier": ["echo EARLIER-1"],
+        "earlier": [
+            'run_command {"command": "echo EARLIER-1"}',
+            # (as the gate reads an action: its JSON escapes read - `risk_judge.action`)
+            action("write_file", json.dumps({"path": "gen.py", "content": program})),
+        ],
         "program": {"path": "gen.py", "text": program, "left": 0},
     }
     assert judge.calls[-1][0]["content"] == measure.prompt("risk", case)
@@ -341,3 +377,49 @@ def test_no_net_is_said_in_the_report_and_on_screen(tmp_path, capsys):
     assert report["summary"]["net"] is False and "net" in report["summary"]["words"]
     assert all("net_pattern" in one and one["alone"] == "ask" for one in report["cases"])
     assert "the model alone - no net" in capsys.readouterr().out
+
+
+IDS_ARGV = ["--kind", "openai_compat", "--model", "quick", "--base-url", "http://127.0.0.1:9/v1"]
+
+
+def test_ids_asks_those_cases_alone_and_an_error_is_never_a_verdict(tmp_path, capsys):
+    # (K3: the main session measures only the cases the judge newly sees - one call each)
+    out = tmp_path / "ids.json"
+    model = Ruled(
+        {
+            # (its command's JSON: prompt B itself names `git reset --hard`)
+            '"command": "git reset --hard",': RuntimeError("the model is down"),
+            "Reply with one line": {"verdict": "risky", "why": "It deletes the user's work."},
+        }
+    )
+    flags = ["--only", "risk", "--ids", "risky-67, fine-84", "--out", str(out)]
+    assert measure.main([*IDS_ARGV, *flags], model) == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    rows = {one["id"]: one for one in report["cases"]}
+    assert set(rows) == {"risky-67", "fine-84"} and len(model.prompts) == 2
+    assert "error" in rows["risky-67"] and "got" not in rows["risky-67"]
+    assert rows["fine-84"]["got"] == "risky"
+    assert report["summary"]["errors"] == ["risky-67"]
+    assert report["summary"]["ids"] == ["fine-84", "risky-67"]
+
+
+@pytest.mark.parametrize(
+    "ids, said",
+    [
+        ("risky-71", "the gate stops risky-71 before its judge"),
+        ("risky-67,no-such-1", "no such case no-such-1"),
+        ("words-08", "no such case words-08"),  # (not of the set asked: --only risk)
+        (",", "no id given"),
+    ],
+)
+def test_ids_that_name_no_case_to_ask_stop_before_any_call(tmp_path, capsys, ids, said):
+    flags = ["--only", "risk", "--ids", ids, "--out", str(tmp_path / "x.json")]
+    with pytest.raises(SystemExit):
+        measure.main([*IDS_ARGV, *flags], Ruled({}))
+    assert said in capsys.readouterr().err
+    assert not (tmp_path / "x.json").exists()
+
+
+def test_ids_with_a_dry_run_builds_those_prompts_alone(capsys):
+    assert measure.main(["--dry-run", "--ids", "risky-87,words-172"]) == 0
+    assert capsys.readouterr().out.startswith("2 prompts built")

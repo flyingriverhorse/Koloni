@@ -268,14 +268,14 @@ def test_the_test_machines_own_codex_settings_are_out_of_reach():
     assert "pytest" in os.environ["CODEX_HOME"] and codex_model({}) is None
 
 
-@pytest.mark.parametrize("build, mode", [(CodexCliClient, "step"), (CodexNativeClient, "native")])
 def test_an_agent_on_codexs_own_default_shows_the_settings_model(
-    cli_app, wait_run, project_dir, codex_home, build, mode
+    cli_app, wait_run, project_dir, codex_home
 ):
+    # (Codex one step at a time was cut in 0.1.10: natively only.)
     (codex_home / "config.toml").write_text('model = "gpt-5.5-codex"\n', encoding="utf-8")
     client, provider, _default = cli_app(
-        build,
-        {"name": "Codex", "kind": "codex_cli", "mode": mode},
+        CodexNativeClient,
+        {"name": "Codex", "kind": "codex_cli", "mode": "native"},
         env={"CODEX_HOME": str(codex_home)},
         script=[{"say": "Done."}],
     )

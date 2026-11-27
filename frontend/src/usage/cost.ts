@@ -43,7 +43,7 @@ export function totalCost(rows: Usage['by_model'], prices: Price[]) {
  * page writes it, and spend is at your prices - in another currency the two are never compared. Null: it can be.
  */
 export function limitUnkept(prices: Price[]): string | null {
-  const own = [...new Set(prices.map(price => price.currency.toUpperCase()))].sort()
+  const own = [...new Set(prices.map(price => price.currency.toUpperCase()))].sort((a, b) => a.localeCompare(b))
   return own.some(currency => currency !== 'USD')
     ? `This limit can't be kept: your prices are in ${own.join(' and ')}`
     : null
