@@ -68,8 +68,12 @@ def _who(one: dict, key: str = "author") -> str:
     return str(author.get("login") or "?") if isinstance(author, dict) else "?"
 
 
-def _said(text: object) -> str:
-    return quoted(str(text or "").strip()) if str(text or "").strip() else "(no text)"
+def _said(text: object, raw: list[str]) -> str:
+    """A body as given: masked, then quoted - kept as written in `raw`, for KOLONİ's look at
+    orders (a phrase a line break splits is one in the raw words, not in the quoted)."""
+    words = str(text or "").strip()
+    raw.append(words)
+    return quoted(OutputMask(()).hide(words)) if words else "(no text)"
 
 
 def _checks(rollup: object) -> list[str]:
@@ -89,46 +93,51 @@ def _checks(rollup: object) -> list[str]:
     return [f"Checks: {len(lines)} failing or not ended, {passed} passed", *lines]
 
 
-def text_of(number: int, repo: str, view: object, inline: object) -> str:
+def text_of(number: int, repo: str, view: object, inline: object) -> tuple[str, str]:
     """What the Orchestrator is given: the review decision, the checks, each review, comment and
-    line comment with who wrote it - their words quoted -, masked, cut at MOST, after KOLONİ's
-    note where it reads like orders."""
+    line comment with who wrote it - their words masked, then quoted -, masked whole again, cut at
+    MOST, after KOLONİ's note where their words as written read like orders; and those words as
+    written, for the user's warning (`AgentRunner._orders`)."""
     view = view if isinstance(view, dict) else {}
+    raw: list[str] = []
+    checks = _checks(view.get("statusCheckRollup"))
     parts = [
         FRAME.format(number=number, repo=repo),
         f"Review decision: {view.get('reviewDecision') or 'none'}",
-        *_checks(view.get("statusCheckRollup")),
+        *checks,
         "",
         "Reviews:",
     ]
     for one in view.get("reviews") or []:
         if isinstance(one, dict):
             state, when = one.get("state") or "?", one.get("submittedAt") or "?"
-            parts.append(f"--- {_who(one)} {state} ({when}): {_said(one.get('body'))}")
+            parts.append(f"--- {_who(one)} {state} ({when}): {_said(one.get('body'), raw)}")
     parts += ["", "Comments:"]
     for one in view.get("comments") or []:
         if isinstance(one, dict):
-            parts.append(f"--- {_who(one)} commented: {_said(one.get('body'))}")
+            parts.append(f"--- {_who(one)} commented: {_said(one.get('body'), raw)}")
     parts += ["", "Comments on lines:"]
     for one in inline if isinstance(inline, list) else []:
         if isinstance(one, dict):
             line = one.get("line") or one.get("original_line") or "?"
             hunk = str(one.get("diff_hunk") or "")[-HUNK:]
+            raw.append(hunk)
             parts.append(
                 f"--- {_who(one, 'user')} on {one.get('path') or '?'}:{line}: "
-                f"{_said(one.get('body'))} (the diff: {quoted(hunk)})"
+                f"{_said(one.get('body'), raw)} (the diff: {quoted(OutputMask(()).hide(hunk))})"
             )
     text = OutputMask(()).hide("\n".join(parts))
     if len(text) > MOST:
         text = text[: MOST - len(CUT)] + CUT
-    return f"{injection.NOTE}\n{text}" if injection.scan(text) else text
+    said = "\n".join([*checks, *raw])  # (the checks' names too)
+    return (f"{injection.NOTE}\n{text}" if injection.scan(said) else text), said
 
 
-def read(project: Path, raw: str) -> str:
-    """One pull request of the project's GitHub repository, as the Orchestrator is given it
-    (`text_of`). Only reads: `gh pr view` and `gh api`'s GET. Refused, with why: gh not installed
-    or logged in, origin not the repository gh opens pull requests on, another repository's,
-    gh failed."""
+def read(project: Path, raw: str) -> tuple[str, str]:
+    """One pull request of the project's GitHub repository, as the Orchestrator is given it, and
+    its words as written (`text_of`). Only reads: `gh pr view` and `gh api`'s GET. Refused, with
+    why: gh not installed or logged in, origin not the repository gh opens pull requests on,
+    another repository's, gh failed."""
     number, named = ref(raw)
     repo, why = git.pr_ready(project)
     if repo is None:

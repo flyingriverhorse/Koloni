@@ -40,6 +40,7 @@ def test_the_orchestrators_plan_is_shown_masked_cut_and_gone_with_the_turn(
     ]
     steps[1] = {"step": f"Read the key {SECRET} " + "x" * 300, "status": "completed"}
     steps[2] = {"step": "Build it", "status": "inProgress"}
+    steps[3] = {"step": "Re​ad‮ it", "status": "pending"}  # (nothing unseen kept)
     client, model, cid, run_id = setup(
         make_client,
         project_dir,
@@ -64,6 +65,7 @@ def test_the_orchestrators_plan_is_shown_masked_cut_and_gone_with_the_turn(
     assert SECRET not in plan[1]["step"] and "***" in plan[1]["step"]
     assert len(plan[1]["step"]) == 200
     assert plan[2] == {"step": "Build it", "status": "inProgress"}
+    assert plan[3] == {"step": "Read it", "status": "pending"}
     assert "event: agent.live" in late and "Build it" in late  # (a page opened late sees it)
     held.release()
     snap = wait_run(client, cid, run_id)

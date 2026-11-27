@@ -4,8 +4,11 @@ sent (`prompt`: the Orchestrator's summary and question, its recent steps and it
 masked, as data) and the limits. The request goes out from `LeadToolsMixin._ask_advisor`, tool-less
 (`ask_once`), as KOLONİ's own request in the turn; its answer is data too."""
 
+import json
+
 from sqlalchemy.orm import Session
 
+from app.commands import OutputMask
 from app.db.turn_models import Flag
 from app.providers import TIERS, Providers
 from app.team import Entry, Would, judge_choices, quoted
@@ -42,6 +45,28 @@ ANSWERED = (
 def cut(text: str, most: int) -> str:
     """`text` at most `most` characters, "…" where it was longer."""
     return text if len(text) <= most else text[: most - 1] + "…"
+
+
+def masked_call(text: str) -> str:
+    """A call's arguments or result as the advisor is sent them: in JSON, each string in it
+    masked as it is (`"api_key": "…"` written into a file's content is escaped there, out of the
+    mask's sight) and encoded again; text that is no JSON as it is - its step is masked whole
+    besides (`LeadToolsMixin._ask_advisor`)."""
+    mask = OutputMask(()).hide
+
+    def leaves(value: object) -> object:
+        if isinstance(value, str):
+            return mask(value)
+        if isinstance(value, list):
+            return [leaves(one) for one in value]
+        if isinstance(value, dict):
+            return {mask(str(key)): leaves(one) for key, one in value.items()}
+        return value
+
+    try:
+        return json.dumps(leaves(json.loads(text)), ensure_ascii=False)
+    except (ValueError, RecursionError):
+        return text
 
 
 def prompt(summary: str, question: str, steps: list[str], at_work: str | None) -> str:

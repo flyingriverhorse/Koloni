@@ -3,6 +3,9 @@ provider's than its own unless the user chose one (Settings' Advisor model), sen
 question, last steps and who is at work - masked, as data -, tool-less, three times a turn; its
 answer is data too, and where nobody can be asked it is told why and goes on."""
 
+import json
+
+import pytest
 from sqlalchemy import select
 
 from app import advisor, injection
@@ -138,3 +141,39 @@ def test_ask_advisor_is_the_orchestrators_alone(judging, wait_run, project_dir):
     assert all("ask_advisor" in names for orchestrator, names in offered if orchestrator)
     assert not any("ask_advisor" in names for orchestrator, names in offered if not orchestrator)
     assert len(offered) == 3
+
+
+def test_a_secret_in_a_steps_json_never_reaches_the_advisor(judging, wait_run, project_dir):
+    # (the review's: escaped in a call's JSON, a secret's shape was out of the mask's sight)
+    secret = "Zq7hunter2Zq7hunter2"
+    content = json.dumps({"api_key": secret}, indent=2)
+    client, lead, quick, _ = judging(
+        [
+            step(call("write_file", {"path": "config.json", "content": content}, "w1")),
+            step(ask("a1", summary="a shop", question="ok?")),
+            text("done"),
+        ],
+        [text("fine")],
+        [],
+    )
+    _pid, cid, run_id = begin(client, project_dir, "build it")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (sent,) = [one for one in quick.calls if one[0]["content"] == advisor.ADVICE]
+    asked = sent[1]["content"]
+    assert "write_file(" in asked and "config.json" in asked
+    assert secret not in asked
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"path": "c.json", "content": json.dumps({"api_key": "Zq7hunter2Zq7hunter2"}, indent=2)},
+        {"command": 'curl -d \'{"password": "Zq7hunter2Zq7hunter2"}\' http://x'},
+        {"path": "c.env", "content": "TOKEN=Zq7hunter2Zq7hunter2"},
+    ],
+)
+def test_each_string_of_a_calls_json_is_masked(arguments):
+    raw = json.dumps(arguments)
+    assert "Zq7hunter2Zq7hunter2" not in advisor.masked_call(raw)
+    assert advisor.masked_call("not json {") == "not json {"  # (masked whole with its step)

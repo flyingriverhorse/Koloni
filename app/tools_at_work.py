@@ -139,3 +139,8 @@ READ_PR_FEEDBACK_SCHEMA = _fn(
 LEAD_TOOLS = frozenset({"update_plan", "ask_advisor", "note_decision", "read_pr_feedback"})
 # The tools above, by name, for `_tool_call_4`'s dispatch (`AtWorkMixin._at_work_call`).
 AT_WORK_TOOLS = frozenset({"stop_agent", "agents_at_work"}) | LEAD_TOOLS
+# Why one of the tools above is refused where they are not offered (`LeadToolsMixin._at_work_open`).
+NOT_OPEN = (
+    "only the Orchestrator at its own work that may open agents - not in a plan turn or a "
+    "comparison's side"
+)

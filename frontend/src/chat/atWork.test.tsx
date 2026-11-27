@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import { useApp } from '../state/store'
@@ -80,9 +80,10 @@ test('the line reads what the turn cost, and opens At work in this turn with Sto
   const panel = screen.getByRole('region', { name: 'At work in this turn' })
   expect(panel).toHaveTextContent(/Coder · working · since \d\d:\d\d/)
   expect(panel).toHaveTextContent(/Scout · waiting for a slot · since/)
+  expect(within(panel).getByText('Plan (its own words)')).toBeVisible()
   expect(screen.getByRole('button', { name: 'Stop Coder' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Message Tester' })).toBeInTheDocument()
-  expect(screen.getByRole('list', { name: "The Orchestrator's plan (its own words)" })).toHaveTextContent('▸ Build')
+  expect(screen.getByRole('list', { name: 'Plan (its own words)' })).toHaveTextContent('▸ Build')
   await userEvent.click(screen.getByRole('button', { name: 'Stop Coder' }))
   await waitFor(() =>
     expect(asked).toHaveBeenCalledWith('/api/agents/coder/stop', expect.objectContaining({ method: 'POST' })),

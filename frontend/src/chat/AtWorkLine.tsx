@@ -96,13 +96,19 @@ function AtWorkPanel({ id, conv }: { id: string; conv: ConvState }) {
         </ul>
       )}
       {plan?.length ? (
-        <ol className="agent-plan" aria-label="The Orchestrator's plan (its own words)">
-          {plan.map((step, index) => (
-            <li key={index} className={`agent-plan-${step.status}`}>
-              {STEP_MARK[step.status]} {step.step}
-            </li>
-          ))}
-        </ol>
+        <>
+          {/* (said as the agent window says it: its words, not KOLONİ's) */}
+          <span id={`${id}-plan`} className="kicker">
+            Plan (its own words)
+          </span>
+          <ol className="agent-plan" aria-labelledby={`${id}-plan`}>
+            {plan.map((step, index) => (
+              <li key={index} className={`agent-plan-${step.status}`}>
+                {STEP_MARK[step.status]} {step.step}
+              </li>
+            ))}
+          </ol>
+        </>
       ) : null}
       <button type="button" className="btn btn-small" onClick={() => useApp.getState().showReady(true)}>
         Open Ready for you

@@ -58,6 +58,14 @@ class LeadToolsMixin:
         if (planned := self._planned.pop(run_id, None)) is not None:
             self._end_live(planned)
 
+    def _at_work_open(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether the tools beside the turn's agents are this agent's - offered
+        (`_at_work_offered`) and taken (`_at_work_call`) alike: the Orchestrator at its own work
+        whose tools let it open agents - not a sub-agent, an answer, a discussion, a plan turn
+        (`PLAN_TOOLS`), a comparison's side (`NOT_IN_A_SIDE`) or a role with no spawn_agent.
+        update_plan and read_pr_feedback hold to more where they are called, as they are offered."""
+        return not (ctx.depth or ctx.answering or ctx.discussion) and "spawn_agent" in ctx.tools
+
     def _lead_offered(self: "AgentRunner", ctx: Ctx, schemas: list[dict]) -> None:
         """`_at_work_offered`'s part: the tools of the Orchestrator at its own work that may open
         agents (spawn_agent is offered: not a plan turn, nor a comparison's side) - each where it
@@ -79,7 +87,7 @@ class LeadToolsMixin:
         if name == "note_decision":
             return self._note_decision(ctx, call_id, args)
         if name == "read_pr_feedback":
-            return await self._read_pr_feedback(ctx, args)
+            return await self._read_pr_feedback(ctx, call_id, args)
         raise ToolError(f"unknown tool: {name}")
 
     def _update_plan(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
@@ -91,10 +99,10 @@ class LeadToolsMixin:
         steps = args.get("steps")
         if not isinstance(steps, list) or not steps:
             raise ToolError("steps: the plan's steps, each {step, status}")
-        mask = OutputMask(()).hide
+        # (each step on one line, masked, what nobody sees taken out: `masking.masked`)
         plan = model_native._plan(
             [
-                {**one, "step": mask(" ".join(str(one.get("step") or "").split()))}
+                {**one, "step": masking.masked(str(one.get("step") or ""))}
                 for one in steps[: model_native.PLAN_STEPS]
                 if isinstance(one, dict)
             ]
@@ -127,7 +135,7 @@ class LeadToolsMixin:
         if self._git_at[ctx.run_id] is not None and not ctx.depth:  # (Task 11, `_pr_offered`)
             self._on_github[ctx.run_id] = await asyncio.to_thread(_on_github, Path(ctx.root))
 
-    async def _read_pr_feedback(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
+    async def _read_pr_feedback(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> str:
         """read_pr_feedback: one pull request's reviews, comments, line comments and checks, read
         with the user's own gh off the event loop (`pr_feedback.read`) - data, masked, cut, framed.
         Only where it was offered (gh installed, origin on GitHub: `_git_start`); else, or where gh
@@ -140,9 +148,12 @@ class LeadToolsMixin:
             _repo, why = await asyncio.to_thread(git.pr_ready, root)
             raise ToolError(f"read_pr_feedback is not available: {why or git.NO_ANSWER}")
         try:
-            return await asyncio.to_thread(pr_feedback.read, root, str(raw))
+            text, said = await asyncio.to_thread(pr_feedback.read, root, str(raw))
         except git.Refused as refused:
             raise ToolError(str(refused)) from None
+        # (anyone on the internet writes there: the user is warned, as of a page or an MCP tool)
+        self._orders(ctx, "web", "a pull request's reviews and comments", said, call_id)
+        return text
 
     # --- Task 9: ask_advisor ---------------------------------------------------------------
 
@@ -215,8 +226,10 @@ class LeadToolsMixin:
                 .order_by(literal_column("tool_calls.rowid").desc())
                 .limit(advisor.STEPS_MOST)
             ).all()
+        # (each string of its arguments masked as it is: JSON hid a secret's shape - `masked_call`)
         steps = [
-            f"{name}({arguments}) -> {status}: {result or ''}"
+            f"{name}({advisor.masked_call(arguments)}) -> {status}: "
+            + advisor.masked_call(result or "")
             for name, arguments, status, result in reversed(calls)
         ]
         return asking, mode, steps

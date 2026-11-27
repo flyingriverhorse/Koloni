@@ -74,6 +74,7 @@ from app.tools_at_work import (
     AT_WORK_SAID,
     COMMAND_BACKGROUND_PROPERTY,
     LEAD_TOOLS,
+    NOT_OPEN,
     SAID_MOST,
     SPAWN_BACKGROUND_PROPERTY,
     STOP_AGENT_SCHEMA,
@@ -139,9 +140,7 @@ class AtWorkMixin:
         if self._background_offered(ctx):
             for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
                 spawn["parameters"]["properties"]["background"] = SPAWN_BACKGROUND_PROPERTY
-        if not (ctx.depth or ctx.answering or ctx.discussion) and any(
-            s["function"]["name"] == "spawn_agent" for s in schemas
-        ):
+        if self._at_work_open(ctx) and any(s["function"]["name"] == "spawn_agent" for s in schemas):
             schemas.append(STOP_AGENT_SCHEMA)
             schemas.append(AGENTS_AT_WORK_SCHEMA)  # (D4: who of them is at work)
             self._lead_offered(ctx, schemas)
@@ -242,8 +241,8 @@ class AtWorkMixin:
         """`_tool_call_4`'s part for `AT_WORK_TOOLS`, held to the agent they are offered to (a
         CLI keeps the tools it was given at its start)."""
         name, args = request.name, parse_arguments(request.arguments)
-        if ctx.depth or ctx.answering or ctx.discussion:
-            raise ToolError(f"{name} is not available: only the Orchestrator at its own work")
+        if not self._at_work_open(ctx):  # (as offered: update_plan, read_pr_feedback hold more)
+            raise ToolError(f"{name} is not available: {NOT_OPEN}")
         if name == "agents_at_work":
             return self._agents_at_work(ctx)
         if name in LEAD_TOOLS:
@@ -666,7 +665,6 @@ class AtWorkMixin:
             for agent_id in mine:
                 for kept in (self._stopped_one, self._steered_word, self._said, self._seen_by):
                     kept.pop(agent_id, None)
-            self._lead_tools_forget(run_id)  # (its plan shown, what its tools counted)
             if cid:
                 for _note, name, words in unread:
                     self._koloni_line(
@@ -676,6 +674,8 @@ class AtWorkMixin:
                     self._requeue(run_id, cid, unheard)
         except Exception:
             log.warning("run %s: its door did not close cleanly", run_id, exc_info=True)
+        with contextlib.suppress(Exception):  # (after the words: they always go on)
+            self._lead_tools_forget(run_id)  # (its plan shown, what its tools counted)
 
     def _requeue(self: "AgentRunner", run_id: str, cid: str, ids: list[str]) -> None:
         """Words of a turn none of its steps read, each into a turn of its own (`requeued`), in

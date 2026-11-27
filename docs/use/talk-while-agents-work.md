@@ -124,7 +124,8 @@ Click the line for **At work in this turn**: each agent, "Coder · working · si
 ## What the Orchestrator has while its agents work
 
 The Orchestrator at its own work - not a sub-agent, an answer or a discussion, nor a plan turn or a
-side of a comparison - also has these, besides `stop_agent`. Each answer of theirs is data for it:
+side of a comparison - also has these, besides `stop_agent`; anywhere else they are refused, also
+when named. Each answer of theirs is data for it:
 what agents, models and other people wrote stays in quotes, with secrets masked.
 
 - **agents_at_work** - who of this turn is at work now: "2 at work in this turn:", then a line each,
@@ -158,4 +159,5 @@ what agents, models and other people wrote stays in quotes, with secrets masked.
   it, and the comments on lines. It is read with your own `gh` - offered where `gh` is installed and the
   project's origin is on github.com; not logged in, it says so - and it only reads: there is no way to
   reply with it. What reviewers and checks say is theirs, never yours: framed as data, masked, cut at
-  20,000 characters.
+  20,000 characters. Where it reads like orders to an agent, the chat warns you, as it does for a web
+  page or an MCP tool.
