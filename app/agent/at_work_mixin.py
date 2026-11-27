@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, or_, select
 
-from app import away, injection, recipe_run, web
+from app import away, command_wait, injection, recipe_run, web
 from app.agent.ctx import TERMINAL, Ctx
 from app.agent.message_modes import HOW_PROPERTY
 from app.agent.questions_mixin import USER_TOLD
@@ -214,9 +214,15 @@ class AtWorkMixin:
         return command.tool_call_id, command
 
     async def _command_later_call(
-        self: "AgentRunner", ctx: Ctx, name: str, found: tuple, since: object
+        self: "AgentRunner",
+        ctx: Ctx,
+        name: str,
+        found: tuple,
+        since: object,
+        waits: tuple[str, float] | None = None,
     ) -> str:
-        """command_output and stop_command on one of its background commands (`_serving_call`)."""
+        """command_output and stop_command on one of its background commands (`_serving_call`);
+        `waits`: the text command_output waits for in its output first, and how long."""
         call_id, command = found
         if command is None and name == "command_output":
             return f"Command {call_id} has not started yet: it is being checked, or its card waits."
@@ -225,15 +231,27 @@ class AtWorkMixin:
             task.cancel()  # (its process, with what it started, ends as the turn's Stop ends one)
             await asyncio.wait({task}, timeout=STOP_WAIT)
             return f"Command {call_id} is stopped."
+        seen = ""
+        if waits is not None:  # (in what it may read: kept, its secrets hidden)
+            seen = await command_wait.waited(
+                lambda: self.commands.live_outputs(ctx.cid).get(command.id), *waits, since
+            )
         live = self.commands.live_outputs(ctx.cid).get(command.id)
+        if live is None and seen:  # (over meanwhile: its record's, as it is now)
+            with self._factory() as session:
+                if (now_on := session.get(Command, command.id)) is not None:
+                    session.expunge(now_on)
+                    command = now_on
         if live is None:  # (not started yet, or just over: its record's)
-            return self.commands.output_of(command, since if isinstance(since, int) else None)
+            return seen + self.commands.output_of(
+                command, since if isinstance(since, int) else None
+            )
         start = (
             min(since, len(live)) if isinstance(since, int) else max(0, len(live) - OUTPUT_AT_MOST)
         )
         shown = live[start : start + OUTPUT_AT_MOST]
         end = start + len(shown)
-        return (
+        return seen + (
             f"Command {call_id} ({command.command}) runs in the background. Characters "
             f"{start}-{end} of {len(live)} of its output; for what it prints next, call again "
             f"with since={end}:\n{shown}"

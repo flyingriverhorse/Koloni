@@ -9,7 +9,7 @@
 1602 app/agent/merge.py
 3129 app/agent/spawn_mixin.py
 1696 app/browser.py
-6563 app/commands.py
+6552 app/commands.py
 1779 app/db/models.py
 4112 app/git.py
 2950 app/knowledge.py
@@ -17,7 +17,7 @@
 5710 app/model_native.py
 1984 app/proof_kinds.py
 4646 app/schemas.py
-1656 app/tools.py
+1642 app/tools.py
 1520 frontend/src/agents/RecipesTab.tsx
 2579 frontend/src/chat/MessageList.test.tsx
 1679 frontend/src/chat/MessageList.tsx
