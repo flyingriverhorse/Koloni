@@ -4216,6 +4216,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/spent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Spent
+         * @description Task 6: what the turn cost so far, for the line over its chat (`usage.spend`): None where
+         *     nothing of it is priced - never a made-up zero; at least where a part of it is not.
+         */
+        get: operations["run_spent_api_runs__run_id__spent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/undo": {
         parameters: {
             query?: never;
@@ -10507,6 +10528,20 @@ export interface components {
             trigger_name: string | null;
             /** Unattended */
             unattended: boolean;
+        };
+        /**
+         * RunSpentOut
+         * @description Task 6: what a turn cost so far at the user's prices - its agents and KOLONİ's own requests
+         *     for it (`GET /api/runs/{id}/spent`). `spent` None where nothing of it is priced (a CLI's, a
+         *     model with no price); `at_least` where a part of it is not.
+         */
+        RunSpentOut: {
+            /** At Least */
+            at_least: boolean;
+            /** Currency */
+            currency: string | null;
+            /** Spent */
+            spent: number | null;
         };
         /**
          * SaidOut
@@ -19381,6 +19416,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostMessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_spent_api_runs__run_id__spent_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSpentOut"];
                 };
             };
             /** @description Validation Error */

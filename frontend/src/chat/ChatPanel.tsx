@@ -36,6 +36,7 @@ import { judgeWordsOf } from './levels'
 import { Earlier } from './Earlier'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { ChatStoryStrip } from './StoryStrip'
+import { AtWorkLine } from './AtWorkLine'
 import { DecidedLine } from './DecidedLine'
 import { toFront } from '../shell/move'
 import { testsRun } from '../shell/sections/afterChangeWords'
@@ -588,6 +589,7 @@ export function ChatPanel() {
         <WidthEdge open={open} />
         <ChatTabs tab={tab} handoffs={handoffs} notes={notes} count={count} onHide={toggle} />
         <ChatStoryStrip conv={conv} tab={tab} />
+        <AtWorkLine conv={conv} />
         {/* Decided for you, in one line: Ready for you says each (karar defteri). */}
         <DecidedLine conv={conv} />
         {/* The tab's own content scrolls in what the tabs and the message box leave (base.css .chat-pane). */}
