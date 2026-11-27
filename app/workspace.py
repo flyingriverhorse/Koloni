@@ -50,6 +50,10 @@ NOT_WRITTEN_UNATTENDED = {
     ".git": "git's hooks and config: programs that run by themselves at the next git command",
     ".github": "workflows and actions: they run by themselves once pushed",
     ".vscode": "the editor's tasks and settings: they can run when the folder is opened",
+    # shortcut: a JetBrains IDE rewrites `.idea/workspace.xml` itself as the user works; while an
+    # agent's turn is looked at, the write audit puts that back too, on a card - narrow this to
+    # the run configurations if that is met.
+    ".idea": "a JetBrains IDE's run configurations and settings: they can run in the folder",
     **dict.fromkeys(
         (".devcontainer", ".devcontainer.json"),
         "the dev container's settings: the commands it runs when the folder is opened in one",

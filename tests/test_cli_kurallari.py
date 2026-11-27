@@ -160,6 +160,7 @@ def test_at_full_auto_git_below_the_root_is_put_to_the_judge(
 
 PROTECTED = {
     "echo x > .cargo/config.toml": ".cargo",
+    "cp x .idea/workspace.xml": ".idea",
     "echo '{}' > .devcontainer/devcontainer.json": ".devcontainer",
     "echo '{}' > .devcontainer.json": ".devcontainer.json",
     "sed -i s/a/b/ .gitmodules": ".gitmodules",
@@ -197,6 +198,7 @@ def test_running_the_build_or_reading_its_settings_names_none(line):
 def test_the_write_audit_looks_at_them_and_lets_a_submodule_line_write_gitmodules(tmp_path):
     looked = {
         ".cargo/config.toml",
+        ".idea/workspace.xml",
         ".gitmodules",
         "gradle/wrapper/gradle-wrapper.properties",
     }

@@ -37,7 +37,7 @@ level says "· no checks"). Each chat has its own level.
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless Full auto's judge finds it risky; a card where what it runs deletes, sends or is asked at every level |
 | Reading a secret file (`.env`, keys, …) | Card | Card | Card |
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
-| Writing a file that steers agents' later turns or runs by itself (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.devcontainer/`, `.cargo/`, `.gitmodules`, `.mcp.json`, … - [all of them](../security/model.md#files-that-steer-later-turns)) | Card | Card | Card |
+| Writing a file that steers agents' later turns or runs by itself (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.idea/`, `.devcontainer/`, `.cargo/`, `.gitmodules`, `.mcp.json`, … - [all of them](../security/model.md#files-that-steer-later-turns)) | Card | Card | Card |
 | Writing `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` | Card | Card | Runs |
 | Writing in the folder's `.koloni/` - or a command that names it - but in its scratch `tmp/`, and a look into `worktrees/` or `copies/` ([which](#the-folders-koloni)) | Card | Card | Card |
 | A web search | Card, unless you allowed searching in this chat | Card, unless you allowed searching in this chat | Runs |

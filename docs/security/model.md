@@ -134,7 +134,7 @@ of these is a wall: a script in the job reaches your repository as you could. Se
 ## Files that steer later turns
 
 Some files change what agents, git or your editor do later, by themselves. Writing them asks at every
-level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vscode/`,
+level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vscode/`, `.idea/`,
 `.devcontainer/` (and `.devcontainer.json`), `.husky/`, `.gitmodules`, `.cargo/`, `.mvn/`, Gradle's wrapper
 (`gradle-wrapper.properties`, `gradle-wrapper.jar`), `.bazelrc`, `.mcp.json`, commit-hook settings
 (`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's `.pth` files in `site-packages`,
