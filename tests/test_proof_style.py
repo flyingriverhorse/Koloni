@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from app import proof, proof_style
+from app.cards import PLANTED_READ as READ
 from app.executors import host
 from tests.conftest import migrated_copy, scaled
 from tests.fakes import Script, ScriptedExecutor
@@ -1606,14 +1607,12 @@ def test_what_python_m_imports_from_its_folder_before_the_tools_own():
 def test_a_python_runners_rule_stops_at_a_manifest_or_setting_an_agent_wrote_anywhere(
     tmp_path, line, cwd, written, asked
 ):
-    from app.command_runner import PLANTED, _planted
+    from app.command_runner import _planted
 
     factory = _copy_db(tmp_path, {written: "PLANTED = 1\n"})
     root = (tmp_path / "copy").resolve()
     (root / cwd).mkdir(parents=True, exist_ok=True)
-    assert _planted(factory, "c", root, line, cwd) == (
-        PLANTED.format(place=asked) if asked else None
-    )
+    assert _planted(factory, "c", root, line, cwd) == (READ.format(place=asked) if asked else None)
     # (written over since - the user's own again: covered)
     (root / written).write_text("[tool.ruff]\n", encoding="utf-8")
     assert _planted(factory, "c", root, line, cwd) is None
@@ -1655,14 +1654,12 @@ def test_a_python_runners_rule_stops_at_a_manifest_or_setting_an_agent_wrote_any
 def test_a_node_runners_rule_stops_at_a_lock_or_a_package_below_an_agent_wrote(
     tmp_path, line, cwd, written, asked
 ):
-    from app.command_runner import PLANTED, _planted
+    from app.command_runner import _planted
 
     factory = _copy_db(tmp_path, {written: "PLANTED\n"})
     root = (tmp_path / "copy").resolve()
     (root / cwd).mkdir(parents=True, exist_ok=True)
-    assert _planted(factory, "c", root, line, cwd) == (
-        PLANTED.format(place=asked) if asked else None
-    )
+    assert _planted(factory, "c", root, line, cwd) == (READ.format(place=asked) if asked else None)
 
 
 TSC_EXTENDS = '{"extends": "./configs/base", "include": ["src"]}\n'
@@ -1704,7 +1701,7 @@ TSC_EXTENDS = '{"extends": "./configs/base", "include": ["src"]}\n'
     ],
 )
 def test_a_tsc_rule_stops_at_a_setting_an_agent_wrote(tmp_path, line, cwd, written, asked):
-    from app.command_runner import PLANTED, _planted
+    from app.command_runner import _planted
 
     factory = _copy_db(tmp_path, {written: '{"compilerOptions": {"generateTrace": "../x"}}\n'})
     root = (tmp_path / "copy").resolve()
@@ -1718,9 +1715,7 @@ def test_a_tsc_rule_stops_at_a_setting_an_agent_wrote(tmp_path, line, cwd, writt
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_text(said, encoding="utf-8")
     (root / cwd).mkdir(parents=True, exist_ok=True)
-    assert _planted(factory, "c", root, line, cwd) == (
-        PLANTED.format(place=asked) if asked else None
-    )
+    assert _planted(factory, "c", root, line, cwd) == (READ.format(place=asked) if asked else None)
 
 
 def test_what_tsc_reads_follows_extends_and_references_once_each_and_not_for_ever(tmp_path):
@@ -1790,9 +1785,10 @@ MANIFESTS = {
 
 
 def proof_style_planted(place: str) -> str:
-    from app.command_runner import PLANTED
+    from app.command_runner import PLANTED, PLANTED_READ
 
-    return PLANTED.format(place=place)
+    read = place.endswith((".json", ".yml", ".toml", ".lock", ".npmrc"))  # (N9: not its program)
+    return (PLANTED_READ if read else PLANTED).format(place=place)
 
 
 # --- the second session's round (W3-W5): what a tool said, how long its lines take ------------

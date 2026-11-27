@@ -15,13 +15,12 @@ from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
 from app import ledger, project_map, proof, proof_style, risk_judge
-from app.cards import card_reason, rule_kept_off
+from app.cards import PLANTED, PLANTED_READ, card_reason, rule_kept_off
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
     MODEL_HEAD,
     MODEL_TAIL,
-    PLANTED,
     OutputMask,
     _program,
     _words,
@@ -512,22 +511,20 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
     imported = [(cwd, False)] * own + [(one, reach.startup_only) for one in _COPY_PATH] * path
 
     def plants(rel: str) -> str | None:
+        """Why `rel` stops the line's rule: its program, or (N9) a file it may read or load."""
         if places is None:
             found = proof_style.wrote_program(root, cwd, program, [rel])
-        else:
-            found = proof_style.planted_in(root, places, anywhere, rel)
-        return (
-            found
-            or next(
-                (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only))),
-                None,
-            )
-            or setting(rel)
-        )
+        elif found := proof_style.planted_in(root, places, anywhere, rel):
+            # (a runner's place that is no install folder is a file it reads or loads: `.npmrc`)
+            code = PurePosixPath(found).name.casefold() in (*proof_style.INSTALLS, "venv")
+            return (PLANTED if code else PLANTED_READ).format(place=found)
+        module = (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only)))
+        if found := found or next(module, None):
+            return PLANTED.format(place=found)
+        return PLANTED_READ.format(place=read) if (read := setting(rel)) else None
 
     held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])
-    place = next((place for rel in held if (place := plants(rel))), None)
-    return PLANTED.format(place=place) if place else None
+    return next((said for rel in held if (said := plants(rel))), None)
 
 
 # Y1: cmd.exe's word for a bare name it did not find - under KOLONİ only on PATH (W1, as under
