@@ -414,6 +414,17 @@ type WorkTab = 'ready' | 'todo'
  *  you, the open tasks on To-do (none until its list is read). The keys as Memory's tabs take them. */
 function WorkTabs({ tab, waiting, open }: { tab: WorkTab; waiting: number; open: number | null }) {
   const pick = (to: WorkTab) => useApp.setState({ readyTab: to })
+  // Two tabs: either arrow goes to the other, Home to the first, End to the last - on the tab that has the focus.
+  const onKey = (event: KeyEvent<HTMLButtonElement>) => {
+    const other = tab === 'ready' ? 'todo' : 'ready'
+    const to = ({ ArrowRight: other, ArrowLeft: other, Home: 'ready', End: 'todo' } as Record<string, WorkTab>)[
+      event.key
+    ]
+    if (!to) return
+    event.preventDefault()
+    pick(to)
+    document.getElementById(`work-tab-${to}`)?.focus()
+  }
   const one = (to: WorkTab, words: string, n: number | null) => (
     <button
       id={`work-tab-${to}`}
@@ -424,23 +435,13 @@ function WorkTabs({ tab, waiting, open }: { tab: WorkTab; waiting: number; open:
       aria-controls={`work-panel-${to}`}
       tabIndex={to === tab ? 0 : -1}
       onClick={() => pick(to)}
+      onKeyDown={onKey}
     >
       {n ? `${words} · ${n}` : words}
     </button>
   )
-  // Two tabs: either arrow goes to the other, Home to the first, End to the last.
-  const onKey = (event: KeyEvent<HTMLDivElement>) => {
-    const other = tab === 'ready' ? 'todo' : 'ready'
-    const to = ({ ArrowRight: other, ArrowLeft: other, Home: 'ready', End: 'todo' } as Record<string, WorkTab>)[
-      event.key
-    ]
-    if (!to) return
-    event.preventDefault()
-    pick(to)
-    event.currentTarget.querySelector<HTMLElement>(`#work-tab-${to}`)?.focus()
-  }
   return (
-    <div role="tablist" aria-label="Work’s parts" className="tabs work-tabs" onKeyDown={onKey}>
+    <div role="tablist" aria-label="Work’s parts" className="tabs work-tabs">
       {one('ready', 'Ready for you', waiting)}
       {one('todo', 'To-do', open)}
     </div>

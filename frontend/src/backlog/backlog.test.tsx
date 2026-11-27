@@ -851,6 +851,7 @@ test('review M1 / M2 / LOW: a proposal says where adding it puts it; a story wai
   await userEvent.click(dots)
   // Rename left with Esc, and Delete's Keep it: the focus is back on ⋯.
   await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+  expect(screen.getByLabelText('Rename “Şifre sıfırlama”')).toHaveFocus()
   await userEvent.keyboard('{Escape}')
   expect(dots).toHaveFocus()
   await userEvent.click(dots)

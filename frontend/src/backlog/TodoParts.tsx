@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { BacklogTask, Story } from '../api/types'
 import { AwayPanel } from '../chat/AwayPanel'
 import { GUIDE } from '../shell/guide'
@@ -74,6 +74,8 @@ export function Rename({
   onCancel: () => void
 }) {
   const [value, setValue] = useState(title)
+  const field = useRef<HTMLInputElement>(null)
+  useEffect(() => field.current?.focus(), [])
   return (
     <form
       className="todo-rename"
@@ -85,9 +87,9 @@ export function Rename({
     >
       <label className="visually-hidden" htmlFor={id}>{`Rename “${title}”`}</label>
       <input
+        ref={field}
         id={id}
         className="input"
-        autoFocus
         required
         maxLength={200}
         value={value}
@@ -112,9 +114,12 @@ export function Deleting({
   onDelete: () => void
   onKeep: () => void
 }) {
+  // (Asked where its ⋯ was: the focus on Delete, as it opens - no `autoFocus`.)
+  const asked = useRef<HTMLButtonElement>(null)
+  useEffect(() => asked.current?.focus(), [])
   return (
     <>
-      <button type="button" className="btn btn-small btn-danger" autoFocus disabled={busy} onClick={onDelete}>
+      <button ref={asked} type="button" className="btn btn-small btn-danger" disabled={busy} onClick={onDelete}>
         {`Delete “${title}”`}
       </button>
       <button type="button" className="btn btn-small" onClick={onKeep}>

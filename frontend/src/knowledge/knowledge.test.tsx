@@ -849,6 +849,7 @@ test('a learning held over the month’s budget asks to go on, as a new turn doe
   const props = page({ onLearn: vi.fn().mockRejectedValueOnce(held).mockResolvedValue(undefined) })
   await userEvent.click(within(card('MLflow')).getByRole('button', { name: 'Learn more' }))
   expect(await screen.findByRole('group', { name: 'Over this month’s budget' })).toHaveTextContent('Learn anyway?')
+  expect(screen.getByRole('button', { name: 'Go on anyway' })).toHaveFocus()
   await userEvent.click(screen.getByRole('button', { name: 'Go on anyway' }))
   expect(props.onLearn).toHaveBeenLastCalledWith('k1', true)
   expect(screen.queryByRole('group', { name: 'Over this month’s budget' })).not.toBeInTheDocument()

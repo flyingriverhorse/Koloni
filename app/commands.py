@@ -5789,15 +5789,6 @@ class OutputMask:
         return self.hide(held) if held else ""
 
 
-# W2, W6: why a command is asked although a rule matches it - an agent wrote what it runs. No
-# rule is offered on its card (Y2): none would cover it while that write stands.
-PLANTED = (
-    "an agent wrote its program ({place}): no rule covers a program an agent wrote, so none is "
-    "offered - run it once or reject it"
-)
-PLANTED_SAYS = PLANTED.partition("(")[0]
-
-
 def is_allowed(command: str, prefixes: Iterable[str]) -> bool:
     return any(matches(command, prefix) for prefix in prefixes)
 

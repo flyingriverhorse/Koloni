@@ -17,6 +17,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 - **CLIs**: GitHub Copilot CLI run Native hears your word while it works: its Tell box is there again, and Send now goes into a Copilot Orchestrator's running turn (measured with Copilot 1.0.114). An agy agent's box says it can't hear messages while it works and sends your words to the Orchestrator instead ([docs](reference/known-limits.md#clis)).
 
+### Fixed
+
+- **Chat**: a command kept off its **Always run** rule by an agent's write of a file it may read - an `.npmrc` or `x.npmrc`, a `package.json`, a lock, a `tsconfig.json`, a `pyproject.toml` - says so on its card: "an agent wrote a file this line may read or load (evil096.npmrc)"; it said "an agent wrote its program" of a file the line does not run. Where an agent wrote the program too, the card names the program, whichever was written first. The rule still stops there, and no rule is offered ([docs](use/permissions.md#what-a-rule-never-covers)).
+
 ## [0.1.10] - 2026-11-27
 
 ### Changed

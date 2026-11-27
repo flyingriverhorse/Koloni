@@ -106,7 +106,8 @@ agent finished, nothing clashes and the tests it wrote passed. See [Permission l
   looked is shown again, not taken, and the API's Take in may name the files it takes (`files`). Those taken
   say they are in the project; the rest wait on the same card for **Take in** or **Discard**, the agent's
   copy kept for them. **Discard** then throws away only the rest: what was taken stays, and the card says
-  its work was taken in. The commit offered once the card closes holds only the agent's change in each file
+  its work was taken in. The commit offered once the card closes - where [**Save each sub-agent's work as a
+  git commit**](#committing) is on, as after any Take in - holds only the agent's change in each file
   taken, whichever step took it - even across a restart of KOLONİ. A branch's work goes in whole: naming
   some of its files is refused, also on the card of a branch copy kept after KOLONİ stopped.
 
