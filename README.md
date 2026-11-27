@@ -78,8 +78,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   delete out of the project or of all of it ask at every level (a send unless at Full auto **Check what I
   said first** finds a line of yours that allows it); below Full auto a delete asks too, unless you let
   agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); at Full
-  auto, **Full auto's judge** (a small model, on by default) looks at the rest - a delete in the project
-  and git work thrown away too - and refuses one it finds risky - the agent goes on another way - or,
+  auto, **Full auto's judge** (a small model, on by default) looks at the rest - a plain delete in the
+  project and git work thrown away too - and refuses one it finds risky - the agent goes on another way - or,
   with **Ask me**, puts it on a card; secret files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
   reaches only that command. [Permissions](docs/use/permissions.md) · [Security model](docs/security/model.md)
 - **Agents side by side**: each sub-agent in its own copy; a command that reaches another agent's copy,
@@ -168,7 +168,7 @@ The Docker image was built and run once. macOS: not yet. Details: [Install](docs
   `.mcp.json`, …) and commands that reach out of the project or off the machine ask at every level,
   with a few exceptions for CLIs run with their own tools ([Known
   limits](docs/reference/known-limits.md#secrets)); below Full auto every harmful or shell-wrapped
-  command asks too, and at Full auto Full auto's judge decides a delete in the project.
+  command asks too, and at Full auto Full auto's judge decides a plain delete in the project.
 - A secret given on a card goes only into that command's environment, never into the chat, the
   record or the model. A branch holding that turn's secret is deleted, not merged.
 - An agent's git on its branch runs none of your repository's hooks, and a pull request never pushes

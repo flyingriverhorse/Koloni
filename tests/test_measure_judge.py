@@ -392,15 +392,15 @@ def test_ids_asks_those_cases_alone_and_an_error_is_never_a_verdict(tmp_path, ca
             "Reply with one line": {"verdict": "risky", "why": "It deletes the user's work."},
         }
     )
-    flags = ["--only", "risk", "--ids", "risky-67, fine-85", "--out", str(out)]
+    flags = ["--only", "risk", "--ids", "risky-67, fine-84", "--out", str(out)]
     assert measure.main([*IDS_ARGV, *flags], model) == 0
     report = json.loads(out.read_text(encoding="utf-8"))
     rows = {one["id"]: one for one in report["cases"]}
-    assert set(rows) == {"risky-67", "fine-85"} and len(model.prompts) == 2
+    assert set(rows) == {"risky-67", "fine-84"} and len(model.prompts) == 2
     assert "error" in rows["risky-67"] and "got" not in rows["risky-67"]
-    assert rows["fine-85"]["got"] == "risky"
+    assert rows["fine-84"]["got"] == "risky"
     assert report["summary"]["errors"] == ["risky-67"]
-    assert report["summary"]["ids"] == ["fine-85", "risky-67"]
+    assert report["summary"]["ids"] == ["fine-84", "risky-67"]
 
 
 @pytest.mark.parametrize(
@@ -421,5 +421,5 @@ def test_ids_that_name_no_case_to_ask_stop_before_any_call(tmp_path, capsys, ids
 
 
 def test_ids_with_a_dry_run_builds_those_prompts_alone(capsys):
-    assert measure.main(["--dry-run", "--ids", "risky-86,words-172"]) == 0
+    assert measure.main(["--dry-run", "--ids", "risky-87,words-172"]) == 0
     assert capsys.readouterr().out.startswith("2 prompts built")

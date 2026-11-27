@@ -234,7 +234,8 @@ What is not framed:
 - [Full auto's judge](../use/permissions.md#full-autos-judge) never lets a command run that asks at
   every level - out of the project or all of it, a send, a git remote's branches, a secret, `.koloni`, a
   file that steers agents, what may stop KOLONİ, an unread line. Since 0.1.10, in a chat you watch at
-  Full auto, it decides a delete in the project, git work thrown away and a stop by name in place of the
+  Full auto, it decides a delete in the project, git work thrown away and a stop by name, written as a
+  plain line (no quote, escape, wildcard, pipe, wrapper or place built as it runs), in place of the
   list's card: its "fine" deletes with no card, and it does not see the disk (a link you made inside
   what a delete takes). With the judge off, no model to answer, at Ask or Auto-edit, in a To-do task's
   turn or a job while you're away those are the list's cards as before. It refuses only on its own

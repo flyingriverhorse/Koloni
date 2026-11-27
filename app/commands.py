@@ -1288,10 +1288,26 @@ _KOLONIS_PROGRAMS = (
     "copilot",
     "qodercli",
     "agy",
+    # (the review of K3: what KOLONİ and its terminals stand on - the host, the shell, the system)
+    "windowsterminal",
+    "conhost",
+    "openconsole",
+    "powershell",
+    "pwsh",
+    "cmd",
+    "bash",
+    "explorer",
+    "lsass",
+    "csrss",
+    "svchost",
+    "wininit",
+    "winlogon",
+    "services",
 )
 _KOLONIS_NAMES = re.compile(
-    r"(?i)(?:python|uvicorn|node|claude|codex|copilot|qodercli|agy)"
-    r"[\w.-]*|py(?:\.exe)?|.*[*?$(@`%\[\]].*"
+    r"(?i)(?:python|uvicorn|node|claude|codex|copilot|qodercli|agy|windowsterminal|conhost"
+    r"|openconsole|powershell|pwsh|cmd|bash|explorer|lsass|csrss|svchost|wininit|winlogon"
+    r"|services)[\w.-]*|py(?:\.exe)?|.*[*?$(@`%\[\]].*"
 )
 # What a line sets a variable to: PowerShell's `$p = x`, `foreach ($p in x)`, and sh's `P=x`.
 _PS_SETS = re.compile(r"(?i)\$(\w+)\s*=(?!=)\s*([^;\r\n]*)")
@@ -1694,6 +1710,14 @@ def _after_options(rest: list[str], takes_value: frozenset[str]) -> list[str]:
     return rest[at:]
 
 
+# The review of K3: what git could still bring back a dropped branch or stash by - not in
+# `_SOFT`: asked at every level, never let by your words or Full auto's judge.
+PRUNES = (
+    "Prunes what git could still bring back (git gc --prune, git prune, git reflog expire): a "
+    "dropped branch or stash is gone for good."
+)
+
+
 def _danger_of(words: list[str]) -> str:  # noqa: C901
     program = _program(words[0])
     if program == UNREAD:
@@ -1780,6 +1804,14 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
         return "Throws away uncommitted changes to files (git checkout / switch / restore)."
     if sub == "stash" and args[:1] in (["drop"], ["clear"]):
         return "Throws away stashed work (git stash drop / clear)."
+    if (
+        sub == "gc"
+        and any(re.fullmatch(r"(?i)--prune=(?:now|all)", a) for a in args)
+        or sub == "prune"
+        or sub == "reflog"
+        and args[:1] in (["expire"], ["delete"])
+    ):
+        return PRUNES
     if sub == "worktree" and args[:1] == ["remove"]:
         return "Deletes a git worktree's folder (git worktree remove)."
     if sub == "worktree" and args[:1] == ["add"] and _outside_here(_worktree_path(args[1:])):
@@ -3473,12 +3505,12 @@ def _passed_by(part: str) -> str:
 
 def _path_names(command: str) -> set[str]:
     """Each part of each path in a command, as Windows opens the name (`_name`), but those a
-    search is told to pass by (`_passed_by`)."""
-    return set(_path_parts(command))
+    search is told to pass by (`_passed_by`) - and as sh reads it (`sh`)."""
+    return set(_path_parts(command, sh=True))
 
 
-def _path_parts(command: str) -> list[str]:
-    """`_path_names` in the order they are written."""
+def _path_parts(command: str, sh: bool = False) -> list[str]:
+    """`_path_names` in the order they are written; `sh`: each word's sh reading after it."""
     command = as_own(command)  # (K-koloni-alan: an agent's own tree by its full path is its own)
     # Quotes and escapes taken out first: `.ko`loni`, `.ko""loni` and `.k^oloni` are the name
     # to PowerShell and cmd. (Split at `:` too: `-Path:.koloni\x`, `.koloni::$DATA`.)
@@ -3503,14 +3535,20 @@ def _path_parts(command: str) -> list[str]:
     )
     parts: list[str] = []
     for word in re.split(r"[\s=:<>,;|&()]", re.sub(r"[`^'\"]", "", kept)):
-        pieces = [_name(piece) for piece in re.split(r"[\\/]", word)]
-        if scratch:
-            pieces = [
-                piece
-                for at, piece in enumerate(pieces)
-                if not (piece == ".koloni" and (pieces[at + 1 : at + 2] or [""])[0] in free)
-            ]
-        parts += pieces
+        # (and as sh reads it: a backslash escapes - `.k\oloni`, `.gi\t` are `.koloni`, `.git`
+        # to Git Bash; the review of K3)
+        readings = [re.split(r"[\\/]", word)]
+        if sh and "\\" in word:
+            readings.append(_unescaped(word).split("/"))
+        for split in readings:
+            pieces = [_name(piece) for piece in split]
+            if scratch:
+                pieces = [
+                    piece
+                    for at, piece in enumerate(pieces)
+                    if not (piece == ".koloni" and (pieces[at + 1 : at + 2] or [""])[0] in free)
+                ]
+            parts += pieces
     return parts
 
 
@@ -4430,12 +4468,13 @@ _ENCODED = re.compile(
 def _harm(command: str) -> str:
     """`danger` but for a file that steers later turns: what `only_reads` cannot have. What a
     shell is handed is looked at too (`_commands_in`): B-339's `cmd /c mklink /J .koloni\\tmp\\x
-    ..` is a link before it names `.koloni`."""
+    ..` is a link before it names `.koloni`. A line PowerShell is handed encoded is unread
+    first, whatever else it does (the review of K3: a delete before it hid it)."""
+    if _ENCODED.search(command):  # (what it runs is not read: k-okuyucu-2)
+        return _danger_of([UNREAD])
     for words in _commands_in(command, at=_BLOCKS):
         if words and (said := _danger_of(words)):
             return said
-    if _ENCODED.search(command):  # (what it runs is not read: k-okuyucu-2)
-        return _danger_of([UNREAD])
     if _stops_by_name(command):  # (by a name, or an id the line does not know: `_stop_kind`)
         return KILLS_BY_NAME
     if _DOTNET_DELETE.search(command):
@@ -6068,8 +6107,9 @@ def _asked_anyway(command: str, instructions: bool, judged: bool = False) -> boo
     program (`runs_another`: a variable set before it, `xargs`, `sudo`, a shell), a path out of
     the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
     dot-name (`.k*`, `.[k]oloni`, `.env*`), a harm over all of the folder (`_sweeps`), or a stop
-    of what may be KOLONİ itself (`_stops_koloni`). `judged` (K3, `risk_judge.judges`): not a
-    line handed to another program, nor git's revert of all of the folder: the judge reads them."""
+    of what may be KOLONİ itself (`_stops_koloni`), or a place a harm's line builds where it runs
+    (`_UNSEEN`: `(Split-Path (pwd))`, `[Environment]::GetFolderPath(...)`). `judged` (K3,
+    `risk_judge.judges`): not git's revert of all of the folder - the judge reads that one."""
     words = re.split(
         r"[\s;&|(){}]+", _TASKKILL.sub(lambda part: _SWITCH.sub(" ", part[0]), command)
     )
@@ -6078,7 +6118,8 @@ def _asked_anyway(command: str, instructions: bool, judged: bool = False) -> boo
         or names_secret(_as_read(command).replace("@", " "))
         or names_koloni(command)
         or standing_asked(command, instructions)
-        or (not judged and runs_another(command))
+        or runs_another(command)
+        or bool(_UNSEEN.search(command))
         or _stops_koloni(command)
         or any(map(_leads_out, words))
         or any(_DOT_GLOB.search(_as_read(word)) for word in words)
@@ -6086,6 +6127,9 @@ def _asked_anyway(command: str, instructions: bool, judged: bool = False) -> boo
     )
 
 
+# The review of K3: a place a line works out as it runs - a subexpression or a group, a .NET
+# type's member (`(Split-Path (pwd))`, `[Environment]::GetFolderPath('UserProfile')`): not seen.
+_UNSEEN = re.compile(r"[()]|\[[\w.]+\]\s*::")
 # A glob or a bracket on a name that starts with a dot: it may reach `.git`, `.koloni` or a secret.
 _DOT_GLOB = re.compile(r"(?:^|[\\/=@,:])\.[^\\/]*[*?\[]")
 # A part of a line taskkill runs, and its switches (`/IM`, `/F`, Git Bash's `//PID`): no path out
@@ -6102,23 +6146,51 @@ def _sweeps(command: str, reverts: bool = True) -> bool:
     `*`, `sub/..`; `git checkout .` takes back a change to `.koloni/rules.md` too), or of a
     line that sends, any part but git's (`git add .` is no send of the folder) that takes it
     (`scp -r .`, `zip -r x.zip . && curl ...`); git told what to run (`-c`, `--config-env`), or
-    `git clean` of the ignored files too (`-x`, `-X`)."""
+    `git clean` of the ignored files too (`-x`, `-X`, an exclude pattern that starts with `!`:
+    `-e '!*'`) or a stash of them (`git stash --all`, then dropped); a `find` with no folder
+    before its first option (`find -delete`: `.`)."""
     lost = ("Deletes", "Throws away") if reverts else ("Deletes",)
     parts = [words for words in _commands_in(command, at=_BLOCKS) if words]
     sends = any(_sends(words) for words in parts)
     for words in parts:
         git = _program(words[0]) == "git"
-        if git and (
-            any(word == "-c" or word.startswith("--config-env") for word in words)
-            or (
-                _git_sub(words)[0] == "clean"
-                and any(_cluster(word, "x") or _cluster(word, "X") for word in words[2:])
+        if (
+            git
+            and (
+                any(word == "-c" or word.startswith("--config-env") for word in words)
+                or (
+                    _git_sub(words)[0] == "clean"
+                    and (
+                        any(_cluster(word, "x") or _cluster(word, "X") for word in words[2:])
+                        or _excludes_back(words[2:])
+                    )
+                )
+                # (a stash of the ignored files: `git stash --all && git stash drop` is `clean -x`)
+                or _git_sub(words)[0] == "stash"
+                and any(_cluster(word, "a") or _long(word, "all") for word in words[2:])
             )
         ):
             return True
-        if any(map(_whole, words[1:])) and (
+        bare = _program(words[0]) == "find" and (len(words) < 2 or words[1].startswith("-"))
+        if (bare or any(map(_whole, words[1:]))) and (
             _danger_of(words).startswith(lost) or sends and not git
         ):
+            return True
+    return False
+
+
+def _excludes_back(args: list[str]) -> bool:
+    """`_sweeps`: whether `git clean` is told an exclude pattern that starts with `!` (`-e '!*'`,
+    `--exclude=!.env`, `-e!x`): it then cleans what `.gitignore` keeps, as `-x` does."""
+    for at, arg in enumerate(args):
+        plain, after = _as_read(arg), _as_read(args[at + 1]) if at + 1 < len(args) else ""
+        if plain.startswith("--exclude"):
+            value = plain.partition("=")[2] if "=" in plain else after
+        elif plain.startswith("-") and not plain.startswith("--") and "e" in plain:
+            value = plain[plain.index("e") + 1 :] or after  # (`-e!x`, `-fde '!x'`)
+        else:
+            continue
+        if value.startswith("!"):
             return True
     return False
 
@@ -6530,125 +6602,6 @@ def web_off_reason(command: str, off: Iterable[str]) -> str:
     return WEB_OFF.format(tool=tool, what=what) if what else ""
 
 
-# Coordination §4: the deletes KOLONİ can check by itself, where the user allowed them in the
-# project (`Project.disposable_deletes`) - a build or cache folder, a worktree, a branch. Read
-# from a line this plain only: words of ASCII letters, digits and `_ . / -`, one space between
-# them - no quote, backslash, drive, comment, splat, variable, wildcard or other space a shell
-# reads past a plain word - and no option that is not read here.
-DISPOSABLE_NAMES = frozenset(
-    {
-        "build",
-        "dist",
-        "__pycache__",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".mypy_cache",
-        "coverage",
-        ".next",
-        ".turbo",
-        "target",
-    }
-)
-_DISPOSABLE_LINE = re.compile(r"[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*")
-# The shells a folder's delete is read for (`disposable_targets`' `shell`): KOLONİ's own command
-# runs in PowerShell on Windows and in sh elsewhere and in Docker (`executors.host.shell_argv`); a
-# CLI's, in the one it says (`disposable.cli_shell`). Each its own forms, as each reads them -
-# measured in Windows PowerShell 5.1 (22 Nov 2026): Remove-Item and its aliases, `-r` its
-# -Recurse, `-fo` its -Force, one path (`-rf`, `-f` and a second path are errors, nothing
-# deleted); sh's rm by its own name and options, as many paths as it is given.
+# The shells KOLONİ reads a line for (`disposable.disposable_targets`, `risk_judge.judges`):
+# its own command's - PowerShell on Windows, sh elsewhere and in Docker - or a CLI's.
 POWERSHELL, POSIX = "powershell", "posix"
-_DELETE_FORMS = {  # (its deleters, its recursions, its other flags, its forcings, most paths)
-    POWERSHELL: (
-        frozenset({"remove-item", "ri", "rm", "del", "erase"}),
-        frozenset({"-recurse", "-r"}),
-        frozenset({"-force", "-fo", "-path", "-literalpath"}),
-        frozenset({"-force", "-fo"}),
-        1,
-    ),
-    POSIX: (
-        frozenset({"rm"}),
-        frozenset({"-r", "-R", "-rf", "-fr", "-Rf", "-fR"}),
-        frozenset({"-f", "--force"}),
-        frozenset({"-f", "--force", "-rf", "-fr", "-Rf", "-fR"}),
-        None,
-    ),
-}
-
-
-def disposable_targets(command: str, shell: str | None) -> list[tuple[str, str, bool]] | None:
-    """What a line deletes where it is nothing but a delete KOLONİ can check: ("folder", its
-    path, forced) for each build or cache folder of the `shell`'s own recursive delete (`rm -r`
-    in sh, `Remove-Item -Recurse` in PowerShell; a shell not known: none); ("worktree", its path,
-    False) for `git worktree remove <path>`; ("branch", its name, forced) for each of `git branch
-    -d|-D` (git's, every shell's alike). None for any other line. What it names only: whether
-    each is disposable is for the checks of its folder."""
-    if not _DISPOSABLE_LINE.fullmatch(command):
-        return None
-    words = command.split(" ")
-    if words[0] == "git":
-        return _worktree_target(words[1:]) or _branch_targets(words[1:])
-    return _folder_targets(words, shell)
-
-
-def _plain_name(part: str) -> bool:
-    """A path's or a branch's part as every shell and file system reads it: not empty, no
-    dot-name, nothing Windows opens as another (`node_modules.` is `node_modules`)."""
-    return bool(part) and not part.startswith(".") and not part.endswith(".")
-
-
-def _folder_targets(words: list[str], shell: str | None) -> list[tuple[str, str, bool]] | None:
-    """A bare deleter's recursive delete of build or cache folders below where it runs, in the
-    shell's own form (PowerShell's names and options in any case, sh's as spelt; no trailing
-    slash: `build/` is where a link named build leads)."""
-    if shell not in _DELETE_FORMS:
-        return None
-    deleters, recursions, others, forcings, most = _DELETE_FORMS[shell]
-    read: Callable[[str], str] = str.casefold if shell == POWERSHELL else str
-    flags = {read(word) for word in words[1:] if word.startswith("-")}
-    paths = [word for word in words[1:] if not word.startswith("-")]
-    if (
-        read(words[0]) not in deleters
-        or not paths
-        or not flags & recursions
-        or not flags <= recursions | others
-        or most is not None
-        and len(paths) > most
-    ):
-        return None
-    for path in paths:
-        *above, name = path.split("/")
-        if name not in DISPOSABLE_NAMES or not all(
-            _plain_name(part) and part.casefold() not in LINKED for part in above
-        ):
-            return None
-    return [("folder", path, bool(flags & forcings)) for path in paths]
-
-
-def _worktree_target(rest: list[str]) -> list[tuple[str, str, bool]] | None:
-    """`git worktree remove <path>` alone - never forced; up and absolute paths too (a
-    worktree is registered where it is)."""
-    if len(rest) != 3 or rest[:2] != ["worktree", "remove"] or rest[2].startswith("-"):
-        return None
-    parts = rest[2].split("/")
-    if all(
-        part == ".." or _plain_name(part) and part.casefold() not in LINKED
-        for part in (parts if parts[0] else parts[1:])
-    ):  # (`/x/wt`: from the root)
-        return [("worktree", rest[2], False)]
-    return None
-
-
-def _branch_targets(rest: list[str]) -> list[tuple[str, str, bool]] | None:
-    """`git branch -d|-D <name>...`: none of KOLONİ's own (`koloni/…` - Windows and macOS find
-    `Koloni/x`'s ref file as `koloni/x`'s)."""
-    if len(rest) < 3 or rest[0] != "branch" or rest[1] not in ("-d", "-D"):
-        return None
-    for name in rest[2:]:
-        parts = name.split("/")
-        if (
-            name.startswith("-")
-            or parts[0].casefold() == "koloni"
-            or not all(map(_plain_name, parts))
-        ):
-            return None
-    return [("branch", name, rest[1] == "-D") for name in rest[2:]]

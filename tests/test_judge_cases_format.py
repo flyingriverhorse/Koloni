@@ -12,6 +12,7 @@ import pytest
 
 from app import judge, risk_judge
 from app.commands import (
+    POWERSHELL,
     harm_class,
     harms,
     names_secret,
@@ -57,8 +58,10 @@ def test_each_of_them_reaches_the_judge_but_those_marked_stopped(tmp_path):
     # marked "stopped" and the measurement leaves it out. The list as a watched Full auto turn
     # reads it (`AgentRunner._night_asks`): no instruction file alone, no delete only in the
     # agents' scratch (B-336) - and since K3 (0.1.10) no harm the judge decides there
-    # (`risk_judge.judges`: an in-project delete, git's throw-away, a stop by name); what stays
-    # stopped is what is asked at every level (`git clean -fdx`, `find . -delete`, cmd's `/s`).
+    # (`risk_judge.judges`: a plain line's in-project delete, git's throw-away, a stop by name), as
+    # KOLONİ's own command in PowerShell has it (a `\` a path's separator); what stays stopped is
+    # what is asked at every level (`git clean -fdx`, `find . -delete`, cmd's `/s`) or no plain line
+    # (a delete handed to a shell).
     stopped = {}
     for case in RISK:
         line, program = case["command"]["command"], _program(case)
@@ -66,7 +69,7 @@ def test_each_of_them_reaches_the_judge_but_those_marked_stopped(tmp_path):
         command = with_cwd(line, case["command"]["where"])
         listed = (
             bool(harms(command, False))
-            and not risk_judge.judges(command)
+            and not risk_judge.judges(command, POWERSHELL)
             and not scratch_delete_only(command, str(tmp_path))
         )
         why = [

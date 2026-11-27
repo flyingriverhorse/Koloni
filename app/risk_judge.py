@@ -13,7 +13,9 @@ from typing import TypeGuard
 
 from app import injection, judge
 from app.commands import (
+    _ENCODED,
     _SCRATCH,
+    POWERSHELL,
     _as_read,
     _asked_anyway,
     _in_a_shell,
@@ -264,22 +266,36 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
 
 # K3 (0.1.10, as Claude Code's auto mode): the list's harms the judge decides in a turn the user
 # watches, in place of their card - work of the folder lost and a stop by name. Any other sentence
-# (a send, a git remote's, Docker's - the machine's, or another's: `-H` -, a link, a worktree out,
-# an unread line, one added later) stays the list's card.
-_JUDGES = re.compile(r"(?:Deletes|Empties|Throws away|Stops programs by their name)\b(?!.*Docker)")
+# (a send, a git remote's, Docker's - the machine's, or another's: `-H` -, a worktree removed - git
+# picks one by its last name, KOLONİ's or one out of the project -, a link, a worktree out, an
+# unread line, one added later) stays the list's card.
+_JUDGES = re.compile(
+    r"(?:Deletes|Empties|Throws away|Stops programs by their name)\b(?!.*(?:Docker|worktree))"
+)
+# ...and only a plain line (the review of K3, an allow-list: fail closed): words of letters,
+# digits and `_ . / = ~ -`, parts joined by `;` or `&` - no quote, escape, wildcard, brace, group,
+# variable, substitution, pipe, redirection, comment or line break, any of which can build a
+# target the list does not read. In KOLONİ's own PowerShell a `\` is a path's separator, no escape.
+_PLAIN = re.compile(r"[A-Za-z0-9_./=~;& -]+")
+_PLAIN_POWERSHELL = re.compile(r"[A-Za-z0-9_./=~;& \\-]+")
 
 
-def judges(command: str) -> bool:
+def judges(command: str, shell: str | None = None) -> bool:
     """K3: whether the judge decides a harmful line in place of the list's card (`commands.harms`
-    of a watched Full auto turn: no instruction file alone) - each harm one of `_JUDGES`', nothing
-    of it asked at every level (`commands._asked_anyway`: a secret, `.koloni`, out of the folder,
-    all of it, KOLONİ itself) but a line handed to a shell or a wrapper and git's revert of all
-    of the folder, which the judge reads. Never one in KOLONİ's free folders (`.koloni/tmp`,
-    `worktrees`, `copies`): what is on the disk there - a link, a job's worktree - is the list's to
-    look at (`scratch_delete_only`). False for no harm.
+    of a watched Full auto turn: no instruction file alone) - a plain line (`_PLAIN`; `\\` too in
+    KOLONİ's own PowerShell, `shell`), nothing encoded in it (`_ENCODED`), each harm one of
+    `_JUDGES`', nothing of it asked at every level (`commands._asked_anyway`: a secret, `.koloni`,
+    out of the folder, all of it, KOLONİ itself, a line handed to a wrapper - `sudo`, `env`,
+    `xargs`, `VAR=1` -, a place it builds) but git's revert of all of the folder, which the judge
+    reads. Never one in KOLONİ's free folders (`.koloni/tmp`, `worktrees`, `copies`): what is on
+    the disk there - a link, a job's worktree - is the list's to look at (`scratch_delete_only`).
+    False for no harm.
     shortcut: the judge does not see the disk - a link the user made in the project, in what a
     delete it calls fine takes, is not looked at (no shell's delete on this machine follows one:
     `disposable`'s note); look as the disposable delete does if an older PowerShell is met."""
+    plain = _PLAIN_POWERSHELL if shell == POWERSHELL else _PLAIN
+    if not plain.fullmatch(command) or _ENCODED.search(command):
+        return False
     lines = _readings(command)
     said = [one for line in lines for one in _reasons(line, False) if one]
     return (

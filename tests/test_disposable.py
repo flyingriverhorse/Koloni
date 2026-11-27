@@ -15,9 +15,10 @@ from app import disposable, git_looks, koloni
 from app import git as git_
 from app.agent.ctx import Ctx
 from app.command_runner import CommandRunner
-from app.commands import POSIX, POWERSHELL, disposable_targets
+from app.commands import POSIX, POWERSHELL
 from app.db.models import Agent, Command, Conversation, Message, Project, Run, ToolCall
 from app.db.session import make_engine, make_session_factory, upgrade_db
+from app.disposable import disposable_targets
 from tests.conftest import Gate, scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.keyed import OWN

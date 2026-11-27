@@ -10,7 +10,7 @@
 1602 app/agent/merge.py
 3344 app/agent/spawn_mixin.py
 1696 app/browser.py
-6654 app/commands.py
+6607 app/commands.py
 1785 app/db/models.py
 4112 app/git.py
 2950 app/knowledge.py

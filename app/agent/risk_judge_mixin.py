@@ -518,6 +518,7 @@ class RiskJudgeMixin:
         *,
         exempt: bool,
         known: bool = True,
+        shell: str | None = None,
     ) -> tuple[str, dict | None]:
         """Full auto's judge: why `command` (run in `cwd` of `root`, the project or the copy it
         works in) waits for the user on a card though KOLONİ found no reason of its own - asked
@@ -540,20 +541,22 @@ class RiskJudgeMixin:
         then no program is read. Nothing is kept for such a line - neither its verdict, nor a Run
         on its card -, nor for one but where the file it runs was found, hashed, and is all it
         runs (`_named_file`), or it runs none of the folder's code (`_no_local_code`): what it
-        runs may change unseen, the same words in another folder be another line.
+        runs may change unseen, the same words in another folder be another line. `shell`: the
+        one it runs in where that is KOLONİ's own PowerShell (a `\\` there is no escape: K3).
         In a watched turn its own "risky" may be refused instead (`_risk_refuses`).
         Whatever goes wrong in it but a Stop is its card, never a run nor a refusal.
         K3 (0.1.10, as Claude Code's auto mode): the list's own card that is the judge's to decide
-        (`_risk_takes`: a delete or a stop by name in the folder, a watched turn) is put to it too
-        - with no key kept for its line -, and runs only on the model's own "fine"; any other
-        answer but its "risky" (no verdict, not asked, the switch off) gives the card back."""
+        (`_risk_takes`: a delete or a stop by name in the folder, a plain line, a watched turn) is
+        put to it too - its "risky" kept for the turn, never its "fine" nor a Run on its card -, and
+        runs only on the model's own "fine"; any other answer but its "risky" (no verdict, not
+        asked, the switch off) gives the card back."""
         if exempt:
             return found
         try:
             # (the list's own card stays one where the look at it fails: below)
-            if found != ("", None) and not self._risk_takes(ctx, command, cwd, found, known):
+            takes = self._risk_takes(ctx, command, cwd, found, known, shell)
+            if found != ("", None) and not takes:
                 return found
-            takes = found != ("", None)
             watched = self._full_auto(ctx)
             if not (watched or self._away_full_auto(ctx)):
                 return found if takes else ("", None)  # (a level changed meanwhile: its card)
@@ -574,6 +577,7 @@ class RiskJudgeMixin:
         cwd: str | None,
         found: tuple[str, dict | None],
         known: bool,
+        shell: str | None = None,
     ) -> bool:
         """K3: whether the list's own card (`found`: its reason, and no record of the check of the
         user's words - its run runs, its refusal refuses and its ask, a condition of theirs or
@@ -589,7 +593,7 @@ class RiskJudgeMixin:
             and record is None
             and ctx.run_id not in self._todo_turns
             and ctx.run_id not in self._sides
-            and risk_judge.judges(with_cwd(command, cwd))
+            and risk_judge.judges(with_cwd(command, cwd), shell)
             and self._full_auto(ctx)
         ):
             return False
@@ -705,7 +709,14 @@ class RiskJudgeMixin:
         # (K3: a moved line's "risky" is kept for the turn by its words alone - a refusal kept
         # loosens nothing -, its "fine" never: `_risk_asked`)
         key = (
-            (command.strip(), cwd or "", digest if hashed else "", str(root))
+            # (a moved line's by its words, spaced as they are read: `rm  -rf src` is the line
+            # refused before - the review of K3)
+            (
+                " ".join(_words(command.strip())) if takes else command.strip(),
+                cwd or "",
+                digest if hashed else "",
+                str(root),
+            )
             if kept or takes
             else None
         )
