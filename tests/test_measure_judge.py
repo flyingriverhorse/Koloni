@@ -186,10 +186,10 @@ def test_the_dry_run_builds_every_cases_prompt_and_asks_nothing(capsys):
     every = [(which, case) for which in measure.FILES for case in measure.cases(which)]
     assert measure.main(["--dry-run"]) == 0
     shown = capsys.readouterr().out
-    assert shown.startswith(f"{len(every)} prompts built, Full auto's judge's with prompt B (")
+    assert shown.startswith(f"{len(every)} prompts built, Full auto's judge's with prompt D2 (")
     assert measure.prompt("words", measure.cases("words")[0]) in shown
-    # (the gate's prompt, B)
-    assert measure.prompt("risk", measure.cases("risk")[0]) in shown and DESTRUCTIVE in shown
+    # (the gate's prompt, D2: B's destructive commands among its sentences)
+    assert measure.prompt("risk", measure.cases("risk")[0]) in shown and ASKED_FOR_D2 in shown
     for which, case in every:
         assert json.dumps(case["command"]["command"])[1:-1] in measure.prompt(which, case)
     # (the words alone: nothing said of Full auto's judge)
@@ -200,7 +200,7 @@ def test_the_dry_run_builds_every_cases_prompt_and_asks_nothing(capsys):
 
 
 def test_prompt_a_is_asked_and_said_and_a_stopped_case_never(tmp_path, capsys):
-    # (K4: the prompt before the gate's B is still measured against; a risk case KOLONİ's list
+    # (K4: a prompt before the gate's D2 is still measured against; a risk case KOLONİ's list
     # stops before the judge today spends no call)
     stopped = [one for one in measure.every_case("risk") if one.get("stopped")]
     assert stopped and not [one for one in measure.cases("risk") if one.get("stopped")]

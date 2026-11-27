@@ -10,13 +10,13 @@ the gate's time limits) and read with KOLONİ's own parsers (`judge.verdict` wit
 alone) - a case KOLONİ's
 list stops before the judge today (its `stopped`) is not asked. Nothing of the user's KOLONİ is
 read: the clients get a runtime folder of their own under the temp folder. Full auto's judge is
-asked with the gate's prompt (`risk_judge.GATE_PROMPT`, B: in-project destructive commands are
-risky too, since K4's measurement on 27 Nov 2026), with `--prompt A`, the one before it, or with
-`--prompt C` (0.1.11: B with a push of the feature branch, out-of-scope work, protections turned
-off and K4's gaps - measured, not the gate's), or `--prompt D` (C after its haiku run: what the
-user asked for said first, a delete judged by all it deletes - measured, not the gate's), or
-`--prompt D2` (D after its haiku run: emptying or overwriting a file that was there is never what
-the user asked for - measured, not the gate's).
+asked with the gate's prompt (`risk_judge.GATE_PROMPT`, D2 since 0.1.11: D after its haiku run -
+emptying or overwriting a file that was there is never what the user asked for), with `--prompt
+B` (in-project destructive commands are risky too, K4's measurement on 27 Nov 2026; the gate's
+before D2), `--prompt A`, the one before it, `--prompt C` (B with a push of the feature branch,
+out-of-scope work, protections turned off and K4's gaps - measured, not the gate's), or
+`--prompt D` (C after its haiku run: what the user asked for said first, a delete judged by all
+it deletes - measured, not the gate's).
 
   # Claude Code (its own sign-in, ~/.claude), the haiku model
   python scripts/measure_judge.py --kind claude_cli --model haiku --out judge-haiku.json

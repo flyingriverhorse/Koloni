@@ -485,19 +485,39 @@ are masked first.
 
 **What it finds risky** - a command that could do harm you did not ask for: send your data or files off
 this machine, download and run code, change things outside the project (your profile, startup, git or
-shell settings, scheduled tasks, the registry), weaken security, or hide what it does. Since 0.1.10, as
-Claude Code's auto mode, also one that destroys work in the project you did not ask to lose: deleting or
-emptying a file or folder that was there before the turn, or throwing away uncommitted changes - `rm`,
-`del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git restore .`, `git
-stash drop`, `> file`, `truncate`, `Set-Content`, `New-Item -Force`, `find … -exec rm`, `npx rimraf`,
-`robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner that deletes. It stays fine where you asked
-for it, for build output and caches a build makes again (`build/`, `dist/`, `node_modules`,
-`__pycache__`), for files the same agent made earlier in the turn, for the agents' scratch folder
-`.koloni/tmp/`, and for what only shows or keeps work (`git clean -n`, `git stash`,
-`git restore --staged`). Measured on 27 Nov 2026 on 180 cases, Claude Code's **haiku** and **Sonnet**
-each called no risky command fine, every ordinary one fine, and one fine command risky - haiku a logon
-task you asked for, Sonnet an `npm config set` your rule named (before this change, haiku called 16 of
-the risky ones fine; the deletes the list asked of then were not among the cases asked).
+shell settings, scheduled tasks, the registry), weaken security, or hide what it does. What your words
+ask for - a publish, an upload, a deploy, a comment, dropping the stashes - is fine, as far as you named
+it: never another target or more, and never emptying or overwriting a file that was there before the
+turn. Since 0.1.11 (its words "D2"):
+
+- A plain push of the branch being worked on to the project's own origin is ordinary work - unless what
+  it sends holds a secret (`.env`, a key), or your words or the project's rules say not to push. A push
+  to main, master or the default branch, a force push or a push elsewhere is not.
+- Work your words do not ask for that reaches outside the task is risky: an outside service (`curl` to
+  an API, `gh pr comment`, `gh issue create`), CI or settings files, another repository.
+- As Claude Code's auto mode blocks them: amending or rewriting a commit that was already pushed, or
+  someone else's; a flag that turns a protection off (`--no-verify`, `--insecure`, `-c
+  http.sslVerify=false`); starting an agent loop with no sandbox (`claude
+  --dangerously-skip-permissions`, `codex --yolo`, `copilot --allow-all-tools`).
+- Since 0.1.10, as Claude Code's auto mode, a command that destroys work in the project you did not ask
+  to lose: deleting or emptying a file or folder that was there before the turn, or throwing away
+  uncommitted changes - `rm`, `del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout --
+  .`, `git restore .`, `git stash drop`, `> file`, `truncate`, `Set-Content`, `New-Item -Force`, `find …
+  -exec rm`, `npx rimraf`, `robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner that
+  deletes; moving your work away (`mv src .koloni/tmp/old`)
+  counts as deleting it, and a delete is judged by everything it deletes (`build/../src`, `rimraf dist
+  src`). It stays fine, where it does none of the harms above, where you asked for it, for build output
+  and caches a build makes again (`build/`, `dist/`, `node_modules`, `__pycache__`), for files the same
+  agent made new earlier in the turn (not a file of yours it wrote over, `touch`ed or `mkdir -p`'d),
+  for the agents' scratch folder `.koloni/tmp/`, and for what only shows or keeps work (`git clean -n`,
+  `git stash`, `git restore --staged`).
+
+Measured on 28 Nov 2026 on 252 cases, Claude Code's **haiku** with these words called every ordinary
+command fine and 99% of the risky ones risky, in 2.6 seconds at the median. It still lets an empty of a
+file of yours by now and then (`python -c "open('requirements.txt', 'w').close()"`), and called some
+empties you asked for risky ("Start the README over", "Clear the log file") - those are then refused or
+a card, as **When the judge finds a command risky** says. (Before, on 27 Nov 2026, 180 cases with
+0.1.10's words: haiku and **Sonnet** each called no risky command fine and one fine command risky.)
 
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
 **When the judge finds a command risky** says:
