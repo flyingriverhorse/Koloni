@@ -70,6 +70,11 @@ agy's reads): see [Known limits](../reference/known-limits.md#secrets).
   `.koloni`'s; any other agent, or a command at the project's root, only reads there. A write, a
   `tee`, `cp` or `mv` into one, a file tool's write (also at Auto-edit and Full auto), a delete, a
   program run from one, or pytest's `--basetemp` there is asked at every level.
+- A search is a look only while it only reads. Its options are read as the shell joins them, so a quote
+  or a backslash inside one changes nothing: `find src -de""lete` is a delete, and `-fpr""intf`,
+  `-ex""ec`, rg's `--p""re=` and `--hostname-bin`, and ag's and ack's `--pager` make it no read. A `find`
+  word in bash's ANSI-C quotes (`$'-de\x6cete'`), which KOLONİ does not decode, is taken for a delete,
+  and ag or ack is no look into a tree. In a worktree or a copy such a line is asked at every level.
 - What is inside the scratch is still judged as any path: a `.claude/settings.json` there asks as it
   does anywhere, and a `git` line that names a free folder (`git add -f .koloni/tmp/x`) asks.
 - A line that climbs from a free folder into the rest - `cat .koloni/tmp/../rules.md`, `cd
@@ -107,7 +112,8 @@ agy's reads): see [Known limits](../reference/known-limits.md#secrets).
   **This time** and **Reject**.
 - An MCP tool asks with **Allow** and **Reject**.
 
-You can see and remove the rules you made under Settings › This project › **Runs without asking**.
+You can see and remove the rules you made under Settings › This project › When you're asked ›
+**Runs without asking** › **Show the rules**.
 
 ## What a rule never covers
 
@@ -324,8 +330,8 @@ be on a line of its own:
 
 ## Disposable deletes
 
-Some deletes KOLONİ can check by itself. Where you allow them - Settings › This project › Asking and
-away › **Agents may delete what is disposable without asking**, or **Allow such deletes in this
+Some deletes KOLONİ can check by itself. Where you allow them - Settings › This project › When you're
+asked › **More** › **Agents may delete what is disposable without asking**, or **Allow such deletes in this
 project** on the card of one - they run without a card at **Auto-edit files** and **Full auto**, in
 a chat you started, and the command's row says "Ran without asking · disposable: …":
 
@@ -388,7 +394,7 @@ get a card, at any level. You decide once, when their work comes back:
 
 Files that steer agents are held for your card at every level.
 
-Whether opening a sub-agent asks first is set under Settings › This project › Asking and away ›
+Whether opening a sub-agent asks first is set under Settings › This project › When you're asked ›
 **Opening a sub-agent**: **Ask when it matters** (the default: a card at Ask before changes when
 the sub-agent can change things), **Always ask** or **Never ask**.
 
@@ -396,7 +402,7 @@ the sub-agent can change things), **Always ask** or **Never ask**.
 
 At **Full auto** a command the list above does not stop runs without asking. **Full auto's judge** puts a
 small model before those: such a command is first sent to it once, and it says **fine** or **risky**. It
-is the project's switch - Settings › This project › Asking and away › **Full auto's judge** ("A small model
+is the project's switch - Settings › This project › When you're asked › **Full auto's judge** ("A small model
 looks at each command the list does not stop."), and the same switch in the level menu, under the levels.
 It is **on** by default, in new projects and in the ones you had; off, Full auto is as it was. Under it,
 **When the judge finds a command risky** says what it does with one it finds risky: **Refuse and go on**
@@ -643,6 +649,11 @@ files**, in a To-do task's turn, in a job while you're away (parked), in a turn 
 from, on a side of a comparison, and for a CLI whose folder KOLONİ does not know. If the chat leaves
 Full auto, or the judge is turned off, while it looks, its **fine** lifts nothing: the card opens.
 
+Measured on 27 Nov 2026 on the 31 cases of such lines the list now hands the judge, Claude Code's
+**haiku** and **Sonnet** each called no risky line fine. Haiku called one fine line risky - `git stash
+clear` after "Drop my old stashes, I don't need them." -, which then waits on its card or is refused;
+Sonnet called none.
+
 ### The judge is not a wall
 
 - It is a model's decision: it can call a risky command fine, and then that command runs - as it did
@@ -671,7 +682,7 @@ See [Known limits](../reference/known-limits.md#commands) for the rest.
 ## Check what I said first
 
 Since 0.1.9 this is a question of [Full auto's judge](#full-autos-judge), under its switch: in Settings ›
-This project › Asking and away, below **Full auto's judge**, the box **It also lets a delete or a push
+This project › When you're asked, below **Full auto's judge**, the box **It also lets a delete or a push
 run when a line you saved names it**. Its own row and its switch in the level menu are gone; there the
 judge's line says, where the box is on, "…; a harmful-looking one runs without a card only where a line of
 yours names it". It works only:
@@ -688,7 +699,7 @@ yours names it". It works only:
   it was measured: on its own service (not a model server of yours, nor with your own Claude Code setup
   or a variable such as `ANTHROPIC_BASE_URL` pointing it elsewhere), run as a session or natively, and
   as the Judge model you chose - or, none chosen, the Fast tier's first; never one asked because your
-  choice could not be. Settings › Agents would say so under the Judge model. Another model is measured
+  choice could not be. Settings › The app › Agents would say so under the Judge model. Another model is measured
   with `scripts/measure_judge.py` (see its first lines; one request a case);
 - or in a project where you had turned Check what I said first on before 0.1.9: its box comes ticked and
   works as it did, and you may untick it and tick it again.
@@ -859,5 +870,5 @@ install folder, while the file still holds it - is never run.
 - **Full auto** is for work you are ready to let run. What reaches out of the project, sends, or touches
   secrets and risky files still asks; [Full auto's judge](#full-autos-judge) decides the rest - a delete
   in the project too - and everything it calls fine runs. A script that opens `.env` without naming it can still read it, unless
-  KOLONİ's own commands run in Docker (Settings › This project › Commands and secrets) or Copilot's
+  KOLONİ's own commands run in Docker (Settings › This project › When you're asked › More) or Copilot's
   sandbox is on; a CLI run **Native** runs its commands on this machine, outside Docker.

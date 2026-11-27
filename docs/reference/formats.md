@@ -31,7 +31,7 @@ hand. A file KOLONİ cannot read is listed with the reason.
 - **Ids**: letters, digits, `_` and `-`, at most 40. `start` is the user's message.
 - **steps** (at most 60): `id`, `name`, `who`, and optionally `done_when` (`done` or `no_findings`),
   `if_fails` (`ask` or `stop`), `ask_me` (true or false), `group` (a group's id), `when` (`"problem"`:
-  only if the step before found a problem), `pos` (`{"x", "y"}` on the board).
+  only if the step before found a problem), `pos` (`{"x", "y"}` in the recipe editor).
 - **who** is one of:
     - `{"role": "Coder", "most": 2}`: a role, with at most 1 to 5 agents;
     - `{"team": "Web app"}`: a team's stages;

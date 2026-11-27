@@ -147,12 +147,15 @@ KOLONİ's own words, as they appear on screen.
   (Claude Code, Codex, GitHub Copilot CLI, agy). You add providers on the Models page.
 
 **Ready**
-: A page on the rail that lists everything waiting for your word, with a count.
+: A page on the rail, with the count of what waits for your word: **Ready for you** on the left and,
+  since 0.1.10, To-do on the right.
 
 **Ready for you**
-: The panel and page that list everything waiting for your word, in two parts: **Needs your
-  answer** and **Ready to take in**. Beside the page's list, **Decided for you**: what was decided for
-  you in the project ([Decisions](../use/decisions.md)).
+: The panel and page that list everything waiting for your word. The panel lists the open chat's in two
+  parts, **Needs your answer** and **Ready to take in**, then what waits elsewhere. The page holds the last
+  ☾ Away's report, **Waiting for your word** in one list and **Decided for you** - what was decided for you
+  in the project ([Decisions](../use/decisions.md)) - with To-do beside them
+  ([Ready and approval cards](../use/ready.md#the-page)).
 
 **Recipe**
 : The drawn steps of a piece of work: who does each step, what runs at once, where it loops back
@@ -219,7 +222,7 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order: stories hold tasks and bugs. Ticked tasks run
+: A project's tasks, in your order, on the right of the Ready page: stories hold tasks and bugs. Ticked tasks run
   in a chat you give them to (**Do in chat**), one by one, at that chat's level and on its model. Agents,
   and the Scout after a turn, propose tasks; you decide. See [To-do](../automation/todo.md).
 

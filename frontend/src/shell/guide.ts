@@ -6,7 +6,7 @@
 export const GUIDE = {
   settingsApp: 'settings/#agents-in-every-project',
   settingsAgents: 'settings/#agents',
-  settingsAsking: 'settings/#asking-and-away',
+  settingsAsking: 'settings/#while-youre-away',
   settingsNewChats: 'settings/#new-chats-start-with',
   settingsLimits: 'settings/#limits-and-money',
   settingsChecks: 'settings/#checks-and-git',

@@ -21,7 +21,7 @@ Recipes are on the Agents page, tab **Recipes**.
   keeps its tools. If one does not answer, the next is asked. Where none answers, it names every
   model it tried, each with why, and how to fix it ("No model answered: Local · qwen3 (not
   running). Start Local on the Models page, give a model a tier there, or pick a model in the
-  chat."). The model draws the recipe on the board; nothing is saved until you save it.
+  chat."). The model draws the recipe in the editor; nothing is saved until you save it.
 
 The ready recipes include Feature, Bugfix, Review only, Integration, Quality check, Model change,
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.

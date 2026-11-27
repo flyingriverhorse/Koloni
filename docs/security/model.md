@@ -143,7 +143,7 @@ at Full auto. On Windows, device names (`CON`, `COM1`) and file streams (`a.txt:
 
 - Secret files (`.env`, keys, …) are opened only on your **Allow once**, and searches skip them.
 - Variables with secret names are not passed to commands or CLIs unless you name them (Settings ›
-  This project › Commands and secrets).
+  This project › When you're asked › More › **Secret variables commands may see**).
 - Keys in command output are shown and recorded as `***`.
 - **Planted test key (canary)**: a made-up key in each message's commands. A command, web request,
   browser or MCP call that would send it out is refused, and the work stops.
@@ -216,7 +216,7 @@ What is not framed:
   be your repository's own `.git` - is asked at every level. A pull request never pushes commits of
   yours that origin does not have, in any worktree of yours
   ([Branches](../use/workspace.md#branches)).
-- **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
+- **Commands in Docker** (Settings › This project › When you're asked › More): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.
 - **Web searches and requests** reach only public addresses, never this machine or your local
   network. The agents' browser opens previews on this machine and the sites you allowed.

@@ -26,7 +26,7 @@ how they hang together.
 
 ## Who does the work
 
-**The Orchestrator (Lead)**
+**The Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
   sub-agents, unless you let it change files itself (Settings › This project › How agents work › **Who
   changes the files**). Behind the scenes its role is named Lead. See [Roles](../agents/roles.md).
@@ -101,7 +101,8 @@ how they hang together.
 ## Work that starts by itself
 
 **To-do**
-: A project's tasks, in your order: a story holds tasks and bugs. Tick tasks and
+: A project's tasks, in your order, on the **Ready** page beside what waits for you: a story holds tasks
+  and bugs. Tick tasks and
   give them to a chat (**Do in chat**): they wait in its queue and run there one by one, each story in a
   topic of its own, with a short notebook. Agents can propose tasks, and you decide when a task is done.
   See [To-do](../automation/todo.md).

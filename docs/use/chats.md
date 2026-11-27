@@ -3,7 +3,7 @@
 **Chats** on the left rail opens the list of your chats: each chat with how it stands, and on the
 right **Now**, what is at work and what waits for your word in every folder.
 
-![The Chats page: under the project folder, three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"; on the right Now, its cells, "Nothing at work; 1 thing waits for your word. Today 1 done.", Go to Ready, and what the cells mean](../images/chats.png)
+![The Chats page: under the project folder, three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"; on the right Now, its cells, "Nothing at work; 1 thing waits for your word. Today 8 done.", Go to Ready, and what the cells mean](../images/chats.png)
 
 ## The list
 
@@ -35,8 +35,8 @@ same meanings - and has one line under the chat's name:
 | Empty | **Stopped**, or **No turn yet** |
 
 What waits for your word in a chat is what [Ready for you](ready.md) lists for it, and **Show** goes by
-the same. A chat Ready for you has not read yet - or could not read - says what the project's board says,
-**Waits for your word** with nothing after it, until it is read or its board row changes. A chat whose
+the same. A chat Ready for you has not read yet - or could not read - says what KOLONİ's list of the project's
+chats says, **Waits for your word** with nothing after it, until it is read or that chat's state changes. A chat whose
 state is not read at all has no cell and no line: the page says nothing it does not know.
 
 ## Now

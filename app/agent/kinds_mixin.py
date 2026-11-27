@@ -1,10 +1,10 @@
 """Kanıtlı bitiş S5a: after a turn that wrote documents, diagrams, data, slides, config files or
 shell scripts (0.1.7), KOLONİ checks with no model (`app.proof_kinds`; 0.1.7's Code style and types
 runs the project's own tools, `_style`) - under Test and review, each kind the project has on
-(Settings › This project › Checks and git › Check by kind of work). A sure problem goes back to the
-Orchestrator as a fix round, one count with failing tests and the Reviewer's findings (the
-project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step after the tests and before the
-review: a turn of documents alone runs no test and gets these checks."""
+(Settings › This project › When the work is done › More › Check by kind of work). A sure problem
+goes back to the Orchestrator as a fix round, one count with failing tests and the Reviewer's
+findings (the project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step after the tests
+and before the review: a turn of documents alone runs no test and gets these checks."""
 
 import asyncio
 import contextlib
