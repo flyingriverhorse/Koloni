@@ -22,8 +22,8 @@ your project.
   away, 3 things were decided for you and 2 wait for you." **Open in Ready for you** opens the page with **Decided for you** in view, at **Not
   seen** when some wait for your OK. The cards that wait for you stay in the chat, and you answer
   them there as before. The same line is in the **Ready for you** panel's **This chat**.
-- **Usage › Today**, one line: "12 decisions were made for you today, 2 of them you haven't seen.",
-  with **Open in Ready for you**.
+- **Usage**, with **This project**, one line on the period you chose: "12 decisions were made for you this
+  month, 2 of them you haven't seen.", with **Open in Ready for you**.
 
 A chat with no folder has no project, and so no list: its decisions stay in its own **Decided for you
 while you were away** box, with **OK** and **Change →** (see

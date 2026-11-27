@@ -69,7 +69,7 @@ for (const theme of ['light', 'dark'] as const)
     await page.reload()
 
     await rail(page, 'Usage').click()
-    await page.getByLabel('Period').selectOption({ label: 'Today' })
+    await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'Today' }).click()
     // Boxes on top, each a number: the usage's four, then what the day alone knows (Today, this project).
     const boxes = page.locator('.usage-stats > div')
     await expect(boxes.locator('dt')).toHaveText([
@@ -84,19 +84,19 @@ for (const theme of ['light', 'dark'] as const)
     // Under them, side by side at this width: what is left of the plan, with its bar, and the month's budget, with its own.
     const limits = page.getByRole('region', { name: 'Plan limits' })
     const budget = page.getByRole('region', { name: 'This month’s budget' })
-    await expect(limits.getByRole('meter', { name: `${NAME}: 5 hours used` })).toHaveAttribute('value', '42')
+    await expect(limits.getByRole('meter', { name: `${NAME}: 5 hours used` })).toHaveAttribute('aria-valuenow', '42')
     await expect(limits.getByRole('row', { name: new RegExp(`^${NAME}`) })).toContainText('42% of 5 hours used, resets')
     await expect(budget.getByRole('meter', { name: 'Monthly budget used' })).toBeVisible()
-    const [left, right] = [await limits.boundingBox(), await budget.boundingBox()]
+    const [left, right] = [await budget.boundingBox(), await limits.boundingBox()]
     expect(left!.y).toBe(right!.y)
     expect(left!.x + left!.width).toBeLessThan(right!.x)
-    // The table by model is open; the others are folded, each heading with its count.
+    // The table by model is open; the others' numbers are folded, the chats and the prices counted.
     await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
-    for (const name of ['By conversation', 'Who started it', 'Prices']) {
+    for (const name of ['Chats that spent most', 'Who started it', 'Prices']) {
       const fold = page.getByRole('region', { name }).locator('details.usage-fold')
       await expect(fold).not.toHaveAttribute('open')
-      await expect(fold.locator('summary')).toContainText(/\d/)
-      // The heading inside what opens it is still a heading, found by a screen reader's heading keys.
+      if (name !== 'Who started it') await expect(fold.locator('summary')).toContainText(/\d/)
+      // Its heading is a heading, found by a screen reader's heading keys.
       await expect(page.getByRole('heading', { name, level: 3 })).toBeVisible()
     }
     await expect(page.getByRole('table', { name: 'Usage by conversation' })).toBeHidden()
@@ -117,5 +117,5 @@ for (const theme of ['light', 'dark'] as const)
 
     // In a narrow window the two are one under the other.
     await page.setViewportSize({ width: 700, height: 900 })
-    expect((await budget.boundingBox())!.y).toBeGreaterThan((await limits.boundingBox())!.y)
+    expect((await limits.boundingBox())!.y).toBeGreaterThan((await budget.boundingBox())!.y)
   })

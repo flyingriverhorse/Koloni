@@ -29,7 +29,14 @@
   color: var(--text);
   font: inherit;
   font-size: var(--text-body);
+  white-space: nowrap;
   cursor: pointer;
+}
+
+@media (max-width: 520px) {
+  .usage-seg button {
+    padding: 5px 8px;
+  }
 }
 
 .usage-seg button:first-child {
@@ -125,6 +132,10 @@
 .usage-days h3 {
   font-size: var(--text-heading);
   font-weight: var(--weight-title);
+}
+
+.usage-days h3 .memory-hint {
+  font-weight: var(--weight-body);
 }
 
 .usage-strip-box {
@@ -263,6 +274,20 @@
 
 .usage-more[open] > summary {
   margin-bottom: 10px;
+}
+
+/* The period's decisions, a line in a box of its own, its way to Ready for you at its end. */
+.usage-side > .decided-today,
+.memory-page > .decided-today {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 /* The page's last word: nothing is estimated. */
