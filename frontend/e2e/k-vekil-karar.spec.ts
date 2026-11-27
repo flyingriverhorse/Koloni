@@ -42,7 +42,7 @@ for (const theme of ['light', 'dark'] as const) {
     // (K1: the project's count - other chats of the project may have theirs - read with its board, every 5 s)
     await expect(pill).toHaveText(/^(\d+ decided|\d+ waits?)$/, { timeout: 20_000 })
     await expect(chat.locator('.decided-line')).toHaveText(
-      /^While you were away, \d+ things were decided for you in this project\. Open in Ready for you$/,
+      /^\d+ things were decided for you in this project\. Open in Ready for you$/,
       { timeout: 15_000 },
     )
     await pill.click()

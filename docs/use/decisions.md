@@ -18,8 +18,9 @@ your project.
   them here, at **Not seen**. The page's first line counts both: "4 things wait for your word.
   5 decisions were made for you since you left." The second part shows only when the project had a
   [☾ Away](../automation/overnight.md) and the number is known.
-- **In the chat**, one line at the top, where something was decided for you in it: "While you were
-  away, 3 things were decided for you and 2 wait for you." **Open in Ready for you** opens the page with **Decided for you** in view, at **Not
+- **In the chat**, one line at the top, where something was decided for you in it - while you were
+  away, or in a turn you watched: "3 things were decided for you in this project and 2 wait for you
+  here." **Open in Ready for you** opens the page with **Decided for you** in view, at **Not
   seen** when some wait for your OK. The cards that wait for you stay in the chat, and you answer
   them there as before. The same line is in the **Ready for you** panel's **This chat**.
 - **Usage**, with **This project**, one line on the period you chose: "12 decisions were made for you this

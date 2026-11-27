@@ -640,9 +640,7 @@ test("the pill counts a command Full auto's judge refused; the chat says it in o
   render(<App />)
   await userEvent.click(await screen.findByRole('button', { name: '1 decided for you in this project' }))
   const panel = document.getElementById('ready-panel')!
-  expect(
-    within(panel).getByText('While you were away, 1 thing was decided for you in this project.'),
-  ).toBeInTheDocument()
+  expect(within(panel).getByText('1 thing was decided for you in this project.')).toBeInTheDocument()
   await userEvent.click(within(panel).getByRole('button', { name: 'Open in Ready for you' }))
   const decided = await screen.findByRole('region', { name: /^Decided for you 1, 1 not seen/ })
   await vi.waitFor(() => expect(decided).toHaveFocus())
