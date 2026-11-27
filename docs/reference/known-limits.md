@@ -114,8 +114,11 @@ messages.
   Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and any MCP
   server's tool; a CLI Orchestrator's own tools are only told so. A word Copilot takes after its last
   words of a turn (its answer to the send is no reading of it) is answered in one more run of the turn,
-  in its next turn's way. A chat open in a hidden browser tab counts as watched: no desktop notice
-  comes when a background agent ends.
+  in its next turn's way. While it answers your word the Orchestrator waits for no room among the
+  agents at work: it is counted at work in the project and on its provider (who comes next waits for
+  it), but a provider let work at one at once gets one more request beside its agents' then, and the
+  turn may have one more at work than the chat's setting until its next wait. A chat open in a hidden
+  browser tab counts as watched: no desktop notice comes when a background agent ends.
 
 ## Git
 

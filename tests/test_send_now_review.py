@@ -4,11 +4,13 @@ it goes on in; Copilot's answer to a send is no reading of it; the Orchestrator 
 while its agents hold every place; a step that answers writes nothing; K5 quotes a push the user
 asked for by Send now, and a later word takes it back."""
 
+import contextlib
+
 from app.agent.words import LISTEN, TOLD_UNREAD
 from tests.conftest import Gate
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
-from tests.test_background_spawn import bg
+from tests.test_background_spawn import bg, said_in
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import setup
 from tests.test_claude_resume import chat, fake  # noqa: F401  (fixtures)
@@ -226,3 +228,95 @@ def test_a_word_put_in_its_own_turn_keeps_what_it_asked_of_a_spoken_answer(
         own = session.get_one(Run, snap["runs"][1]["id"])
         assert (own.spoken, own.plan_turn, own.by_user) == (spoken, False, True)
     assert next(m for m in snap["messages"] if m["id"] == word["id"])["run_id"] == own.id
+
+
+def counted(held, result, inside, most):
+    """A step of the Lead's that counts the steps under way at once (`most`), held by `held`."""
+
+    async def step_of(on_delta):
+        inside[0] += 1
+        most[0] = max(most[0], inside[0])
+        try:
+            return await held.step(result)(on_delta)
+        finally:
+            inside[0] -= 1
+
+    return step_of
+
+
+def test_a_word_waits_for_the_orchestrators_answer_to_an_agent_never_beside_it(
+    make_client, wait_run, project_dir
+):
+    # (Review, round 2: the answer to the user started beside the Lead's answer to its Coder.)
+    asks, answer, free, coder_end = Gate(), Gate(), Gate(), Gate()
+    free.release()
+    inside, most = [0], [0]
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(bg("Coder", "do A", "s1")),
+                text("asked"),
+                counted(answer, text("ANSWER TO CODER"), inside, most),
+                *(counted(free, text(said), inside, most) for said in ("TO USER", "x", "y", "z")),
+            ],
+            "Coder": [
+                asks.step(step(call("message_agent", {"to": "Lead", "message": "ok?"}, "q"))),
+                coder_end.step(text("A done")),
+            ],
+        },
+        spawn_max_parallel=3,
+    )
+    until(client, cid, lambda s: statuses(s) == {"Lead": "waiting", "Coder": "running"})
+    asks.release()
+    answer.wait_partial()  # (its answer to the Coder is under way: held)
+    runner = client.app.state.runner
+    lead = runner._lead_of(run_id)
+    assert now(client, cid, "how is it going?").json()["run"]["id"] == run_id
+    until(client, cid, lambda s: lead.agent_id in runner._listening)
+    # (a step beside it would start at once - within a quarter second; none comes while held)
+    with contextlib.suppress(AssertionError):
+        until(client, cid, lambda s: len(model.calls_of["Lead"]) >= 4, timeout=0.25)
+    assert len(model.calls_of["Lead"]) == 3
+    answer.release()
+    coder_end.release()
+    snap = wait_run(client, cid, run_id, timeout=30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert most[0] == 1  # one step of the Lead's at a time
+    assert any(said_in(one, "how is it going?") for one in model.calls_of["Lead"][3:])
+
+
+def test_the_orchestrator_answering_is_counted_at_work_in_its_project(
+    make_client, wait_run, project_dir
+):
+    # (Review, round 2: with no place, it was counted nowhere - a provider let work at one at
+    # once took a second request beside it, and who came next did not wait for it.)
+    a, listen = Gate(), Gate()
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(bg("Coder", "do A", "s1")),
+                text("asked"),
+                listen.step(text("ANSWERED")),
+                text("end"),
+            ],
+            "Coder": [a.step(text("A done"))],
+        },
+        spawn_max_parallel=1,
+    )
+    until(client, cid, lambda s: statuses(s) == {"Lead": "waiting", "Coder": "running"})
+    runner = client.app.state.runner
+    lead = runner._lead_of(run_id)
+    now(client, cid, "how is it going?")
+    listen.wait_partial()  # (its answer under way, the Coder's place still the Coder's)
+    assert lead.agent_id in runner._placed and runner.at_work(lead.root) == 2
+    assert runner._slots[run_id].locked()  # (no place of the turn's taken for it)
+    listen.release()
+    a.release()
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    slots = runner._slots.get(run_id)
+    assert slots is None or slots._value == 1
