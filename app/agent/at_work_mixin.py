@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import away, recipe_run
+from app import away, recipe_run, web
 from app.agent.ctx import TERMINAL, Ctx
 from app.agent.questions_mixin import USER_TOLD
 from app.agent.spawn_mixin import INTERNAL, SPAWN_ENDED, SPAWN_ENDED_SEE, SPAWN_REJECTED
@@ -48,6 +48,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 LEADS_STOP = STOPPED_BY.format(who="the Orchestrator")
+# Task 7: KOLONİ's own notice when an agent nobody waited for ends - its name and how it ended.
+DONE_FOUND = "{name} finished: {n} finding{s}"
+DONE_SAID = "{name} {how}"
+DONE_HOW = {"completed": "finished", "cancelled": "stopped", "interrupted": "stopped"}
 
 # B-376 (live): a Copilot Lead gave its last answer while a team's "All at once" group had just
 # opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
@@ -67,6 +71,8 @@ class AtWorkMixin:
         # stopped alone was (`stop_agent`).
         self._own_work: dict[str, asyncio.Task] = {}
         self._stopped_one: dict[str, str] = {}
+        # D1: the API Orchestrator's background spawns answered "started" (`_said_at_once`).
+        self._went_on_calls: set[str] = set()
         # D2: the user's words sent into a turn that no step of its Orchestrator read yet (by
         # the turn), what wakes its waits for them, the turns whose door is shut, the
         # Orchestrators that answer one now (no writes), and what each was sent at its step.
@@ -179,6 +185,35 @@ class AtWorkMixin:
             return "cancelled", why
         finally:
             self._own_work.pop(child.agent_id, None)
+
+    def _tell_done(self: "AgentRunner", ctx: Ctx, child_id: str) -> None:
+        """An agent its opener did not wait for (a background one, a CLI's) is over: KOLONİ's own
+        desktop notice - its name, how it ended, how many findings it reported; never a word of
+        its own - where the project has notices on and nobody has its chat open
+        (`bus.watching`), within `_toasts`. One waited for is said by its opener's next answer.
+        Never fails the turn.
+        shortcut: a hidden tab still counts as watching (its events stream); tell then too if
+        a notice is missed there."""
+        with contextlib.suppress(Exception):
+            if self.bus.watching(ctx.cid):
+                return
+            with self._factory() as session:
+                project = self._project(session, ctx.cid)
+                child = session.get(Agent, child_id)
+                if project is None or child is None or not project.notify_desktop:
+                    return
+                found = len(child.findings or [])
+                said = (
+                    DONE_FOUND.format(name=child.name, n=found, s="" if found == 1 else "s")
+                    if child.status == "completed" and found
+                    else DONE_SAID.format(name=child.name, how=DONE_HOW.get(child.status, "failed"))
+                )
+                title = f"KOLONİ — {project.name}"
+            if not self._toasts.take(ctx.cid):
+                return
+            told = asyncio.ensure_future(web.show(title, said))
+            self._telling.add(told)
+            told.add_done_callback(self._telling.discard)
 
     async def _see_through_place(
         self: "AgentRunner", ctx: Ctx, child: Ctx
@@ -625,6 +660,7 @@ class AtWorkMixin:
         self._later_work.setdefault(ctx.run_id, []).append((ctx.agent_id, child_id, ctx.cid, work))
         self._lend_slot(ctx)
         if self._background_offered(ctx):  # (D1: its next step reads its history from the record)
+            self._went_on_calls.add(call_id)
             self._set_call(ctx.cid, call_id, status="succeeded", result=told.result())
         return "succeeded", told.result()
 
@@ -642,7 +678,9 @@ class AtWorkMixin:
         try:
             return await self._run_call(ctx, call_id, request)
         finally:
-            if told.done() and not told.cancelled():
+            # (Not one that was over before its opener went on: it was answered with its report.)
+            if call_id in self._went_on_calls:
+                self._went_on_calls.discard(call_id)
                 self._set_call(ctx.cid, call_id, status="succeeded", result=told.result())
 
     async def _comes_later(
@@ -666,6 +704,7 @@ class AtWorkMixin:
             log.warning("agent %s: spawn_agent %s failed: %r", ctx.agent_id, child_id, exc)
             status, said = "failed", INTERNAL
         await self._take_slot_back(ctx)
+        self._tell_done(ctx, child_id)  # (Task 7: where nobody watches the chat)
         if self._stopped_one.get(child_id) == LEADS_STOP:
             raise asyncio.CancelledError  # (its own stop_agent's answer said it: nothing to read)
         opener = self._ctxs.get(ctx.agent_id, ctx)

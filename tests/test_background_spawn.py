@@ -289,3 +289,17 @@ def test_a_failed_lead_step_stops_its_background_children(make_client, wait_run,
     a.release()
     assert snap["runs"][0]["status"] == "failed"
     assert statuses(now_snap(client, cid))["Coder"] in ("cancelled", "failed")
+
+
+def test_a_background_agent_over_before_its_opener_went_on_is_its_calls_answer(
+    make_client, wait_run, project_dir
+):
+    # (One that never waits, as a stand-in can be: answered with its report, no note to wait for.)
+    client, model = make_client(
+        {"Lead": [step(bg("Coder", "do A", "s1")), text("read")], "Coder": [text("A done")]}
+    )
+    cid, run_id = begin(client, project_dir, mode="full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert "A done" in tool_result(model.calls_of["Lead"][1], "s1")
+    assert len(model.calls_of["Lead"]) == 2
