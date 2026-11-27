@@ -4,6 +4,7 @@ list among them (the comparison of the CLIs' rules, 27 Nov 2026)."""
 
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 # B-316: what a pipe may hand a read's text to that only picks, sorts, counts or lays it out,
@@ -13,10 +14,11 @@ SINKS = frozenset(
     | {"out-string", "ft", "fl", "fw"}
 )
 # What a search may be told that writes or runs something: find's actions, rg's preprocessor and
-# its replace and hostname program, ag's/ack's pager (`-r` is rg's and ag's replace, grep's not).
+# its replace and hostname program, ag's/ack's pager (`--pag` too: they take it cut short) and
+# ack's `--output`, which ack 2.x runs as Perl (`-r` is rg's and ag's replace, grep's not).
 SEARCH_DOES = re.compile(
-    r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fprintf|-fls"
-    r"|--pre(?:=.*)?|--replace(?:=.*)?|--pager(?:=.*)?|--hostname-bin(?:=.*)?"
+    r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fprintf|-fls|--output(?:=.*)?"
+    r"|--pre(?:=.*)?|--replace(?:=.*)?|--pag(?:e|er)?(?:=.*)?|--hostname-bin(?:=.*)?"
 )
 # A connection bash (and ksh) opens where a redirection names one of these - `cat <
 # /dev/tcp/host/80`, `exec 3<>/dev/udp/host/53`: the internet, with no program's name in the line;
@@ -72,30 +74,54 @@ def globs_an_option(line: str) -> bool:
     return False
 
 
-def chained(line: str) -> bool:
+def chained(line: str, handed: bool = False) -> bool:
     """Whether a line holds a `;`, `&` or line break that may end a command and start another:
-    any of them - but in a simple line, a `;` or `&` inside `'…'` or `"…"`, where sh and
-    PowerShell (the shells a bare line runs in) agree it is quoted: `rg '&&' .github`. Simple: no
-    backslash, backtick or `$` (sh does not end `"…"` at a backslash's `"`; in PowerShell a
-    backslash before `'` escapes nothing, so the `'` opens a quote), no `#` (out of quotes it
-    starts a comment, and a quote in that is none), no line break, nothing past ASCII
-    (PowerShell's typographic quotes are quotes too), every quote paired.
+    any of them - but in a simple line, one inside its quotes (`bare`: `rg '&&' .github`).
     shortcut: the simple line alone - a quoted `;` in any other line is a card; tell more lines
     apart if that is met often. cmd keeps no `'` quote: a line it runs comes as `cmd /c …`, whose
-    program is no search (its script is split at every `&` before it is read: `_script`)."""
-    if not re.search(r"[;&\r\n]", line):
-        return False
-    if re.search(r"[\\`$#\r\n]|[^\x00-\x7f]", line):
-        return True
-    quote = ""
-    for char in line:
-        if quote:
-            quote = "" if char == quote else quote
-        elif char in "'\"":
-            quote = char
-        elif char in ";&":
-            return True
-    return bool(quote)  # (a quote not paired: no simple line)
+    program is no search, and what it hands on is `handed` (`bare`)."""
+    return bool(re.search(r"[;&\r\n]", bare(line, handed)))
+
+
+_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"")
+
+
+def bare(line: str, handed: bool = False) -> str:
+    """A simple line with each `'…'` and `"…"` blanked, its quotes too (`_` for each character):
+    what is left is what sh and PowerShell (the shells a bare line runs in) both read out of
+    quotes; any other line as it is. Simple: no backslash, backtick or `$` (sh does not end `"…"`
+    at a backslash's `"`; in PowerShell a backslash before `'` escapes nothing, so the `'` opens
+    a quote), no `#` (out of quotes it starts a comment, and a quote in that is none), no line
+    break, nothing past ASCII (PowerShell's typographic quotes are quotes too), every quote
+    paired - and not `handed` on to a shell (`cmd /c "…"`, `bash -c '…'`: cmd keeps no `'`
+    quote, and a `>` in it writes)."""
+    if handed or re.search(r"[\\`$#\r\n]|[^\x00-\x7f]", line):
+        return line
+    blank = _QUOTED.sub(lambda found: "_" * len(found[0]), line)
+    return line if re.search("['\"]", blank) else blank  # (a quote not paired: no simple line)
+
+
+def split(at: re.Pattern, line: str, whole: Callable[[str], bool]) -> list[str]:
+    """`at.split(line)` - but a piece of it cut only inside a simple line's quotes (`bare`) is
+    one where it is `whole` (a lone search, `commands.only_searches`: `rg 'a|b' .github`, E12).
+    A quoted word is a line again to a shell, a wrapper, `ssh` or `gdb -ex`, and cmd keeps no
+    `'` quote: no other piece is kept whole, nor one of a line handed on (`commands._parts`)."""
+    cuts = [0, *(end for found in at.finditer(bare(line)) for end in found.span()), len(line)]
+    pieces = (line[start:end] for start, end in zip(cuts[::2], cuts[1::2], strict=True))
+    return [
+        one
+        for piece in pieces
+        for one in (at.split(piece) if at.search(piece) and not whole(piece) else [piece])
+    ]
+
+
+def rejoined(words: list[str]) -> str:
+    """A part's words (`split`) as a line again, a word that holds a separator or a bracket
+    quoted as it was - not chained: `rg "&&" .github`."""
+    return " ".join(
+        (f"'{word}'" if '"' in word else f'"{word}"') if re.search(r"[;&|(){}]", word) else word
+        for word in words
+    )
 
 
 def looks_bare(root: Path) -> bool:

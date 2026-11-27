@@ -110,13 +110,14 @@ export function readySentence(waiting: number, decidedSinceLeft: number | null):
 /** "3 things were decided" / "1 thing was decided". */
 const things = (n: number, done: string, many: string) => (n === 1 ? `1 thing ${done}` : `${n} things ${many}`)
 
-/** What a chat's line says: what was decided for you in it and waits for your OK, and what waits for your word. */
+/** What a chat's line says: what was decided for you in it and waits for your OK, and what waits for your word - with
+ *  no "While you were away": an Orchestrator notes a decision in a turn you watch too (`note_decision`, N15). */
 export function decidedSentence(decided: number, waiting: number): string {
   const parts = [
     decided > 0 && things(decided, 'was decided for you in this project', 'were decided for you in this project'),
     waiting > 0 && (waiting === 1 ? '1 waits for you here' : `${waiting} wait for you here`),
   ].filter(Boolean)
-  return `While you were away, ${parts.join(' and ')}.`
+  return `${parts.join(' and ')}.`
 }
 
 /** What Usage says of a period's decisions (`when`: "today", "this month"), from the log: how many, and how many you

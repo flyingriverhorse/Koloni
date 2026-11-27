@@ -279,9 +279,7 @@ test('Ready for you in three parts: what needs your answer, what is ready to tak
     within(screen.getByRole('region', { name: 'Ready to take in' })).getByText("Teams' work is ready"),
   ).toBeInTheDocument()
   // what only told you comes last, in one line (a project's chat: its decisions are on the Ready for you page)
-  const told = screen.getByText(
-    /^While you were away, 1 thing was decided for you in this project and \d+ wait for you here\.$/,
-  )
+  const told = screen.getByText(/^1 thing was decided for you in this project and \d+ wait for you here\.$/)
   expect(
     screen.getByRole('region', { name: 'Ready to take in' }).compareDocumentPosition(told) &
       Node.DOCUMENT_POSITION_FOLLOWING,

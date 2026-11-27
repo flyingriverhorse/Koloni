@@ -11,6 +11,7 @@ from app.project_view import standing
 from app.proof import may_write
 from app.read_edges import globs_an_option
 from tests.fakes import Script
+from tests.keyed import OWN
 from tests.test_agent_commands import cmd
 from tests.test_chat_flow import text
 from tests.test_full_auto_judge import go, said
@@ -130,13 +131,124 @@ def test_a_plain_search_stays_a_search(line):
     assert only_searches(line) and commands._reads(line) and commands.names_standing(line) == ""
 
 
-@pytest.mark.parametrize(
-    "line",
-    ["rg '&&' .github/workflows", "grep -rn ';' .github", "rg -F 'x;y' .", 'rg "a&b" .claude'],
-)
+QUOTED = [
+    "rg '&&' .github/workflows",
+    "grep -rn ';' .github",
+    "rg -F 'x;y' .",
+    'rg "a&b" .claude',
+    "rg -F 'x;y' .github",
+    "rg 'a|b' .github",
+    "rg '(a|b)' .github/workflows",
+]
+
+
+@pytest.mark.parametrize("line", QUOTED)
 def test_a_quoted_semicolon_or_ampersand_leaves_a_search_a_search(line):
     # (the review: each was a card at every level on this branch, and a line that may write)
     assert only_searches(line) and commands.names_standing(line) == "" and not may_write(line)
+    # E12 (live): and no harm - its parts were cut inside the quotes, `.github/workflows` alone
+    assert commands.harms(line) == "" == commands.harms(line, False), commands._commands_in(
+        line, at=commands._BLOCKS
+    )
+    assert commands._commands_in(line, at=commands._BLOCKS) == [
+        [word.strip("'\"") for word in line.split()]
+    ]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "rg x .github && cp evil .github/workflows/ci.yml",
+        "rg '&&' .github; rm -rf .github",
+        "rg 'a;b' . | rm -rf x",
+        "timeout 5 rg '&&' .github",  # (a wrapper: no search kept whole)
+        # a quoted word is a line again to a shell or another program, and cmd keeps no `'`
+        "cmd /c echo '&' del x",
+        "cmd /c \"rg 'x&del /q y' .\"",
+        "powershell -Command echo '&&' rm -rf x",
+        "sh -c \"rg 'a;b' .; rm -rf x\"",
+        "ssh host 'cd app && rm -rf build'",
+        "docker exec web sh -c 'cd /app && rm -rf cache'",
+        "gdb -ex 'shell a; rm -rf x'",
+        "git commit -m 'a; rm -rf x'",
+    ],
+)
+def test_a_quoted_separator_still_cuts_any_line_but_a_lone_search(line):
+    assert commands.harms(line, False), commands._commands_in(line, at=commands._BLOCKS)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # (the review of E12: whole now, its quoted brackets no cut - ack 2.x runs it as Perl)
+        "ack --output='@{[system q[touch pwned]]}' foo .github",
+        "ag --pag='sh -c x' foo .github",  # (ag and ack take `--pager` cut short)
+        "ack --page=less foo .github",
+    ],
+)
+def test_a_search_told_to_run_something_is_no_search(line):
+    assert not only_searches(line)
+    assert commands.names_standing(line) == ".github" and commands.standing_asked(line, False)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cmd /c \"rg 'x>.github/workflows/ci.yml ' src\"",  # (cmd: a `>` in `'` writes)
+        "cmd /c \"rg '(x)|y>.github/a' src\"",
+        "powershell -Command \"rg 'x>.github/workflows/ci.yml ' src\"",
+    ],
+)
+def test_a_search_handed_to_a_shell_keeps_no_quote_of_its_own(line):
+    # (the E12 review: a script's search part was a read past its quoted `>`)
+    assert commands.names_standing(line) == ".github" and commands.danger(line, False)
+    assert may_write(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["cmd /c \"rg 'x>y.txt ' src\"", "cmd /c \"rg 'x&del /q y' .\"", "bash -c \"rg 'a;b' .\""],
+)
+def test_a_search_handed_to_a_shell_may_write(line):
+    assert may_write(line)
+
+
+@pytest.mark.parametrize("line", ["rg 'a' | sh", "rg 'a;b' . | sh", "rg 'a|b' . | bash"])
+def test_a_pipe_out_of_quotes_still_hands_a_search_on(line):
+    assert commands.runs_another(line)
+    assert commands._parts(line, commands._BLOCKS)[-1] in (["sh"], ["bash"])
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    "line",
+    [
+        "rg '&&' .github/workflows",
+        "rg 'a|b' .github",
+        "grep -rn ';' .github",
+        "rg -F 'x;y' .github",
+    ],
+)
+@pytest.mark.parametrize("judged", [False, pytest.param(True, marks=pytest.mark.judge)])
+def test_at_full_auto_a_search_with_a_quoted_separator_runs_with_no_card(
+    judging,  # noqa: F811
+    wait_run,
+    project_dir,
+    line,
+    judged,
+):
+    # E12 (live, judge off): "Names .github: … asked at every level." With the judge on, it is
+    # asked of the line as of any search at Full auto (`rg foo src` too), and its "fine" runs it.
+    (project_dir / ".github" / "workflows").mkdir(parents=True)
+    verdicts = [said("fine")] if judged else []
+    client, _lead, judge, executor = judging([cmd(line), text("done")], verdicts, [Script([])])
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    off = client.patch(f"/api/projects/{pid}", json={"full_auto_judge": judged}, headers=OWN)
+    assert off.status_code == 200, off.text
+    _, cid, run_id = go(client, project_dir)
+    commands_ = wait_run(client, cid, run_id)["commands"]
+    assert [one["status"] for one in commands_] == ["exited"], commands_
+    assert executor.started[0][0] == line and len(judge.calls) == judged
 
 
 BS = "\\"  # (one backslash)
@@ -164,6 +276,7 @@ def test_a_semicolon_in_a_line_that_is_not_simple_chains_a_write_that_asks(line)
     assert not only_searches(line)
     assert commands.names_standing(line) in (".github", ".idea")
     assert commands.standing_asked(line, False)  # (Full auto too)
+    assert commands.harms(line, False)  # (its parts cut at every `;`: E12)
 
 
 @pytest.mark.parametrize("line", NET)

@@ -608,14 +608,14 @@ def _ran_in(cwd: str | None, folder: str | None) -> bool:
     return there == here or there.startswith(here.rstrip(os.sep) + os.sep)
 
 
-def may_write(line: str) -> bool:
+def may_write(line: str, nested: bool = False) -> bool:
     """Whether a command line may change files: a part of it (`ledger._split`) is neither a mere
     read (`only_reads`), a lone search (`only_searches`: `rg KEY .`) nor a test run
     (`ledger.read_test`) - `black . && pytest -q` may. CL-329 G: so may a line that redirects
     into a file (`cat a > b`, `git show HEAD:f > f`; not `2>&1`, `/dev/null`), a test run with
     an option that writes (`jest -u`, `--junitxml=a.py`: `ledger.test_writes`), a command
     substitution (`pytest -q $(sed -i …)`) and a line handed to a shell that may
-    (`bash -c "pytest -q > a.py"`)."""
+    (`bash -c "pytest -q > a.py"`; its quotes do not hide a `>` from cmd: `nested`)."""
     if ledger.written_to(line) or "$(" in line or "`" in line:
         return True
     for words, _op in ledger._split(line):
@@ -624,12 +624,12 @@ def may_write(line: str) -> bool:
         handed = ledger._handed_on(ledger._past_leads(words))
         part = " ".join(words)
         if handed is not None:
-            if may_write(handed):
+            if may_write(handed, True):
                 return True
         elif ledger.read_test(part) is not None:
             if ledger.test_writes(part):
                 return True
-        elif not only_reads(part) and not only_searches(part):
+        elif not only_reads(part) and not only_searches(part, nested):
             return True
     return False
 
