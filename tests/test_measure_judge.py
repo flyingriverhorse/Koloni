@@ -15,7 +15,7 @@ import pytest
 
 from app.model_client import OpenAICompatClient, StepResult
 from app.model_session import ClaudeSessionClient, CopilotSessionClient
-from app.risk_judge import DESTRUCTIVE, WIDER, WIDER_D, action
+from app.risk_judge import ASKED_FOR_D2, DESTRUCTIVE, WIDER, WIDER_D, action
 from tests.fakes import Script
 from tests.test_agent_commands import cmd
 from tests.test_agent_writes import write
@@ -223,7 +223,7 @@ def test_prompt_a_is_asked_and_said_and_a_stopped_case_never(tmp_path, capsys):
     assert "(2 cases, prompt A)" in shown and "fine called risky: 2" in shown
 
 
-@pytest.mark.parametrize(("variant", "added"), [("C", WIDER), ("D", WIDER_D)])
+@pytest.mark.parametrize(("variant", "added"), [("C", WIDER), ("D", WIDER_D), ("D2", ASKED_FOR_D2)])
 def test_prompts_c_and_d_build_every_risk_cases_prompt_and_ask_nothing(capsys, variant, added):
     # (0.1.11: measured against B, never the gate's - its dry run builds each prompt it would send)
     asked = measure.cases("risk")

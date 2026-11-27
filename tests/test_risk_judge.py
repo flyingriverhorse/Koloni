@@ -10,6 +10,7 @@ from app.risk_judge import (
     _BLOCKS,
     _PUSH,
     ASKED_FOR,
+    ASKED_FOR_D2,
     DESTRUCTIVE,
     DESTRUCTIVE_C,
     DESTRUCTIVE_D,
@@ -85,6 +86,17 @@ def test_prompt_d_says_first_what_was_asked_keeps_cs_push_and_blocks_and_only_me
     assert DESTRUCTIVE_D.startswith(DESTRUCTIVE_C) and "(`build/../src`)" in DESTRUCTIVE_D
     assert "{" not in WIDER_D + DESTRUCTIVE_D
     asked = prompt(SAID, CMD, [], None, variant="D")
+    assert asked.rstrip().endswith('{"verdict": "fine" | "risky", "why": "<one sentence>"}')
+
+
+def test_prompt_d2_is_d_with_an_empty_or_an_overwrite_never_what_was_asked():
+    # (0.1.11, after D's haiku run let three empties of an existing file by as asked-for work)
+    assert GATE_PROMPT == "B" and ASKED_FOR_D2 != ASKED_FOR
+    assert PROMPTS["D2"].replace(ASKED_FOR_D2, ASKED_FOR, 1) == PROMPTS["D"]
+    assert ASKED_FOR_D2.startswith(ASKED_FOR[:-1] + ", and never emptying or overwriting a file")
+    assert ASKED_FOR_D2.endswith("`open(file, 'w')`) - that destroys it.")
+    assert "{" not in ASKED_FOR_D2
+    asked = prompt(SAID, CMD, [], None, variant="D2")
     assert asked.rstrip().endswith('{"verdict": "fine" | "risky", "why": "<one sentence>"}')
 
 
