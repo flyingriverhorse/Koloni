@@ -7,7 +7,6 @@ the line, `at_start` keeps what a push goes by as the turn begins (`LeadToolsMix
 `refused` looks at the repository as the command is decided: what it does not know as plain is the
 list's card (fails closed)."""
 
-import hashlib
 import os
 import re
 from pathlib import Path
@@ -32,6 +31,8 @@ _FALSE = frozenset({"false", "no", "off", "0"})
 # `--receive-pack`, `--recurse-submodules`) or a push's map to another name: none, or false.
 _NEVER = ("remote.origin.push", "push.pushoption", "remote.origin.receivepack")
 _OFF = ("remote.origin.mirror", "push.followtags")
+# The hooks a push runs on this machine (a name with an ending too: `pre-push.exe` on Windows).
+_PUSH_HOOKS = ("pre-push", "reference-transaction")
 # An address git reaches over a network: a scheme's (not file://), or scp's `host:path`.
 _REMOTE = re.compile(r"(?i)(?!file:)(?:[a-z][a-z0-9+.-]*://|[^/\\:]{2,}:)")
 
@@ -63,17 +64,18 @@ def at_start(root: Path) -> dict | None:
     """What a push goes by, as a turn begins: where a push to origin goes (`git.push_address`: its
     pushurl and git's rewrites applied; "" for none), git's config in every scope as one digest
     (`away_branch.config_digest`: a `remote set-url`, a hooksPath, an ssh command, a credential
-    helper; None: not read), the hooks a push would run (`_hooks`) and origin's default branch
-    (`_default`). None where the project is no repository's top folder. Blocking."""
+    helper; None: not read) and origin's default branch (`_default`). None where the project is
+    no repository's top folder. Blocking.
+    shortcut: a push that changes git's config (`git push -u`, a branch made to track one) makes
+    the turn's next push a card; leave the branch's own upstream out of the digest if that is
+    met often."""
     try:
         exe, _folder = git.repository(root)
-        hooks = _hooks(root, exe)
     except git.Refused:
         return None
     return {
         "url": git.push_address(root),
         "config": config_digest(root),
-        "hooks": hooks,
         "default": _default(root, exe),
     }
 
@@ -81,9 +83,13 @@ def at_start(root: Path) -> dict | None:
 def refused(root: Path, word: str, start: dict | None, needles: list[bytes]) -> str:
     """Why a plain push (`shape`'s `word`) run at the project's top `root` stays the list's card;
     "" for none: its branch (`_branch`), git's config (`_redirects`), what changed since the turn
-    began (`start`, `at_start`'s - none: a card), origin a folder in the project (its own hooks
-    would run here), and a secret in what it sends (`_sends_secret`). Blocking: git, and origin
-    asked, with git's own time limits."""
+    began (`start`, `at_start`'s - none: a card), a hook a push runs (`_hooked`), origin a folder
+    in the project (its own hooks would run here), and a secret in what it sends
+    (`_sends_secret`). Blocking: git, and origin asked, with git's own time limits.
+    shortcut: a bare push (and `origin HEAD`) pushes the branch checked out as it runs - looked
+    at here, before the judge and again after its fine; a switch by the user's own hand in
+    between is not seen (another turn's is asked: `_branch_asks`). Name the branch on the line
+    the agent is told to use if that is ever met."""
     if not start or not start["url"] or start["config"] is None:
         return "what a push goes by was not read as the turn began"
     try:
@@ -94,12 +100,10 @@ def refused(root: Path, word: str, start: dict | None, needles: list[bytes]) -> 
         if why := _redirects(_config(root, exe), branch):
             return why
         url = git.push_address(root)
-        if (url, config_digest(root), _hooks(root, exe)) != (
-            start["url"],
-            start["config"],
-            start["hooks"],
-        ):
-            return "origin's address, git's config or its hooks changed in this turn"
+        if (url, config_digest(root)) != (start["url"], start["config"]):
+            return "origin's address or git's config changed in this turn"
+        if _hooked(root, exe):
+            return "a pre-push or reference-transaction hook would run with it"
         if not _REMOTE.match(url) and (url.lower().startswith("file:") or _inside(root, url)):
             return "origin is a folder in the project, or given by a file: address"
         return _sends_secret(root, exe, url, branch, start["default"], needles)
@@ -138,11 +142,13 @@ def _default(root: Path, exe: str) -> str:
     return _ref(root, exe, "refs/remotes/origin/HEAD", "refs/remotes/origin/")
 
 
-def _hooks(root: Path, exe: str) -> str:
-    """The hooks a push would run, as one digest: each file of the folder git runs them from -
-    `.git/hooks`, or the one `core.hooksPath` names, wherever it is (`rev-parse --git-path`) - by
-    its name and bytes, but git's samples. A push runs `pre-push` and `reference-transaction`; any
-    change there is a change. Refused where it cannot be read."""
+def _hooked(root: Path, exe: str) -> bool:
+    """Whether a push would run a hook on this machine: a file of the folder git runs hooks from
+    (`.git/hooks`, or the one `core.hooksPath` names, wherever it is: `rev-parse --git-path`)
+    named `pre-push` or `reference-transaction`, with an ending or none, but git's samples. Any,
+    the user's own too: an unchanged hook can run what an agent wrote (husky's stubs run
+    `.husky/<name>`, Git LFS's pre-push uploads what `.lfsconfig` names). Refused where the
+    folder cannot be read."""
     code, out, _said = git._in(
         root,
         exe,
@@ -156,16 +162,14 @@ def _hooks(root: Path, exe: str) -> str:
     if code != 0:
         raise git.Refused("git did not say where its hooks are")
     folder = root / out.decode("utf-8", "replace").strip()
-    digest = hashlib.sha256()
     try:
-        names = sorted(os.listdir(folder)) if folder.is_dir() else []
-        for name in (one for one in names if not one.endswith(".sample")):
-            path = folder / name
-            data = path.read_bytes() if path.is_file() else b"(not a file)"
-            digest.update(b"%s\0%d\0" % (name.encode(), len(data)) + data)
+        names = os.listdir(folder) if folder.is_dir() else []
     except OSError as exc:
         raise git.Refused(f"git's hooks could not be read: {exc.strerror or exc}") from None
-    return digest.hexdigest()
+    return any(
+        name.casefold().startswith(_PUSH_HOOKS) and not name.casefold().endswith(".sample")
+        for name in names
+    )
 
 
 def _config(root: Path, exe: str) -> dict[str, list[str]]:

@@ -582,7 +582,8 @@ class RiskJudgeMixin:
             if not (watched or self._away_full_auto(ctx)):
                 return found if takes else ("", None)  # (a level changed meanwhile: its card)
             judged = await self._risk_judging(ctx, command, cwd, root, known, takes)
-            if takes and not (judged[1] or {}).get("looked"):
+            # (a push you asked for that it does not call fine: K5's quoted card, never refused)
+            if takes and not (judged[1] or {}).get("looked") or pushes and found[1] and judged[0]:
                 return found
             # (R2: what it names looked at again once the judge said fine - a link may have been
             # made meanwhile, a push's repository moved; KOLONİ's own command is looked at once
@@ -652,7 +653,9 @@ class RiskJudgeMixin:
         K3's lines are (`_risk_takes`) - the list's card, or K5's quote of it (the judge reads
         your words too; a push it does not take keeps that card) -, run at the project's own top
         (not a copy), and its repository as `push_judge.refused` reads it against the turn's start
-        (`_git_start`: none recorded, its card), the turn's secrets looked for in what it sends."""
+        (`_git_start`: none recorded, its card), the turn's secrets looked for in what it sends.
+        shortcut: the judge reads the line and what the agent did before it, not the branch a bare
+        push sends; add it to what it is shown if the measurement finds that it needs it."""
         word = push_judge.shape(command)
         reason, record = found
         if (

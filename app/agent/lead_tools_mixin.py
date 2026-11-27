@@ -135,6 +135,8 @@ class LeadToolsMixin:
             self._git_at[ctx.run_id] = await asyncio.to_thread(git.where, Path(ctx.root))
         if self._git_at[ctx.run_id] is not None and not ctx.depth:  # (Task 11, `_pr_offered`)
             self._on_github[ctx.run_id] = await asyncio.to_thread(_on_github, Path(ctx.root))
+        # shortcut: at Full auto alone (a few git calls a turn); a turn moved to Full auto later
+        # has none, and its pushes are cards - read it at every level if that is met often.
         if (seen := self._git_at[ctx.run_id]) is not None and self._full_auto(ctx):
             seen["push"] = await asyncio.to_thread(push_judge.at_start, Path(ctx.root))
 

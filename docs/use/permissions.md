@@ -704,9 +704,12 @@ keeps the card:
   (or `remote.pushDefault`) is not `origin`, `push.default` is `matching` or `nothing`, origin has a
   push map, a mirror, a receive-pack or push options, tags follow, submodules are pushed, or a hook is
   set in git's settings (`hook.*`);
-- origin's address, git's settings in any scope, or the hooks a push runs (`.git/hooks`, or the folder
-  `core.hooksPath` names) are not what they were when the turn began - an agent's `git remote set-url`,
-  a `pre-push` hook it wrote. A turn that began below Full auto has no such record: its pushes are cards;
+- origin's address or git's settings in any scope are not what they were when the turn began - an
+  agent's `git remote set-url`, a `core.hooksPath` it set. A turn that began below Full auto has no such
+  record: its pushes are cards;
+- a hook a push runs on this machine is there at all - `pre-push` or `reference-transaction` in
+  `.git/hooks` or in the folder `core.hooksPath` names - yours too (husky's, Git LFS's): an unchanged
+  hook can run what an agent wrote;
 - origin is a folder in the project, or a `file:` address (its own hooks would run on this machine);
 - a secret KOLONİ knows - one you gave on a card this turn, a key it keeps, a secret of its environment -
   is in a commit the push sends, its message or a file it writes. What the push sends is counted
@@ -715,8 +718,8 @@ keeps the card:
   or more than 50 commits to send, is a card;
 - the agent works in a working copy, or KOLONİ does not know the folder the command runs in.
 
-Where you said "Push it." the judge decides too - it reads your words; where it is not asked, its card
-quotes you as before. Ask, Auto-edit, a To-do task's turn, a job while you're away and a turn of a chat
+Where you said "Push it." the judge decides too - it reads your words; where it does not call it fine,
+or is not asked, its card quotes you as before (never refused). Ask, Auto-edit, a To-do task's turn, a job while you're away and a turn of a chat
 you went away from keep the card.
 
 ### The judge is not a wall

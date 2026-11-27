@@ -3,8 +3,8 @@ açılan branch'in origin'ine push etme olabilir"): in a turn the user watches a
 judge model to answer, a plain `git push` of the checked-out branch to its own origin goes to Full
 auto's judge in place of the list's card. Everything else stays the card: main, master or origin's
 default branch, a force, a tag, another name or remote, git's config that sends it elsewhere,
-origin's address, git's config or its hooks changed in the turn, a secret in what it sends - and
-every push at Ask, Auto-edit, in a turn nobody watches, or with no judge to ask. Each origin here is
+origin's address or git's config changed in the turn, a hook a push runs, a secret in what it sends
+- and every push at Ask, Auto-edit, in a turn nobody watches, or with no judge to ask. Each origin here is
 a bare repository beside the project: nothing reaches a network."""
 
 import asyncio
@@ -23,8 +23,9 @@ from tests.keyed import OWN
 from tests.test_agent_commands import cmd
 from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
+from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_full_auto_judge import JUDGE_ASKED, go, said
-from tests.test_judge_scenarios import judging  # noqa: F401  (a fixture)
+from tests.test_judge_scenarios import judged_by_local, judging  # noqa: F401  (a fixture)
 from tests.test_take_in_scenarios import needs_git, repository
 
 pytestmark = [needs_git, pytest.mark.judge, pytest.mark.no_po]
@@ -261,24 +262,28 @@ def test_gits_config_changed_in_the_turn_is_a_card(pushed):
     assert "changed in this turn" in refused(pushed, "", start, [])
 
 
-@pytest.mark.parametrize("hook", ["pre-push", "reference-transaction", "pre-push.exe"])
-def test_a_hook_written_in_the_turn_is_a_card(pushed, hook):
-    start = at_start(pushed)
+@pytest.mark.parametrize("hook", ["pre-push", "reference-transaction", "pre-push.exe", "PRE-PUSH"])
+@pytest.mark.parametrize("when", ["in the turn", "before it"])
+def test_a_hook_a_push_runs_is_a_card(pushed, hook, when):
+    # (the user's own too: an unchanged hook can run what an agent wrote - husky's stubs, LFS's)
+    start = at_start(pushed) if when == "in the turn" else None
     (pushed / ".git" / "hooks" / hook).write_text("#!/bin/sh\nexit 0\n")
-    assert "hooks changed" in refused(pushed, "", start, [])
+    found = refused(pushed, "", start or at_start(pushed), [])
+    assert "hook would run" in found, (hook, found)
 
 
-def test_a_hook_in_the_folder_core_hookspath_names_is_a_card_too(pushed):
-    (pushed / ".husky").mkdir()
-    git(pushed, "config", "core.hooksPath", ".husky")
-    start = at_start(pushed)
-    assert refused(pushed, "", start, []) == ""
-    (pushed / ".husky" / "pre-push").write_text("#!/bin/sh\nexit 0\n")
-    assert "hooks changed" in refused(pushed, "", start, [])
+@pytest.mark.parametrize("folder", [".husky", ".husky/_"])
+def test_a_hook_in_the_folder_core_hookspath_names_is_a_card_too(pushed, folder):
+    (pushed / folder).mkdir(parents=True)
+    git(pushed, "config", "core.hooksPath", folder)
+    assert refused(pushed, "", at_start(pushed), []) == ""
+    (pushed / folder / "pre-push").write_text('#!/bin/sh\n. "$(dirname "$0")/h"\n')
+    assert "hook would run" in refused(pushed, "", at_start(pushed), [])
 
 
-def test_the_users_own_hook_from_before_the_turn_is_no_card(pushed):
-    (pushed / ".git" / "hooks" / "pre-push").write_text("#!/bin/sh\nexit 0\n")
+def test_a_hook_a_push_does_not_run_and_the_samples_are_no_card(pushed):
+    (pushed / ".git" / "hooks" / "post-commit").write_text("#!/bin/sh\nexit 0\n")
+    (pushed / ".git" / "hooks" / "pre-push.sample").write_text("#!/bin/sh\nexit 0\n")
     assert refused(pushed, "", at_start(pushed), []) == ""
 
 
@@ -473,7 +478,8 @@ def test_origin_or_a_hook_changed_in_the_turn_is_the_lists_card(
     client, _lead, judge, executor = judging([changed_then_push, text("left")], [said("fine")], [])
     _, cid, run_id = go(client, pushed)
     unjudged_card(client, cid, run_id, wait_run, judge, executor, "git push")
-    assert "changed in this turn" in caplog.text, caplog.text
+    why = "changed in this turn" if change == "origin" else "hook would run"
+    assert why in caplog.text, caplog.text
 
 
 def test_a_secret_of_this_machine_in_what_it_sends_is_the_lists_card(
@@ -498,6 +504,18 @@ def test_your_push_it_goes_to_the_judge_on_the_feature_branch(judging, wait_run,
     (ran,) = wait_run(client, cid, run_id)["commands"]
     assert ran["status"] == "exited" and ran["judged"]["kind"] == "risk", ran
     assert len(judge.calls) == 1
+
+
+def test_your_push_it_the_judge_does_not_call_fine_is_k5s_quoted_card(judging, wait_run, pushed):
+    # (never refused: you asked for it - the one-click card quotes you, as before the judge)
+    client, _lead, judge, executor = judging(
+        [cmd("git push"), text("left")], [said("risky", "Not sure it was asked.")], []
+    )
+    _, cid, run_id = go(client, pushed, "Push it.")
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert (asked["judged"]["kind"], asked["judged"]["quote"]) == ("said", "Push it."), asked
+    assert len(judge.calls) == 1 and executor.started == []
 
 
 def test_your_push_it_on_main_keeps_k5s_quoted_card(judging, wait_run, pushed):
@@ -533,3 +551,48 @@ def test_a_fine_lifts_nothing_once_the_level_or_the_switch_changed_while_it_look
     wait_run(client, cid, run_id)
     assert asked["command"] == "git push" and asked["judged"] is None, asked
     assert len(judge.calls) == 1 and executor.started == []
+
+
+def test_a_job_while_away_never_puts_a_push_to_the_judge(judging, wait_run, pushed):
+    from tests.test_away_scenarios import ended, proposed_in, to_do
+
+    client, _lead, judge, executor = judging(
+        [
+            to_do({"jobs": [{"title": "one"}]}),
+            text("on your To-do"),
+            cmd("git push"),
+            text("waits"),
+        ],
+        [said("fine")] * 3,
+        [],
+    )
+    pid, cid, run_id = go(client, pushed, "do one while I sleep")
+    wait_run(client, cid, run_id)
+    gone = client.post(
+        f"/api/conversations/{cid}/away", json={"task_ids": proposed_in(client, cid)}, headers=OWN
+    )
+    assert gone.status_code == 200, gone.text
+    # (in a repository a job works on a branch of its own, where its own push is refused - or,
+    # anywhere else, parked: never the judge's, never run)
+    ended(client, pid)
+    assert executor.started == []
+    assert not [one for one in judge.calls if JUDGE_ASKED in one[0]["content"]]
+
+
+def test_claude_codes_push_of_the_feature_branch_runs_through_the_judge(
+    claude_app,  # noqa: F811
+    wait_run,
+    pushed,
+):
+    client, cli, default = claude_app(
+        [{"tool": "Bash", "input": {"command": "git push"}, "result": ""}, {"say": "pushed"}],
+        default_steps=[said("fine", "Asked for.")],
+    )
+    judged_by_local(client, cli)
+    _, cid, run_id = go(client, pushed, provider=cli)
+    snap = wait_run(client, cid, run_id, 30)
+    (ran,) = snap["commands"]
+    assert ran["status"] != "proposed" and ran["origin"] == "cli", ran
+    assert (ran["judged"]["kind"], ran["judged"]["verdict"]) == ("risk", "fine")
+    assert len(default.calls) == 1
+    assert claude_app.record()["asked"][0]["behavior"] == "allow"
