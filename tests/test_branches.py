@@ -297,9 +297,9 @@ def test_an_agents_own_switch_is_asked_at_every_level_only_under_anothers_work(
     ]["id"]
     snap = wait_status(client, cid, "waiting_approval")
     asked = next(c for c in snap["commands"] if c["status"] == "proposed")
-    assert why_asked(snap, asked) == "switches the branch under Lead's work"
+    assert why_asked(snap, asked) == "switches the branch under Orchestrator's work"
     # (R125: on the command's own record too, not on the card alone)
-    assert asked["danger"] == "switches the branch under Lead's work"
+    assert asked["danger"] == "switches the branch under Orchestrator's work"
     assert snap["commands"][0]["danger"] == ""
     client.post(f"/api/commands/{asked['id']}/reject")
     wait_run(client, cid, run_id)

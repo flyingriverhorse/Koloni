@@ -26,4 +26,6 @@ export const doneSaid = (job: AwayJob) =>
     ? `${some(job.files.length, 'file')} ${job.branch ? 'on its branch' : 'in its copy'}, waits for you` // (D3)
     : job.taken.length
       ? `taken in: ${job.taken.join(', ')}`
-      : 'nothing changed'
+      : job.discarded.length
+        ? `discarded: ${job.discarded.join(', ')}` // (N12: it changed them, and you said no)
+        : 'nothing changed'

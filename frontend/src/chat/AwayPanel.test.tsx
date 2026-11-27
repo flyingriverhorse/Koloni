@@ -46,6 +46,7 @@ const job = (title: string, state: AwayJob['state']): AwayJob => ({
   kept: [],
   files: [],
   taken: [],
+  discarded: [],
   shared: [],
   kept_out: [],
   asks: [],

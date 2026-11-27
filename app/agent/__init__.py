@@ -3129,7 +3129,7 @@ class AgentRunner(
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
                 copies.remove(runtime, name)
-            self._kept_branch_gone(Path(root), held, on_branch, decision)
+            self._kept_branch_gone(ctx, Path(root), held, on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         self._kept_said(ctx, payloads)  # (N3: its line of where its work is, too)
         if applied:
@@ -3887,7 +3887,7 @@ class AgentRunner(
             copy.root,
             copy.branch or "",
             [path for path in changed if path not in held],
-            f"{ctx.name}: {first}\n\nKoloni-Agent: {ctx.name}",
+            f"{self._shown_name(ctx)}: {first}\n\nKoloni-Agent: {ctx.name}",
             self.settings.runtime_root / "no-hooks",
         )
         return held

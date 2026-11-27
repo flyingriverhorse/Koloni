@@ -222,16 +222,28 @@ class StoryBranchMixin:
                 )
             self._keep_branches.discard(copy.branch)
 
+    def _shown_name(self: "AgentRunner", ctx: Ctx) -> str:
+        """N11: an agent as the screen calls it (the Orchestrator, not "Lead"), for a branch's
+        commit subject; the commit's `Koloni-Agent:` trailer keeps its recorded name."""
+        with self._factory() as session:
+            return self._title(session, ctx.cid, ctx.name)
+
     def _kept_branch_gone(
-        self: "AgentRunner", project: Path, held: Path, on_branch: dict | None, decision: str
+        self: "AgentRunner",
+        ctx: Ctx,
+        project: Path,
+        held: Path,
+        on_branch: dict | None,
+        decision: str,
     ) -> None:
         """W-1: a kept branch copy's folder is gone (`_decide_kept`) - git's record of its worktree
         goes, and its branch (`git.drop_branch`, unlocked first): forced where the user turned it
         down, or took all of it in and no go-on is on record to open it again (`tip`); else only
-        where git finds it merged. Where git will not, the branch stays, as unmerged work does."""
+        where git finds it merged. Where git will not, the branch stays, as unmerged work does.
+        N12: a job's branch that went is on its record, for its morning row (`away_branch.row`)."""
         if on_branch is None:
             return
-        with contextlib.suppress(git.Refused):
+        try:
             git.drop_branch(
                 project,
                 held / copies.TREE,
@@ -239,6 +251,12 @@ class StoryBranchMixin:
                 self.settings.runtime_root / "no-hooks",
                 force=decision == "reject" or not on_branch["tip"],
             )
+        except git.Refused:
+            return
+        with self._factory() as session:
+            record = session.get_one(Agent, ctx.agent_id).copy or {}
+        if isinstance(away := record.get("away"), dict):
+            self._set_agent(ctx.cid, ctx.agent_id, copy={**record, "away": {**away, "gone": True}})
 
     async def _secret_branch_gone(
         self: "AgentRunner", ctx: Ctx, copy: copies.Copy, look: dict | None = None

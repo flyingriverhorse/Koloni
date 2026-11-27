@@ -17,8 +17,9 @@ const STATE_MARK: Record<AwayJob['state'], string> = {
   failed: '✕',
   stopped: '■',
 }
-/** A job done that left nothing: nothing kept in its copy, nothing taken in from it. */
-const unchanged = (job: AwayJob) => job.state === 'done' && !job.kept.length && !job.taken.length
+/** A job done that left nothing: nothing kept in its copy, nothing taken in from it, nothing of it discarded. */
+const unchanged = (job: AwayJob) =>
+  job.state === 'done' && !job.kept.length && !job.taken.length && !job.discarded.length
 /** How long from one time to another (now, without it): "1 h 48 m". */
 function lasted(from: string | null, to: string | null) {
   if (!from) return ''
@@ -206,13 +207,18 @@ const lineOf = (away: Away, job: AwayJob) =>
 const CHECKS_MARK: Record<string, string> = { green: '✓', red: '✗' }
 
 /**
- * 0.1.9: where a job's work is - on its own branch in the project's repository (its commits, files and checks, what
- * moved outside it meanwhile), or in a copy and why where git is there.
+ * A job's branch, first: its commits, files and checks, and with no remote how to take it - or, N12, once git deleted
+ * it at its Take in or Discard, that it did: no commits, nor "merge it with git", of a branch that is gone.
  */
-function BranchLine({ job }: { job: AwayJob }) {
-  const branch = job.branch
-  if (job.mode === 'copy' && job.mode_why) return <div className="muted away-line">In a copy: {job.mode_why}</div>
-  if (!branch) return null
+function BranchHead({ job, branch }: { job: AwayJob; branch: NonNullable<AwayJob['branch']> }) {
+  if (branch.gone) {
+    return (
+      <div className="muted away-line">
+        Its branch <span className="mono">{branch.name}</span> was deleted: its work was{' '}
+        {job.taken.length ? 'taken in' : 'discarded'}.
+      </div>
+    )
+  }
   return (
     <>
       <div className="muted away-line">
@@ -220,9 +226,25 @@ function BranchLine({ job }: { job: AwayJob }) {
         files · checks {CHECKS_MARK[branch.checks ?? ''] ?? '…'}
       </div>
       {job.mode === 'branch' && <div className="muted away-line">No remote: merge it with git, or Take in.</div>}
-      {[branch.why, ...(branch.moved ?? [])].filter(Boolean).map(said => (
-        <div key={said} className="away-shared">
-          {said}
+    </>
+  )
+}
+
+/**
+ * 0.1.9: where a job's work is - on its own branch in the project's repository (`BranchHead`, what moved outside it
+ * meanwhile - after the branch is gone too), or in a copy and why where git is there.
+ */
+function BranchLine({ job }: { job: AwayJob }) {
+  const branch = job.branch
+  if (job.mode === 'copy' && job.mode_why) return <div className="muted away-line">In a copy: {job.mode_why}</div>
+  if (!branch) return null
+  const said = branch.gone ? (branch.moved ?? []) : [branch.why, ...(branch.moved ?? [])]
+  return (
+    <>
+      <BranchHead job={job} branch={branch} />
+      {said.filter(Boolean).map(line => (
+        <div key={line} className="away-shared">
+          {line}
         </div>
       ))}
     </>

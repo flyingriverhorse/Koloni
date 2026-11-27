@@ -141,9 +141,12 @@ function Facts({
   away?: Away | null
 }) {
   const ids = new Set(tasks.map(task => task.id))
+  // (N12: not one git deleted at its Take in or Discard)
   const branches = [
     ...new Set(
-      (away?.jobs ?? []).flatMap(job => (ids.has(job.task_id ?? '') && job.branch?.name ? [job.branch.name] : [])),
+      (away?.jobs ?? []).flatMap(job =>
+        ids.has(job.task_id ?? '') && job.branch?.name && !job.branch.gone ? [job.branch.name] : [],
+      ),
     ),
   ]
   const chat = chatOf(tasks)

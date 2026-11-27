@@ -2,7 +2,8 @@ import { expect, test } from 'vitest'
 import type { AwayJob } from '../api/types'
 import { doneSaid } from './awayText'
 
-const done = (over: Partial<AwayJob>) => ({ kept: ['m1'], files: ['a.py', 'b.py'], taken: [], ...over }) as AwayJob
+const done = (over: Partial<AwayJob>) =>
+  ({ kept: ['m1'], files: ['a.py', 'b.py'], taken: [], discarded: [], ...over }) as AwayJob
 
 test('a job done on its own branch says its files wait on its branch, not in a copy (D3)', () => {
   expect(doneSaid(done({}))).toBe('2 files in its copy, waits for you')

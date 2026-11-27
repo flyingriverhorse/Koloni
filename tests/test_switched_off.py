@@ -45,7 +45,7 @@ def test_a_provider_switched_off_runs_no_chat_keeps_its_key_and_runs_again_when_
     told = switch(client, fast_id, enabled=False)
     assert told["enabled"] is False and told["has_key"] is True  # (its key stays)
     ended = say(client, wait_run, cid)
-    assert (ended["status"], ended["error"]) == ("failed", f"Lead: {OFF}")
+    assert (ended["status"], ended["error"]) == ("failed", f"Orchestrator: {OFF}")
     assert fast.calls == []  # no model call
     # R186: said in the chat too, once, as a line of KOLONİ's own.
     lines = [
@@ -53,7 +53,7 @@ def test_a_provider_switched_off_runs_no_chat_keeps_its_key_and_runs_again_when_
         for m in client.get(f"/api/conversations/{cid}").json()["messages"]
         if m["role"] == "koloni"
     ]
-    assert lines == [f"Lead: {OFF}"]
+    assert lines == [f"Orchestrator: {OFF}"]
     # Not in the team guide either: no agent picks it.
     rows = {r["role"]: r for r in client.get("/api/roles/models").json()}
     assert "Fast" not in rows["Coder"]["pick_from"]
@@ -74,7 +74,7 @@ def test_a_model_switched_off_is_refused_and_its_providers_others_still_run(
     assert [m["enabled"] for m in told["models"]] == [None, False]
     cid = chat_on(client, project_dir, fast_id, "deep")
     ended = say(client, wait_run, cid)
-    assert ended["error"] == "Lead: " + (
+    assert ended["error"] == "Orchestrator: " + (
         "Fast's deep is switched off. Turn it on on the Models page, or pick another model."
     )
     assert fast.calls == []
@@ -116,7 +116,9 @@ def test_the_providers_default_model_switched_off_refuses_a_chat_on_the_default(
     fast_id = team.providers["Fast"]["id"]
     switch(client, fast_id, models=[{"name": "quick", "enabled": False}, {"name": "deep"}])
     cid = chat_on(client, project_dir, fast_id, None)
-    assert say(client, wait_run, cid)["error"].startswith("Lead: Fast's quick is switched off.")
+    assert say(client, wait_run, cid)["error"].startswith(
+        "Orchestrator: Fast's quick is switched off."
+    )
     assert fast.calls == []
 
 

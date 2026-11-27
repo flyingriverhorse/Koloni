@@ -4981,7 +4981,7 @@ export interface components {
          * @description 0.1.9: a job's branch as its turn left it (`away_branch.row`) - its name, its commit and
          *     the branch it was made from, its commits and files since, KOLONİ's checks' verdict, origin's
          *     address (never its password) and what moved outside it meanwhile (H2); `why`: what git said
-         *     where it could not look at the branch.
+         *     where it could not look at the branch; `gone`: git deleted it at its Take in or Discard.
          */
         AwayBranchOut: {
             /** Checks */
@@ -4992,6 +4992,11 @@ export interface components {
             files: number | null;
             /** From Head */
             from_head?: string | null;
+            /**
+             * Gone
+             * @default false
+             */
+            gone: boolean;
             /** Into */
             into: string | null;
             /**
@@ -5061,6 +5066,11 @@ export interface components {
              * @default []
              */
             decisions: components["schemas"]["Decision"][];
+            /**
+             * Discarded
+             * @default []
+             */
+            discarded: string[];
             /** Ended At */
             ended_at?: string | null;
             /**
