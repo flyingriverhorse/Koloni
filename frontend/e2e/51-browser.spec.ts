@@ -19,7 +19,7 @@ test('the agent opens a page of the project in its browser; its screenshot is un
   )
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('try the page, 51')
+  await page.getByLabel('Message', { exact: true }).fill('try the page, 51')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('The page says Hello from 51.')).toBeVisible({ timeout: 30_000 })
   // The three calls are one run, closed, and nothing was asked; opened, each reads in words.

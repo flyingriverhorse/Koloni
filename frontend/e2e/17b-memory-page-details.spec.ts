@@ -38,7 +38,7 @@ async function clearMemory(request: APIRequestContext) {
 
 /** The lead reads settings.txt and puts what line 2 says forward for the core. */
 async function noteThePort(page: Page) {
-  await page.getByLabel('Message').fill('note the port')
+  await page.getByLabel('Message', { exact: true }).fill('note the port')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(
     page.getByRole('region', { name: 'Chat' }).getByText('Noted where the port is set. It waits for you.'),
@@ -188,7 +188,7 @@ test('what an agent was given says how its source stands now, read again when it
 
   await rail(page, 'Canvas').click()
   // The request and the Reviewer's task name the fact's subject, so the Reviewer is given it.
-  await page.getByLabel('Message').fill('review the port of hello.py')
+  await page.getByLabel('Message', { exact: true }).fill('review the port of hello.py')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toBeVisible({
     timeout: 15_000,

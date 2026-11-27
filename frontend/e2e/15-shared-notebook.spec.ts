@@ -25,7 +25,7 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   const notes = chat.locator('.channel-message')
   const asks = chat.getByRole('form', { name: 'Orchestrator asks' })
 
-  await page.getByLabel('Message').fill('use the notebook')
+  await page.getByLabel('Message', { exact: true }).fill('use the notebook')
   await page.getByRole('button', { name: 'Send' }).click()
 
   // Both reviewers have noted and reported; the lead asks before it reports, so the turn is still at work.
@@ -139,7 +139,7 @@ test('with no turn at work there is nothing to write on, and a turn that used no
   await expect(chat.getByText('Nothing is at work. A note can be written while something is.')).toBeVisible()
 
   await chat.getByRole('tab', { name: 'Chat' }).click()
-  await page.getByLabel('Message').fill('hello')
+  await page.getByLabel('Message', { exact: true }).fill('hello')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
   await expect(page.locator('.react-flow__node-agent')).toHaveCount(1)

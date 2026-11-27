@@ -29,7 +29,7 @@ test('a monthly budget: set in Spending, on Usage, a pill at 80% that opens Usag
 }) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('hello from the budget spec')
+  await page.getByLabel('Message', { exact: true }).fill('hello from the budget spec')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
   const price = { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' }
@@ -69,7 +69,7 @@ test('a monthly budget: set in Spending, on Usage, a pill at 80% that opens Usag
   await rail(page, 'Canvas').click()
   await expect(pill).toHaveAccessibleName(/^Budget over · \d+%$/, { timeout: 10_000 })
   await expect(pill).toHaveAttribute('title', /a new message asks before its work starts/)
-  await page.getByLabel('Message').fill('one more over the budget')
+  await page.getByLabel('Message', { exact: true }).fill('one more over the budget')
   await page.getByRole('button', { name: 'Send' }).click()
   const card = chat.getByRole('group', { name: 'Over this month’s budget' })
   await expect(card).toContainText('Send it anyway?')
@@ -78,5 +78,5 @@ test('a monthly budget: set in Spending, on Usage, a pill at 80% that opens Usag
   await expect(card).toHaveCount(0)
   // (.first(): on a CI runner the words showed twice at this moment - the message and a second place.)
   await expect(chat.getByText('one more over the budget').first()).toBeVisible()
-  await expect(page.getByLabel('Message')).toHaveValue('')
+  await expect(page.getByLabel('Message', { exact: true })).toHaveValue('')
 })

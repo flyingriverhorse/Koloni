@@ -51,7 +51,7 @@ test.describe('with Claude Code working natively as a provider', () => {
     await chat.getByLabel('Provider').selectOption({ label: 'Claude Code' })
     await chat.getByRole('button', { name: 'Use this model' }).click()
     await expect(chat.getByRole('button', { name: /^Model: Claude Code/ })).toBeVisible()
-    await page.getByLabel('Message').fill('what does hello.py print?')
+    await page.getByLabel('Message', { exact: true }).fill('what does hello.py print?')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('The helper says it prints hi.')).toBeVisible()
 

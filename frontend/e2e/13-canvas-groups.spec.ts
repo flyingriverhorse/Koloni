@@ -49,7 +49,7 @@ test('the user’s (5 Nov): two agents are two small nodes - what each did is co
 }) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('review the greeting')
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
 
@@ -85,7 +85,7 @@ test('the user’s (5 Nov): two agents are two small nodes - what each did is co
 
 test('an agent that waits for your answer is lit, and says so on its state line', async ({ page }) => {
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('review the greeting carefully')
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting carefully')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
 

@@ -27,7 +27,7 @@ for (const theme of ['light', 'dark'] as const) {
     ).toBe(true)
     const chat = page.getByRole('region', { name: 'Chat' })
 
-    await page.getByLabel('Message').fill('give the stripe key, 91')
+    await page.getByLabel('Message', { exact: true }).fill('give the stripe key, 91')
     await page.getByRole('button', { name: 'Send' }).click()
     const card = chat.locator('.cmd-approval').filter({ hasText: 'asks for STRIPE_API_KEY' })
     await expect(card).toContainText('“to charge the test card”')

@@ -56,7 +56,7 @@ test('selected lines of a file are asked about: path, lines and text in the mess
   await ask.focus()
   expect(await page.evaluate(() => document.getSelection()!.toString())).toContain('total += 2')
   await page.keyboard.press('Enter')
-  const box = page.getByLabel('Message')
+  const box = page.getByLabel('Message', { exact: true })
   await expect(box).toHaveValue('ask80.py:2–4:\n```\n    total = 1\n    total += 2\n    return total\n```\n\n')
   await expect(box).toBeFocused()
   await expect(ask).toHaveCount(0)

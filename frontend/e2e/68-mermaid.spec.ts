@@ -78,7 +78,7 @@ test('a diagram in an answer is drawn, a broken one stays code with its error, n
   page.on('request', request => /elk/i.test(new URL(request.url()).pathname) && elk.push(request.url()))
   await openFreshConversation(page)
   const chat = chatOf(page)
-  await page.getByLabel('Message').fill('draw me a diagram')
+  await page.getByLabel('Message', { exact: true }).fill('draw me a diagram')
   await page.getByRole('button', { name: 'Send' }).click()
 
   const drawing = chat.getByRole('img', { name: 'Diagram: flowchart' })
@@ -136,7 +136,7 @@ test('a .md file with a diagram is drawn in the Workspace preview, in both theme
   await page.addInitScript(() => localStorage.setItem('koloni-theme', 'dark'))
   const id = await openFreshConversation(page)
   try {
-    await page.getByLabel('Message').fill('write the diagram note')
+    await page.getByLabel('Message', { exact: true }).fill('write the diagram note')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chatOf(page).getByRole('button', { name: 'Approve' })).toBeVisible({ timeout: 20_000 })
     const panel = page.getByRole('region', { name: 'Workspace' })

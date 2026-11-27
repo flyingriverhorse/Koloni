@@ -41,7 +41,7 @@ for (const theme of ['light', 'dark'] as const)
     await page.getByRole('button', { name: 'Close settings' }).click()
 
     const chat = page.getByRole('region', { name: 'Chat' })
-    const box = chat.getByRole('textbox', { name: 'Message' })
+    const box = chat.getByRole('textbox', { name: 'Message', exact: true })
     const menu = chat.getByRole('listbox', { name: 'Commands' })
     await box.fill('/')
     await expect(menu.getByRole('option').last()).toContainText(`/test-yaz-${theme}`)

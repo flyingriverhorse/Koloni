@@ -71,7 +71,7 @@ test('the project’s git in the top bar, its map, a copy’s way back to main, 
   ).toBe(true)
   await page.goto('about:blank')
   await page.goto(LINK)
-  await page.getByLabel('Message').waitFor()
+  await page.getByLabel('Message', { exact: true }).waitFor()
 
   // The top bar: the branch and what is not committed, read with git.
   // (What waits on git's read waits longer: the server gives git up to 5 s, LOOK_SECONDS - under load one read took 4.7 s
@@ -82,7 +82,7 @@ test('the project’s git in the top bar, its map, a copy’s way back to main, 
   await expect(status).toBeVisible(READ)
 
   await level(page, 'ask')
-  await page.getByLabel('Message').fill('two coders in their own copies, in git')
+  await page.getByLabel('Message', { exact: true }).fill('two coders in their own copies, in git')
   await page.getByRole('button', { name: 'Send' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   for (const _ of [1, 2]) await chat.getByRole('button', { name: 'Open agent' }).first().click()

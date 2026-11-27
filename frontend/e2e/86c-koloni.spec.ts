@@ -44,7 +44,7 @@ test('an agent’s write to .koloni/rules.md waits for the user at Full auto', a
     ).ok(),
   ).toBe(true)
   await page.reload()
-  await page.getByLabel('Message').fill('write the folder rules, 86c')
+  await page.getByLabel('Message', { exact: true }).fill('write the folder rules, 86c')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible({ timeout: 20_000 })
   const changes = page.getByRole('region', { name: 'Workspace' })

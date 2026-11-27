@@ -11,7 +11,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const id = await openFreshConversation(page)
     await page
-      .getByLabel('Message')
+      .getByLabel('Message', { exact: true })
       .fill(`hello ${theme} - calc.html adinda basit bir hesap makinesi sayfasi yaz (HTML+CSS+JS tek dosya)`)
     await page.getByRole('button', { name: 'Send' }).click()
     const last = async () => (await (await page.request.get(`/api/conversations/${id}`)).json()).runs.at(-1)?.status

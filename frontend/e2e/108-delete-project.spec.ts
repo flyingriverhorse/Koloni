@@ -30,7 +30,7 @@ test('Delete project: counted, exported first if wished, deleted once its name i
     ).toBe(true)
     await page.goto('about:blank')
     await page.goto(LINK)
-    await page.getByLabel('Message').waitFor()
+    await page.getByLabel('Message', { exact: true }).waitFor()
     if (await page.getByRole('tab', { name: new RegExp(`^${name}`) }).count()) break
     expect(tries).toBeLessThan(3)
   }
@@ -70,7 +70,7 @@ test('Delete project: counted, exported first if wished, deleted once its name i
   expect(projects.map(p => p.id)).not.toContain(pid)
   expect((await page.request.get(`/api/conversations/${cid}`)).status()).toBe(404)
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
-  await expect(page.getByLabel('Message')).toBeVisible()
+  await expect(page.getByLabel('Message', { exact: true })).toBeVisible()
   expect(missing).toEqual([])
   expect(existsSync(path.join(root, 'hello.py'))).toBe(true)
   expect(existsSync(path.join(root, '.koloni', 'rules.md'))).toBe(true)

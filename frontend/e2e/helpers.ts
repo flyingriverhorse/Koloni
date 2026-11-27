@@ -97,9 +97,12 @@ export async function openFreshConversation(page: Page, { leadWrites = true } = 
     expect(tries, `the page opened ${first.url()}, not ${id}`).toBeLessThan(3)
   }
   // (Its views listed: what an agent shows from now on is new, and opens Workspace by itself - slice 42c.)
-  await page.getByLabel('Message').waitFor()
+  await messageBox(page).waitFor()
   return id
 }
+
+/** The message box, by its own name alone: an agent's **Message {name}** button (0.1.11) holds the word too. */
+export const messageBox = (scope: Page | Locator) => scope.getByLabel('Message', { exact: true })
 
 /** Wait until the canvas has finished fitting itself to the turn. */
 export async function settled(page: Page) {
@@ -118,7 +121,7 @@ export async function settled(page: Page) {
 }
 
 export async function say(page: Page, message: string, answer: string | RegExp) {
-  await page.getByLabel('Message').fill(message)
+  await messageBox(page).fill(message)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText(answer).last()).toBeVisible({ timeout: 20_000 })
 }

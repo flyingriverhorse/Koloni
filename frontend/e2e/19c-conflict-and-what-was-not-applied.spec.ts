@@ -19,7 +19,7 @@ async function twoCoders(page: import('@playwright/test').Page) {
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
   await level(page, 'ask')
-  await page.getByLabel('Message').fill('two coders in their own copies')
+  await page.getByLabel('Message', { exact: true }).fill('two coders in their own copies')
   await page.getByRole('button', { name: 'Send' }).click()
   for (const _ of [1, 2]) await chat.getByRole('button', { name: 'Open agent' }).first().click()
   // The quick one is done and asks; the other has written its file in its copy and is at work.
@@ -96,7 +96,7 @@ for (const theme of ['light', 'dark'] as const) {
     const chat = page.getByRole('region', { name: 'Chat' })
     await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
     await level(page, 'ask')
-    await page.getByLabel('Message').fill('a coder on the config file')
+    await page.getByLabel('Message', { exact: true }).fill('a coder on the config file')
     await page.getByRole('button', { name: 'Send' }).click()
     await chat.getByRole('button', { name: 'Open agent' }).click()
     await expect(chat.getByText("Take in Coder's work? · 1 file")).toBeVisible({ timeout: 15_000 })

@@ -71,7 +71,7 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   // Refuse and go on, as a project comes: no card - the row says refused, with the judge's sentence, and the agent goes
   // on; Ready for you's Decided for you, from the chat's line, lists it - not seen until OK.
   const refused = "KOLONİ's judge refused: The stand-in judge was told it is risky."
-  await page.getByLabel('Message').fill(`Judge 109: run ${COMMAND}`)
+  await page.getByLabel('Message', { exact: true }).fill(`Judge 109: run ${COMMAND}`)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Went another way, 109.')).toBeVisible({ timeout: 20_000 })
   await expect(chat.getByText('Run this command?')).toHaveCount(0)
@@ -97,7 +97,7 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await settings.getByLabel('When the judge finds a command risky').selectOption('ask')
   await saveSettings(page)
   await expect.poll(async () => (await (await request.get(`/api/projects/${pid}`)).json()).judge_risky).toBe('ask')
-  await page.getByLabel('Message').fill(`Judge 109: run ${COMMAND}`)
+  await page.getByLabel('Message', { exact: true }).fill(`Judge 109: run ${COMMAND}`)
   await page.getByRole('button', { name: 'Send' }).click()
   const card = chat.locator('.cmd-approval:not(.decided)').filter({ hasText: COMMAND })
   await expect(card).toContainText("KOLONİ's judge: The stand-in judge was told it is risky.", { timeout: 20_000 })
@@ -110,7 +110,7 @@ test('a command the judge finds risky is refused and the agent goes on; with Ask
   await expect(chat.locator('.tool-row-note', { hasText: "KOLONİ's judge: The stand-in" })).toHaveCount(1)
 
   await flipJudge(page, pid, false)
-  await page.getByLabel('Message').fill(`Judge 109: run ${COMMAND}`)
+  await page.getByLabel('Message', { exact: true }).fill(`Judge 109: run ${COMMAND}`)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Ran it, 109.')).toBeVisible({ timeout: 20_000 })
   await expect(chat.getByText('Run this command?')).toHaveCount(0)

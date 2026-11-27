@@ -17,7 +17,7 @@ test('the day of the project on Usage › Today: the files changed and what fail
     headers: OWN,
   })
   expect(patched.ok()).toBe(true)
-  await page.getByLabel('Message').fill(TITLE)
+  await page.getByLabel('Message', { exact: true }).fill(TITLE)
   await page.getByRole('button', { name: 'Send' }).click()
   const last = async () => (await (await page.request.get(`/api/conversations/${id}`)).json()).runs.at(-1)?.status
   await expect.poll(last, { timeout: 20_000 }).toBe('completed')

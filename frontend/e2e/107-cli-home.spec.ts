@@ -20,7 +20,7 @@ test("a read of Codex's settings is asked for on its own card, in light and dark
   const chat = page.getByRole('region', { name: 'Chat' })
   const card = chat.locator('.cmd-approval').filter({ hasText: 'Read this computer’s settings?' })
 
-  await page.getByLabel('Message').fill('read the codex settings')
+  await page.getByLabel('Message', { exact: true }).fill('read the codex settings')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Read this computer’s settings?')).toBeVisible()
   await expect(chat.getByText(`Orchestrator wants to read ${config}`)).toBeVisible()

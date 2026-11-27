@@ -48,7 +48,7 @@ test.describe('with the agy CLI as a provider that only reads', () => {
     await expect(chat.getByRole('button', { name: /^Model: agy/ })).toBeVisible()
     // Nothing says it needs Full auto: it runs at the level a new conversation has.
     await expect(chat.getByText(/only runs when the level is Full auto/)).toHaveCount(0)
-    await page.getByLabel('Message').fill('what does hello.py print?')
+    await page.getByLabel('Message', { exact: true }).fill('what does hello.py print?')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('It prints hi. I could not run it here.')).toBeVisible()
 

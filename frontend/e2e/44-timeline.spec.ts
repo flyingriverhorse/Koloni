@@ -37,7 +37,7 @@ test('the timeline says who waits for you while it waits and how long afterwards
   test.setTimeout(90_000)
   await openFreshConversation(page, { leadWrites: false })
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('make farewell')
+  await page.getByLabel('Message', { exact: true }).fill('make farewell')
   await page.getByRole('button', { name: 'Send' }).click()
 
   // The Coder is asked about before it starts: open the strip while it waits.
@@ -95,7 +95,7 @@ for (const theme of ['light', 'dark'] as const) {
     const chat = page.getByRole('region', { name: 'Chat' })
     await page.getByRole('button', { name: 'Timeline', exact: true }).click()
     const strip = stripOf(page)
-    await page.getByLabel('Message').fill('make farewell')
+    await page.getByLabel('Message', { exact: true }).fill('make farewell')
     await page.getByRole('button', { name: 'Send' }).click()
     // While the Coder waits for you, and after: its wait said in the table and on its bar.
     await expect(chat.getByRole('button', { name: 'Open agent' })).toBeVisible({ timeout: 20_000 })
@@ -117,7 +117,7 @@ test('on a small window the strip at its tallest leaves the open chat its header
 }) => {
   await page.setViewportSize({ width: 1366, height: 768 })
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('review the greeting')
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toBeVisible({
     timeout: 20_000,

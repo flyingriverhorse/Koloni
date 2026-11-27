@@ -100,7 +100,7 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
 
   // The Lead calls the tool: the user is asked first, with the server, the tool and what it would be given.
   await rail(page, 'Canvas').click()
-  await page.getByLabel('Message').fill('echo through the server')
+  await page.getByLabel('Message', { exact: true }).fill('echo through the server')
   await page.getByRole('button', { name: 'Send' }).click()
   // the question is KOLONİ's own, under a title of its own with its words whole, and Allow and Reject are all there is to say to it
   await expect(

@@ -27,7 +27,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await lowContrast(page)).toEqual([])
 
     await page.reload()
-    await page.getByLabel('Message').waitFor()
+    await page.getByLabel('Message', { exact: true }).waitFor()
     await page.getByRole('button', { name: /^Teams for this chat/ }).click()
     await expect(window(page).getByLabel('Recipe for Docs').locator('option:checked')).toHaveText('No recipe')
   })

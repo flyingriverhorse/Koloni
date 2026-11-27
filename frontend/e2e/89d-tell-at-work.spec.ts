@@ -72,7 +72,7 @@ test.describe('telling Claude Code something while it works', () => {
     await chat.getByLabel('Provider').selectOption({ label: 'Claude Code' })
     await chat.getByRole('button', { name: 'Use this model' }).click()
     await expect(chat.getByRole('button', { name: /^Model: Claude Code/ })).toBeVisible()
-    await page.getByRole('textbox', { name: 'Message' }).fill('make the button a nice colour')
+    await page.getByRole('textbox', { name: 'Message', exact: true }).fill('make the button a nice colour')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('Working on it.')).toBeVisible()
 

@@ -33,7 +33,7 @@ test('design A: the side panel is a short report card, the agent window the whol
 }) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('review the greeting')
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
 
@@ -116,7 +116,7 @@ test('an agent whose older messages were summarised in its turn has that line on
   ).toBe(true)
   try {
     await openFreshConversation(page)
-    await page.getByLabel('Message').fill('Fill the context.')
+    await page.getByLabel('Message', { exact: true }).fill('Fill the context.')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(page.getByRole('region', { name: 'Chat' }).getByText('Summarised, and on.')).toBeVisible()
 
@@ -161,7 +161,7 @@ test('B-157: at 1048 px, opened from its node while the inspector is open, the a
 }) => {
   await page.setViewportSize({ width: 1048, height: 760 })
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('review the greeting')
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
@@ -197,7 +197,7 @@ test('B-157: at 1048 px the agent window stands wholly beside the inspector, and
   await page.setViewportSize({ width: 1048, height: 760 })
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('review the greeting')
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
   await chat.getByRole('button', { name: /Reviewer.*Review hello\.py/ }).click()

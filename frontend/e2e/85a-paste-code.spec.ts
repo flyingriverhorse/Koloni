@@ -25,7 +25,7 @@ for (const theme of ['light', 'dark'] as const) {
   }) => {
     await page.addInitScript(theme => localStorage.setItem('koloni-theme', theme), theme)
     await openFreshConversation(page)
-    const box = page.getByLabel('Message')
+    const box = page.getByLabel('Message', { exact: true })
     await box.focus()
     await paste(box, CODE)
     const fenced = `\`\`\`python\n${CODE.trimEnd()}\n\`\`\``

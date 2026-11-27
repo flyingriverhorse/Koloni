@@ -67,7 +67,7 @@ async function video(browser: Browser, name: string, flow: (page: Page, poster: 
   await context.addInitScript(() => localStorage.setItem('koloni-theme', 'light'))
   const page = await context.newPage()
   await page.goto(LINK)
-  await page.getByLabel('Message').waitFor()
+  await page.getByLabel('Message', { exact: true }).waitFor()
   await flow(page, async () => {
     await showsNoHome(page, name)
     await page.screenshot({
@@ -105,7 +105,7 @@ test('an approval card in Ready for you', async ({ page }) => {
   expect(
     (await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
   ).toBe(true)
-  await page.getByLabel('Message').fill('run the tests')
+  await page.getByLabel('Message', { exact: true }).fill('run the tests')
   await page.getByRole('button', { name: 'Send' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByText('Run this command?')).toBeVisible({ timeout: 20_000 })
@@ -144,7 +144,7 @@ test('a team on the canvas, and Take in', async ({ page, request }) => {
     data: { permission_mode: 'auto_edit', teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
   })
   expect(set.ok()).toBe(true)
-  await page.getByLabel('Message').fill('build it by the recipe, 84b2 guide')
+  await page.getByLabel('Message', { exact: true }).fill('build it by the recipe, 84b2 guide')
   await page.getByRole('button', { name: 'Send' }).click()
   const ready = page.locator('.ready-node')
   await expect(ready).toContainText('NEEDS YOU', { timeout: 20_000 })
@@ -191,7 +191,7 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   // judge on.)
   await setProject(page, { when_away: 'lead', away_minutes: 5, full_auto_judge: true })
   await page.reload()
-  await page.getByLabel('Message').waitFor()
+  await page.getByLabel('Message', { exact: true }).waitFor()
   const settings = page.getByRole('form', { name: 'Project settings' })
   await withFastJudge(page, async () => {
     await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
@@ -321,7 +321,7 @@ test('talking while agents work: Send now, the line over the chat and At work in
   const id = await openFreshConversation(page)
   await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
   const chat = page.getByRole('region', { name: 'Chat' })
-  const box = page.getByRole('textbox', { name: 'Message' })
+  const box = page.getByRole('textbox', { name: 'Message', exact: true })
   // (the stand-in model's 92: a Coder in the background, held till it is stopped)
   await box.fill('talk while agents work')
   await page.getByRole('button', { name: 'Send', exact: true }).click()
@@ -659,7 +659,7 @@ test.describe('the guide’s videos', () => {
     ).toBe(true)
     await video(browser, 'approval', async (shown, poster) => {
       await beat(shown, 500)
-      await shown.getByLabel('Message').pressSequentially('run the tests', { delay: 50 })
+      await shown.getByLabel('Message', { exact: true }).pressSequentially('run the tests', { delay: 50 })
       await shown.getByRole('button', { name: 'Send' }).click()
       const chat = shown.getByRole('tabpanel', { name: 'Chat' })
       await expect(chat.getByText('Run this command?')).toBeVisible({ timeout: 20_000 })
@@ -702,7 +702,9 @@ test.describe('the guide’s videos', () => {
     expect(set.ok()).toBe(true)
     await video(browser, 'team', async (shown, poster) => {
       await beat(shown, 500)
-      await shown.getByLabel('Message').pressSequentially('build it by the recipe, 84b2 video', { delay: 40 })
+      await shown
+        .getByLabel('Message', { exact: true })
+        .pressSequentially('build it by the recipe, 84b2 video', { delay: 40 })
       await shown.getByRole('button', { name: 'Send' }).click()
       await beat(shown, 500)
       await shown.getByRole('button', { name: 'Hide chat' }).click()
@@ -825,7 +827,7 @@ const WORKFLOW =
 async function checksOn(page: Page, command: string) {
   await setProject(page, { check_command: command, after_change: 'check' })
   await page.reload()
-  await page.getByLabel('Message').waitFor()
+  await page.getByLabel('Message', { exact: true }).waitFor()
 }
 
 test.describe('proven finish (0.1.6)', () => {
@@ -844,7 +846,7 @@ test.describe('proven finish (0.1.6)', () => {
     // (No message yet: the First steps panel would show the project's folder - under this machine's user.)
     await page.addInitScript(() => localStorage.setItem('koloni-first-steps', 'hidden'))
     await page.reload()
-    await page.getByLabel('Message').waitFor()
+    await page.getByLabel('Message', { exact: true }).waitFor()
     // The permission level's menu: Test and review changes, for this chat.
     const chat = page.getByRole('region', { name: 'Chat' })
     await chat.getByRole('button', { name: /^Permission level:/ }).click()
@@ -900,7 +902,7 @@ test.describe('proven finish (0.1.6)', () => {
     await openFreshConversation(page)
     await checksOn(page, SLOW)
     await level(page, 'auto_edit')
-    await page.getByLabel('Message').fill('write the checked file, k-kanit')
+    await page.getByLabel('Message', { exact: true }).fill('write the checked file, k-kanit')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(page.locator('.react-flow__node-checks')).toContainText('slow.py', { timeout: 20_000 })
     await settled(page)
@@ -936,7 +938,7 @@ test.describe('proven finish (0.1.6)', () => {
     try {
       await checksOn(page, PASSING)
       await level(page, 'full_auto') // (the Orchestrator's Coders open, and their work is taken in, unasked)
-      await page.getByLabel('Message').fill('write the looped change, k-dongu')
+      await page.getByLabel('Message', { exact: true }).fill('write the looped change, k-dongu')
       await page.getByRole('button', { name: 'Send' }).click()
       const box = page.locator('.react-flow__node-checks')
       await expect(box).toContainText('⟲ 3 looks · 2 fix rounds · on hold', { timeout: 150_000 })
@@ -1003,7 +1005,7 @@ test.describe('proven finish (0.1.6)', () => {
         data: { teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
       })
       expect(set.ok()).toBe(true)
-      await page.getByLabel('Message').fill('write the looped change, k-dongu')
+      await page.getByLabel('Message', { exact: true }).fill('write the looped change, k-dongu')
       await page.getByRole('button', { name: 'Send' }).click()
       const box = page.locator('.react-flow__node-checks')
       await expect(box).toContainText('MERGE', { timeout: 150_000 })

@@ -55,7 +55,7 @@ test('a night job works on its own branch, and its push waits for your Run', asy
   await request.patch(`/api/conversations/${cid}`, { data: { plan_first: false }, headers: OWN })
   await page.goto('about:blank')
   await page.goto(LINK)
-  await page.getByLabel('Message').waitFor()
+  await page.getByLabel('Message', { exact: true }).waitFor()
   await level(page, 'full_auto')
   await say(page, "I'm going to sleep, dal: tidy hello", 'press Go away when you go')
   const chat = page.getByRole('region', { name: 'Chat' })

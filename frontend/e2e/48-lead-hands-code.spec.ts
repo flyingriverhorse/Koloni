@@ -21,7 +21,7 @@ test('in a new conversation the Lead hands code to a Coder; switched to doing it
   await expect(settings.getByLabel('Who changes the files')).toHaveValue('delegates')
   await page.getByRole('button', { name: 'Close settings' }).click()
 
-  await page.getByLabel('Message').fill('make farewell')
+  await page.getByLabel('Message', { exact: true }).fill('make farewell')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('The coder added a farewell.')).toBeVisible({
     timeout: 20_000,

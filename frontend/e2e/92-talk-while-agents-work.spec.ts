@@ -25,14 +25,14 @@ test('92: Send now into the open turn, the line over the chat, and Stop on one a
   expect(patched.ok()).toBe(true)
   const before = files()
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByRole('textbox', { name: 'Message' }).fill('talk while agents work')
+  await page.getByRole('textbox', { name: 'Message', exact: true }).fill('talk while agents work')
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Coder is at work on it.')).toBeVisible()
   const line = chat.getByRole('button', { name: /^1 agent at work/ })
   await expect(line).toBeVisible()
 
   // Your word while the Coder works: into this turn, answered in it.
-  await page.getByRole('textbox', { name: 'Message' }).fill('how is it going?')
+  await page.getByRole('textbox', { name: 'Message', exact: true }).fill('how is it going?')
   await chat.getByRole('button', { name: 'Send now' }).click()
   await expect(chat.getByText('Coder is still at work.')).toBeVisible()
   await expect(line).toBeVisible()

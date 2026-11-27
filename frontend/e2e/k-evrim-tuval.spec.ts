@@ -52,7 +52,7 @@ test('Evolve’s rounds on the canvas: the first a line, the second under it in 
     data: { permission_mode: 'full_auto', teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
   })
   expect(set.ok()).toBe(true)
-  await page.getByLabel('Message').fill('evolve it, ev2')
+  await page.getByLabel('Message', { exact: true }).fill('evolve it, ev2')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('Evolved.').last()).toBeVisible({ timeout: 60_000 })
 

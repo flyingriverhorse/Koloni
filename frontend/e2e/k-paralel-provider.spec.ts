@@ -37,7 +37,7 @@ for (const theme of ['light', 'dark'] as const) {
     await limit(request, local.id, 1)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
-    await page.getByLabel('Message').fill('have both files reviewed')
+    await page.getByLabel('Message', { exact: true }).fill('have both files reviewed')
     await page.getByRole('button', { name: 'Send' }).click()
 
     const queued = page.locator('.react-flow__node-agent', { hasText: `queued · ${local.name} full (1/1)` })

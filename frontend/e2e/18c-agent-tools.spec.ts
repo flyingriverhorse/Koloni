@@ -31,7 +31,7 @@ test('a web search asks first, goes out once it is approved, and its row says wh
   await searchAddress(request, SEARX)
   const chat = page.getByRole('region', { name: 'Chat' })
 
-  await page.getByLabel('Message').fill('search the web for python docs')
+  await page.getByLabel('Message', { exact: true }).fill('search the web for python docs')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
   await expect(chat.getByText('Search the web?')).toBeVisible()
@@ -72,7 +72,7 @@ for (const theme of ['light', 'dark'] as const) {
     await openFreshConversation(page)
     await searchAddress(request, SEARX)
     const chat = page.getByRole('region', { name: 'Chat' })
-    await page.getByLabel('Message').fill('search the web for orders')
+    await page.getByLabel('Message', { exact: true }).fill('search the web for orders')
     await page.getByRole('button', { name: 'Send' }).click()
     await chat.getByRole('button', { name: 'Search once' }).click()
     // Nothing was kept from the agent: it was told to take it as data, and went on.
@@ -99,7 +99,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
-    await page.getByLabel('Message').fill('look around, one call a step')
+    await page.getByLabel('Message', { exact: true }).fill('look around, one call a step')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('Looked around.')).toBeVisible({ timeout: 15_000 })
 

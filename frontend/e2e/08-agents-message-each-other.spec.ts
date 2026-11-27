@@ -5,7 +5,7 @@ test('the lead carries on with its Reviewer by sending it a message', async ({ p
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
 
-  await page.getByLabel('Message').fill('look twice at the greeting')
+  await page.getByLabel('Message', { exact: true }).fill('look twice at the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('The reviewer looked twice.')).toBeVisible()
 

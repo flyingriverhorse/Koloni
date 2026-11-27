@@ -47,7 +47,7 @@ test.beforeAll(() => {
 /** In the chat open, a change to a page waits for the user: Workspace opens by itself, on it. */
 async function aPageWaits(page: Page) {
   // (the version spec 39 leaves unwritten - or the one written above: a change whichever ran before)
-  await page.getByLabel('Message').fill('change the view page')
+  await page.getByLabel('Message', { exact: true }).fill('change the view page')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chatOf(page).getByRole('button', { name: 'Approve' })).toBeVisible({ timeout: 20_000 })
   await expect(filesOf(page)).toBeVisible()

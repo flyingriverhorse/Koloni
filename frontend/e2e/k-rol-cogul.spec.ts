@@ -46,7 +46,7 @@ for (const theme of ['light', 'dark'] as const) {
     })
     expect(set.ok()).toBe(true)
 
-    await page.getByLabel('Message').fill(`split it by the recipe, rc ${theme}`)
+    await page.getByLabel('Message', { exact: true }).fill(`split it by the recipe, rc ${theme}`)
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(page.getByRole('region', { name: 'Chat' }).getByText('Both parts are done.').last()).toBeVisible({
       timeout: 30_000,

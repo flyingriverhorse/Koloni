@@ -37,7 +37,7 @@ for (const [width, height] of [
       await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
       await openFreshConversation(page)
       const chat = page.getByRole('region', { name: 'Chat' })
-      await page.getByLabel('Message').fill('run the tests')
+      await page.getByLabel('Message', { exact: true }).fill('run the tests')
       await page.getByRole('button', { name: 'Send' }).click()
       await expect(chat.getByText('Run this command?')).toBeVisible()
 
@@ -62,7 +62,7 @@ for (const [width, height] of [
       if (roomy) expect(meets(own, under)).toBe(false)
       else {
         await expect(window).toHaveAttribute('data-front', '')
-        expect(meets(own, await box(chat.getByLabel('Message')))).toBe(false)
+        expect(meets(own, await box(chat.getByLabel('Message', { exact: true })))).toBe(false)
       }
       expect(
         own.x >= stage.x &&
@@ -73,7 +73,7 @@ for (const [width, height] of [
       await keep(page, `k38b-${width}-${theme}-opened`)
 
       // Looking at the chat, the user lets the command run: the Lead's answer is one step more, said on the window's header.
-      await chat.getByLabel('Message').click()
+      await chat.getByLabel('Message', { exact: true }).click()
       await chat.getByRole('button', { name: 'Run once' }).click()
       await expect(chat.getByText('The tests pass.')).toBeVisible()
       const fresh = window.locator('.changes-bar').getByText(/^\d+ new$/)

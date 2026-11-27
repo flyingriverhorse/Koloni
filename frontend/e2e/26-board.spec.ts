@@ -22,7 +22,7 @@ async function open(page: Page, title: string) {
 }
 
 async function ask(page: Page, message: string) {
-  await page.getByLabel('Message').fill(message)
+  await page.getByLabel('Message', { exact: true }).fill(message)
   await page.getByRole('button', { name: 'Send' }).click()
 }
 

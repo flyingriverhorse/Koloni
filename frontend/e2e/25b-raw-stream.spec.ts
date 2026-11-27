@@ -41,7 +41,7 @@ test.describe('with a CLI as a provider (the agy stand-in)', () => {
     await chat.getByLabel('Provider').selectOption({ label: 'agy' })
     await chat.getByRole('button', { name: 'Use this model' }).click()
     await expect(chat.getByRole('button', { name: /^Model: agy/ })).toBeVisible()
-    await page.getByLabel('Message').fill('what does hello.py print?')
+    await page.getByLabel('Message', { exact: true }).fill('what does hello.py print?')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('It prints hi. I could not run it here.')).toBeVisible()
 

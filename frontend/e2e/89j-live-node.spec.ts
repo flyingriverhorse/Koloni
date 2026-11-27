@@ -57,7 +57,7 @@ for (const theme of ['light', 'dark'] as const) {
     })
     expect(set.ok()).toBe(true)
     await page.getByRole('button', { name: 'Canvas', exact: true }).click()
-    await page.getByLabel('Message').fill(`what does hello.py print? (${theme})`)
+    await page.getByLabel('Message', { exact: true }).fill(`what does hello.py print? (${theme})`)
     await page.getByRole('button', { name: 'Send' }).click()
 
     const node = page.locator('.react-flow__node-agent')

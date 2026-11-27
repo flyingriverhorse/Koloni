@@ -33,7 +33,7 @@ for (const theme of ['light', 'dark'] as const) {
       },
     })
     expect(set.ok()).toBe(true)
-    await page.getByLabel('Message').fill(`model change it, mc ${theme}`)
+    await page.getByLabel('Message', { exact: true }).fill(`model change it, mc ${theme}`)
     await page.getByRole('button', { name: 'Send' }).click()
     const strip = page.locator('.team-frame').getByRole('list', { name: 'Model change: its steps' })
     await expect(strip.getByRole('listitem')).toHaveText(

@@ -13,7 +13,7 @@ test('Ctrl+K from the message box: it filters as it is typed, the arrows and Ent
   page,
 }) => {
   await openFreshConversation(page)
-  const box = page.getByRole('region', { name: 'Chat' }).getByLabel('Message')
+  const box = page.getByRole('region', { name: 'Chat' }).getByLabel('Message', { exact: true })
   await box.click()
   await page.keyboard.press('Control+k')
   const find = palette(page).getByRole('combobox', { name: 'Go to' })
@@ -109,7 +109,7 @@ test('the first steps go once a message is written, and come back from Help, all
     !health.model_reachable || health.not_listed,
     'the default provider does not answer here: no message can be written',
   )
-  const box = page.getByRole('region', { name: 'Chat' }).getByLabel('Message')
+  const box = page.getByRole('region', { name: 'Chat' }).getByLabel('Message', { exact: true })
   await say(page, 'hello', 'Hello! Ask me to read or change a file.')
   await expect(steps(page)).toHaveCount(0)
   // gone by what is so - in a new, empty chat too

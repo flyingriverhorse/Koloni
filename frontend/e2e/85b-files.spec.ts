@@ -39,7 +39,7 @@ for (const theme of ['light', 'dark'] as const) {
       { name: 'shot85b.png', mimeType: 'image/png', buffer: PNG },
       { name: 'cart85b.ts', mimeType: 'text/plain', buffer: CODE },
     ])
-    await page.getByLabel('Message').fill('fix the cart, 85b - see https://stripe.com/docs')
+    await page.getByLabel('Message', { exact: true }).fill('fix the cart, 85b - see https://stripe.com/docs')
     const chips = page.getByRole('list', { name: 'Attached' })
     await expect(chips.getByRole('listitem')).toHaveText([
       'PNGshot85b.pngimage · 70 B · seen by a model that sees images',
@@ -104,7 +104,7 @@ test('ten files keep Send in sight; "not added" goes; the project list closes an
   const chips = page.getByRole('list', { name: 'Attached' })
   await expect(chips.getByText('a message has 10 files at most: not added')).toBeVisible()
   await expect(page.getByText(/^10 attached/)).toBeVisible()
-  await page.getByLabel('Message').fill('read them')
+  await page.getByLabel('Message', { exact: true }).fill('read them')
   const [send, panel] = [await page.getByRole('button', { name: 'Send' }).boundingBox(), await chat.boundingBox()]
   expect(send!.y + send!.height).toBeLessThanOrEqual(panel!.y + panel!.height)
   expect(send!.y + send!.height).toBeLessThanOrEqual(771)
@@ -126,9 +126,9 @@ test('ten files keep Send in sight; "not added" goes; the project list closes an
   await open()
   await clickCanvas(page)
   await expect(list).toHaveCount(0)
-  await page.getByLabel('Message').fill('')
+  await page.getByLabel('Message', { exact: true }).fill('')
   await open()
   await page.keyboard.type('hello')
   await expect(list).toHaveCount(0)
-  await expect(page.getByLabel('Message')).toHaveValue('hello')
+  await expect(page.getByLabel('Message', { exact: true })).toHaveValue('hello')
 })

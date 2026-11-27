@@ -21,7 +21,7 @@ for (const theme of ['light', 'dark'] as const)
       headers: OWN,
     })
     expect((await level.json()).permission_mode).toBe('full_auto')
-    await page.getByLabel('Message').fill('fetch the page, k-web-komut')
+    await page.getByLabel('Message', { exact: true }).fill('fetch the page, k-web-komut')
     await page.getByRole('button', { name: 'Send' }).click()
 
     const chat = page.getByRole('region', { name: 'Chat' })

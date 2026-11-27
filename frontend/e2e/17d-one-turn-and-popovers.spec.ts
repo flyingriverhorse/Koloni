@@ -28,7 +28,7 @@ async function clearMemory(request: APIRequestContext) {
 }
 
 async function ask(page: Page, text: string, answers: number) {
-  await page.getByLabel('Message').fill(text)
+  await page.getByLabel('Message', { exact: true }).fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toHaveCount(
     answers,
@@ -209,7 +209,7 @@ test('the canvas draws one turn, picked in Recent or from the chat; what a node 
   // A third turn makes fourteen calls: the Lead's node says so, and is the size of any node. The Lead's alone - no
   // sub-agent, no file changed -, once done the last message with work is in front again (slice 107); "Show its work on
   // the canvas" in its ⋯ in the chat draws it, alone.
-  await page.getByLabel('Message').fill('search fourteen times')
+  await page.getByLabel('Message', { exact: true }).fill('search fourteen times')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Searched fourteen times.')).toBeVisible({ timeout: 15_000 })
   await openTurns(page)
@@ -239,7 +239,7 @@ test('in the dark theme Recent and an agent’s node stand out from what they ar
   await expect(work).toContainText('1 agent')
   expect((await work.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
   // A turn in which something waits: its row says so.
-  await page.getByLabel('Message').fill('edit the greeting')
+  await page.getByLabel('Message', { exact: true }).fill('edit the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
   const list = page.getByRole('complementary', { name: 'Recent' })
   await openTurns(page)

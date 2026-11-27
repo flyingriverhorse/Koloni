@@ -23,7 +23,7 @@ for (const theme of ['light', 'dark'] as const)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
-    const box = chat.getByRole('textbox', { name: 'Message' })
+    const box = chat.getByRole('textbox', { name: 'Message', exact: true })
     const menu = chat.getByRole('listbox', { name: 'Commands' })
     // /model and /mode open what their buttons open.
     // (Each once it is on: off till the page has read the providers, or the roles, it opens with.)

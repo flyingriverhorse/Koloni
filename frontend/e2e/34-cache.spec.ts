@@ -29,7 +29,7 @@ test('what the model server read again from its cache is in the agent window and
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   // One model step: the scripted server reports 120 sent, 64 of them read from its cache, and 18 written.
-  await page.getByLabel('Message').fill('hello from the cache spec')
+  await page.getByLabel('Message', { exact: true }).fill('hello from the cache spec')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
 

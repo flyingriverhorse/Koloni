@@ -5,7 +5,7 @@ test('two sub-agents opened in one step work at the same time', async ({ page })
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
 
-  await page.getByLabel('Message').fill('have both files reviewed')
+  await page.getByLabel('Message', { exact: true }).fill('have both files reviewed')
   await page.getByRole('button', { name: 'Send' }).click()
 
   // Both are at work at once: the top bar counts them, and the chat has a row for each.
@@ -29,7 +29,7 @@ test('with one agent at a time the second waits for a free slot', async ({ page 
   await settings.getByLabel('Agents at the same time').fill('1')
   await saveSettings(page)
 
-  await page.getByLabel('Message').fill('have both files reviewed')
+  await page.getByLabel('Message', { exact: true }).fill('have both files reviewed')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByRole('button', { name: /Reviewer 2.*Review check\.py slowly/ })).toContainText(
     'waiting for a slot',

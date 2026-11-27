@@ -3,7 +3,7 @@ import { openAgentFold, openFreshConversation, windowFromPanel } from './helpers
 import { MODEL_URL } from './paths.mjs'
 
 async function ask(page: Page, text: string) {
-  await page.getByLabel('Message').fill(text)
+  await page.getByLabel('Message', { exact: true }).fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
 }
 
