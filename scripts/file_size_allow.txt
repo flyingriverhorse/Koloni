@@ -17,7 +17,7 @@
 2013 app/memory.py
 5734 app/model_native.py
 1984 app/proof_kinds.py
-4734 app/schemas.py
+4685 app/schemas.py
 1656 app/tools.py
 1520 frontend/src/agents/RecipesTab.tsx
 2579 frontend/src/chat/MessageList.test.tsx
