@@ -692,10 +692,11 @@ Sonnet called none.
 Since 0.1.11, as Claude Code's auto mode: in a chat you watch at **Full auto**, with the judge's switch
 on and a judge model to answer, a plain push of the branch you have checked out to its own `origin`
 goes to the judge instead of a card. **fine** pushes it; **risky** gives the push card the list gave
-before - never a refusal, whatever the project does with a risky command, so a push is never lost
-without a word, and it is not counted among the judge's refusals (three in a row ask you). Run once on
-it pushes. `main` is never pushed so: a push to `main`, `master` or origin's default branch stays a card at
-every level - quoted, where you asked for it ([below](#a-push-a-pull-request-or-a-merge-you-asked-for)).
+before, saying why ("KOLONİ's judge: " and its sentence, a secret in it masked) - never a refusal,
+whatever the project does with a risky command, so a push is never lost without a word, and it is not
+counted among the judge's refusals (three in a row ask you). Run once on it pushes. `main` is never
+pushed so: a push to `main`, `master` or origin's default branch stays a card at every level - quoted,
+where you asked for it ([below](#a-push-a-pull-request-or-a-merge-you-asked-for)).
 
 Which lines - one line, nothing else on it: `git push`, `git push origin`, `git push origin <branch>`,
 `git push -u origin <branch>` (or `--set-upstream`) and `git push origin HEAD`, where `<branch>` is the
