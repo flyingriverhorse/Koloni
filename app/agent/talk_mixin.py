@@ -747,7 +747,10 @@ class TalkMixin:
 
     def _deliver(self: "AgentRunner", ctx: Ctx) -> list[str]:
         """Hand an agent the notes left for it and what is new to it on the turn's notebook;
-        returns them as it will read them."""
+        returns them as it will read them.
+        shortcut: an answer turn of the Orchestrator's (to an agent's message) is handed its notes
+        too - a word of the user's about an agent (`to_lead`) is then read there, and no step of
+        its own answers the user; keep that note for its own step if that is seen."""
         with self._factory() as session:
             # Not in a turn taken to answer or to speak: the notebook waits for its own work.
             handed = [] if ctx.answering else self._hand_notes(session, ctx)

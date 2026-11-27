@@ -534,6 +534,9 @@ class AtWorkMixin:
             ).kind == "copilot_cli"
         # (Copilot's answer said "taken": heard where it writes words after that answer -
         # Claude Code and Codex read it in the turn it was sent into, measured: heard now.)
+        # shortcut: Copilot's words are counted whoever of it writes them - one of its own inside
+        # sub-agents' assistant.message too (no parentToolCallId check: model_native's Copilot
+        # events) may count the word read; count the top level's alone if that is seen.
         at = self._said.get(lead.agent_id, 0) if copilot else None
         self._steered_word.setdefault(lead.agent_id, []).append((message_id, told, at))
         if at is None:
@@ -544,18 +547,23 @@ class AtWorkMixin:
         """`_observe_unread`: its CLI's turn ended before it read the word steered in: unheard
         again - one more run reads it, and a session it goes on in is sent it."""
         steered = self._steered_word.get(ctx.agent_id, [])
-        for message_id, _told, _at in (one for one in steered if one[1] == words):
-            self._steered_ids.get(ctx.cid, set()).discard(message_id)
-            if message_id not in self._unheard.get(ctx.run_id, ()):
-                self._unheard.setdefault(ctx.run_id, []).append(message_id)
-        self._steered_word[ctx.agent_id] = [one for one in steered if one[1] != words]
+        unread = next((one for one in steered if one[1] == words), None)  # (one: the oldest)
+        if unread is None:
+            return
+        self._steered_ids.get(ctx.cid, set()).discard(unread[0])
+        if unread[0] not in self._unheard.get(ctx.run_id, ()):
+            self._unheard.setdefault(ctx.run_id, []).append(unread[0])
+        steered.remove(unread)
 
     def _steered_marks(self: "AgentRunner", ctx: Ctx, messages: list[dict]) -> None:
         """The words of the user's its CLI read steered into a turn of its (`_heard`), marked
         in what its run is sent (`steered`): a session it goes on in has them already, and is not
         sent them again (`since_its_last_word`); a new one is.
-        shortcut: known by their text, and while KOLONİ runs - a word steered before a restart
-        is sent again once; key them by the message if that is seen."""
+        shortcut: known by their text (`_history`'s rows carry no id), and while KOLONİ runs: a
+        word steered before a restart is sent again once; a steered row trimmed from the history,
+        or of another topic, can mark a later message of the same words, and one whose text
+        `_history` changed (files said under it) is sent again. Key them by the message's id in
+        `_history` if that is seen."""
         if ctx.depth or not (ids := self._steered_ids.get(ctx.cid)):
             return
         with self._factory() as session:
