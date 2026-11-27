@@ -179,6 +179,7 @@ export function NightStrip({
   onReport,
   children,
   foot,
+  hidden = false,
 }: {
   away: Away
   parked: Waiting[]
@@ -186,10 +187,12 @@ export function NightStrip({
   children?: ReactNode
   /** First in its foot: what was decided for you that night. */
   foot?: ReactNode
+  /** Drawn on a tab not shown (Work's To-do shown): not on screen, so not seen yet. */
+  hidden?: boolean
 }) {
   const id = useId()
   const axis = away.status === 'ended' ? axisOf(away) : null
-  const unseen = axis && !away.seen_at ? away.id : null
+  const unseen = axis && !away.seen_at && !hidden ? away.id : null
   useEffect(() => {
     if (unseen) void api.post('/away/' + unseen + '/seen').catch(() => {})
   }, [unseen])

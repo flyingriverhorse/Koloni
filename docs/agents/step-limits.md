@@ -112,7 +112,7 @@ asked - no words, no call - a card under the turn asks you:
 
 Time on a tool (a sub-agent, a command) or on another card that waits for you does not count.
 
-While it waits, the card counts as waiting for you outside its chat too: on the Ready page, as a
+While it waits, the card counts as waiting for you outside its chat too: on Work's Ready for you, as a
 mark on the chat in the Chats list, and in a note in the corner ("Orchestrator waits for you").
 
 - **Keep waiting**: the turn waits on; the next card comes only after another 5 minutes with no word.

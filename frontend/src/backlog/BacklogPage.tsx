@@ -1066,10 +1066,10 @@ function TodoNotes() {
 }
 
 /**
- * The project's To-do (0.1.10: Ready for you's right half), kept like a Hive keeper would: each story a card - a cell for
+ * The project's To-do (0.1.10: the Work page's To-do tab), kept like a Hive keeper would: each story a card - a cell for
  * each task - and the tasks of no story one more; a card opens its story's panel, with its tasks and all they can do;
  * ticked ones go to a chat's queue (Do in chat). Under the cards, a rough note the Hive keeper splits into tasks. What
- * waits for your word on To-do is on the left, with the rest of Ready for you. `pushes`: the tasks whose push the night
+ * waits for your word on To-do is on the Ready for you tab, with the rest of it. `pushes`: the tasks whose push the night
  * parked for you.
  */
 export function BacklogPage({

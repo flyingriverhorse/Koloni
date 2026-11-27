@@ -180,7 +180,7 @@ Where the **Scout** - the role that looks for what is left after each turn - was
 on a dashed line down from the Orchestrator. It shows the model asked, how many tasks it proposed and
 dropped ("2 proposed · 1 dropped"), at Full auto how many the Orchestrator added ("Orchestrator added
 1"), its tokens ("–" where not reported) and **To-do →**. Click it for why each one was dropped; a double
-click, or **To-do →**, opens To-do on Ready for you. A turn where it was not asked has no such box. The legend
+click, or **To-do →**, opens Work's To-do tab. A turn where it was not asked has no such box. The legend
 has a row for its dashed line. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
 
 A step that runs in rounds, such as a review loop or **Evolve**'s tries, folds each earlier round into

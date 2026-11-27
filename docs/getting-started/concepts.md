@@ -74,8 +74,8 @@ how they hang together.
 
 **Ready for you (cards)**
 : A card is a box that waits for your answer, such as "Run this command?" or a file change. Everything
-  that waits is listed in the **Ready for you** panel (the pill in the top bar) and on the **Ready**
-  page. The card where a recipe's work ends is **Teams' work is ready**, with **Take in**,
+  that waits is listed in the **Ready for you** panel (the pill in the top bar) and on the **Work**
+  page's **Ready for you** tab. The card where a recipe's work ends is **Teams' work is ready**, with **Take in**,
   **Fix the findings** and **Ask for changes**. See [Ready and approval cards](../use/ready.md).
 
 **Permission levels**
@@ -101,7 +101,7 @@ how they hang together.
 ## Work that starts by itself
 
 **To-do**
-: A project's tasks, in your order, on the **Ready** page beside what waits for you: a story holds tasks
+: A project's tasks, in your order, on the **Work** page's **To-do** tab, beside **Ready for you**: a story holds tasks
   and bugs. Tick tasks and
   give them to a chat (**Do in chat**): they wait in its queue and run there one by one, each story in a
   topic of its own, with a short notebook. Agents can propose tasks, and you decide when a task is done.

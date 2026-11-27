@@ -4,11 +4,12 @@ To-do holds a project's tasks, in your order: a **story** holds the **tasks** an
 together (see [Stories](#goals-and-stories)). Ticked tasks run in a chat you give them to, one by one;
 you decide when each is done (see [Doing tasks in a chat](#doing-tasks-in-a-chat)).
 
-Since 0.1.10 To-do is the right half of the [Ready for you](../use/ready.md#the-page) page - what was
-done and what waits for your word are on its left, so the morning's report, the decisions that wait and
-your tasks are in one place. Open **Ready** on the left rail; on a narrow screen To-do is under the
-rest. Ctrl+K's **To-do (on Ready for you)**, a chat's **Open it in To-do**, a To-do row of **Decided for
-you** and the canvas's **To-do →** bring you there - at that task, where one is named.
+Since 0.1.10 To-do is a tab of the [Work](../use/ready.md#the-page) page, beside **Ready for you** -
+what was done and what waits for your word - so the morning's report, the decisions that wait and your
+tasks are in one place. Open **Work** on the left rail and its **To-do** tab ("To-do · 5": the tasks not
+done yet); Work opens on the tab you showed last. Ctrl+K's **Work › To-do**, a chat's **Open it in
+To-do**, a To-do row of **Decided for you** and the canvas's **To-do →** open the To-do tab - at that
+task, where one is named.
 
 Its bar has the filters **All**, **Todo**, **Running** and **Done**, **+ Task** (to the line where a task
 is added) and **☾ Away**. **☾ Away** opens the Away panel of the chat you have open, when it is a chat
@@ -39,7 +40,7 @@ add it. **Plan it in a chat** works the other way: it opens a chat in the projec
 asks for the Hive keeper. The Hive keeper reads the project and proposes tasks, which wait for you like
 any agent's.
 
-![To-do on Ready for you: a rough note in its box, and under it the stories and tasks the model wrote from it, each story with Add and each task with a cross to drop it](../images/todo-draft.png)
+![Work's To-do tab: a rough note in its box, and under it the stories and tasks the model wrote from it, each story with Add and each task with a cross to drop it](../images/todo-draft.png)
 
 *A rough note split into two stories and three tasks by **Split into tasks**; nothing is saved until you
 add it.*
@@ -49,7 +50,7 @@ changes. A task an agent proposes may name its story: one of the project's open 
 or a new one that shows on the list once you add one of its tasks. Its card says where adding it puts
 it - *In story “Login” (new) · bug*, "(new)" where the agent's proposal opened the story. Once you add
 one of its tasks, the story is yours: it stays though its tasks go. A story an agent opened goes when you reject all its tasks. They wait for you
-under **Waiting for your word**, on the left of the page, with everything else that waits:
+under **Waiting for your word**, on Work's **Ready for you** tab, with everything else that waits:
 
 | What waits | Buttons |
 |---|---|
@@ -94,12 +95,12 @@ from, not by what the Scout says.
 Each request shows on the canvas as a **Scout** box under the turn, on a dashed line down from
 the Orchestrator: the model, "2 proposed · 1 dropped" (at Full auto also "Orchestrator added 1"), its
 tokens ("–" where not reported), and **To-do →**. Click it to see why each suggestion was dropped; a
-double click, or **To-do →**, opens To-do on Ready for you. A request that failed or timed out says "Sent, not heard
+double click, or **To-do →**, opens Work's To-do tab. A request that failed or timed out says "Sent, not heard
 out". A turn where it was not asked has no such box.
 
 At **Full auto**, in a turn you started, you are not asked. The Orchestrator's model decides each
 suggestion, add or reject, with one more request, and says why in one sentence. You see its word under
-**Decided for you** on the [Ready for you](../use/decisions.md) page. **OK** keeps it; **Change** undoes
+**Decided for you** on Work's [Ready for you](../use/decisions.md) tab. **OK** keeps it; **Change** undoes
 it while the task is still todo. A
 task it added cannot be given to a chat until you press **OK** there. One it rejected stays on To-do,
 folded under **Rejected by the Orchestrator**, with **Add**. It is not
@@ -152,11 +153,11 @@ The filters on the bar show **All**, what is **Todo** (to do, or stuck), what is
 done? and waiting for your word - a story at done? too) or what is **Done** (a story only once you closed
 it). A story whose tasks are all filtered out still shows when its own state fits.
 
-![Ready for you with To-do on its right: a story that is done, a story at work - its first task's cell honey, the second's empty - and the tasks without a story](../images/ready-todo.png)
+![Work on its To-do tab - "To-do · 3" beside Ready for you under the heading: a story that is done, a story at work - its first task's cell honey, the second's empty - and the tasks without a story](../images/ready-todo.png)
 
-*To-do's cards beside the rest of Ready for you.*
+*To-do's cards, on Work's To-do tab.*
 
-![A story opened over To-do: its state, its notebook with who wrote each note and when, Do tonight, its two tasks with one ticked, and under them "1 selected · Do in chat"](../images/todo-tree.png)
+![A story opened over To-do's cards, from the right: its state, its notebook with who wrote each note and when, Do tonight, its two tasks with one ticked, and under them "1 selected · Do in chat"](../images/todo-tree.png)
 
 *A story's panel: its notebook, its buttons and its tasks.*
 

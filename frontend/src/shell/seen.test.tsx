@@ -108,7 +108,7 @@ test('a plan that begins to wait is told as a plan, not as changes', () => {
   expect(container.querySelector('[aria-live="polite"]')).toHaveTextContent('A plan waits for you · Docs')
 })
 
-test('the badge on the Ready button (tek-ev §1) counts what waits, goes with a decision, and opens Ready for you', async () => {
+test('the badge on the Work button (tek-ev §1) counts what waits, goes with a decision, and opens Work', async () => {
   const onView = vi.fn()
   const props = { view: 'canvas' as const, onView, theme: 'dark' as const, onToggleTheme: () => {} }
   const asking = boardOf(
@@ -117,8 +117,8 @@ test('the badge on the Ready button (tek-ev §1) counts what waits, goes with a 
   )
   const { rerender } = render(<Rail {...props} waiting={waitingTotal(asking)} />)
   // its name stays the page's; the count is its description
-  const button = screen.getByRole('button', { name: 'Ready' })
-  // (To-do is Ready for you's right half since 0.1.10: no button of its own)
+  const button = screen.getByRole('button', { name: 'Work' })
+  // (To-do is a tab of Work since 0.1.10: no button of its own)
   expect(screen.queryByRole('button', { name: 'To-do' })).toBeNull()
   expect(button).toHaveAccessibleDescription('2 waiting')
   expect(within(button).getByText('2')).toHaveClass('tag-warn')

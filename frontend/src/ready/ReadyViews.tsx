@@ -1,5 +1,5 @@
 import { X } from '@phosphor-icons/react'
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { type KeyboardEvent as KeyEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { titleOf } from '../agents/agentStatus'
 import { errorText } from '../api/client'
 import type { Team } from '../api/types'
@@ -408,11 +408,50 @@ function Sources({
   )
 }
 
+type WorkTab = 'ready' | 'todo'
+
+/** The Work page's two tabs (0.1.10), each with its count where there is one: what waits for your word on Ready for
+ *  you, the open tasks on To-do (none until its list is read). The keys as Memory's tabs take them. */
+function WorkTabs({ tab, waiting, open }: { tab: WorkTab; waiting: number; open: number | null }) {
+  const pick = (to: WorkTab) => useApp.setState({ readyTab: to })
+  const one = (to: WorkTab, words: string, n: number | null) => (
+    <button
+      id={`work-tab-${to}`}
+      type="button"
+      role="tab"
+      className="tab"
+      aria-selected={to === tab}
+      aria-controls={`work-panel-${to}`}
+      tabIndex={to === tab ? 0 : -1}
+      onClick={() => pick(to)}
+    >
+      {n ? `${words} · ${n}` : words}
+    </button>
+  )
+  // Two tabs: either arrow goes to the other, Home to the first, End to the last.
+  const onKey = (event: KeyEvent<HTMLDivElement>) => {
+    const other = tab === 'ready' ? 'todo' : 'ready'
+    const to = ({ ArrowRight: other, ArrowLeft: other, Home: 'ready', End: 'todo' } as Record<string, WorkTab>)[
+      event.key
+    ]
+    if (!to) return
+    event.preventDefault()
+    pick(to)
+    event.currentTarget.querySelector<HTMLElement>(`#work-tab-${to}`)?.focus()
+  }
+  return (
+    <div role="tablist" aria-label="Work’s parts" className="tabs work-tabs" onKeyDown={onKey}>
+      {one('ready', 'Ready for you', waiting)}
+      {one('todo', 'To-do', open)}
+    </div>
+  )
+}
+
 /**
- * Ready for you as a page (tek-ev §1; 0.1.10 Ready and To-do one page): on the left, what was done - the project's last
- * night, its report - then what waits for your word and what was decided for you (karar defteri); on the right, `todo`:
- * the project's To-do. Side by side on a wide screen, one under the other on a narrow one. `onReport` opens the night's
- * whole report.
+ * The Work page (tek-ev §1; 0.1.10 Ready and To-do one page, as two tabs): Ready for you - what was done, the project's
+ * last night and its report, then what waits for your word and what was decided for you (karar defteri) - and To-do,
+ * `todo`, with `todoOpen` its open tasks. The tab shown is the store's; both stay drawn, so what is typed or open in one
+ * stays as the other is shown. `onReport` opens the night's whole report.
  */
 export function ReadyPage({
   items,
@@ -420,18 +459,31 @@ export function ReadyPage({
   decisions,
   onReport,
   todo,
+  todoOpen = null,
 }: {
   items: ReadyItem[]
   openChat: OpenChat
   decisions?: DecisionsProps
   onReport?: () => void
   todo?: ReactNode
+  todoOpen?: number | null
 }) {
   const away = useApp(s => s.away)
+  const tab = useApp(s => s.readyTab)
   const [left, setLeft] = useState<number | null>(null)
+  const panelOf = (of: WorkTab) => ({
+    id: `work-panel-${of}`,
+    role: 'tabpanel',
+    'aria-labelledby': `work-tab-${of}`,
+    hidden: of !== tab,
+  })
   return (
-    <div className="ready-page">
-      <div className="ready-left">
+    <div className="ready-page work-page">
+      <div className="work-top">
+        <h2>Work</h2>
+        <WorkTabs tab={tab} waiting={items.length} open={todoOpen} />
+      </div>
+      <div {...panelOf('ready')} className="ready-left">
         {/* (Its name first: Ready for you, then the hour's greeting.) */}
         <h2 className="ready-greet">
           <span className="ready-eyebrow">Ready for you</span> {greeting()}
@@ -442,11 +494,14 @@ export function ReadyPage({
           parked={items.flatMap(item => (item.what === 'parked' ? [item.row] : []))}
           onReport={onReport}
           onOpen={id => void openChat(id)}
+          hidden={tab !== 'ready'}
         />
         <WaitingPart items={items} openChat={openChat} />
         {decisions && <Decisions {...decisions} onLeft={setLeft} />}
       </div>
-      {todo && <div className="ready-right">{todo}</div>}
+      <div {...panelOf('todo')} className="ready-right">
+        {todo}
+      </div>
     </div>
   )
 }

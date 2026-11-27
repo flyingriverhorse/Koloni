@@ -3,7 +3,7 @@
 // through, each task in a chat of its own, the status line saying where it stands; I'm back writes one summary in the
 // chat, Ready for you's report shows the same, and the report is on the canvas - the morning opens Ready on it once.
 import { expect, test, type Locator } from './fixtures'
-import { contrasts, openFreshConversation, rail, say, shot, todo } from './helpers'
+import { contrasts, openFreshConversation, rail, say, shot } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -44,8 +44,8 @@ test('the work goes on To-do with a Go away line; Away works it through until I�
   await expect(line).toContainText('Away · To-do 2 of 2 looked at', { timeout: 30_000 })
   await expect(page.getByLabel('Message')).toHaveAttribute('placeholder', 'Write to come back…')
 
-  // Ready for you shows the same (0.1.10): the night's report as it goes, To-do beside it.
-  await todo(page)
+  // Work's Ready for you shows the same (0.1.10): the night's report as it goes.
+  await rail(page, 'Work').click()
   const night = page.getByRole('region', { name: /^☾ While you're away, since / })
   await expect(night).toContainText("At work while you're away: 2 of 2 jobs done.")
   await reads(night, 2)

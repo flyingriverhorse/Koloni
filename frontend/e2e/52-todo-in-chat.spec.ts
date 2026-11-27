@@ -4,7 +4,7 @@
 // it on To-do; the bug runs in a topic of its own. The queue over the message box lists what waits, and Remove puts
 // one back on To-do. Run the backlog, Runs by itself and Run settings are gone.
 import { expect, test, type Page } from './fixtures'
-import { OWN, e2eProject, openFreshConversation, rail, story, todo } from './helpers'
+import { OWN, e2eProject, openFreshConversation, story, todo } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -85,7 +85,7 @@ test('a story and a bug ticked on To-do run in a new chat, each asked "Done?", t
   // The bug in a topic of its own.
   await expect(chat.getByRole('group', { name: 'From To-do · bug' })).toContainText(BUG, { timeout: 20_000 })
 
-  await rail(page, 'Ready').click()
+  await todo(page)
   await expect(page.getByRole('button', { name: `${STORY}: 2 of 2 done` })).toBeVisible({ timeout: 20_000 })
   await expect((await story(page, STORY)).getByText('✓ done')).toBeVisible({ timeout: 20_000 })
   await expect((await story(page, 'Without a story')).getByRole('listitem', { name: LATER })).not.toContainText(

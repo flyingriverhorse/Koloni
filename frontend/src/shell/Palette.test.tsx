@@ -224,10 +224,14 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
   // the Chats page by the rail's word for it
   await pick('chats')
   expect(await screen.findByRole('heading', { name: 'Chats' })).toBeInTheDocument()
-  // To-do, Ready for you's right half (0.1.10): that page, its To-do heading taking the focus
+  // To-do, a tab of Work (0.1.10): that page on that tab, its To-do heading taking the focus
   await pick('to-do')
   expect(await screen.findByRole('heading', { name: /^To-do/ })).toHaveFocus()
-  expect(screen.getByRole('button', { name: 'Ready' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: 'Work' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('tab', { name: /^To-do/ })).toHaveAttribute('aria-selected', 'true')
+  // ...and Ready for you, by the page's old name: that tab
+  await pick('ready')
+  expect(await screen.findByRole('heading', { name: /^Ready for you/ })).toBeVisible()
   // a role: the Agents page, open on it rather than on the first
   await pick('documenter')
   await userEvent.click(await screen.findByRole('tab', { name: 'Instructions' }))

@@ -221,12 +221,13 @@ export async function clickCanvas(page: Page) {
   await page.locator('.canvas-flow').click({ position: { x: chat.x + chat.width - canvas.x + 5, y: 5 } })
 }
 
-export const rail = (page: Page, name: 'Memory' | 'Canvas' | 'Chats' | 'Models' | 'Tools' | 'Usage' | 'Ready') =>
+export const rail = (page: Page, name: 'Memory' | 'Canvas' | 'Chats' | 'Models' | 'Tools' | 'Usage' | 'Work') =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
 
-/** To-do (0.1.10): Ready for you's right half, from the rail's Ready - its region. */
+/** To-do (0.1.10): the Work page's To-do tab, from the rail's Work - its region. */
 export async function todo(page: Page) {
-  await rail(page, 'Ready').click()
+  await rail(page, 'Work').click()
+  await page.getByRole('tab', { name: /^To-do/ }).click()
   const half = page.getByRole('region', { name: /^To-do/ })
   await half.getByRole('heading', { name: /^To-do/ }).waitFor()
   return half

@@ -26,7 +26,7 @@ test('a command a night job asks for is parked, Run in the morning runs it and t
   const pid = await e2eProject(page)
   const night = async () => (await (await request.get(`/api/projects/${pid}/away`)).json()) as Record<string, any>
   await expect.poll(async () => (await night()).jobs[0]?.why, { timeout: 30_000 }).toBe('1 parked')
-  await rail(page, 'Ready').click()
+  await rail(page, 'Work').click()
   await page.getByRole('button', { name: 'I’m back' }).first().click()
   await rail(page, 'Canvas').click()
 

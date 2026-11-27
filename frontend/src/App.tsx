@@ -114,12 +114,11 @@ const makeDefaultAndRead = async (providerId: string) => {
   await useApp.getState().loadHealth()
 }
 
-/** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds (and To-do, Ready
- *  for you's right half: `openTodo`). */
+/** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds (and Work's two
+ *  tabs, each its own place: `openReady`, `openTodo`). */
 const PAGES: [View, string][] = [
   ['canvas', 'Canvas'],
   ['conversations', 'Chats (Conversations)'],
-  ['ready', 'Ready for you'],
   ['agents', 'Agents'],
   ['models', 'Models'],
   ['tools', 'Tools'],
@@ -177,6 +176,7 @@ export function App() {
   // The chats it has read: the open one and the others that wait (what Chats says waits in them is its rows alone).
   const readyChats = useApp(s => s.readyChats)
   const readyPanel = useApp(s => s.readyPanel)
+  const readyTab = useApp(s => s.readyTab)
   const { decided, where: decidedWhere } = useDecided(conv)
   const [view, setView] = useState<View>('canvas')
   // Whether you opened another page since KOLONİ opened: the morning never takes you off it (M1).
@@ -225,11 +225,17 @@ export function App() {
     show(where)
     setPick(was => ({ view: where, id, n: (was?.n ?? 0) + 1 }))
   }
-  // To-do (0.1.10), Ready for you's right half: the page, its To-do in view - at a task's row, where one is asked.
+  // Work's two tabs (0.1.10): the rail's Work opens the one shown last; these, the one they name. To-do: its tab, in
+  // view - at a task's row, where one is asked (the tab shown first: what takes the focus there is not hidden).
   const [todoAsked, setTodoAsked] = useState<TodoAsked | null>(null)
   const openTodo = (task?: string) => {
     show('ready')
+    useApp.setState({ readyTab: 'todo' })
     setTodoAsked(was => ({ task, n: (was?.n ?? 0) + 1 }))
+  }
+  const openReady = () => {
+    show('ready')
+    useApp.setState({ readyTab: 'ready' })
   }
   // "Open chat" on Ready for you: the chat on the canvas, open - and, for a card of it (`key`), the panel at that card,
   // now under This chat; a To-do, Memory or night row has no card in the chat: the panel closes.
@@ -330,7 +336,10 @@ export function App() {
         .loadAway()
         .then(() => {
           const night = useApp.getState().away
-          if (first && night?.status === 'ended' && !night.seen_at && !opened.current) setView('ready')
+          if (first && night?.status === 'ended' && !night.seen_at && !opened.current) {
+            setView('ready')
+            useApp.setState({ readyTab: 'ready' })
+          }
         })
         .catch(() => {})
     }
@@ -366,7 +375,7 @@ export function App() {
         .getState()
         .loadBuiltinTools()
         .catch(() => {})
-    // And the backlog, To-do on Ready for you: its events read it again too.
+    // And the backlog, Work's To-do: its events read it again too.
     if (projectId && view === 'ready') void useApp.getState().loadBacklog()
   }, [view, projectId])
   // 0.1.8: a To-do card in a chat (Open it in To-do), a To-do row of Decided for you: To-do, at that task's row.
@@ -379,13 +388,14 @@ export function App() {
     window.addEventListener(OPEN_TODO, open)
     return () => window.removeEventListener(OPEN_TODO, open)
   }, [])
-  // "Open in Ready for you" (the chat's line, Usage's Today): the Ready for you page, its Decided for you in view - asked
+  // "Open in Ready for you" (the chat's line, Usage's Today): Work's Ready for you, its Decided for you in view - asked
   // until it is, or the page is left before it could be (then a later visit is as any).
   // ("unseen": at Not seen - the line or Today counted some that wait for your OK)
   const [decisionsAsked, setDecisionsAsked] = useState<'unseen' | 'any' | null>(null)
   useEffect(() => {
     const open = (event: Event) => {
       setView('ready')
+      useApp.setState({ readyTab: 'ready' })
       setSettingsOpen(false)
       setDecisionsAsked((event as CustomEvent<boolean>).detail ? 'unseen' : 'any')
     }
@@ -451,7 +461,7 @@ export function App() {
   // The open chat's main folder; none for a plain chat, whose pages of a folder say so (slice 86a).
   const project = projects.find(p => p.id === projectId) ?? null
   const settingsOpen = settingsWanted
-  // On the Ready page itself the list is there: no panel over it, nor the same cards twice.
+  // On the Work page itself the list is there: no panel over it, nor the same cards twice - the pill shows its tab.
   const onReadyPage = view === 'ready' && !settingsOpen
   const panelShown = readyPanel.open && !onReadyPage
   const noFolder = (page: string) => (
@@ -557,7 +567,7 @@ export function App() {
           title={pillSaid}
           aria-expanded={panelShown}
           aria-controls={READY_PANEL}
-          onClick={() => (onReadyPage ? undefined : useApp.getState().showReady(!readyPanel.open))}
+          onClick={() => (onReadyPage ? openReady() : useApp.getState().showReady(!readyPanel.open))}
         >
           {waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'}` : `${decided} decided`}
         </button>
@@ -597,8 +607,8 @@ export function App() {
         onNear={setNear}
       />
       <BudgetPill budget={budget} onOpen={() => show('usage')} />
-      {/* (The night at work: its report, on Ready for you.) */}
-      <AwayStatus away={away} onOpen={() => show('ready')} />
+      {/* (The night at work: its report, on Work's Ready for you.) */}
+      <AwayStatus away={away} onOpen={openReady} />
       <HoldStatus
         every={BOARD_POLL_MS}
         onOpen={async id => {
@@ -786,7 +796,7 @@ export function App() {
       }}
       // (The skills agents proposed: Ready for you's rows of them; their yes is on their card there.)
       proposals={waiting.flatMap(item => (item.what === 'card' && item.row.what === 'skill' ? [item.row.item] : []))}
-      onReady={() => show('ready')}
+      onReady={openReady}
     />
   )
   const readyPage = () => (
@@ -819,13 +829,17 @@ export function App() {
           : undefined
       }
       todo={todoHalf()}
+      // (Its tab's count: the tasks not done - proposals wait on Ready for you -, once the list is read.)
+      todoOpen={
+        project && backlog ? backlog.filter(task => task.status !== 'proposed' && task.status !== 'done').length : null
+      }
     />
   )
   // The tasks whose push the night parked for you and you have not decided: their cells on To-do say so.
   const pushes = new Set(
     waiting.flatMap(item => (item.what === 'parked' && item.row.kind === 'push' ? [item.row.task_id] : [])),
   )
-  /** To-do, Ready for you's right half (0.1.10). */
+  /** To-do, Work's second tab (0.1.10). */
   const todoHalf = () =>
     !project ? (
       <section className="todo-half" aria-labelledby="todo-head">
@@ -839,8 +853,9 @@ export function App() {
         key={project.id}
         asked={todoAsked}
         pushes={pushes}
-        // (The settings over it: a narrow window's story leaves the rail and the top bar within reach.)
-        covered={settingsOpen}
+        // (The settings over it, or Ready for you's tab shown: a narrow window's story leaves the rail, the top bar and
+        // the tabs within reach.)
+        covered={settingsOpen || readyTab !== 'todo'}
         backlog={backlog}
         error={backlogError}
         drafter={drafter}
@@ -978,7 +993,7 @@ export function App() {
       // (What waits for your word: the pill's own rows - each chat's on its row, all of them counted in Now.)
       waiting={waiting}
       readChats={[...(conv ? [conv.conversation.id] : []), ...Object.keys(readyChats)]}
-      onReady={() => show('ready')}
+      onReady={openReady}
       onOpen={id => {
         void useApp.getState().openConversation(id)
         setView('canvas')
@@ -1160,7 +1175,7 @@ export function App() {
         openChat={openChat}
         onPage={() => {
           useApp.getState().showReady(false)
-          show('ready')
+          openReady()
         }}
         onClose={() => useApp.getState().showReady(false)}
       />
@@ -1170,7 +1185,8 @@ export function App() {
   const palette = () => {
     const places: Place[] = [
       ...PAGES.map(([page, name]) => ({ kind: 'Page', name, go: () => show(page) })),
-      { kind: 'Page', name: 'To-do (on Ready for you)', go: () => openTodo() },
+      { kind: 'Page', name: 'Work › Ready for you', go: openReady },
+      { kind: 'Page', name: 'Work › To-do', go: () => openTodo() },
       { kind: 'Page', name: 'Settings', go: () => setSettingsOpen(true) },
       ...conversations.map(c => ({
         kind: 'Conversation',

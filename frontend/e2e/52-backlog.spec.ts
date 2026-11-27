@@ -1,9 +1,9 @@
-// Slice 52 in the browser: the project's To-do - since 0.1.10 Ready for you's right half, each story a card. The user
+// Slice 52 in the browser: the project's To-do - since 0.1.10 a tab of Work, each story a card. The user
 // adds tasks and orders them by keyboard in a card's panel; a task the Lead proposes waits under Waiting for your word
 // (and on the rail's badge) until it is approved; one waits for another (⋯, Waits for). Running tasks is Do in chat's
 // since 0.1.8 (52-todo-in-chat). The page reads at 4.5 in both themes.
 import { expect, test, type Locator, type Page } from './fixtures'
-import { OWN, contrasts, e2eProject, openFreshConversation, say, shot, story, todo } from './helpers'
+import { OWN, contrasts, e2eProject, openFreshConversation, rail, say, shot, story, todo } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -82,13 +82,15 @@ for (const theme of ['light', 'dark'] as const)
     await say(page, 'please keep the backlog', 'Proposed a task for your backlog.')
     await expect(page.locator('#rail-waiting')).toHaveText(/[1-9]\d* waiting/, { timeout: 10_000 })
 
-    await todo(page)
+    // (It waits on Work's Ready for you; the tasks are on its To-do tab - 0.1.10.)
+    await rail(page, 'Work').click()
     const waiting = page.getByRole('region', { name: /^Waiting for your word/ })
     const card = waiting.getByRole('group', { name: 'Proposed task: Add a farewell' }).first()
     await expect(card).toContainText('prints bye')
     await reads(card, 3)
 
     // Two tasks of the user's, one high: high ones come first.
+    await todo(page)
     const first = `Greet in French (${theme})`
     const second = `Greet in German (${theme})`
     await add(page, first, 'high', 'prints bonjour')
@@ -112,6 +114,7 @@ for (const theme of ['light', 'dark'] as const)
 
     // Add to To-do / Edit / Not wanted (6 Nov; 0.1.10 the spec's words): Edit opens its title and detail, and adds
     // it as changed.
+    await page.getByRole('tab', { name: /^Ready for you/ }).click()
     await expect(card.getByRole('button', { name: 'Not wanted', exact: true })).toBeVisible()
     await card.getByRole('button', { name: 'Edit', exact: true }).click()
     await card.getByLabel('Detail').fill('prints bye, then exits')
@@ -119,6 +122,7 @@ for (const theme of ['light', 'dark'] as const)
     await expect(card).toBeHidden()
 
     // The second waits for the first, chosen from its ⋯.
+    await page.getByRole('tab', { name: /^To-do/ }).click()
     await story(page, 'Without a story')
     await dots(second).click()
     await page.getByRole('menuitem', { name: 'Edit' }).click()

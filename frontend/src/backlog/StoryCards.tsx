@@ -273,7 +273,7 @@ function TickAll({
   )
 }
 
-/** The window where the halves stand one under the other: there the panel takes the window, a modal. */
+/** A narrow window: there the panel takes the window, a modal. */
 const NARROW = '(max-width: 980px)'
 
 /** Whether the window is narrow now - and again as it is resized. */
@@ -359,7 +359,7 @@ interface PanelProps {
   onSelect: (taskIds: string[], on: boolean) => void
   onOpenChat: (conversationId: string) => void
   onClose: () => void
-  /** Something open over it must be reached - the settings: the page around it is not shut, modal or not. */
+  /** Something open over it must be reached - the settings -, or its tab is not shown: the page around it is not shut. */
   covered?: boolean
   /** Its tasks' rows, as To-do draws them, and the dock under them. */
   children: ReactNode

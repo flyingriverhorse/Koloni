@@ -71,24 +71,26 @@ for (const theme of ['light', 'dark'] as const) {
       await page.screenshot({ path: path.join(SHOTS, `panel-${theme}.png`) })
     }
 
-    // The page (0.1.10, Ready and To-do one page): the same list in one frame, oldest first, with its filters - and
-    // To-do on its right half; every word on it reads at 4.5.
+    // The page (0.1.10, Work: Ready for you and To-do, two tabs): the same list in one frame, oldest first, with its
+    // filters - and To-do on its tab; every word on each reads at 4.5.
     await panel.getByRole('button', { name: 'Open all as a page →' }).click()
     await expect(panel).toBeHidden()
     const list = page.locator('.ready-page')
     await expect(list.getByRole('heading', { name: /^Ready for you/ })).toBeVisible()
     await expect(list.getByRole('group', { name: 'Show' }).getByRole('button', { name: /^Chats · \d+$/ })).toBeVisible()
     await expect(list.getByRole('group', { name: new RegExp(second) })).toBeVisible()
-    await expect(list.getByRole('region', { name: /^To-do/ })).toBeVisible()
     expect((await list.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `page-${theme}.png`) })
-    // A narrow window: the halves one under the other, nothing wider than the window.
+    await list.getByRole('tab', { name: /^To-do/ }).click()
+    await expect(list.getByRole('region', { name: /^To-do/ })).toBeVisible()
+    expect((await list.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
+    // A narrow window: nothing wider than the window, on either tab.
     await page.setViewportSize({ width: 800, height: 900 })
-    expect(
-      await list.evaluate(
-        p => p.scrollWidth <= p.clientWidth && document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true)
+    const fits = () =>
+      list.evaluate(p => p.scrollWidth <= p.clientWidth && document.documentElement.scrollWidth <= window.innerWidth)
+    expect(await fits()).toBe(true)
+    await list.getByRole('tab', { name: /^Ready for you/ }).click()
+    expect(await fits()).toBe(true)
     await page.setViewportSize({ width: 1440, height: 900 })
     // Open chat on the first chat's row: that chat on the canvas, and the panel at its card - This chat now.
     const firstRow = list.getByRole('group', { name: new RegExp(first) })
