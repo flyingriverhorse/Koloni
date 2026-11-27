@@ -259,7 +259,10 @@ before the night was read.
 
 ### The night on Ready for you
 
-Once the night has ended, the [Ready for you](../use/ready.md#the-page) page opens on it: "Last night,
+KOLONİ opened after the night has ended opens on [Ready for you](../use/ready.md#the-page), at its first
+look at the night - never taking you off a page you opened before that look; once the night has been on
+screen (here, or its report on the canvas), KOLONİ opens as you left it. Once the night has ended, the
+page opens on it: "Last night,
 23:10 to 07:42" ("Night of Tue 24 Nov, …" once it ended more than a day ago), a time axis, and a lane
 for each job. A job's bar runs from when its first turn of the
 night began to when its last one ended - green where it finished, hatched honey where it waits for you,
