@@ -2909,6 +2909,80 @@ fieldset.choice > label .choice-note,
   padding: 0 12px 10px;
 }
 
+/* Skills (0.1.10): a card each, side by side where the page is wide - an open one across the page, its box under it;
+   above them the ones agents proposed. */
+.tools-skills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 10px;
+  align-items: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tools-skill {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.tools-skill:hover {
+  border-color: var(--border-strong);
+}
+
+.tools-skill.tools-open {
+  grid-column: 1 / -1;
+}
+
+.tools-skill > .tools-row {
+  align-items: flex-start;
+  border: 0;
+  background: none;
+}
+
+.tools-skill .tools-row-sub {
+  white-space: normal;
+  font-size: var(--text-note);
+}
+
+.tools-skill .tools-row-text .chips {
+  margin-top: 4px;
+}
+
+.tools-reads {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: var(--text-meta);
+}
+
+.tools-read {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(40px, 1fr) max-content;
+  gap: 8px;
+  align-items: center;
+}
+
+.tools-read-given {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tools-proposed {
+  display: grid;
+  gap: 6px;
+}
+
+.tools-proposal {
+  gap: 6px;
+  padding: 10px 12px;
+  border-color: var(--accent);
+}
+
 .tools-trust {
   flex-wrap: wrap;
 }

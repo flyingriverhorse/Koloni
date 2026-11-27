@@ -61,7 +61,7 @@ const saidOf = (row: SkillRecordRow, measure: Measure) =>
         ? '–'
         : `${Math.round(row.steps)} steps`
 /** How its agents were given the skill: read by them, whole in their brief - or given and never read. */
-const givenSaid = (row: SkillRecordRow) =>
+export const givenSaid = (row: SkillRecordRow) =>
   [
     row.used && `read in ${row.used} of ${row.agents}`,
     row.in_brief && `given in full in its brief in ${row.in_brief} of ${row.agents}`,

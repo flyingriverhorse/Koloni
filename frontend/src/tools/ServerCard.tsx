@@ -9,15 +9,15 @@ import { runsCell, serverRuns, takenBack } from './cells'
 import { commandShown, count, packageOf } from './paste'
 import { foundIn } from './ServerEditor'
 
-/** A server's state beside its name: one whose trust a reading took back, one that could not be read, watched, trusted. */
+/** A server's state beside its name, in its cell's colour: trust a reading took back, could not be read, watched, trusted. */
 const tagOf = (server: McpServer, taken: boolean) =>
   taken
-    ? ['trust taken back', 'tag-del']
+    ? ['trust taken back', 'tag-warn']
     : server.read_error
       ? ['could not be read', 'tag-del']
       : server.trusted
         ? ['trusted', 'tag-ok']
-        : ['watching', 'tag-warn']
+        : ['watching', 'tag-accent']
 
 /** Its card's line under the command: how many tools and how they run, or why there are none. */
 function subOf(server: McpServer) {

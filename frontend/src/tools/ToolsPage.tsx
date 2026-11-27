@@ -1,7 +1,16 @@
 import { Warning } from '@phosphor-icons/react'
 import { type KeyboardEvent, useLayoutEffect, useState } from 'react'
 import { errorText } from '../api/client'
-import type { BuiltinTool, McpRead, McpServer, McpServerChange, NewMcpServer, Role, Skill } from '../api/types'
+import type {
+  BuiltinTool,
+  McpRead,
+  McpServer,
+  McpServerChange,
+  NewMcpServer,
+  PendingSkill,
+  Role,
+  Skill,
+} from '../api/types'
 import { Cell } from '../shell/Cell'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
@@ -32,6 +41,9 @@ export interface Props {
   /** KOLONİ's store of skills (K-skill-uyum), its third part; `picked` "skills" or "skill:<name>" opens there. */
   skills?: Skill[]
   skillActions?: SkillActions
+  /** The skills agents proposed, waiting for your word on Ready for you; `onReady` goes there. */
+  proposals?: PendingSkill[]
+  onReady?: () => void
 }
 
 /** What a server is not held to, and where none of its tools is to be had (app/agent.py, `_mcp`). */
@@ -78,15 +90,29 @@ const openOf = (servers: McpServer[], selected: string | null) =>
   selected === 'new' || selected === '' ? null : (servers.find(s => s.id === selected) ?? servers[0] ?? null)
 
 /** KOLONİ's tools in three tabs (0.1.0-ui, layout A): its own, the MCP servers the user added, and its skills. */
-export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills = [], skillActions, ...rest }: Props) {
+export function ToolsPage({
+  servers,
+  picked,
+  builtin = [],
+  onSwitchTool,
+  skills = [],
+  skillActions,
+  proposals = [],
+  onReady,
+  ...rest
+}: Props) {
   const toSkills = picked?.startsWith('skill') ? picked : undefined
   // shortcut: the tab chosen is kept while the page is open, not in the address; a page opened anew is on Servers
   // (or where `picked` says). Keep it in the address if the user is seen coming back to another tab.
   const kinds = KINDS.filter(([id]) => (id !== 'builtin' || onSwitchTool) && (id !== 'skills' || skillActions))
   const [kind, setKind] = useState<Kind>(firstKind(toSkills, skillActions, picked, onSwitchTool))
-  // What waits on a tab, beside its name: the servers watched.
+  // What waits on a tab, beside its name: the servers watched, the skills proposed.
   const watched = servers.filter(server => !server.trusted).length
-  const badges: Record<Kind, string> = { builtin: '', servers: watched ? `${watched} watching` : '', skills: '' }
+  const badges: Record<Kind, string> = {
+    builtin: '',
+    servers: watched ? `${watched} watching` : '',
+    skills: proposals.length ? `${proposals.length} proposed` : '',
+  }
   // shortcut: a reading that took a server's trust back is known only from its answer, kept while the page is open
   // (no field says it): opened anew, such a server shows as watched. Keep it on the server if that is seen to matter.
   const [reads, setReads] = useState<Record<string, McpRead>>({})
@@ -291,6 +317,8 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
             picked={toSkills}
             adding={addingSkill}
             onAdding={setAddingSkill}
+            proposals={proposals}
+            onReady={onReady}
             {...skillActions}
           />
         </div>

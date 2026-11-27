@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { McpServer, McpTool, Role } from '../api/types'
+import type { McpServer, McpTool, PendingSkill, Role, Skill } from '../api/types'
 import { ToolsPage } from './ToolsPage'
 
 const tool = (name: string, over: Partial<McpTool> = {}): McpTool => ({
@@ -1000,4 +1000,52 @@ test('K-skill-uyum: "A skill" in the Add menu opens Skills with its add form', a
       'No skill yet. A skill is a folder of instructions (a SKILL.md) that a role’s agents read when they need it: add one with Add › A skill, at the top.',
     ),
   ).toBeVisible()
+})
+
+test('a skill an agent proposed waits on Skills for your word: the tab says so, and its yes is on Ready for you', async () => {
+  const onReady = vi.fn()
+  const proposed = {
+    tool_call_id: 'c1',
+    name: 'pdf-forms',
+    description: 'Fills PDF forms.',
+    roles: ['Coder'],
+  } as PendingSkill
+  render(
+    <ToolsPage
+      servers={[server()]}
+      roles={[]}
+      skillActions={skillActions()}
+      {...handlers()}
+      proposals={[proposed]}
+      onReady={onReady}
+      picked="skills"
+    />,
+  )
+  expect(screen.getByRole('tab', { name: 'Skills 1 proposed' })).toHaveAttribute('aria-selected', 'true')
+  const box = within(screen.getByRole('region', { name: 'Proposed by agents' }))
+  expect(box.getByText('pdf-forms')).toBeInTheDocument()
+  expect(box.getByText('Fills PDF forms.')).toBeInTheDocument()
+  expect(box.getByText(/^For Coder\. It is added only once you say yes on its card/)).toBeInTheDocument()
+  // no yes or no of its own here: its card on Ready for you shows its text and its scripts' leave first
+  expect(box.queryByRole('button', { name: /Add|Reject|Approve/ })).toBeNull()
+  await userEvent.click(box.getByRole('button', { name: 'Open on Ready for you' }))
+  expect(onReady).toHaveBeenCalledOnce()
+})
+
+test('a skill’s card says nothing of the last 30 days while its record cannot be read', async () => {
+  const a = { ...skillActions(), onSkillRecord: vi.fn().mockRejectedValue(new Error('down')) }
+  const tidy = {
+    id: 'k1',
+    name: 'tidy',
+    description: 'Keep it plain.',
+    source: 'github.com/a/tidy',
+    files: ['SKILL.md'],
+    enabled: true,
+    needs: { groups: [], mcp: [], unknown: [], tools: {} },
+  } as unknown as Skill
+  render(<ToolsPage servers={[]} roles={[]} {...handlers()} skills={[tidy]} skillActions={a} picked="skills" />)
+  expect(screen.getByRole('button', { name: /^tidy/ })).toHaveTextContent('from github.com/a/tidy · 1 file')
+  await vi.waitFor(() => expect(a.onSkillRecord).toHaveBeenCalled())
+  expect(screen.queryByText('No agent had it in the last 30 days.')).toBeNull()
+  expect(screen.queryByRole('group', { name: 'tidy in the last 30 days' })).toBeNull()
 })
