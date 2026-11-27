@@ -28,6 +28,14 @@ if TYPE_CHECKING:
 log = logging.getLogger("app.agent")
 
 
+def _names_git(command: str) -> bool:
+    """Whether a line is, or names, a push, a pull request or a merge (`_this_turns_word`)."""
+    plain = judge._plain(command)
+    return judge.action_of(command) is not None or any(
+        one.search(plain) for one in judge.MENTIONS.values()
+    )
+
+
 def words_of_the_turn(session, run_id: str) -> list[str]:
     """K5's reader (`_said_so`): the user's own messages of a turn - the one that started it and
     the words they sent into it (Send now) - newest first, as `judge.asked_for` reads them; never
@@ -255,8 +263,32 @@ class JudgeMixin:
         def names(one: str) -> bool:  # (a line that names what this delete takes: `cards`')
             return bool(cards.mentioned([one], command, cwd))
 
-        cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts, names, cwd)
+        got = await self._judge_asks(ctx, asking, mode, asked, texts, names, cwd)
+        cache[key] = self._this_turns_word(ctx, command, got)
         return self._judgement(ctx, reason, cache[key])
+
+    def _this_turns_word(
+        self: "AgentRunner", ctx: Ctx, command: str, got: dict | None
+    ) -> dict | None:
+        """The user's ruling (28 Nov, "ben dersem etsin"): a push, a pull request or a merge
+        (`judge.action_of`, or a line that names one: `judge.MENTIONS`) runs on their words of
+        this turn alone - the message that started it and what they sent into it, as K5 reads
+        them (`words_of_the_turn`): an earlier turn's sentence never lets one run (its "refuse"
+        stands). A "run" the judge rested on another turn's message is its card ("ask"). Other
+        commands, and the project's saved rules, as they were."""
+        if (
+            got is None
+            or got.get("verdict") != "run"
+            or got.get("source") != "message"  # (the project's rules: the git work's to decide)
+            or not _names_git(command)
+        ):
+            return got
+        with self._factory() as session:
+            words = [raw.hidden(one) for one in words_of_the_turn(session, ctx.run_id)]
+        quote = str(got.get("quote") or "")
+        if judge.source_of(quote, {"message": words})[0] == "message":
+            return got
+        return {**got, "verdict": "ask", "quote": "", "source": "", "why": ""}
 
     def _away_holds(self: "AgentRunner", session, ctx: Ctx, line: str) -> bool:
         """☾ Away: whether `line` keeps its card, whatever the user's words say - in a job, or
