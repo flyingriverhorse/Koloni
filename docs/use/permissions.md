@@ -58,6 +58,13 @@ git runs), a redirection to bash's `/dev/tcp/` or `/dev/udp/` (it reaches the in
 that may expand to an option (`find *`, `rg foo *`, `cat -*`: a file named `-delete` or `--pre=x` in the
 folder would be one; `src/*.py` and a quoted `'*.py'` are fine).
 
+A search chained to another command is no read either. A `;`, `&` or `|` inside quotes chains
+nothing in a search on a simple line - one with no backslash, backtick, `$`, `#`, line break or
+typographic quote, where sh and PowerShell read the quotes alike: `rg '&&' .github/workflows` and
+`rg 'a|b' .github` are searches, at Full auto too. In any other line, or in a line another program
+runs (`ssh host 'cd app && rm -rf build'`, `cmd /c "…"`, which keeps no `'` quote), it is a cut, and
+what comes after it is judged as a command of its own.
+
 The secret-file rows have exceptions for CLIs run with their own tools (a command Codex's own allow rules
 cover, agy's reads): see [Known limits](../reference/known-limits.md#secrets).
 

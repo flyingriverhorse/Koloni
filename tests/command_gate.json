@@ -84412,7 +84412,13 @@ false
 "grep -l ../../b/tree/secret": "round 5: the first word past options known to take no path is the search's pattern, no path",
 "rg --ignore-case ../../b": "round 5: the first word past options known to take no path is the search's pattern, no path",
 "rg -l ../../b/tree/secret": "round 5: the first word past options known to take no path is the search's pattern, no path",
-"rg -uuu ../../b": "round 5: the first word past options known to take no path is the search's pattern, no path"
+"rg -uuu ../../b": "round 5: the first word past options known to take no path is the search's pattern, no path",
+"grep -E '(kill|pkill)' app/x.py": "E12: a lone search in a simple line is cut at no quoted `|` or bracket - its pattern stops nothing",
+"rg \"pkill|killall\" app": "E12: a lone search in a simple line is cut at no quoted `|` or bracket - its pattern stops nothing",
+"rg 'pkill|killall' scripts": "E12: a lone search in a simple line is cut at no quoted `|` or bracket - its pattern stops nothing",
+"grep -rn \"import('../x')\" src": "E12: a lone search in a simple line is cut at no quoted bracket - its pattern is no path",
+"grep -rn \"require('../\" src": "E12: a lone search in a simple line is cut at no quoted bracket - its pattern is no path",
+"rg \"require('../lib')\" src": "E12: a lone search in a simple line is cut at no quoted bracket - its pattern is no path"
 },
 "xfail": [],
 "up": {

@@ -16,13 +16,14 @@ from urllib.parse import quote
 
 from sqlalchemy import or_, select
 
-from app import raw
+from app import raw, read_edges
 from app.copies import LINKED, folders
 from app.db.models import AllowedCommand, AllowedWeb
 from app.read_edges import (
     NET_PATH,
     SEARCH_DOES,
     SINKS,
+    bare,
     chained,
     git_writes,
     globs_an_option,
@@ -1197,9 +1198,9 @@ _DOCKER_VALUE_OPTIONS = frozenset(
     }
 )
 # Where one command ends and the next begins, for a chained one.
-# shortcut: blind to quotes, so a line of `python -c "..."` code that starts with `del`, `format`
-# or `dd` reads as that program ("Deletes files or disks."): over-asks, never under-asks; split
-# by the shell's own quoting if such cards are seen often (R161).
+# shortcut: blind to quotes - but for a lone search in a simple line (`read_edges.split`, E12) -,
+# so a line of `python -c "..."` code that starts with `del`, `format` or `dd` reads as that
+# program ("Deletes files or disks."): over-asks, never under-asks (R161).
 _PARTS = re.compile(r"&&|\|\||[;&|\r\n]")
 # ...and, where harm is judged (`_harm`, `harms`, `runs_another`), the blocks a PowerShell line
 # runs inside it: `(rm x)`, `$(rm x)`, `if(1){rm x}`, `% { ri $_ }` (security review 0.1.0,
@@ -1657,7 +1658,7 @@ def _stop_kind_of(command: str) -> str:
     started, stands = _started(command), _stands(command)
     # (`stands` acts only on a stop with no target, `_bare`: a stop with one, cut by the
     # quote-blind split out of a line a shell is handed - `echo "x; pkill y" | bash` - is asked,
-    # one cut out of a message or a pattern too: `rg -n 'terminate|kill' app` over-asks)
+    # one cut out of a message too: `git commit -m 'a; kill it'` over-asks - not a search's)
     kinds = {
         _part_stop(_program(words[0]), words[1:], started, stands)
         for words in _commands_in(command, at=_BLOCKS)
@@ -2840,7 +2841,7 @@ def _verbs(words: list[str], left: list[int] | None = None) -> list[tuple[str, s
                     return [*verbs, (program, UNREAD)]
                 left[0] -= 1
                 verbs += (
-                    [one for part in _parts(word) if part for one in _verbs(part, left)]
+                    [one for cut in _parts(word, _PARTS, True) if cut for one in _verbs(cut, left)]
                     if (line)
                     else _verbs([word.strip("'\""), *inner[start + 1 :]], left)
                 )
@@ -3171,10 +3172,8 @@ def _path_words(words: list[str]) -> list[str]:
     word that is no option, where no option gave the pattern (`_pattern_option`) and every option
     before it is known to take no path (`_known_option`); Select-String's `-Path` and
     `-LiteralPath` values are paths.
-    shortcut: a pattern with `(` in it reaches here cut, as `_BLOCKS` splits inside quotes
-    (`rg "require('../lib')" src`, `grep -rn "import('../x')" src`, `rg -g '*.ts' "'../" src`,
-    `grep -E "from '(\\.\\./)+" src`), and its `..` is asked as a climb (OA-c); read the line's
-    quotes before its blocks in 0.1.6."""
+    shortcut: a pattern with `(` in it reaches here cut in a line not simple (`read_edges.split`:
+    `grep -E "from '(\\.\\./)+" src`), and its `..` is asked as a climb (OA-c)."""
     program = _program(words[0])
     if program not in _POSITIONAL_PATTERN | {"perl"}:
         return words
@@ -3745,7 +3744,7 @@ def names_standing(command: str) -> str:
         if (key := _standing_of(piece, wildcards=False))
     }
     rest = _INLINE_CODE.sub(lambda found: found[0][: found.start(1) - found.start()], command)
-    parts = _CHAIN.split(rest)
+    parts = read_edges.split(_CHAIN, rest, only_searches)
     # (A line that enters the scratch is judged whole: its `cd` alone would name `.koloni` -
     # and with its inline code, which may learn where it is: `_WHERE`.)
     entered = _ENTERS.match(rest)
@@ -3810,7 +3809,7 @@ def only_searches(part: str) -> bool:
     may be an option (`globs_an_option`). A file that steers later turns it names (`rg foo .github`)
     it reads, as `cat` does: `names_standing` asks nothing of it (`.koloni`, a secret: `_harm`)."""
     words = [word.strip("'\"") for word in _words(part.strip())]
-    if not words or re.search(r"[|<>`$(){}]", part) or re.search(r"[\\/]", words[0]):
+    if not words or re.search(r"[|<>`$(){}]", bare(part)) or re.search(r"[\\/]", words[0]):
         return False
     program = _program(words[0])
     replaces = program in ("rg", "ripgrep", "ag")  # (as the shell joins a word: `-de""lete`)
@@ -3914,11 +3913,12 @@ def _git_sub(words: list[str]) -> tuple[str | None, list[str]]:
     return (words[at], words[at + 1 :]) if at < len(words) else (None, [])
 
 
-def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
-    """A line's parts, split `at`, each past what leads into it (`_led`) - and what its groups
-    hold, split so too (`_groups`: `(cd web && npm ci)`, `{ npm ci; }`, `if ($true) { npm ci }`);
-    a group that does not pair, or past MAX_OTHER_READINGS of them, is [UNREAD]: what runs
-    there is not read (an "always" harm, `_danger_of`)."""
+def _parts(command: str, at: re.Pattern = _PARTS, handed: bool = False) -> list[list[str]]:
+    """A line's parts, split `at` (a lone search whole, `read_edges.split`, but in a line
+    `handed` on), each past what leads into it (`_led`) - and what its groups hold, split so
+    too (`_groups`: `(cd web && npm ci)`, `{ npm ci; }`, `if ($true) { npm ci }`); a group that
+    does not pair, or past MAX_OTHER_READINGS of them, is [UNREAD]: what runs there is not read
+    (an "always" harm, `_danger_of`)."""
     # (cmd's `for /f %a in ('del x') do y` runs its set's command too: a part of its own - in
     # any split, as `_BLOCKS` cuts at its brackets - as `_led` reads past the loop to `y`)
     sets = re.findall(r"(?i)(?:^|[\s;&|(@])for\s[^;&|]*?\bin\s*\(\s*(['`\"])(.*?)\1\s*\)", command)
@@ -3932,7 +3932,7 @@ def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
         *(
             [word.strip("'\"") for word in _led(_words(part.strip()))]
             for text in (command, *groups, *subs)
-            for part in at.split(text)
+            for part in (at.split(text) if handed else read_edges.split(at, text, only_searches))
         ),
         *([] if paired and not deep else [[UNREAD]]),
     ]
@@ -6015,7 +6015,7 @@ def _reasons(command: str, instructions: bool) -> Iterator[str]:
     # (A part's stop is judged with its line: the line may have started what it stops.)
     stops = _stops_by_name(command)
     for words in _commands_in(command[entered.end() if entered else 0 :], at=_BLOCKS):
-        if words and (said := danger(" ".join(words), instructions)) == KILLS_BY_NAME:
+        if words and (said := danger(read_edges.rejoined(words), instructions)) == KILLS_BY_NAME:
             yield said if stops else ""
         elif words:
             yield said or ("" if _only_fetches(words) else _sends(words))
@@ -6480,9 +6480,9 @@ def _commands_in(
     `powershell -Command 'git clone x'`). Past MAX_OTHER_READINGS readings of the whole line
     beyond each part's first (`left`, shared with the lines looked into: `env
     --split-string='env --split-string=...` doubles them at each one), [UNREAD]."""
-    left = [MAX_OTHER_READINGS] if left is None else left
+    parts, left = _parts(command, at, left is not None), left or [MAX_OTHER_READINGS]
     found = []
-    for words in _parts(command, at):
+    for words in parts:  # (a line handed on is split at every separator, quoted too)
         for number, handed in enumerate(_unwrapped(words)):
             if number:
                 if left[0] <= 0:
