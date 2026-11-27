@@ -94,11 +94,14 @@ class JudgeMixin:
 
     def _said_so(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None) -> dict | None:
         """K5 (decision 7): a push, a pull request opened or merged (`judge.action_of`) at the
-        project's root, in a turn of the chat - not a side of a comparison nor a job while the
-        user is away -, which no measured judge model let run: the record that its card quotes
-        the sentence of the user's own messages in this chat that asked for it
-        (`judge.asked_for`) - `kind` "said", an ask: a card all the same, one click. None where
-        no sentence of theirs asks for it."""
+        project's root, in a turn the user started from the app's own page (`Run.by_user`: not a
+        To-do task's, a trigger's nor a job's while they are away) and not a side of a
+        comparison, which no measured judge model let run: the record that its card quotes the
+        sentence of the user's own messages in this chat that asked for it (`judge.asked_for`) -
+        `kind` "said", an ask: a card all the same, one click. None where none asks for it.
+        shortcut: the newest sentence that names it decides, in the words check's last messages -
+        a "Push it." of an earlier turn is quoted on a push of this one that none mentions; read
+        this turn's message alone if such a quote is seen to mislead."""
         doing = judge.action_of(command)
         if (
             doing is None
@@ -109,6 +112,8 @@ class JudgeMixin:
         ):
             return None
         with self._factory() as session:
+            if not session.get_one(Run, ctx.run_id).by_user:
+                return None
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             texts = self._users_words(session, ctx.cid, project.rules if project else None)
         quote = judge.asked_for(doing[0], texts, doing[1])

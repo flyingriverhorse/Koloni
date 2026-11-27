@@ -338,8 +338,8 @@ def _elsewhere(context: str, where: str | None) -> bool:
     the project's root (`where`, relative to it; None: not known) that its line - with its
     heading - does not name from the root ("You may delete packages/api/dist." does): a path the
     line names is read from the root, and the command's is another."""
-    if where is None:
-        return True
+    if where is None or where.startswith(("/", "\\")):
+        return True  # (not known, or no folder of the project's)
     folder = where.replace("\\", "/").removeprefix("./").rstrip("/")
     if folder in ("", "."):
         return False
@@ -422,8 +422,11 @@ def verdict(
 # (`asked_for`) - a card all the same, one click. What a line must be to be read so (`action_of`):
 # one program's words with nothing of a shell's in them - no `;&|<>$`, backtick, bracket, `%^\*?#~`,
 # tab or line break, in quotes neither; nor PowerShell's `,` (`-t a,--repo,x` is three words to
-# it) and `@` (`@x` splats a variable), nor cmd's `!` (a variable, where delayed expansion is on).
-_ONE_PROGRAM = re.compile(r"[\w .:/'\"=+-]+")
+# it) and `@` (`@x` splats a variable), nor cmd's `!` (a variable, where delayed expansion is on)
+# and `'` (no quote to cmd: `-t 'x -R other/repo'` is four words there) - double quotes alone.
+# shortcut: a pull request's body written with a heredoc or on more lines (Claude Code's usual
+# `--body "$(cat <<'EOF' …)"`) gets the plain card; read a quoted heredoc if users meet it often.
+_ONE_PROGRAM = re.compile(r"[\w .:/\"=+-]+")
 # `git push` to origin with these flags alone - never a force, a delete, a mirror, all tags, an
 # option git runs a program by...
 _PUSH_FLAGS = frozenset(

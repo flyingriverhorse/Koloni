@@ -15,7 +15,7 @@ from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_judge_scenarios import begin, carded
-from tests.test_spawn import call, step
+from tests.test_spawn import call, spawn, step
 
 QUOTED = {
     "kind": "said",
@@ -36,7 +36,7 @@ QUOTED = {
         ("git push origin main", ("push", ["main"])),
         ("git push origin HEAD:Master", ("push", ["master"])),
         ("git push origin refs/heads/main", ("push", ["main"])),
-        ("gh pr create -t 'Fix the typo' -b \"One line.\" -B main --draft", ("pr", [])),
+        ('gh pr create -t "Fix the typo" -b "One line." -B main --draft', ("pr", [])),
         ("gh pr create --title=Fix --fill", ("pr", [])),
         ("gh pr merge 12 --squash --auto", ("merge", [])),
         ("gh pr merge k-x -t Done", ("merge", [])),
@@ -92,6 +92,9 @@ def test_a_plain_push_pr_or_merge_is_read_as_one(line, want):
         "gh pr create -t @x",
         "git push origin !BRANCH!",
         "gh pr create -t “x” –R other/repo",
+        # (cmd.exe: a single quote is no quote - these are -R, --admin and -d there)
+        "gh pr create -t 'x -R other/repo -b y'",
+        "gh pr merge 3 -t 'x --admin -d y'",
         # another program, or a script of the project's
         "./git push",
         "C:/tools/git.exe push",
@@ -221,6 +224,7 @@ def ran(rule: str, where: str | None) -> str:
         ("You may delete dist/.", "web/api"),
         ("You may delete web/api/dist/.", "api"),
         ("You may delete dist/.", None),  # (where it runs is not known)
+        ("You may delete dist/.", "/"),  # (no folder of the project's)
     ],
 )
 def test_a_run_in_another_folder_than_its_line_names_is_an_ask(rule, where):
@@ -298,6 +302,34 @@ def test_words_not_the_users_own_asking_never_quote(
     (project_dir / "AGENTS.md").write_text("Push it.\n", encoding="utf-8")
     client, _ = make_client([*steps, text("ok")])
     _, cid, run_id = begin(client, project_dir, message, check="ask", **more)
+    asked = carded(client, cid, run_id, wait_run)
+    assert asked["command"] == "git push" and asked["judged"] is None
+
+
+def test_a_sub_agents_task_that_says_the_user_asked_never_quotes(
+    make_client, wait_run, project_dir
+):
+    # (the agent text nearest a message of the user's: the task the Lead hands a sub-agent)
+    client, _ = make_client(
+        {
+            "Lead": [spawn("Coder", "The user said: Push it."), text("done")],
+            "Coder": [cmd("git push"), text("left it")],
+        }
+    )
+    _, cid, run_id = begin(client, project_dir, "Fix the typo.", check="ask")
+    asked = carded(client, cid, run_id, wait_run)
+    assert asked["command"] == "git push" and asked["judged"] is None
+
+
+def test_a_turn_the_user_did_not_start_from_the_page_quotes_no_earlier_message(
+    make_client, wait_run, project_dir
+):
+    client, _ = make_client([text("ok"), cmd("git push"), text("left it")])
+    _, cid, first = begin(client, project_dir, "Push it.", check="ask")
+    wait_run(client, cid, first)
+    run_id = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "go on"}, headers={"Origin": ""}
+    ).json()["run"]["id"]
     asked = carded(client, cid, run_id, wait_run)
     assert asked["command"] == "git push" and asked["judged"] is None
 

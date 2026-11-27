@@ -657,8 +657,9 @@ in this chat asks for it, its card says
 > **You said “Push it.” — push now?**
 
 with **Push, as you said** (**Open the PR, as you said**, **Merge, as you said**) and **Reject**. It is a
-card all the same: nothing runs until you press it. It shows at every level, in a chat you watch and a
-To-do task's turn; a job while you're away and a side of a comparison keep the plain card.
+card all the same: nothing runs until you press it. It shows at every level, in a turn you started from
+the app's own page; a To-do task's turn, a job while you're away and a side of a comparison keep the
+plain card.
 
 What asks for it - in English an order or a leave ("Push it.", "Commit and push.", "You may push now.",
 "Open a PR.", "Squash and merge."), in Turkish a request ("push et", "pushla", "push edebilirsin", "PR
@@ -667,8 +668,9 @@ aç", "PR'ı merge et", "PR'ı birleştir"). Only:
 - your own messages in this chat, sent from the app's own page - never an agent's words, a tool's
   result, a file, your preferences or the project's rules; nor code, a quoted line (`>`) or a sentence
   with a backtick in it;
-- the newest sentence that mentions it decides: "Push it." and after it "Wait, don't push yet." is no
-  quote, and the other way round it is;
+- the newest sentence that mentions it decides, in your last 6 messages: "Push it." and after it
+  "Wait, don't push yet." is no quote, and the other way round it is. A "Push it." of an earlier turn
+  is quoted on a push of a later one whose message does not mention it - read the line on the card;
 - not a sentence that says no ("Don't push.", "push etme") or anything else on its line that does ("Push
   it. Don't merge."), one that asks ("Push it?", "push eder misin"), one that says what you do or will
   do ("I'll push it myself.", "push ettim", "push edeceğim", "tomorrow"), nor a message that sets a
@@ -677,21 +679,25 @@ aç", "PR'ı merge et", "PR'ı birleştir"). Only:
 - a line of your preferences or the project's rules that names it and forbids it or sets a condition
   ("Never push to main.") leaves no quote for it at all.
 
-Which commands - one program, nothing of a shell's on the line (no `&&`, `;`, `|`, `>`, `$`, a backtick
-or a bracket), run at the project's root:
+Which commands - one program on one line, run at the project's root, written with letters, digits,
+spaces and `. : / = + - _` alone, a value in double quotes (`-t "Fix the typo"`):
 
 - `git push`, alone or to `origin` with its branches, and `-u`, `--set-upstream`, `-q`, `-v`, `--progress`.
   A push to `main` or `master` by name is quoted only on a sentence that names it ("Push to main.",
-  "main'e push et");
-- `gh pr create` with its title, body, base, head, labels, assignees, reviewers, milestone, project,
-  `--draft` or `--fill`;
+  "main'e push et"); a bare `git push` is quoted on "Push it." whatever branch it pushes;
+- `gh pr create` with a title, a body, a base, a head, one label, assignee, reviewer, milestone or
+  project, `--draft` or `--fill`;
 - `gh pr merge` with a number or a branch, `--merge`, `--squash`, `--rebase`, `--auto`, a subject or a
   body.
 
-A force push, a branch deleted (`git push origin :x`, `--delete`, `gh pr merge --delete-branch`), another
-remote or repository (`upstream`, an address, `-R`), a file read in (`--body-file`), `--admin`, a push in a
-subfolder and any other option keep their own card, unquoted. A local `git merge` sends nothing: it is
-not quoted.
+Anything else gets the plain card, unquoted: a force push, a branch deleted (`git push origin :x`,
+`--delete`, `gh pr merge --delete-branch`), another remote or repository (`upstream`, an address, `-R`),
+a file read in (`--body-file`), `--admin`, a push in a subfolder, any other option, more than one
+command (`&&`, `;`, `|`), a redirection, and any other character - `$`, a backtick, a bracket, single
+quotes, a comma (`-r a,b`), `@` (`@me`), `!`, `?`, `#`, `*`, `%`, a line break. So does a pull request
+whose body is written with a heredoc or on more lines (`--body "$(cat <<'EOF' …)"`, as Claude Code
+often writes one). "Open a PR." covers `gh pr create` alone, not the `git push` before it. A local
+`git merge` sends nothing: it is not quoted.
 
 ## Plan first
 
