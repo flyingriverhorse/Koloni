@@ -8,10 +8,13 @@ import pytest
 from app import raw
 from app.risk_judge import (
     DESTRUCTIVE,
+    DESTRUCTIVE_C,
     EARLIER_CHARS,
+    GATE_PROMPT,
     MOST_COMMAND_CHARS,
     PROMPTS,
     WHY_CHARS,
+    WIDER,
     action,
     broad_rule,
     kept,
@@ -44,7 +47,24 @@ def test_prompt_b_adds_only_the_projects_destructive_commands_and_the_gate_asks_
     assert PROMPTS["B"].replace(DESTRUCTIVE, "", 1) == PROMPTS["A"]
     assert "`git reset --hard`" in DESTRUCTIVE and "`git clean -n`" in DESTRUCTIVE
     with pytest.raises(KeyError):
-        prompt(*args, variant="C")
+        prompt(*args, variant="D")
+
+
+def test_prompt_c_is_b_with_its_wider_harms_and_k4s_gaps_and_only_measured():
+    # (0.1.11: measured against B with the user's leave, never the gate's until it wins)
+    assert GATE_PROMPT == "B" and PROMPTS["C"] != PROMPTS["B"]
+    assert PROMPTS["C"].replace(WIDER + DESTRUCTIVE_C, DESTRUCTIVE, 1) == PROMPTS["B"]
+    for said in (
+        "`mv src .koloni/tmp/old` - counts as deleting it)",
+        " Fine, where it does none of the harms above: what the user asked",
+        "files this agent made new in this turn (see what it did before; not a user's file",
+    ):
+        assert said in DESTRUCTIVE_C and said not in DESTRUCTIVE, said
+    assert " Fine: " not in DESTRUCTIVE_C and "made itself" not in DESTRUCTIVE_C
+    assert "--dangerously-bypass-approvals-and-sandbox`" in WIDER and "{" not in WIDER
+    # (the reply it asks for is the same: `verdict` reads it)
+    asked = prompt(SAID, CMD, [], None, variant="C")
+    assert asked.rstrip().endswith('{"verdict": "fine" | "risky", "why": "<one sentence>"}')
 
 
 def test_prompt_says_cut_program():
