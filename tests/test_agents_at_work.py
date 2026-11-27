@@ -51,7 +51,7 @@ def test_agents_at_work_names_the_turns_agents_and_quotes_their_last_words(
     assert head == "2 at work in this turn:"
     coder = next(row for row in rows if row.startswith("- Coder (Coder role): running since "))
     tester = next(row for row in rows if row.startswith("- Tester (Tester role): running since "))
-    assert " min), in the background; last said: " in coder
+    assert " min), in the background; waits for: unknown; last said: " in coder
     assert SECRET not in told and "***" in coder  # masked
     assert injection.NOTE in coder  # its words read like orders: marked as data
     assert coder.endswith('…"') and len(coder.split("last said: ", 1)[1]) < 400  # cut, quoted

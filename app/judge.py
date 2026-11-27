@@ -384,8 +384,9 @@ def verdict(
 ) -> dict | None:
     """The judge's word, from its JSON line (the first "{" to the last "}"); None for no JSON
     object. "run" and "refuse" hold only with a whole sentence of the user's (`source_of`) - a
-    run never on a line with a question, nor on one whose line or heading forbids or sets a
-    condition (`_forbids`), nor beside another that forbids its target (`set_against`, where
+    run never on a line of their preferences (they may only refuse), nor on one with a question,
+    nor on one whose line or heading forbids or sets a condition (`_forbids`), nor beside another
+    that forbids its target (`set_against`, where
     `names` reads one), nor for a command run in another folder (`where`) than its line names
     (`_elsewhere`); a refuse only on a sentence, no question and no heading (one that
     ends in ":" says nothing of what it forbids: the agent would be told no item), that says no
@@ -406,6 +407,9 @@ def verdict(
     unit = _plain(shown)
     holds = (
         word == "run"
+        # (the user's ruling, 28 Nov: a lasting preference never lets a command run - only their
+        # words of the chat, or the project's rules; it may still refuse one)
+        and source != "preferences"
         and not ("?" in context.partition("\n")[0] or _forbids(_plain(context)))
         and not (names and set_against(said, names))
         and not _elsewhere(context, where)
@@ -638,6 +642,23 @@ def asked_for(doing: Doing, said: dict[str, list[str]], known: set[str]) -> str:
     return shown if len(shown) <= QUOTE_CHARS else shown[: QUOTE_CHARS - 1] + "…"
 
 
+def plainly_asks(lines: list[tuple[str, bool, str]]) -> bool:
+    """Whether a message's prose (`_headed`'s lines, headings too) asks plainly: no question, says
+    no to nothing, says nothing the user does or will do (`_NOT_ASKED`), takes nothing back
+    (`_RETRACTS`) and sets no condition - K5's look at the whole message (`_decides`), and
+    suggest_preference's before it adds a sentence of the user's with no click
+    (`preference_words.adds_alone`)."""
+    said = " ".join(line for line, is_prose, _head in lines if is_prose)
+    prose = _plain(said)
+    return not (
+        "?" in said
+        or _says_no(prose)
+        or _NOT_ASKED.search(prose)
+        or _RETRACTS.search(prose)
+        or _conditional(prose)
+    )
+
+
 def _decides(doing: Doing, text: str, known: set[str]) -> tuple[bool, str] | None:
     """`asked_for` in one message: its last sentence that names `doing`'s action - (True, it as
     written) where it asks for it: in prose with no backtick, `ASKS`, naming no other branch or
@@ -646,15 +667,7 @@ def _decides(doing: Doing, text: str, known: set[str]) -> tuple[bool, str] | Non
     (`_RETRACTS`) and sets no condition; (True, "") where it does not - an older one is not read;
     None where none names it."""
     lines = list(_headed(text))
-    said = " ".join(line for line, is_prose, _head in lines if is_prose)
-    prose = _plain(said)
-    whole = not (
-        "?" in said
-        or _says_no(prose)
-        or _NOT_ASKED.search(prose)
-        or _RETRACTS.search(prose)
-        or _conditional(prose)
-    )
+    whole = plainly_asks(lines)
     for line, is_prose, _head in reversed(lines):
         ones = SENTENCE.split(LIST_MARK.sub("", line.strip())) if is_prose else [line]
         for one in reversed(ones):

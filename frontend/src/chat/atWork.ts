@@ -66,3 +66,49 @@ export const sinceOf = (agent: Agent) =>
     minute: '2-digit',
     hour12: false,
   })
+
+/** An agent's words in what is said of its wait: on one line, cut, in quotes. */
+const waitWords = (text: string) => {
+  const line = text.split(/\s+/).join(' ').trim()
+  return `“${line.length <= 80 ? line : `${line.slice(0, 79)}…`}”`
+}
+
+/**
+ * explain_wait (28 Nov): what an agent at work waits for, read only from the records the chat holds - as agents_at_work
+ * says it (`app/waits.py`): its card for you, its question, its command running, another agent, a place. Null where the
+ * records say nothing: never a reason made up.
+ */
+export function waitsFor(conv: ConvState, agent: Agent): string | null {
+  const commands = conv.commands.filter(one => one.agent_id === agent.id)
+  const asked = commands.find(one => one.status === 'proposed')
+  if (asked) return `your yes on its command ${waitWords(asked.command)}`
+  const change = conv.fileChanges.find(one => one.agent_id === agent.id && one.status === 'proposed')
+  if (change) return `your yes on its change to ${waitWords(change.path)}`
+  const question = conv.questions.findLast(one => one.agent_id === agent.id && one.status === 'pending')
+  if (question)
+    return question.leave
+      ? `an answer on a card of KOLONİ’s: ${waitWords(question.question)}`
+      : `an answer to its question ${waitWords(question.question)}`
+  const running = commands.find(one => one.status === 'running')
+  if (running) {
+    const since = running.started_at ? ` since ${sinceOf({ ...agent, started_at: running.started_at })}` : ''
+    return `its command ${waitWords(running.command)}, running${since}`
+  }
+  return waitsOther(conv, agent)
+}
+
+/** `waitsFor`'s part with no record of its own calls: another agent, or a place. */
+function waitsOther(conv: ConvState, agent: Agent): string | null {
+  if (agent.waiting_for?.agent_name)
+    return `${agent.waiting_for.agent_name}, which holds ${waitWords(agent.waiting_for.path)}`
+  if (agent.status === 'queued')
+    return agent.queued_on
+      ? `a place at ${agent.queued_on.provider} (${agent.queued_on.at_work} of ${agent.queued_on.most} at work there)`
+      : 'a place among the turn’s agents at work'
+  if (agent.status === 'proposed') return 'your yes to open it'
+  if (agent.status === 'waiting') {
+    const own = conv.agents.filter(one => one.parent_agent_id === agent.id && WORKING.has(one.status))
+    if (own.length) return `its own agents at work: ${own.map(one => one.name).join(', ')}`
+  }
+  return null
+}

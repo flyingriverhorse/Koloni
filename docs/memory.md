@@ -184,6 +184,31 @@ is kept as a fact, shown as "said by you at a card, asking for changes".
 
 **Preferences and rules are yours alone.** No agent writes them.
 
+**The Orchestrator keeps what you say about how you work.** When you say how you want work done from
+now on - a rule, not a request for this one task ("from now on don't ask me for X", "write commits in
+Turkish", "never push without asking") - the Orchestrator can keep it for Your preferences. It is made
+only from your own words: the Orchestrator quotes your sentence of that turn, and KOLONİ checks the quote
+is in a sentence of your own prose - never a fenced, `>`-quoted, indented or backticked line (what you
+pasted: an agent's report, a file), an agent's words or a tool's. What then is your setting, **New
+preferences from your words** (Settings › The app › Agents):
+
+- **Add them, tell me** (the default): your own sentence - never the model's wording, which could turn it
+  around - goes into Your preferences at once, and the chat says so: "Added to your preferences: "…"" with
+  **Undo**, which takes exactly that line out again (and never an edit of yours made meanwhile). Only a plain
+  rule is added so: a sentence in a message that asks nothing, says no to nothing, sets no condition and
+  takes nothing back, that opens with no quotation mark and is under no heading ("The bot said:"), names no
+  push, pull request or merge (those are your word each time) and reads as no request for this work
+  ("please …", "now", a file's name). Anything else waits on the card below, your own sentence on it.
+- **Ask me first**: a card in the chat, **Suggested by the Orchestrator**, shows "The Orchestrator
+  suggests, from your words "…":" and "Add this to your preferences: "…"?" with **Add** and **Not now**.
+  **Add** keeps the line as shown; **Not now** writes nothing. The Memory page and Ready for you show the
+  same suggestion.
+
+Either way it is masked and cut at 300 characters, one that reads like orders to an agent is refused, a
+line you have or that waits already is not kept twice, and at most 3 are kept in a turn. A sub-agent
+cannot do it. Your words it came from are kept with it. A line of Your preferences never lets Full auto run
+a command without its card - it can only stop one ([Check what I said first](use/permissions.md#check-what-i-said-first)).
+
 **Automatic notes** are off by default. Switch them on under Settings › This project › Memory and web ›
 **Note what the work found, by itself**. After each message's work, a fast model writes at most
 three notes of what it found. That is one more model request after every message, on your plan or

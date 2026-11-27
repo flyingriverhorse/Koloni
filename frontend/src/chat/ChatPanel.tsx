@@ -37,6 +37,7 @@ import { Earlier } from './Earlier'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { ChatStoryStrip } from './StoryStrip'
 import { AtWorkLine } from './AtWorkLine'
+import { PreferenceAsk } from './PreferenceAsk'
 import { DecidedLine } from './DecidedLine'
 import { toFront } from '../shell/move'
 import { testsRun } from '../shell/sections/afterChangeWords'
@@ -600,6 +601,8 @@ export function ChatPanel() {
       </div>
       {/* The Orchestrator's question, just over the message box (0.1.5). */}
       <AskCard conv={conv} open={open} tab={tab} onAnswer={app.answerQuestion} />
+      {/* suggest_preference: a line for your preferences from your own words, yours to Add. */}
+      <PreferenceAsk conv={conv} open={open} />
       {/* 0.1.8: the chat's To-do queue, over the box: what waits, and that your message goes first. */}
       <ChatTodoQueue conv={conv} open={open} />
       {/* Open, under the chat; closed, the small box's one line - the same box, the same draft. */}

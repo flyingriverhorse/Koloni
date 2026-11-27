@@ -833,8 +833,11 @@ messages in the chat - never anything an agent wrote - and then:
 
 - A whole line of yours that names the command and what it touches ("You may delete build/ and
   dist/."), and forbids nothing and sets no condition: the command runs without a card. Its row says
-  "Ran without asking · your rule: …" with where the line is (Your preferences, This project's rules
-  or your message).
+  "Ran without asking · your rule: …" with where the line is (This project's rules or your message).
+  A line of Your preferences never lets a command run (your ruling, 28 Nov: what lasts in every project
+  unlocks nothing) - the command waits on its card -, though it may still stop one. Of your messages,
+  only this turn's - the one that started it and those you sent into it - run a push, a pull request or a
+  merge; an earlier turn's never does, though it may still stop one.
 - A whole sentence of yours that forbids it ("Never push to main."): it is not run and opens no card.
   The agent is told that sentence (for a sentence in a message of yours, only that one of yours
   forbids it - the sentence stays with you), and not to run it or anything that does the same again,
