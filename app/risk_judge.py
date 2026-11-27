@@ -14,6 +14,7 @@ from typing import TypeGuard
 from app import injection, judge
 from app.commands import (
     _SCRATCH,
+    _as_read,
     _asked_anyway,
     _in_a_shell,
     _offer,
@@ -284,7 +285,7 @@ def judges(command: str) -> bool:
     return (
         bool(said)
         and all(map(_JUDGES.match, said))
-        and not _SCRATCH.search(command)
+        and not _SCRATCH.search(_as_read(command))  # (as the shell joins it: `t""mp`)
         and not any(_asked_anyway(line, False, judged=True) for line in lines)
     )
 

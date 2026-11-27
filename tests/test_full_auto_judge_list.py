@@ -91,6 +91,9 @@ def test_the_judge_decides_a_delete_a_throw_away_and_a_stop_in_the_folder(line):
         "git clean -fdx",  # (the ignored files too: .env, .koloni)
         "rm -rf .koloni",  # (KOLONİ's own)
         "rm -rf .koloni/tmp/x",
+        'rm -rf .koloni/t""mp/x',  # (as the shell joins it: the scratch's disk is the list's)
+        "rm -rf .koloni/t'm'p/x",
+        'rm -rf .ko""loni/tmp/x',
         "git worktree remove .koloni/worktrees/x",
         "rm -rf build && cat .env",  # (a secret)
         "rm .env.local",
@@ -197,10 +200,12 @@ def test_a_run_on_its_card_keeps_nothing_and_its_risky_stands_for_the_turn(
     assert len(judge.calls) == 1 and len(executor.started) == 1
 
 
-def test_a_refused_delete_is_refused_again_in_the_turn_unasked(judging, wait_run, project_dir):
-    # (an agent does not get a fresh verdict by trying the same line again)
+@pytest.mark.parametrize("line", MOVED)
+def test_a_refused_one_is_refused_again_in_the_turn_unasked(judging, wait_run, project_dir, line):
+    # (an agent does not get a fresh verdict by trying the same line again - git's, a stop's and a
+    # shell's line too, which keep no Run: the review of K3)
     client, lead, judge, executor = judging(
-        [cmd("rm -rf src", id="k1"), cmd("rm -rf src", id="k2"), text("left it")],
+        [cmd(line, id="k1"), cmd(line, id="k2"), text("left it")],
         [said("risky", "Not asked for.")],
         [],
     )

@@ -702,7 +702,13 @@ class RiskJudgeMixin:
         one = is_plain(command) and not is_wrapped(command)
         hashed = bool(digest) and exact and one
         kept = known and (hashed or _no_local_code(root, command, cwd or "."))
-        key = (command.strip(), cwd or "", digest if hashed else "", str(root)) if kept else None
+        # (K3: a moved line's "risky" is kept for the turn by its words alone - a refusal kept
+        # loosens nothing -, its "fine" never: `_risk_asked`)
+        key = (
+            (command.strip(), cwd or "", digest if hashed else "", str(root))
+            if kept or takes
+            else None
+        )
         if (
             key
             and not takes
