@@ -156,7 +156,7 @@ def test_a_command_is_told_which_secret_variables_were_held_back(
     held = said.splitlines()[-1]
     assert held.startswith("(secret variables held back from this command: ")
     assert "SHIELD_TEST_TOKEN" in held and held.endswith(
-        " - the user can pass one in Settings › This project › Commands and secrets)"
+        " - the user can pass one in Settings › This project › When you're asked, under More)"
     )
     assert "a-value-never-said" not in said
 

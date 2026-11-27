@@ -20,6 +20,26 @@ Only what needs your attention after an update; everything else is in the [Chang
 
 ### 0.1.10
 
+0.1.10 makes KOLONİ smaller: Board, triggers, the Observer, the Office and 3D previews, rooms, the
+notification address (Slack, Discord), the search by meaning, Usage's Cards and Codex's One run per model
+step are gone, and eight of the eleven ready teams. At its first start the database is upgraded by eight
+migrations, 0189 to 0196, after KOLONİ copies it to `runtime/data/backups/`. **Copy
+`runtime/data/koloni.db` yourself before you update too** (with KOLONİ stopped): what these migrations
+delete - your triggers, the Observer's role and its observations, the notification address, the search by
+meaning's vectors, the eight ready teams - comes back only with such a copy, put back in place of
+`runtime/data/koloni.db` under 0.1.9.
+
+| Migration | What it does to your data (each is told below) |
+|---|---|
+| 0189 | Triggers are gone: your triggers and their records are deleted. |
+| 0190 | The Observer is gone: its role, its switch and the observations on agents are deleted. |
+| 0191 | The notification address is gone: deleted. |
+| 0192 | The search by meaning is gone: its vectors and the model chosen for it are deleted. |
+| 0193 | Rooms are gone: `open_room` is taken off every role, a recipe's Room step becomes an **All at once** group. |
+| 0194 | Three ready teams: the other eight go where they are as they came. |
+| 0195 | Feature, Model change and Pipeline change run fewer agents, where they are as KOLONİ made them. |
+| 0196 | Project notes are Memory's: their lines are copied into Memory; a To-do task of no story gets a notebook. |
+
 - **New worktrees and copies go into your project's `.koloni/`.** A branch's worktree (a ☾ Away job's,
   a team's on a branch) is made in `.koloni/worktrees/`, and in a project with no git a sub-agent's copy
   in `.koloni/copies/`; in a project in git copies stay outside it, as before. The first worktree adds
@@ -29,12 +49,30 @@ Only what needs your attention after an update; everything else is in the [Chang
   in the database changes.
 - **`KOLONI_TRIGGER_CLOCK` is now `KOLONI_CLOCK`.** A `.env` that sets the old name keeps working for
   one more release; rename it to `KOLONI_CLOCK` (see [Environment variables](environment.md)).
+- **Settings' sections have new names.** This project's eleven sections are seven, by job: **How agents
+  work** (what was Agents, New chats start with and Slash commands), **When you're asked** (Asking and away,
+  Runs without asking - its rules behind **Show the rules** - and Commands and secrets), **When the work is
+  done** (Checks and git), then Limits and money, Memory and web, Notifications and This folder as they were.
+  No setting is gone: the ones few change, Docker and the secret variables among them, are under a
+  section's **More**. Ctrl+K and the links still find a section by its old name. Nothing in the database
+  changes (see [Settings](../settings.md#this-project)).
+- **Full auto's judge with no model to ask makes cards.** At **Full auto**, where no **Judge model** can be
+  asked and the Fast tier has none, each command the judge would look at now waits for you on a card - it
+  ran unasked before. Fill the Fast tier on the Models page, or turn the judge off for the project to have
+  Full auto as it was before the judge (see [Full auto's judge](../use/permissions.md#full-autos-judge)).
+- **At Full auto the judge decides a plain delete in the project.** In a chat you watch at **Full auto**
+  with the judge on, a delete or an emptying in the project, git work thrown away and a stop by name,
+  written as a plain line, go to the judge instead of a card: **fine** runs, **risky** is refused (or its
+  card, with **Ask me**). Whatever reaches out of the project, a line that is not plain, and every level
+  below Full auto keep their cards; a git remote's branches overwritten or deleted (`git push --force`)
+  wait on a card at every level, whatever your words say (see
+  [What the judge decides in place of the list](../use/permissions.md#what-the-judge-decides-in-place-of-the-list)).
 - **Native is experimental.** Claude Code, Codex and Copilot offer **Native** under **Experimental**
   in **How it runs** only with **Show experimental features** on (Settings › The app › Agents; the switch
   that was **Show experimental CLIs**, kept as you had it). A provider you already run Native keeps working
   as before, its card tagged **Experimental**. Nothing in the database changes.
-- **Pages and A test for the change are off unless ticked.** In Settings › This project › Checks
-  and git › **Check by kind of work**, a project that never changed **Pages** has it off from now
+- **Pages and A test for the change are off unless ticked.** In Settings › This project › When the
+  work is done › **More** › **Check by kind of work**, a project that never changed **Pages** has it off from now
   on, and **A test for the change** is a new box, off. A turn that wrote a page says "Not checked:
   pages switched off for this project", and one that changed code and no test says "Not checked: a
   test for the change switched off for this project". Tick them to have them as before (see
@@ -102,18 +140,27 @@ Only what needs your attention after an update; everything else is in the [Chang
   started stay in their chats as they were. What still starts by itself: ☾ Away's jobs, a chat's queue of
   To-do tasks and the day's summary. To go back to 0.1.9, stop KOLONİ, return to 0.1.9 and put that
   copy back in place of `runtime/data/koloni.db`; your triggers come back with it.
+- **Three ready recipes run fewer agents.** The database upgrade (migration 0195) redraws **Feature**,
+  **Model change** and **Pipeline change** where they are still as KOLONİ made them, without their Tester
+  and general Reviewer steps: KOLONİ's own Checks step at a recipe's end already runs the tests and has a
+  big or security-touching change reviewed. Feature is Write the spec → Build it → UI review; Model change
+  keeps its plan, its experts' review, the build and Compare the metrics; Pipeline change is Change the
+  pipeline → Check the data quality. The three check their tests and a review themselves, even in a project
+  at **Nothing**. Your copies keep their steps: copy one again and add a step to have a Tester or a Reviewer
+  of the recipe's own (see the [Recipe cookbook](../agents/recipe-cookbook.md)). Going back to 0.1.9 draws
+  them as before.
 - **Codex's One run per model step is gone.** A Codex provider saved so runs as **One session per agent**,
   and its window shows that. On a model server of your own a Codex session is not yet measured: try it
   there knowing that, or set **How it runs** to **Native**. See
   [Set up a CLI](../models/setup-cli.md#how-it-runs).
-- **The notification address is gone.** The database upgrade deletes a project's web hook address and
+- **The notification address is gone.** The database upgrade (migration 0191) deletes a project's web hook address and
   the form it was posted in: notifications go to the desktop alone (Settings › This project ›
   Notifications › **Show a desktop notification**, Windows only). A project whose day's summary went
   only to the address has its summary's time emptied: switch the desktop on and set the time again.
   Going back to 0.1.9 brings neither back. The copies in `runtime/data/backups/` made before the
   upgrade and at the first start of a day still hold the address: delete them once you no longer
   need them if it is a secret.
-- **The search by meaning is gone.** The database upgrade deletes the vectors it kept and the provider
+- **The search by meaning is gone.** The database upgrade (migration 0192) deletes the vectors it kept and the provider
   and model a project chose for it. Search deeper and an agent's recall match words, as before. Going
   back to 0.1.9 brings the setting back off.
 - **Rooms are gone.** At the first start the database is upgraded (migration 0193), after KOLONİ copies
@@ -174,7 +221,7 @@ Only what needs your attention after an update; everything else is in the [Chang
 - **Kept working copies** are now listed in Settings › The app › [Your data](../settings.md#your-data). A
   trigger over its budget kept one at each run: discard what you no longer need.
 - **Longest command**: every project keeps 10 minutes. Raise it in Settings › This project ›
-  [Commands and secrets](../settings.md#commands-and-secrets) where your tests or a build take longer.
+  [When you're asked › More](../settings.md#commands-and-secrets) (Commands and secrets before 0.1.10) where your tests or a build take longer.
 - **Qoder** is no longer run. A Qoder provider is kept, switched off for good, with its settings; its card
   says "no longer supported". If Qoder was your default provider (the first on the Models page), make
   another provider the default or delete Qoder: until then the chats, triggers and To-do turns that run on
@@ -187,7 +234,8 @@ Only what needs your attention after an update; everything else is in the [Chang
 ### 0.1.5
 
 - **When you're away**: a new project lets the Orchestrator decide a waiting card after 5 minutes. A
-  project from before keeps what it had: turn it on under Settings › This project › Asking and away.
+  project from before keeps what it had: turn it on under Settings › This project › When you're asked
+  (Asking and away before 0.1.10).
   See [Answering for you](../automation/answering-for-you.md).
 - **A harmful-looking command at Full auto** stays **Ask me**, and **Agents may delete what is
   disposable without asking** stays off, in every project, until you turn them on there. See

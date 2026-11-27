@@ -124,28 +124,24 @@ everywhere. **Add command** saves a new one; **Edit** and **Delete** change the 
 
 ### When you're asked
 
-Its sentence says what Full auto's judge does now, who answers a card that waits, and when a sub-agent asks. Under
-**Commands**: Full auto's judge, then **Runs without asking**; under **While you're away**: when you're away and
-opening a sub-agent; under **More**: disposable deletes and Commands and secrets.
+Its sentence says what Full auto's judge does now, who answers a card that waits, and when a sub-agent asks - and,
+"Under More: …", what is set under its **More**. Its parts are **Commands**, **While you're away** and **More**.
 
-#### Asking and away
+#### Commands { #asking-and-away }
 
-![Settings, This project: the sections on the left, and When you're asked on the right - its sentence, then under Commands Full auto's judge with When the judge finds a command risky and its box for your words under it (after its measurement), Runs without asking with Show the rules, and under While you're away When you're away](images/settings-project.png)
+![Settings, This project: the sections on the left, and When you're asked on the right - its sentence, then under Commands Full auto's judge with When the judge finds a command risky and its box for your words under it (after its measurement), Runs without asking with Show the rules, and under While you're away When you're away and Opening a sub-agent](images/settings-project.png)
 
 *Settings › This project, at **When you're asked**.*
 
 | Setting | What it does |
 |---|---|
-| **Opening a sub-agent** | **Ask when it matters**, **Always ask** or **Never ask**. With Never ask, sub-agents open on their own in every chat of this project. |
-| **When you're away** | **Everything waits for you**, or **The Orchestrator answers what it safely can**, after a number of minutes (0 to 1440; a new project: the second, after 5 minutes). With the second, once you haven't answered for that long - at once while you're away (☾ Away on a chat's line) - the Orchestrator picks, says why, and you see it under "Decided for you". It opens a sub-agent on its role's own model unless that model is at its limit, out of credit, or over this month's budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait. An Orchestrator on a CLI uses one request of your plan for each answer. |
 | **Full auto's judge** | On by default, in new projects and in the ones you had. At **Full auto** - in a chat you watch, a To-do task done in a chat, and a job while you're away - a command the list does not stop is first sent to a small model, your **Judge model** (The app › Agents) - since 0.1.10, in a chat you watch, a delete in the project, git work thrown away and a stop by name too, written as a plain line, which the list asked of before ([which](use/permissions.md#what-the-judge-decides-in-place-of-the-list)): one it finds risky is refused and the agent goes on, or waits for you on a card - as **When the judge finds a command risky** below says -, and a job while you're away parks it for you and goes on. Reads, ordinary work (tests, compilers and checkers, local git), and your own test command (unless it runs a program an agent wrote) are not asked about; it never lets a command run that asks - one it gave no answer for, or may not ask about now (no room on its model's provider, the turn past its token limit - said once in the chat), waits for you on a card at either choice, and so does each where there is no model to ask, said once in the chat. Its card's **Don't ask about this line again here** keeps the line in this project, offered only where the judge itself looked at it and KOLONİ knows all the line runs: a project file it runs in a plain form (`python x.py`, `make`, `npm run x`, `docker build .`), or one plain `curl`, `wget` or file command (`cp`, `mv`, `rm`, `mkdir`…); any other line - `git` too - is asked about each time. One request of your Judge model for each such command. The same switch is in the level menu, under the levels. Off: Full auto as before. See [Full auto's judge](use/permissions.md#full-autos-judge). |
 | **When the judge finds a command risky** | Under **Full auto's judge**, and only while it is on: **Refuse and go on** (the default, in new projects and in the ones you had) or **Ask me**. Refuse and go on works as Claude Code's auto mode: the command does not run and no card opens - its agent is told a general reason ("KOLONİ's judge refused this as risky (it may send data off this machine, …). Do it another way, or ask the user.") - never the judge's sentence, which may quote your messages - and goes on; you see the sentence: the command's row says **refused** with **KOLONİ's judge refused: …** under it, and Decided for you lists it until you press OK. After 3 refusals in a row (a command that runs ends a row) or 20 in a turn, by any of its agents, each risky one waits on its card for the rest of the turn (said once in the chat). Ask me puts it on a card, "KOLONİ's judge: …", as before 0.1.9's change. Only the judge's own "risky" is refused: a card the list opens (a push, a secret, a delete out of the project…), and one the judge gave no verdict for (no answer in time, none it could read, no room to ask, a command too long or with orders in it), stays a card either way - and a job while you're away always parks it for you. The **Don't ask about this line again here** box is on Ask me's card only. See [Full auto's judge](use/permissions.md#full-autos-judge). |
 | **It also lets a delete or a push run when a line you saved names it** | Under **Full auto's judge**: [Check what I said first](use/permissions.md#check-what-i-said-first), a question of the judge's since 0.1.9 - it replaces the row **A harmful-looking command at Full auto**. It works only once your Judge model's measurement has passed - none has yet (Claude Code's **haiku**, measured on 25 Nov 2026, did not): the box says **(after its measurement)** and cannot be ticked - or in a project where you had turned Check what I said first on: its box comes ticked there, and you may untick it. With the box unticked, a push or a send waits for you on a card at Full auto - one that quotes you, one click, where the message that started the turn asked for a push, a pull request or a merge ([how](use/permissions.md#a-push-a-pull-request-or-a-merge-you-asked-for)) -, and a delete in the project goes to Full auto's judge where it runs (with the judge off, its card). A force push or a branch deleted on the remote waits on a card at every level, whatever you said. Where it works, your **Judge model** (The app › Agents) first reads your preferences, this project's rules as saved on the Memory page and your own messages in this chat (while you're away, in the chat you went away from) - not the folder's `.koloni/rules.md`, nor anything an agent wrote - and the command runs without a card only when a whole line of yours names it and what it touches ("You may delete build/ and dist/.") - one that forbids nothing and sets no condition. A command a whole sentence of yours forbids ("Never push to main.") is not run and opens no card: the agent is told your sentence (of a message of yours in the chat, only that one of yours forbids it - the sentence itself stays with you), and not to run it again or anything that does the same, and carries on with the rest of its task. A sentence that sets a condition or asks to be asked ("unless", "ask me before") keeps the card, and so does a line that forbids the same delete beside one that allows it ("Never delete ./x." and "You may delete ./x."). Either way the command says which sentence it rested on, and waits under "Decided for you" until you press OK. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat, and the rest of that turn asks you on a card. Secret files, `.koloni`, files that steer later turns, paths outside the folder, a delete or a send of the whole folder, a force push, and a CLI's command whose folder is not known are always asked, and anything that goes wrong - no model to ask, over the budget, a slow or unreadable answer - opens the card as before. Each such command is one request of your Judge model (on a CLI, of your plan). |
-| **Agents may delete what is disposable without asking** | Off by default. At **Auto-edit files** and **Full auto**, in a chat you started, a delete KOLONİ checks is disposable runs without a card: a build or cache folder (`build`, `dist`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `coverage`, `.next`, `.turbo`, `target`) below where the command runs, spelt as it is on disk, that git ignores, holding no file git tracks or does not ignore, no link and no repository of its own; a worktree of yours that git lists, not locked and not one of KOLONİ's, holding nothing its commits do not, no link, no secret file and nothing else git ignores; a local branch that neither the project, the turn nor any worktree stands on (with `-D`, only one whose commits the default branch has). Only such a delete alone on its line, in its shell's own form (in PowerShell, KOLONİ's own commands on Windows: `Remove-Item -Recurse dist` or `rm -r build`, never `rm -rf`; in sh, on Linux, macOS, Docker and Claude Code's Bash tool: `rm -rf build`; git's `git worktree remove ../wt/x` and `git branch -d old` in any), never a forced worktree remove; a folder's delete by Codex or agy, whose shell is not said, keeps its card; worktrees and branches only by the Orchestrator in the project. Its row says "Ran without asking · disposable: …", or, where it then failed, "… and failed: exit 1". At **Ask before changes** it still asks. The card of such a delete offers **Allow such deletes in this project**, which turns this on. See [Disposable deletes](use/permissions.md#disposable-deletes). |
 
 #### Runs without asking
 
-A row of its own under **Commands**, saying how many rules there are ("2 rules"), with **Show the rules**: each is
+The last row under **Commands**, saying how many rules there are ("2 rules"), with **Show the rules**: each is
 removed there at once, not by Save.
 
 - **Sites agents open**: the agents' own browsers open these in every chat of this project without
@@ -155,12 +151,21 @@ removed there at once, not by Save.
 
 See [Permission levels](use/permissions.md) for what a rule can and cannot cover.
 
-#### Commands and secrets
-
-Under **More**, after **Agents may delete what is disposable without asking**; heading: "Run commands on".
+#### While you're away
 
 | Setting | What it does |
 |---|---|
+| **When you're away** | **Everything waits for you**, or **The Orchestrator answers what it safely can**, after a number of minutes (0 to 1440; a new project: the second, after 5 minutes). With the second, once you haven't answered for that long - at once while you're away (☾ Away on a chat's line) - the Orchestrator picks, says why, and you see it under "Decided for you". It opens a sub-agent on its role's own model unless that model is at its limit, out of credit, or over this month's budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait. An Orchestrator on a CLI uses one request of your plan for each answer. |
+| **Opening a sub-agent** | **Ask when it matters**, **Always ask** or **Never ask**. With Never ask, sub-agents open on their own in every chat of this project. |
+
+#### More { #commands-and-secrets }
+
+Under **More**, closed until you open it: disposable deletes first, then, under the heading "Run commands on",
+where commands run and what they may see (until 0.1.10 the section Commands and secrets).
+
+| Setting | What it does |
+|---|---|
+| **Agents may delete what is disposable without asking** | Off by default. At **Auto-edit files** and **Full auto**, in a chat you started, a delete KOLONİ checks is disposable runs without a card: a build or cache folder (`build`, `dist`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `coverage`, `.next`, `.turbo`, `target`) below where the command runs, spelt as it is on disk, that git ignores, holding no file git tracks or does not ignore, no link and no repository of its own; a worktree of yours that git lists, not locked and not one of KOLONİ's, holding nothing its commits do not, no link, no secret file and nothing else git ignores; a local branch that neither the project, the turn nor any worktree stands on (with `-D`, only one whose commits the default branch has). Only such a delete alone on its line, in its shell's own form (in PowerShell, KOLONİ's own commands on Windows: `Remove-Item -Recurse dist` or `rm -r build`, never `rm -rf`; in sh, on Linux, macOS, Docker and Claude Code's Bash tool: `rm -rf build`; git's `git worktree remove ../wt/x` and `git branch -d old` in any), never a forced worktree remove; a folder's delete by Codex or agy, whose shell is not said, keeps its card; worktrees and branches only by the Orchestrator in the project. Its row says "Ran without asking · disposable: …", or, where it then failed, "… and failed: exit 1". At **Ask before changes** it still asks. The card of such a delete offers **Allow such deletes in this project**, which turns this on. See [Disposable deletes](use/permissions.md#disposable-deletes). |
 | **This machine** | Commands use the project's own tools as they are. They are not isolated. The page also says which shell commands run in. |
 | **Docker container** | A fresh container for each command, with this folder mounted. Only the folder is kept. Needs Docker running. Then: **Image** (for example `python:3.12`, never pulled for you) and **Allow network access**. On Linux and macOS a command runs as your user, not as root, so the files it makes are yours, except under rootless Docker. |
 | **Longest command (minutes)** | 10 by default, at most 60: the most an agent's command may ask for (one still stops after 2 minutes unless it asks for more), and how long KOLONİ's own test runs are given (the whole suite after a change, a job's tests while you're away). Raise it for a test suite or build that takes longer. A command that keeps running (a dev server) has no limit. A CLI working with its own tools (**Native**) runs its own commands under its own limits, and Codex run Native still ends its turn when one of its own commands runs past 11 minutes. |
@@ -174,11 +179,11 @@ Its sentence says what runs after a change, how far failing work goes back, and 
 **Check by kind of work**, **Found by KOLONİ** and **Measure command** are under **More**; what runs before a
 sub-agent's work is added is said in sight.
 
-#### Checks and git
+#### After a turn that changed code { #checks-and-git }
 
 ![Settings, This project, When the work is done: its sentence, After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, and Then a stronger model](images/settings-checks.png)
 
-Heading: "After a turn that changed code".
+**Check by kind of work** and **Found by KOLONİ** are its rows under **More**.
 
 | Setting | What it does |
 |---|---|
@@ -188,18 +193,18 @@ Heading: "After a turn that changed code".
 | **Check by kind of work** | **Documents** · **Slides** · **Diagrams** · **Data** · **Pages** · **Config** · **Scripts** · **Code style and types** · **A test for the change**; all on but **Pages** and **A test for the change**, which are off unless you tick them (since 0.1.10). Under **Test and review**, after a turn that wrote such files, KOLONİ checks them without a model - links and headings, whether a diagram parses and is connected, CSV rows and notebook cells, empty slides, JSON, YAML and TOML files that parse (a `package.json`, `pyproject.toml`, GitHub workflow or Compose file in its expected shape), shell and PowerShell scripts that parse (read by their own shell, never run), the project's own ruff, eslint, tsc and mypy where it has them (each asks before it runs unasked, a yes for that line); with **Pages**, a changed page (or the running preview, for a component) in its own browser at 375, 768 and 1280 px, for console errors, sideways scrolling and accessibility - and a sure problem goes back as a fix round. **A test for the change** asks the Orchestrator once for a test where code changed and no test did, under **Tests only** too. Untick a kind to leave it unchecked; the answer then says "Not checked: slides switched off for this project". See [Checked](use/checked.md#documents-diagrams-data-and-slides), [Pages](use/checked.md#pages) and [A test for the change](use/checked.md#a-test-for-the-change). |
 | **Found by KOLONİ** | Shown only where KOLONİ saved a test command itself: each, by folder, with where it came from (the project's files, an agent's run, or its look at the code) and when. **Forget it** clears them, found again at the next change. Yours (a part's test command) always wins. See [Checked](use/checked.md#saved-by-koloni). |
 
-Heading: "When a sub-agent's work is added".
+#### When a sub-agent's work is added
 
 Before a sub-agent's work is added, the tests it wrote or changed run in its working copy - only those, each part's test command from the [project map](use/checked.md#which-tests) narrowed to them (`python -m pytest -q tests/test_new.py`). None written: no test before adding, and its card says so; KOLONİ's check at the turn's end still runs every test. There is no command to fill in for it (0.1.7: **Test before adding** is gone).
 
-Heading: "How the work reaches git".
+#### How the work reaches git
 
 | Setting | What it does |
 |---|---|
 | **Save each sub-agent's work as a git commit** | One commit per piece of work, offered on the card once the changes are in, and only where this folder is the top of a git repository. It is always your click, never made by itself, and nothing is pushed. |
 | **How a team's finished branch reaches yours** | **Merge here** or **Open a pull request**. If you have not chosen, the first finished branch on a GitHub project asks. |
 
-Under **More**, with **Check by kind of work** and **Found by KOLONİ** above:
+Under **More**, with **Check by kind of work** and **Found by KOLONİ**:
 
 | Setting | What it does |
 |---|---|

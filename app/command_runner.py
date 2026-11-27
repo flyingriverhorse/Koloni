@@ -561,7 +561,7 @@ def _bare_name_hint(output: str, folder: Path) -> str:
 
 HELD_BACK = (
     "(secret variables held back from this command: {names} - the user can pass one "
-    "in Settings › This project › Commands and secrets)"
+    "in Settings › This project › When you're asked, under More)"
 )
 
 

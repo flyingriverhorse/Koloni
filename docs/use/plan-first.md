@@ -11,7 +11,7 @@ can only list, read and search files, look at images, ask you questions, read no
 any permission level.
 
 When **Who changes the files** is **Orchestrator delegates the work** (Settings › This project ›
-Agents), the plan is asked to say that the Orchestrator changes no files in the work turn, and to name
+How agents work), the plan is asked to say that the Orchestrator changes no files in the work turn, and to name
 the sub-agent or role that makes each change.
 
 ## The plan card

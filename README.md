@@ -22,7 +22,7 @@
 </p>
 
 KOLONİ runs Claude Code, Codex, GitHub Copilot CLI and agy, plus a local llama.cpp server or
-any OpenAI-compatible API, side by side in one chat with a canvas. A lead hands parts of the job to
+any OpenAI-compatible API, side by side in one chat with a canvas. The Orchestrator hands parts of the job to
 roles; each sub-agent works in its own copy of your project; what it changed comes back on a card
 with the diff and your tests, and you take it in or discard it. Stop never loses half-done work.
 Secrets go only into the command that needs them.
@@ -40,7 +40,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/ready-morning.png" alt="Ready for you the morning after a night while you were away: the night&#39;s report with a row per job, what waits for your word, and To-do&#39;s cards on the right"><br><sub><b>The morning.</b> ☾ Away works your To-do through while you are away; Ready for you says what was done, what waits for your word, and your To-do beside it.</sub></td>
-<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: what the month cost in a sentence, its budget as ten cells, the last 30 days in a strip, and the table by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
+<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: what the month cost in a sentence, its budget as ten cells, the last 30 days in a strip, and the table by provider and model"><br><sub><b>Usage.</b> What the month cost and how much of its budget is used, day by day; tokens, AI credits and plan windows as the CLIs reported them; nothing invented.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
@@ -66,8 +66,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 
 ## What is in the box
 
-- **Agents and teams**: roles, teams with stages (Plan → Build → Check → Write & keep up), recipes
-  (draw, copy, or describe in a sentence), discussions, Compare (one message to two
+- **Agents and teams**: roles, teams with stages (Plan → Build → Check → Write & keep up) - three ready
+  ones, Web app, Quality and Docs, and the Orchestrator opens any built-in role the work needs beside
+  them -, recipes (draw, copy, or describe in a sentence), discussions, Compare (one message to two
   models, each in its own copy). [Roles](docs/agents/roles.md) · [Teams](docs/agents/teams.md) · [Recipes](docs/agents/recipes.md)
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
@@ -89,6 +90,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve - one Memory page, with what the project knows and its sources, and one tool,
   Recall, that looks in both. [Memory](docs/memory.md) · [Sources](docs/knowledge.md)
+- **Ready for you**: one page - what was done (the last ☾ Away's report), one list of what waits for
+  your word and what was decided for you, and your To-do beside them; the Chats, Memory, Tools, Usage and
+  Settings pages say how each thing stands in the same honeycomb cells. [Ready for you](docs/use/ready.md)
 - **Work over time**: a To-do list of stories and their tasks and bugs - a rough note written
   as one by the Hive keeper - ticked tasks done in a chat one by one, at its level and on its model
   (each story, and each task of no story, with a short notebook its turns go on from; each story in a
@@ -98,8 +102,10 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   on a branch of its own, its push waiting for your Run - until you are back, then one summary of what
   is done, decided and waiting.
   [To-do](docs/automation/todo.md) · [☾ Away](docs/automation/overnight.md)
-- **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
-  merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
+- **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too), its
+  worktree in your project's `.koloni/worktrees/`, and merged or sent as a pull request from the card,
+  carrying the agent's work alone; a push or a pull request you asked for in your message is one click on
+  a card that quotes you; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
 - **Money**: tokens and credits per run, plan meters for each CLI, and a monthly budget per project.
   [Usage and budgets](docs/money/usage.md)

@@ -35,8 +35,8 @@ same meanings - and has one line under the chat's name:
 | Empty | **Stopped**, or **No turn yet** |
 
 What waits for your word in a chat is what [Ready for you](ready.md) lists for it, and **Show** goes by
-the same. A chat Ready for you has not read yet - or could not read - says what the project's board says,
-**Waits for your word** with nothing after it, until it is read or its board row changes. A chat whose
+the same. A chat Ready for you has not read yet - or could not read - says what KOLONİ's list of the project's
+chats says, **Waits for your word** with nothing after it, until it is read or that chat's state changes. A chat whose
 state is not read at all has no cell and no line: the page says nothing it does not know.
 
 ## Now
