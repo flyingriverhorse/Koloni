@@ -10,6 +10,7 @@ import type {
   Provider,
   Role,
 } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
 import { Cell } from '../shell/Cell'
 import { useConfirm } from '../shell/Confirm'
 import { modelChoices } from '../shell/modelName'
@@ -70,7 +71,7 @@ function RoleTick({
           aria-describedby={full ? why : undefined}
           onChange={e => onUntick(e.currentTarget)}
         />
-        {user.name}
+        {titleOf(user.name)}
         {full && (
           <>
             {' '}
@@ -153,7 +154,7 @@ export function RoleTicks({
             <option value="">+ Role…</option>
             {others.map(role => (
               <option key={role.id} value={role.id}>
-                {role.name}
+                {titleOf(role.name)}
               </option>
             ))}
           </select>

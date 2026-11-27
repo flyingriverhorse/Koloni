@@ -323,7 +323,9 @@ test('a server’s switch turns it off for every agent and its row says so; its 
   // beside the card's button, not in it; the head says its state, its command, what it has, and the roles that may use
   // it - and its cell how far its tools go without you
   expect(row()).not.toContainElement(on)
-  expect(row()).toHaveTextContent(/^rea trustedrea-agents --stdio4 tools · 1 asks first · read \d+ (d|h|min) agoLead$/)
+  expect(row()).toHaveTextContent(
+    /^rea trustedrea-agents --stdio4 tools · 1 asks first · read \d+ (d|h|min) agoOrchestrator$/,
+  )
   expect(screen.getByRole('img', { name: 'trusted: some of its tools run without asking' })).toHaveClass('cell-ok')
   await userEvent.click(on)
   expect(h.onSave).toHaveBeenCalledExactlyOnceWith('s1', { enabled: false })
@@ -450,11 +452,12 @@ test('a mark is saved as it is chosen, and a role is given the server by its box
   within(marks('wipe')).getByRole('button', { name: 'Off' }).focus()
   await userEvent.keyboard('{ArrowDown}{ArrowRight}')
   expect(h.onSave).not.toHaveBeenCalled()
-  expect(screen.getByLabelText('Lead')).toBeChecked()
+  // The Lead is shown as the Orchestrator; what is saved is its role's own (r1).
+  expect(screen.getByLabelText('Orchestrator')).toBeChecked()
   expect(screen.getByLabelText('Coder')).not.toBeChecked()
   await userEvent.click(screen.getByLabelText('Coder'))
   expect(h.onRoleServers).toHaveBeenCalledWith('r2', ['other', 'rea'])
-  await userEvent.click(screen.getByLabelText('Lead'))
+  await userEvent.click(screen.getByLabelText('Orchestrator'))
   expect(h.onRoleServers).toHaveBeenLastCalledWith('r1', ['other'])
 })
 

@@ -1,6 +1,7 @@
 import { CaretDown } from '@phosphor-icons/react'
 import type { ReactNode } from 'react'
 import type { PendingSkill, Role, Skill, SkillRecordRow } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
 import type { RoleChange } from '../agents/RolePanel'
 import { Licence, ScriptsLeave, SkillText } from '../agents/SkillApproval'
 import { cannotRun, ENOUGH_JOBS, givenSaid, SkillWindow } from '../agents/SkillWindow'
@@ -14,7 +15,7 @@ const FIRST_READS = 3
 
 /** Where a row of the record ran, short: its model and its role. */
 const ranWith = (row: SkillRecordRow) =>
-  `${row.model_id ? modelName(row.model_id) : 'a model not on record'} · ${row.role_name}`
+  `${row.model_id ? modelName(row.model_id) : 'a model not on record'} · ${titleOf(row.role_name)}`
 
 /** The last 30 days on a skill's card: each model and role it was given with, and how many of their agents read it. */
 function Reads({ skill, rows }: { skill: string; rows: SkillRecordRow[] }) {
@@ -104,7 +105,7 @@ export function SkillCard({ skill, roles, off, serversOff, rows, shown, question
                 given.map(role => (
                   <span key={role.id} className="chip">
                     {cannotRun(skill, role, off, serversOff) && <span className="no">✗ </span>}
-                    {role.name}
+                    {titleOf(role.name)}
                   </span>
                 ))
               )}
@@ -168,8 +169,10 @@ export function Proposals({ proposals, onReady }: { proposals: PendingSkill[]; o
             </span>
             <span className="muted tools-row-sub">{skill.description || 'It says nothing of itself.'}</span>
             <span className="muted provider-note">
-              {skill.roles.length > 0 ? `For ${skill.roles.join(', ')}.` : 'For no role yet.'} It is added only once you
-              say yes on its card, which shows its whole text and its scripts first.
+              {skill.roles.length > 0
+                ? `For ${skill.roles.map(name => titleOf(name)).join(', ')}.`
+                : 'For no role yet.'}{' '}
+              It is added only once you say yes on its card, which shows its whole text and its scripts first.
             </span>
             {onReady && (
               <span>

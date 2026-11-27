@@ -2,6 +2,7 @@ import { Check, Plus, X } from '@phosphor-icons/react'
 import { type FormEvent, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import type { McpRead, McpServer, McpTool } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { foundIn } from './cells'
@@ -591,7 +592,7 @@ export function ServerEditor({
                   )
                 }
               />
-              <span>{role.name}</span>
+              <span>{titleOf(role.name)}</span>
             </label>
           )
         })}
