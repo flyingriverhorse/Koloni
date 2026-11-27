@@ -81,6 +81,7 @@ from app.tools_at_work import (
     SPAWN_BACKGROUND_PROPERTY,
     STOP_AGENT_SCHEMA,
 )
+from app.waits import waits_for
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -1165,8 +1166,9 @@ class AtWorkMixin:
     def _agents_at_work(self: "AgentRunner", ctx: Ctx) -> str:
         """agents_at_work: the agents of this turn at work now, below its Orchestrator - each
         one's name and role, how it stands and since when (this machine's clock), whether its
-        opener went on without it, and its last words: masked, cut, quoted, after KOLONİ's note
-        where they read like orders. Read from this turn's record only."""
+        opener went on without it, what it waits for (`waits.waits_for`: "unknown" where the
+        records say nothing), and its last words: masked, cut, quoted, after KOLONİ's note where
+        they read like orders. Read from this turn's record only."""
         with self._factory() as session:
             rows = session.scalars(
                 select(Agent)
@@ -1190,6 +1192,8 @@ class AtWorkMixin:
                 )
                 for one in rows
             }
+            # (explain_wait: what each waits for, from KOLONİ's records - never guessed)
+            waits = {one.id: waits_for(session, one) for one in rows}
         if not rows:
             return AT_WORK_NONE
         later = {one[1] for one in self._later_work.get(ctx.run_id, ())}
@@ -1205,6 +1209,7 @@ class AtWorkMixin:
                     at=since.replace(tzinfo=UTC).astimezone().strftime("%H:%M"),
                     minutes=max(0, int((at - since).total_seconds() // 60)),
                     later=", in the background" if one.id in later else "",
+                    waits=waits[one.id] or "unknown",
                     said=_last_said(last.get(one.id)),
                 )
             )

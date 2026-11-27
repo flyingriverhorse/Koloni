@@ -2,8 +2,8 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import { useApp } from '../state/store'
-import { agent, command, convState, run, toolCall } from '../test-fixtures'
-import { atWorkLine } from './atWork'
+import { agent, command, convState, fileChange, question, run, toolCall } from '../test-fixtures'
+import { atWorkLine, waitsFor } from './atWork'
 import { AtWorkLine } from './AtWorkLine'
 
 afterEach(() => {
@@ -90,4 +90,56 @@ test('the line reads what the turn cost, and opens At work in this turn with Sto
   )
   await userEvent.click(screen.getByRole('button', { name: 'Open Ready for you' }))
   expect(showReady).toHaveBeenCalledWith(true)
+})
+
+test('explain_wait: what each agent waits for, from the records alone - null where they say nothing', () => {
+  const coder = child('coder', 'waiting')
+  const one = (over = {}) => busy({ agents: [agent('r', 'running'), coder], commands: [], ...over })
+  expect(
+    waitsFor(
+      one({ commands: [command('c', 'r', { agent_id: 'coder', status: 'proposed', command: 'npm test' })] }),
+      coder,
+    ),
+  ).toBe('your yes on its command “npm test”')
+  expect(
+    waitsFor(
+      one({ fileChanges: [fileChange('f', 'r', { agent_id: 'coder', status: 'proposed', path: 'a.py' })] }),
+      coder,
+    ),
+  ).toBe('your yes on its change to “a.py”')
+  const asked = question('q', 'r', { agent_id: 'coder', status: 'pending', question: 'Which greeting?' })
+  expect(waitsFor(one({ questions: [asked] }), coder)).toBe('an answer to its question “Which greeting?”')
+  expect(waitsFor(one({ questions: [{ ...asked, leave: true }] }), coder)).toBe(
+    'an answer on a card of KOLONİ’s: “Which greeting?”',
+  )
+  const running = command('c', 'r', { agent_id: 'coder', status: 'running', command: 'pytest -q', started_at: null })
+  expect(waitsFor(one({ commands: [running] }), coder)).toBe('its command “pytest -q”, running')
+  const blocked = {
+    ...child('blocked'),
+    status: 'blocked' as const,
+    waiting_for: { agent_id: 'x', agent_name: 'Tester', path: 'b.py' },
+  }
+  expect(waitsFor(one(), blocked)).toBe('Tester, which holds “b.py”')
+  const queued = { ...child('q', 'queued'), queued_on: { provider: 'Local', at_work: 1, most: 1 } }
+  expect(waitsFor(one(), queued)).toBe('a place at Local (1 of 1 at work there)')
+  expect(waitsFor(one(), child('q2', 'queued'))).toBe('a place among the turn’s agents at work')
+  const helper = { ...child('helper'), parent_agent_id: 'coder' }
+  expect(waitsFor(one({ agents: [agent('r', 'running'), coder, helper] }), coder)).toBe(
+    'its own agents at work: Helper',
+  )
+  expect(waitsFor(one(), child('free'))).toBeNull()
+})
+
+test('At work in this turn says what an agent waits for, where its records say it', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ spent: null, currency: null, at_least: false }))),
+  )
+  const conv = busy({ commands: [command('c1', 'r', { agent_id: 'coder', status: 'running', command: 'pytest -q' })] })
+  useApp.setState({ conv })
+  render(<AtWorkLine conv={conv} />)
+  await userEvent.click(screen.getByRole('button', { name: /^3 agents at work/ }))
+  const panel = screen.getByRole('region', { name: 'At work in this turn' })
+  expect(panel).toHaveTextContent(/Coder · working · since \d\d:\d\d · waits for its command “pytest -q”, running/)
+  expect(panel).toHaveTextContent(/Scout · waiting for a slot · since \d\d:\d\d · waits for a place among/)
 })

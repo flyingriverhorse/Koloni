@@ -157,6 +157,7 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "agents_at_work",  # (0.1.11: who of them is at work)
         "ask_advisor",  # (0.1.11: a second model's advice)
         "note_decision",  # (0.1.11: a row of Decided for you)
+        "suggest_preference",  # (the user's words, a line for their preferences)
         "recall_output",
         "command_output",  # (0.1.8: a session is given its tools once, before it serves any)
         "stop_command",

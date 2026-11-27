@@ -184,6 +184,18 @@ is kept as a fact, shown as "said by you at a card, asking for changes".
 
 **Preferences and rules are yours alone.** No agent writes them.
 
+**The Orchestrator can suggest a line for your preferences.** When you say how you want work done
+from now on - a rule, not a request for this one task ("from now on don't ask me for X", "write commits
+in Turkish", "never push without asking") - the Orchestrator may propose it as a line, and you get a
+card in the chat: "Add this to your preferences: "…"?" with **Add** and **Not now**. **Add** appends it
+to Your preferences; **Not now** writes nothing. It is only a suggestion - the same one the Memory page
+and Ready for you show, answered in any of them - and it is made only from your own words: the
+Orchestrator must quote your sentence of that turn, and KOLONİ checks the quote is in your messages
+(never an agent's words, a file's or a tool's). The line is masked and cut at 300 characters, one that
+reads like orders to an agent is refused, a line you have or that waits already is not suggested twice,
+and at most 3 are suggested in a turn. A sub-agent cannot suggest one. The Memory page says who suggested
+it: the Orchestrator.
+
 **Automatic notes** are off by default. Switch them on under Settings › This project › Memory and web ›
 **Note what the work found, by itself**. After each message's work, a fast model writes at most
 three notes of what it found. That is one more model request after every message, on your plan or

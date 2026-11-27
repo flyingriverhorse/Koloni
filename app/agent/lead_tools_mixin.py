@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, literal_column, select
 
 from app import advisor, git, injection, masking, model_native, pr_feedback, push_judge
+from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
-from app.db.models import Conversation, Project, ToolCall
+from app.agent.judge_mixin import words_of_the_turn
+from app.db.models import Conversation, Memory, Project, Run, ToolCall, project_of
 from app.db.turn_models import NotedDecision
 from app.model_client import OwnStop
 from app.providers import ask_once
@@ -24,12 +26,21 @@ from app.tools import ToolError
 from app.tools_at_work import (
     ASK_ADVISOR_SCHEMA,
     LINE_MOST,
+    NOT_SAID,
+    NOT_THEIRS,
     NOTE_DECISION_SCHEMA,
     NOTED,
     NOTED_FULL,
     NOTED_MOST,
     PLAN_SHOWN,
+    QUOTE_LEAST,
     READ_PR_FEEDBACK_SCHEMA,
+    READS_AS_ORDERS,
+    SUGGEST_PREFERENCE_SCHEMA,
+    SUGGESTED,
+    SUGGESTED_FULL,
+    SUGGESTED_LINE,
+    SUGGESTED_MOST,
     UPDATE_PLAN_SCHEMA,
 )
 
@@ -73,6 +84,7 @@ class LeadToolsMixin:
             schemas.append(UPDATE_PLAN_SCHEMA)
         schemas.append(ASK_ADVISOR_SCHEMA)
         schemas.append(NOTE_DECISION_SCHEMA)
+        schemas.append(SUGGEST_PREFERENCE_SCHEMA)  # (the user, 28 Nov)
         if self._on_github.get(ctx.run_id):
             schemas.append(READ_PR_FEEDBACK_SCHEMA)
 
@@ -85,6 +97,8 @@ class LeadToolsMixin:
             return await self._ask_advisor(ctx, args)
         if name == "note_decision":
             return self._note_decision(ctx, call_id, args)
+        if name == "suggest_preference":
+            return self._suggest_preference(ctx, args)
         if name == "read_pr_feedback":
             return await self._read_pr_feedback(ctx, call_id, args)
         raise ToolError(f"unknown tool: {name}")
@@ -302,6 +316,64 @@ class LeadToolsMixin:
             session.commit()
             return NOTED.format(id=row.id, what=quoted(row.what))
 
+    # --- suggest_preference (the user, 28 Nov) -------------------------------------------------
+
+    def _suggest_preference(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
+        """suggest_preference: a line for the user's preferences, as they stated it in this turn -
+        a suggestion waiting for their Add on a card in the chat (`memory.suggest_preference`'s
+        record, the summariser's: its Add and Not now are theirs alone), never written by itself.
+        Only from their own words: `quote` must be in this turn's messages of theirs, as K5 reads
+        them (`words_of_the_turn`), in a turn they started from KOLONİ's page. The line masked, on
+        one line, cut; one that reads like orders to an agent refused (`injection.scan`); at most
+        SUGGESTED_MOST a turn, counted on record; one in the preferences or waiting already
+        refused (`suggest_preference`).
+        shortcut: the line is not checked to say what the quote says - the user reads both on the
+        card; ask a model to compare them if a line is seen to stray from its quote."""
+        line, quote = args.get("line"), args.get("quote")
+        if not isinstance(line, str) or not line.strip():
+            raise ToolError("missing required argument: line")
+        if not isinstance(quote, str) or len(_plain(quote)) < QUOTE_LEAST:
+            raise ToolError("quote: the user's own sentence that states it, word for word")
+        said = masking.masked(line)
+        said = said if len(said) <= SUGGESTED_LINE else said[: SUGGESTED_LINE - 1] + "…"
+        if injection.scan(line) or injection.scan(said):
+            raise ToolError(READS_AS_ORDERS)
+        with self._factory() as session:
+            project = project_of(session, session.get_one(Conversation, ctx.cid))
+            if project is None or not session.get_one(Run, ctx.run_id).by_user:
+                raise ToolError(NOT_THEIRS)
+            theirs = words_of_the_turn(session, ctx.run_id)
+            if not any(_plain(quote) in _plain(one) for one in theirs):
+                raise ToolError(NOT_SAID)
+            made = session.scalar(
+                select(func.count())
+                .select_from(Memory)
+                .where(
+                    Memory.run_id == ctx.run_id,
+                    Memory.tier == "preference",
+                    Memory.origin == "agent",
+                )
+            )
+            if (made or 0) >= SUGGESTED_MOST:
+                raise ToolError(SUGGESTED_FULL)
+            try:
+                record = kept.suggest_preference(
+                    session,
+                    project.id,
+                    said,
+                    run_id=ctx.run_id,
+                    conversation_id=ctx.cid,
+                    noted_by={"provider_name": ctx.provider, "model_id": ctx.model_name},
+                )
+            except kept.Refused as refused:
+                raise ToolError(str(refused)) from None
+            # (the Orchestrator's, not the summariser's: the Memory page names who suggested it)
+            record.origin, record.agent_id = "agent", ctx.agent_id
+            session.commit()
+            project_id = project.id
+        self.bus.emit(ctx.cid, ctx.run_id, "memory.changed", {"project_id": project_id})
+        return SUGGESTED.format(line=quoted(said))
+
 
 def _on_github(root: Path) -> bool:
     """Whether gh is installed and the project's origin is on github.com - read from its config,
@@ -313,3 +385,8 @@ def _line(text: str) -> str:
     """An agent's words as a noted decision keeps them: masked, on one line, cut."""
     shown = masking.masked(text)
     return shown if len(shown) <= LINE_MOST else shown[: LINE_MOST - 1] + "…"
+
+
+def _plain(text: str) -> str:
+    """Words as a quote is compared: case, spacing and quotation marks do not count."""
+    return " ".join(text.casefold().replace("“", '"').replace("”", '"').split()).strip(" \"'")

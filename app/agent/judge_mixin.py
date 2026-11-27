@@ -26,6 +26,22 @@ if TYPE_CHECKING:
     from app.agent import AgentRunner
 
 log = logging.getLogger("app.agent")
+
+
+def words_of_the_turn(session, run_id: str) -> list[str]:
+    """K5's reader (`_said_so`): the user's own messages of a turn - the one that started it and
+    the words they sent into it (Send now) - newest first, as `judge.asked_for` reads them; never
+    an agent's line nor KOLONİ's note (role "agent"). Whose turn it is (`Run.by_user`) its caller
+    asks. Also suggest_preference's (`LeadToolsMixin`): its quote must be of these."""
+    return list(
+        session.scalars(
+            select(Message.content)
+            .where(Message.run_id == run_id, Message.role == "user", Message.agent_id.is_(None))
+            .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+        )
+    )
+
+
 # Said once in the chat when the check stands aside for the rest of a turn (`_judgement`).
 CHECK_STOOD_ASIDE = (
     "Full auto's check of your words refused {count} this turn: until the turn "
@@ -152,15 +168,7 @@ class JudgeMixin:
                 return None
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             texts = self._users_words(session, ctx.cid, project.rules if project else None)
-            started = session.scalars(  # (newest first, as `judge.asked_for` reads them)
-                select(Message.content)
-                .where(
-                    Message.run_id == ctx.run_id,
-                    Message.role == "user",
-                    Message.agent_id.is_(None),
-                )
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-            ).all()
+            started = words_of_the_turn(session, ctx.run_id)
         if sum(map(len, started)) > judge.MOST_CHARS:
             return None
         texts["message"] = [raw.hidden(one) for one in started]

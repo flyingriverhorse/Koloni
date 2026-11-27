@@ -177,10 +177,17 @@ when named. Each answer of theirs is data for it:
 what agents, models and other people wrote stays in quotes, with secrets masked.
 
 - **agents_at_work** - who of this turn is at work now: "2 at work in this turn:", then a line each,
-  "- Coder (Coder role): running since 14:02 (3 min), in the background; last said: "Reading the
-  tests…"". An agent's last words are cut at 300 characters and marked where they read like orders;
-  one that waits for your yes "waits for the user's yes", one that waits for a place "waits for a
-  place". A CLI Orchestrator has it too.
+  "- Coder (Coder role): running since 14:02 (3 min), in the background; waits for: its command
+  "pytest -q", running since 14:03; last said: "Reading the tests…"". An agent's last words are cut at
+  300 characters and marked where they read like orders; one that waits for your yes "waits for the
+  user's yes", one that waits for a place "waits for a place". A CLI Orchestrator has it too.
+  **What it waits for** comes from KOLONİ's records alone, never guessed: a card for you (its command
+  or its change, named), an answer to its question or on one of KOLONİ's cards, its command running and
+  since when, another agent (the one that holds a file it wants, or its own agents at work), a place
+  (at its provider, "1 of 1 at work there", or among the turn's agents), your yes to open it - or
+  "unknown" where the records say nothing. **At work in this turn**, over the chat, says it too:
+  "Coder · working · since 14:02 · waits for its command "pytest -q", running since 14:03" (nothing
+  where the records say nothing).
 - **update_plan** - the Orchestrator of an API model shows you its plan: its steps, each pending, in
   progress or done, at most 30 of 200 characters. It is its own words, and says so: its window shows
   it under **Plan (its own words)** (a Codex Orchestrator's own plan shows there too), and the line over
@@ -209,3 +216,7 @@ what agents, models and other people wrote stays in quotes, with secrets masked.
   reply with it. What reviewers and checks say is theirs, never yours: framed as data, masked, cut at
   20,000 characters. Where it reads like orders to an agent, the chat warns you, as it does for a web
   page or an MCP tool.
+- **suggest_preference** - when you say how you want work done from now on, a line for Your
+  preferences, quoted from your own words of the turn: a card in the chat asks "Add this to your
+  preferences: "…"?" - **Add** or **Not now**. Nothing is written until you press Add. See
+  [Memory](../memory.md#who-writes-what).

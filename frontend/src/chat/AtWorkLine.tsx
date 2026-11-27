@@ -3,9 +3,10 @@ import { api } from '../api/client'
 import { AGENT_STATUS, titleOf } from '../agents/agentStatus'
 import { STEP_MARK } from '../agents/livePlan'
 import { StopAndMessage } from '../canvas/agentStop'
+import type { Agent } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
-import { agentsAtWork, atWorkLine, leadPlan, runningTurn, sinceOf, type Spent } from './atWork'
+import { agentsAtWork, atWorkLine, leadPlan, runningTurn, sinceOf, waitsFor, type Spent } from './atWork'
 
 /** How often, at most, what the turn cost is read again as its agents' tokens change. */
 export const SPENT_EVERY_MS = 5000
@@ -77,6 +78,11 @@ function AtWorkPanel({ id, conv }: { id: string; conv: ConvState }) {
   if (!run) return null
   const agents = agentsAtWork(conv, run)
   const plan = leadPlan(conv, run)
+  // (explain_wait: said only where the records say it)
+  const waits = (one: Agent) => {
+    const why = waitsFor(conv, one)
+    return why && ` · waits for ${why}`
+  }
   return (
     <section id={id} className="at-work-panel" aria-label="At work in this turn">
       <h3 className="kicker">At work in this turn</h3>
@@ -88,6 +94,7 @@ function AtWorkPanel({ id, conv }: { id: string; conv: ConvState }) {
               <li key={one.id} className="at-work-agent">
                 <span>
                   {name} · {AGENT_STATUS[one.status][0]} · since {sinceOf(one)}
+                  {waits(one)}
                 </span>
                 <StopAndMessage agentId={one.id} name={name} />
               </li>
