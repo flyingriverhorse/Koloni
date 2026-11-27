@@ -43,5 +43,19 @@ for (const theme of ['light', 'dark'] as const) {
     await page.request.patch(`/api/conversations/${made}`, { data: { title: `made elsewhere ${theme}` }, headers: OWN })
     await list.getByRole('button', { name: 'Refresh conversations' }).click()
     await expect(list.getByRole('button', { name: new RegExp(`^made elsewhere ${theme}`) })).toBeVisible()
+
+    // --- Now stays on top while the list scrolls under it (wider than 980 px), and nothing scrolls sideways ---
+    await page.setViewportSize({ width: 1280, height: 240 })
+    await list.evaluate(el => (el.scrollTop = el.scrollHeight))
+    await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+    const now = list.getByRole('complementary', { name: 'Now every folder' })
+    expect(Math.abs((await now.boundingBox())!.y - (await list.boundingBox())!.y)).toBeLessThan(1)
+    for (const width of [1600, 1024, 760, 420]) {
+      await page.setViewportSize({ width, height: 800 })
+      const sideways = await list.evaluate(
+        el => el.scrollWidth > el.clientWidth || document.documentElement.scrollWidth > window.innerWidth,
+      )
+      expect(sideways, `sideways at ${width} px`).toBe(false)
+    }
   })
 }
