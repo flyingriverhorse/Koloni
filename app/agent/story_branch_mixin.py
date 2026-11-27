@@ -222,6 +222,12 @@ class StoryBranchMixin:
                 )
             self._keep_branches.discard(copy.branch)
 
+    def _shown_name(self: "AgentRunner", ctx: Ctx) -> str:
+        """N11: an agent as the screen calls it (the Orchestrator, not "Lead"), for a branch's
+        commit subject; the commit's `Koloni-Agent:` trailer keeps its recorded name."""
+        with self._factory() as session:
+            return self._title(session, ctx.cid, ctx.name)
+
     def _kept_branch_gone(
         self: "AgentRunner",
         ctx: Ctx,

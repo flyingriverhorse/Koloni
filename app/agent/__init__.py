@@ -3882,14 +3882,12 @@ class AgentRunner(
             if kind == "new" and state == "conflict"
         }
         held = self._named_out(ctx, copy, changed) | held
-        with self._factory() as session:  # (N11: as the screen calls it; the trailer is its record)
-            who = self._title(session, ctx.cid, ctx.name)
         await asyncio.to_thread(
             git.commit_branch,
             copy.root,
             copy.branch or "",
             [path for path in changed if path not in held],
-            f"{who}: {first}\n\nKoloni-Agent: {ctx.name}",
+            f"{self._shown_name(ctx)}: {first}\n\nKoloni-Agent: {ctx.name}",
             self.settings.runtime_root / "no-hooks",
         )
         return held
