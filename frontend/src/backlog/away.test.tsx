@@ -651,14 +651,14 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
     status: 'ended',
     jobs: [
       job({ title: 'one', task_id: 't1', state: 'done', mode: 'push', branch: branch({}) }),
-      // N12: taken in, its branch deleted - no commits of it, nor "merge it with git"
+      // N12: taken in, its branch deleted - no commits of it, nor "merge it with git"; what moved outside it stays
       job({
         title: 'four',
         task_id: 't4',
         state: 'done',
         mode: 'branch',
         taken: ['t.txt'],
-        branch: branch({ gone: true }),
+        branch: branch({ gone: true, why: 'git said no', moved: ["git's config changed during the job"] }),
       }),
       job({ title: 'five', task_id: 't5', state: 'done', mode: 'branch', branch: branch({ gone: true }) }),
       job({
@@ -683,6 +683,7 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
   expect(row(/^three/)).toHaveTextContent('In a copy: HEAD is detached')
   expect(row(/^four/)).toHaveTextContent('taken in: t.txt')
   expect(row(/^four/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was taken in.')
-  expect(row(/^four/)).not.toHaveTextContent(/On branch|commits|No remote/)
+  expect(row(/^four/)).not.toHaveTextContent(/On branch|commits|No remote|git said no/)
+  expect(within(row(/^four/)).getByText("git's config changed during the job").className).toBe('away-shared')
   expect(row(/^five/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was discarded.')
 })
