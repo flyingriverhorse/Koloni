@@ -91,6 +91,39 @@ def test_files_that_are_not_the_cards_to_take_are_refused_not_ignored(settings_e
 
 
 @needs_git
+@pytest.mark.parametrize("offered", [True, False])
+def test_a_turns_card_discarded_after_some_was_taken_offers_the_commit_of_that(
+    make_client, wait_run, project_dir, offered
+):
+    # N10: the second session saw no commit (`commit_state` null) in a project with "Save each
+    # sub-agent's work as a git commit" off, its default - as after any Take in. On, it is offered.
+    from tests.test_take_in_scenarios import card, start
+
+    repository(project_dir)
+    client, _pid, cid, run_id = start(
+        make_client,
+        project_dir,
+        [*TWO, text("A done")],
+        project={"git_commit": offered},
+        permission_mode="ask",
+    )
+    assert some(client, card(client, cid), "a.txt").status_code == 200
+    merge = until(client, cid, lambda s: files(s["merges"][0]).get("a.txt") == "applied")["merges"][
+        0
+    ]
+    assert merge["status"] == "pending" and merge["commit"] is None
+    assert client.post(f"/api/merges/{merge['id']}/reject").status_code == 200
+    (merge,) = wait_run(client, cid, run_id)["merges"]
+    assert merge["status"] == "applied" and (merge["commit"] is None) is not offered, merge
+    if not offered:
+        return
+    assert merge["commit"]["state"] == "offered", merge["commit"]
+    made = client.post(f"/api/merges/{merge['id']}/commit", json={"message": "m"}).json()
+    assert made["commit"]["state"] == "committed", made
+    assert "a.txt" in made["commit"]["holds"] and "b.txt" not in made["commit"]["holds"]
+
+
+@needs_git
 @pytest.mark.parametrize("then", ["the rest", "discard"])
 @pytest.mark.parametrize("restart", [False, True])
 def test_a_kept_card_taken_in_two_steps_commits_the_agents_change_alone(

@@ -171,7 +171,10 @@ of the folder the command runs in or of one above it - and read an `.npmrc` ther
 `.yarnrc.yml`, `.yarnrc`, `.yarn` folder, Plug'n'Play loader and `.env.yarn`, pnpm its
 `.pnpmfile.cjs`, bun its `bunfig.toml` and `.env`, `.env.local`, `.env.production`,
 `.env.development` (what they run gets those: `NODE_OPTIONS=--require x`) - and an agent's write in
-any of them stops the rule.
+any of them stops the rule. Where what the agent wrote is such a file - a setting, a manifest, a lock
+or a loader, not the program -, the card says so: "an agent wrote a file this line may read or load
+(web/.npmrc): no rule covers the line while that write stands, so none is offered - run it once or
+reject it".
 
 A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
 closed on two sides. **What an agent wrote:** while an agent's write of any `package.json` (a
@@ -182,7 +185,8 @@ anywhere in the project still holds what it wrote, no node runner's rule covers 
 `npm exec` run a name the package's own `bin` gives before any installed one, yarn and pnpm a
 script of that name, `npm install` every workspace's lifecycle scripts, fetches what a lock's
 `resolved` address says and runs node-gyp on a `binding.gyp`, and npm reads any settings file it
-is pointed at. The cost: after an agent edits a `package.json` (adding a
+is pointed at - its card names that file as one the line may read or load. The cost: after an
+agent edits a `package.json` (adding a
 dependency, say), node runner rules ask until that write is replaced - by your own edit or
 install. A line of npm's or pnpm's that runs a script by its name under its own rule (`npm run
 build`, `npm test`) is the exception: the script is the project's code by design, as a test is.
@@ -547,7 +551,9 @@ in a job while you're away, nor in a To-do task's turn, which may run with nobod
 where the line runs a program an agent wrote (the judge reads that one), where it is an interpreter's or
 a runner's line whose file KOLONİ does not find (`uv run python x.py`, `npx x`), or a tool's run that
 builds the folder's code (`cargo run`, `go run .`, `dotnet run`): what it runs is not known, and the
-judge looks. A **broad** rule never lets a line by:
+judge looks. The rule is the chat's, so a sub-agent of the same chat that runs that very line is let by
+too - on purpose, as a Claude Code allow rule holds for that session's sub-agents. A **broad** rule
+never lets a line by:
 
 - one with no word past its program that is not an option (`npm`, `git`, `docker`, `make`, `gh`,
   `pytest -x`);
