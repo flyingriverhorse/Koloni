@@ -3,6 +3,7 @@ import type { Budget, JudgeOut, Storage } from '../../api/types'
 import {
   agentsSaid,
   appSaid,
+  askedMore,
   askedSaid,
   dataSaid,
   doneSaid,
@@ -59,6 +60,50 @@ test('When you’re asked: the judge as it is set, who answers a card that waits
   expect(askedSaid({ ...now, away_minutes: 0 })).toContain(
     'The Orchestrator answers what it safely can of a card at once.',
   )
+})
+
+test('When you’re asked › More: what of it is not its default, in words - said in the sentence too', () => {
+  const usual = {
+    disposable_deletes: false,
+    exec_location: 'host',
+    docker_network: false,
+    longest_command: 10,
+    hide_secrets: true,
+    pass_env: null,
+    canary: true,
+  } as const
+  expect(askedMore(usual)).toEqual([])
+  expect(
+    askedMore({
+      ...usual,
+      disposable_deletes: true,
+      exec_location: 'docker',
+      docker_network: true,
+      longest_command: 30,
+      hide_secrets: false,
+      pass_env: ' NPM_TOKEN ',
+      canary: false,
+    }),
+  ).toEqual([
+    'agents delete what is disposable without asking',
+    'commands run in Docker, with network access',
+    'a command may take 30 minutes',
+    'secret files are not hidden from commands',
+    'commands see NPM_TOKEN',
+    'no planted test key',
+  ])
+  const now = {
+    full_auto_judge: true,
+    judge_risky: 'refuse',
+    judge_words: false,
+    when_away: 'waits',
+    away_minutes: 5,
+    spawn_approval: 'auto',
+  } as const
+  expect(askedSaid({ ...now, folded: ['no planted test key', 'commands see NPM_TOKEN'] })).toMatch(
+    / Under More: no planted test key; commands see NPM_TOKEN\.$/,
+  )
+  expect(askedSaid({ ...now, folded: [] })).not.toContain('Under More')
 })
 
 test('When the work is done: what runs after a change, how far failing work goes back, and how it reaches git', () => {

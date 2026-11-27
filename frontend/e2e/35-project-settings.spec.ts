@@ -112,7 +112,9 @@ test('secret files are hidden from commands until the box is cleared, and cleare
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   await settings.getByRole('button', { name: /^When you’re asked/ }).click()
   // (Set here now: More says so before it is opened.)
-  await expect(settings.getByRole('button', { name: /^More ·/ })).toHaveAccessibleName('More · 6 settings, 1 set here')
+  await expect(settings.getByRole('button', { name: /^More ·/ })).toHaveAccessibleName(
+    'More · 6 settings, 1 set here: secret files are not hidden from commands',
+  )
   await settings.getByRole('button', { name: /^More ·/ }).click()
   await expect(hide).not.toBeChecked()
 })

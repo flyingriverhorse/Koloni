@@ -6,7 +6,7 @@ import { Hint } from '../Hint'
 import { OwnCommands } from '../OwnCommands'
 import { useNewChats } from './NewChats'
 import { fromOf, Legend, Marked, More, noSubmit, part, Row, Said } from './part'
-import { agentsSaid } from './said'
+import { agentsSaid, times } from './said'
 import { USUAL } from './usual'
 
 /** Who changes the files (K-devret): every chat's choice, the project's (tek-ev); and the To-do page's for its chats. */
@@ -59,7 +59,9 @@ export function useAgents(project: Project, more?: number) {
   const [suggest, setSuggest] = useState(project.suggest_tasks)
   const [suggestTier, setSuggestTier] = useState(project.suggest_tier)
   const chats = useNewChats(project)
-  const commands = useApp(s => s.ownCommands).length
+  // (Set here: what is saved - folders a new chat starts with, and this project's own commands, not every project's.)
+  const folders = (project.also_in ?? []).length + (project.read_in ?? []).length
+  const commands = useApp(s => s.ownCommands).filter(one => one.project_id === project.id).length
   const patch = {
     ...(leadWork !== savedWork && { lead_work: leadWork }),
     ...(suggest !== project.suggest_tasks && { suggest_tasks: suggest }),
@@ -125,9 +127,18 @@ export function useAgents(project: Project, more?: number) {
         </Row>
       )}
       {chats.teams}
-      <More count={2} set={Number(chats.folders > 0) + Number(commands > 0)} asked={more}>
+      <More
+        count={2}
+        set={[
+          ...(folders ? [times(folders, 'other folder')] : []),
+          ...(commands ? [times(commands, 'slash command')] : []),
+        ]}
+        asked={more}
+      >
         {chats.others}
-        {/* (Saved command by command: Enter in its fields sends nothing of the section's Save.) */}
+        {/* (Saved command by command: Enter in its fields sends nothing of the section's Save.
+            shortcut: a command half written there is dropped when another section is chosen (no "not saved" mark);
+            keep it mounted if that bites.) */}
         <div onKeyDown={noSubmit}>
           <OwnCommands projectId={project.id} />
         </div>

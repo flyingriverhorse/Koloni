@@ -314,6 +314,25 @@ test('0.1.10: a section is found by its new name, and by a name it had before - 
   expect(screen.getByRole('heading', { name: 'When the work is done' })).toBeInTheDocument()
 })
 
+test('0.1.10: a section folded into another is found by its old name, and opened where it is now - its More, or the rules', async () => {
+  render(<App />)
+  await screen.findByLabelText('Message')
+  const go = async (words: string, shown: string) => {
+    await userEvent.keyboard('{Control>}k{/Control}')
+    await userEvent.type(within(palette()!).getByRole('combobox'), words)
+    expect(within(palette()!).getAllByRole('option')[0]).toHaveTextContent(shown)
+    await userEvent.keyboard('{Enter}')
+  }
+  await go('slash commands', 'How agents work › Slash commands')
+  expect(screen.getByRole('heading', { name: 'Slash commands' })).toBeVisible()
+  await go('commands and secrets', 'When you’re asked › Commands and secrets')
+  expect(screen.getByLabelText(/^Planted test key/)).toBeVisible()
+  await go('runs without asking', 'When you’re asked › Runs without asking')
+  expect(screen.getByRole('button', { name: 'Hide the rules' })).toHaveAttribute('aria-expanded', 'true')
+  await go('new chats start', 'How agents work › New chats start with')
+  expect(screen.getByRole('list', { name: 'New chats’ other folders' })).toBeVisible()
+})
+
 test('“Search in messages” opens the memory’s search with the words, and searches them', async () => {
   render(<App />)
   await screen.findByLabelText('Message')

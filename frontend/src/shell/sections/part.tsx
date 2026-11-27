@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { Cell, type CellFill, type CellTone } from '../Cell'
 import { type GuidePlace } from '../guide'
 import { Hint } from '../Hint'
@@ -120,9 +120,9 @@ export function Row({
 
 /** A setting that is its own label (a checkbox, a choice of radios): its cell beside it - never inside the label, whose
  *  words are the control's name. */
-export const Marked = ({ from, children }: { from: From; children: ReactNode }) => (
+export const Marked = ({ from, children }: { from: From | null; children: ReactNode }) => (
   <div className="set-line">
-    <Mark from={from} />
+    {from ? <Mark from={from} /> : <span aria-hidden="true" />}
     {children}
   </div>
 )
@@ -151,9 +151,9 @@ export const Legend = () => (
 
 /**
  * The settings few change, folded under More (the user, 26 Nov: "under an expander, not deleted"): a button that says
- * how many there are and how many are set here. Closed unless asked open (a link, Ctrl+K - each time with a new
- * count). `bad`: a value in it cannot be saved - it opens and stays open, so the field that says why is in sight while
- * Save is off, and is not shut under the cursor once it is fixed.
+ * how many there are and names what of them is set here (`set`) - a folded value is never unsaid. Closed unless asked
+ * open (a link, Ctrl+K - each time with a new count). `bad`: a value in it cannot be saved - it opens and stays open,
+ * saying so, so the field that says why is in sight while Save is off, and is not shut under the cursor once it is fixed.
  */
 export function More({
   label = 'More',
@@ -165,7 +165,7 @@ export function More({
 }: {
   label?: string
   count: number
-  set: number
+  set: string[]
   bad?: boolean
   asked?: number
   children: ReactNode
@@ -189,7 +189,9 @@ export function More({
       >
         {label}{' '}
         <span className="muted">
-          · {count} setting{count === 1 ? '' : 's'}, {set ? `${set} set here` : 'all at their defaults'}
+          · {count} setting{count === 1 ? '' : 's'},{' '}
+          {set.length ? `${set.length} set here: ${set.join(', ')}` : 'all at their defaults'}
+          {bad && ' - open while a value in it cannot be saved'}
         </span>
       </button>
       <div id={id} className="set-more-rows" hidden={!open}>
@@ -201,7 +203,8 @@ export function More({
 
 /**
  * A section's Save (0.1.10): a bar at the foot of the section only while something in it is changed, saying what - or
- * that a value in it cannot be saved. What the last save said stays, the bar or not.
+ * that a value in it cannot be saved - in a status line, so it is heard as it changes. Once saved the bar and its Save
+ * go, and what the save said stays in that line; the focus, left on nothing, goes to it.
  */
 export function SaveBar({
   changed,
@@ -216,23 +219,23 @@ export function SaveBar({
   said: string[]
   saved: string
 }) {
+  const status = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (saved && (!document.activeElement || document.activeElement === document.body)) status.current?.focus()
+  }, [saved])
+  const what = !valid
+    ? 'A value here cannot be saved yet: see the field that says why.'
+    : `${said.length || 'A'} change${said.length > 1 ? 's' : ''} not saved${said.length ? `: ${said.join(', ')}` : ''}`
   return (
     <div className={`role-actions save-bar${changed ? ' save-bar-on' : ''}`}>
-      {changed && (
-        <>
-          <span className="save-bar-what">
-            {!valid
-              ? 'A value here cannot be saved yet: see the field that says why.'
-              : `${said.length || 'A'} change${said.length > 1 ? 's' : ''} not saved${said.length ? `: ${said.join(', ')}` : ''}`}
-          </span>
-          <button type="submit" className="btn btn-primary" disabled={busy || !valid}>
-            Save
-          </button>
-        </>
-      )}
-      <span role="status" className="muted">
-        {saved}
+      <span ref={status} role="status" tabIndex={-1} className={changed ? 'save-bar-what' : 'muted'}>
+        {changed ? what : saved}
       </span>
+      {changed && (
+        <button type="submit" className="btn btn-primary" disabled={busy || !valid}>
+          Save
+        </button>
+      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
 import type { Project } from '../api/types'
 import { ProjectSettings } from './ProjectSettings'
+import { AppAgents } from './sections/AppAgents'
 
 // 0.1.10: This project's sections in the honeycomb cells - each read in a sentence, its rows' cells, More, the save bar,
 // and the places named before.
@@ -211,4 +212,124 @@ test('Enter in a field of what saves itself - your slash commands, under More - 
   // (its own Save still saves it)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ lead_work: 'itself' })
+})
+
+/** The server as these tests need it: the Judge model asked now, measured or not; nothing else. */
+function judgeServer(measured: boolean, rules: unknown[] = [], sites: unknown[] = []) {
+  vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+    if (path === '/judge')
+      return {
+        provider_id: null,
+        model_id: null,
+        now: { provider_id: 'x', model_id: 'm', measured },
+        choices: [],
+      } as never
+    if (path.endsWith('/others-instructions')) return { paths: [], more: 0, partial: false } as never
+    if (path.endsWith('/allowed')) return rules as never
+    if (path.endsWith('/sites')) return sites as never
+    return [] as never
+  })
+}
+
+test('Enter in the rules that run without asking - a box of theirs too - never saves the section', async () => {
+  judgeServer(true)
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectSettings {...base} picked={undefined} onSave={onSave} />)
+  await userEvent.click(screen.getByRole('button', { name: /^When you’re asked/ }))
+  await userEvent.click(screen.getByRole('checkbox', { name: /^Full auto’s judge/ }))
+  const rules = screen.getByRole('button', { name: 'Show the rules' })
+  // (it controls the rules only once they are there)
+  expect(rules).not.toHaveAttribute('aria-controls')
+  await userEvent.click(rules)
+  expect(rules).toHaveAttribute('aria-controls', 'rules-without-asking')
+  const ask = await screen.findByRole('checkbox', { name: 'Ask first for the new site' })
+  ask.focus()
+  await userEvent.keyboard('{Enter}')
+  expect(onSave).not.toHaveBeenCalled()
+})
+
+test('the rules are counted on their row without opening them', async () => {
+  const rule = { id: 'r1', conversation_id: 'c1', prefix: 'npm test', danger: '', created_at: 't' }
+  judgeServer(true, [{ conversation_id: 'c1', title: 'Fix', commands: [rule], web: [] }], [{ id: 's' }])
+  render(<ProjectSettings {...base} picked={undefined} onSave={vi.fn()} />)
+  await userEvent.click(screen.getByRole('button', { name: /^When you’re asked/ }))
+  expect(await screen.findByText(/^2 rules: The project’s sites/)).toBeInTheDocument()
+})
+
+test('the box for your words says nothing in the sentence until its measurement has passed', async () => {
+  judgeServer(false)
+  render(<ProjectSettings {...base} project={{ ...project, judge_words: true }} picked={undefined} onSave={vi.fn()} />)
+  await userEvent.click(screen.getByRole('button', { name: /^When you’re asked/ }))
+  await new Promise(resolve => setTimeout(resolve, 0))
+  expect(said()).not.toContain('It also lets a delete or a push run')
+})
+
+test('what More folds that lets more run or shows more is named - on More’s button and in the sentence', async () => {
+  judgeServer(true)
+  render(
+    <ProjectSettings
+      {...base}
+      project={{ ...project, disposable_deletes: true, hide_secrets: false, canary: false, pass_env: 'AWS_SECRET_KEY' }}
+      picked={undefined}
+      onSave={vi.fn()}
+    />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: /^When you’re asked/ }))
+  const folded =
+    'agents delete what is disposable without asking, secret files are not hidden from commands, commands see AWS_SECRET_KEY, no planted test key'
+  expect(screen.getByRole('button', { name: /^More ·/ })).toHaveAccessibleName(
+    `More · 6 settings, 4 set here: ${folded}`,
+  )
+  expect(said()).toContain(`Under More: ${folded.replace(/, /g, '; ')}.`)
+})
+
+test('after Save the focus is on what says so, not lost with the bar; Enter with nothing changed sends nothing', async () => {
+  judgeServer(true)
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  const { rerender } = render(<ProjectSettings {...base} picked={undefined} onSave={onSave} />)
+  await userEvent.click(screen.getByRole('button', { name: /^When you’re asked/ }))
+  await userEvent.selectOptions(screen.getByLabelText('When the judge finds a command risky'), 'ask')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  rerender(
+    <ProjectSettings {...base} picked={undefined} project={{ ...project, judge_risky: 'ask' }} onSave={onSave} />,
+  )
+  expect(screen.getByRole('status')).toHaveTextContent('Saved')
+  expect(screen.getByRole('status')).toHaveFocus()
+  // (an Enter in a field now: nothing to send)
+  screen.getByLabelText('Minutes before the Orchestrator answers').focus()
+  await userEvent.keyboard('{Enter}')
+  expect(onSave).toHaveBeenCalledTimes(1)
+})
+
+test('Forget it is sent while there is something to forget: saved, the bar goes', async () => {
+  judgeServer(true)
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  const found = { '.': { command: 'pytest', from: 'agent', at: '2026-11-20' } }
+  const { rerender } = render(
+    <ProjectSettings {...base} picked={undefined} project={{ ...project, tests_found: found }} onSave={onSave} />,
+  )
+  await choose(/^When the work is done/)
+  await userEvent.click(screen.getByRole('checkbox', { name: /^Forget it/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenCalledWith({ forget_tests_found: true })
+  rerender(<ProjectSettings {...base} picked={undefined} project={{ ...project, tests_found: {} }} onSave={onSave} />)
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+  expect(screen.getByRole('button', { name: /^When the work is done/ })).not.toHaveTextContent('not saved')
+})
+
+test('a More that cannot fold says why on it', async () => {
+  render(<ProjectSettings {...base} picked={undefined} onSave={vi.fn()} />)
+  await choose(/^Limits and money/)
+  await userEvent.clear(screen.getByLabelText('Sub-agent levels'))
+  expect(screen.getByRole('button', { name: /^More limits/ })).toHaveAccessibleName(
+    /open while a value in it cannot be saved$/,
+  )
+})
+
+test('The app’s rows have no cell until their value is read: none is said to come from anywhere before', async () => {
+  vi.spyOn(api, 'get').mockImplementation(() => new Promise(() => {}))
+  render(<AppAgents />)
+  await userEvent.click(screen.getByRole('button', { name: /^More limits/ }))
+  expect(document.querySelectorAll('.set-row .cell, .set-line .cell')).toHaveLength(0)
+  expect(document.querySelectorAll('.set-row, .set-line').length).toBeGreaterThan(8)
 })

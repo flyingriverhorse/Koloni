@@ -21,7 +21,7 @@ export interface Where {
 }
 
 /** This project › When you’re asked › More (0.1.10; Commands and secrets before): where its commands run, how long one
- *  may, and what of your secrets they may see. `set`: how many of them are not their default. */
+ *  may, and what of your secrets they may see. `now`: as typed, for the section's sentence. */
 export function useCommands(project: Project, where: Where) {
   const runOn = useRunOn(project, where)
   const longest = useLongest(project)
@@ -32,13 +32,7 @@ export function useCommands(project: Project, where: Where) {
     ...part({ ...runOn.patch, ...sentIfChanged }, runOn.valid && longest.valid, null),
     changed: !runOn.valid || !longest.valid || runOn.moved || Object.keys(sentIfChanged).length > 0,
     take: runOn.take,
-    set: [
-      project.exec_location !== USUAL.exec_location,
-      (project.longest_command ?? 10) !== USUAL.longest_command,
-      (project.hide_secrets ?? true) !== USUAL.hide_secrets,
-      !!project.pass_env,
-      (project.canary ?? true) !== USUAL.canary,
-    ].filter(Boolean).length,
+    now: { ...runOn.now, ...longest.now, ...secrets.now },
     view: (
       <>
         {runOn.view}
@@ -58,6 +52,7 @@ function useLongest(project: Project) {
   return {
     patch: sent('longest_command', value, kept),
     valid: value !== undefined,
+    now: { longest_command: value ?? kept },
     view: (
       <Row
         label="Longest command (minutes)"
@@ -99,6 +94,7 @@ function useRunOn(project: Project, where: Where) {
   return {
     patch: { exec_location: location, docker_image: image.trim() || null, docker_network: network },
     valid: location === 'host' || image.trim() !== '',
+    now: { exec_location: location, docker_network: network },
     moved: location !== project.exec_location || image.trim() !== kept || network !== project.docker_network,
     take: (now: Project) => {
       setLocation(now.exec_location)
@@ -176,6 +172,7 @@ function useSecrets(project: Project) {
   const [passEnv, setPassEnv] = useState(passed)
   const [canary, setCanary] = useState(planted)
   return {
+    now: { hide_secrets: hideSecrets, pass_env: passEnv, canary },
     patch: {
       ...(hideSecrets !== hidden && { hide_secrets: hideSecrets }),
       ...(passEnv.trim() !== passed && { pass_env: passEnv.trim() }),

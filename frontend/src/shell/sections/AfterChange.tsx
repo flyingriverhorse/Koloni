@@ -67,7 +67,7 @@ export function useAfterChange(project: Project) {
   // (A server older than the page has no such field yet: the default.)
   const saved = project.after_change ?? 'check'
   const [after, setAfter] = useState(saved)
-  const [forget, setForget] = useState(false)
+  const forget = useForget(project)
   // (null: until it passes - the default, and what a server older than the page says by leaving it out)
   const rounds = project.fix_rounds ?? null
   const [fix, setFix] = useState<number | null>(rounds)
@@ -77,7 +77,7 @@ export function useAfterChange(project: Project) {
     ...(after !== saved && { after_change: after }),
     ...(fix !== rounds && { fix_rounds: fix ?? ('until' as const) }),
     ...(stronger !== strongerSaved && { stronger_model: stronger }),
-    ...(forget && { forget_tests_found: true }),
+    ...forget.patch,
   }
   const view = (
     <>
@@ -125,8 +125,18 @@ export function useAfterChange(project: Project) {
   return {
     patch,
     view,
-    found: <FoundTests found={project.tests_found ?? {}} forget={forget} setForget={setForget} />,
+    found: forget.row,
     now: { after_change: after, fix_rounds: fix, stronger_model: stronger },
-    saved: () => setForget(false),
+  }
+}
+
+/** Forget the test command KOLONİ found: sent only while there is one to forget - once forgotten, nothing is left to
+ *  send, and the section is saved. */
+function useForget(project: Project) {
+  const found = project.tests_found ?? {}
+  const [forget, setForget] = useState(false)
+  return {
+    patch: forget && Object.keys(found).length > 0 ? { forget_tests_found: true as const } : {},
+    row: <FoundTests found={found} forget={forget} setForget={setForget} />,
   }
 }

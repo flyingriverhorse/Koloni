@@ -48,7 +48,7 @@ export function ProjectRules({
       : chats
   return (
     <section aria-label="Commands and requests by chat" className="field">
-      <h2>Commands and requests, by chat</h2>
+      <h4>Commands and requests, by chat</h4>
       {listed?.length === 0 && <p className="muted">None yet: “Always run” on a card adds one.</p>}
       {listed?.map(rules => (
         <div key={rules.conversation_id} role="group" aria-label={rules.title} className="rules-chat">

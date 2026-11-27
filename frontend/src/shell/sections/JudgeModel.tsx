@@ -67,7 +67,7 @@ export function useJudgeModel() {
         doc={GUIDE.fullAutoJudge}
         why={JUDGE_WHY}
         warn={judge && <JudgeNotes judge={judge} stale={chosen !== '' && !listed} />}
-        from={judge === undefined ? undefined : chosen ? 'here' : 'usual'}
+        from={judge === undefined ? null : chosen ? 'here' : 'usual'}
       >
         <select
           id="judge-model"

@@ -182,6 +182,11 @@ export const OLD_NAMES: Partial<Record<Section, string[]>> = {
   checks: ['Checks and git'],
 }
 
+/** The sections folded into another in 0.1.10, by their old names: the place each is in now (`MOVED`). */
+export const MOVED_PLACES = Object.entries(MOVED)
+  .filter(([, [, , name]]) => name)
+  .map(([place, [section, , name]]) => [place as ProjectPlace, section as Section, name as string] as const)
+
 /** A place asked for: its section, and what opens in it then (each time with a new count). */
 function opened(picked: { section: ProjectPlace; n: number }): [Section, Opening | undefined] {
   if (!(picked.section in MOVED)) return [picked.section as Section, undefined]
@@ -258,7 +263,8 @@ export function ProjectSettings({
   async function submit(event: FormEvent) {
     event.preventDefault()
     // Their own controls save; Enter in their fields sends nothing.
-    if (shown.own) return
+    // (Nothing changed: an Enter in a field sends nothing.)
+    if (shown.own || !shown.changed) return
     // (Another section may be chosen while this one is saved: what comes back stays with this one.)
     const saving = section
     setBusy(true)

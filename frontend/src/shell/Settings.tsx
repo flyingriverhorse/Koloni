@@ -6,7 +6,7 @@ import { Backup } from './Backup'
 import { DeleteProject } from './DeleteProject'
 import { FoldersSection } from './Folders'
 import { KeptCopies } from './KeptCopies'
-import { OLD_NAMES, ProjectSettings, type ProjectPlace, SECTIONS } from './ProjectSettings'
+import { MOVED_PLACES, OLD_NAMES, ProjectSettings, type ProjectPlace, SECTIONS } from './ProjectSettings'
 import { AppAgents } from './sections/AppAgents'
 import { Said } from './sections/part'
 import { dataSaid } from './sections/said'
@@ -27,12 +27,26 @@ export const APP_SECTIONS: [AppSection, string][] = [
 /** Where Settings may be asked to open (Ctrl+K, a link): This chat, a place of This project's, or a section of the app's. */
 export type SettingsPlace = 'chat' | ProjectPlace | AppSection
 
-/** Ctrl+K's settings: each section by its name - the app's with "(the app)" after it - found by its names before
- *  0.1.10 too. */
-export const settingsPlaces = (project: boolean): { place: SettingsPlace; name: string; also?: string[] }[] => [
-  ...(project ? SECTIONS.map(([place, name]) => ({ place, name, also: OLD_NAMES[place] })) : []),
-  ...APP_SECTIONS.map(([place, name]) => ({ place, name: `${name} (the app)` })),
-]
+/** Ctrl+K's settings: each section by its name - the app's with "(the app)" after it - found by the name it had
+ *  before 0.1.10 too; and each section folded into another then, by its old name after the one it is in now, opening
+ *  it where it is (its More, or the rules). */
+export const settingsPlaces = (project: boolean): { place: SettingsPlace; name: string; also?: string[] }[] => {
+  const moved = new Set(MOVED_PLACES.map(([, , name]) => name))
+  const named = (section: string) => SECTIONS.find(([key]) => key === section)?.[1]
+  return [
+    ...(project
+      ? [
+          ...SECTIONS.map(([place, name]) => ({
+            place,
+            name,
+            also: OLD_NAMES[place]?.filter(old => !moved.has(old)),
+          })),
+          ...MOVED_PLACES.map(([place, section, old]) => ({ place, name: `${named(section)} › ${old}` })),
+        ]
+      : []),
+    ...APP_SECTIONS.map(([place, name]) => ({ place, name: `${name} (the app)` })),
+  ]
+}
 
 const isApp = (place: SettingsPlace): place is AppSection => APP_SECTIONS.some(([key]) => key === place)
 

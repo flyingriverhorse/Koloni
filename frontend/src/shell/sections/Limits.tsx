@@ -18,6 +18,8 @@ interface Field<T> {
   text: string
   set: Setter<string>
   value: T
+  /** As saved. */
+  kept: T
   shown: T
   from: From
 }
@@ -32,6 +34,7 @@ function useField<T>(start: string, read: (text: string) => T, usual: unknown): 
     text,
     set,
     value,
+    kept,
     shown: value === undefined ? kept : value,
     from: value === undefined ? 'dirty' : fromOf(value, kept, usual),
   }
@@ -96,15 +99,18 @@ export function useLimits(project: Project, spend: Budget | null, toApp?: () => 
     ...sent('monthly_budget', budget.value, project.monthly_budget),
   }
   // (Anything under More limits not at its default: said on it while it is closed.)
-  const usual: [Field<unknown>, number | null][] = [
-    [most, null],
-    [parallel, 2],
-    [depth, 2],
-    [per, 6],
-    [more, 25],
-    [talk, null],
+  const usual: [Field<unknown>, number | null, string][] = [
+    [most, null, 'Agents at work in this project'],
+    [parallel, 2, 'Agents at the same time'],
+    [depth, 2, 'Sub-agent levels'],
+    [per, 6, 'Sub-agents per request'],
+    [more, 25, 'Continue gives'],
+    [talk, null, 'A discussion’s tokens'],
   ]
-  const set = usual.filter(([field, value]) => field.value !== value).length
+  // (Set here: as saved, by name and value.)
+  const set = usual
+    .filter(([field, value]) => field.kept !== value)
+    .map(([field, , name]) => `${name} ${field.kept ?? 'no limit'}`)
   const now = { monthly_budget: budget.shown, turn_token_limit: turn.shown }
   return part(
     patch,

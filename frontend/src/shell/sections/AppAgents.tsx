@@ -79,7 +79,7 @@ function WholeRow({
       whyId={`${id}-more`}
       doc={GUIDE.settingsApp}
       why={why}
-      from={setting.bad ? 'dirty' : fromOf(setting.at, setting.kept, usual)}
+      from={setting.kept === undefined ? null : setting.bad ? 'dirty' : fromOf(setting.at, setting.kept, usual)}
       warn={
         <>
           {setting.bad && (
@@ -160,16 +160,19 @@ export function AppAgents({ toLimits, moreAsked }: { toLimits?: () => void; more
   const changed = language.changed || wholes.some(one => one.changed)
   // (Under More limits, one not at its default: app/config.py max_steps, app/away.py STUCK_MINUTES and CEILING_HOURS,
   // app/knowledge.py MAX_CLONE_FILES and MAX_CLONE_BYTES, app/proof.py TEST_RUNS and TEST_WORKERS.)
-  const usual: [typeof steps, number][] = [
-    [steps, 25],
-    [stuck, 30],
-    [ceiling, 8],
-    [treeFiles, 50_000],
-    [treeMb, 300],
-    [testRuns, 1],
-    [testWorkers, 2],
+  const usual: [typeof steps, number, string][] = [
+    [steps, 25, 'Steps an agent may take'],
+    [stuck, 30, 'Stuck after (minutes)'],
+    [ceiling, 8, 'An unattended turn at most (hours)'],
+    [treeFiles, 50_000, 'Knowledge reads at most (files)'],
+    [treeMb, 300, 'Knowledge reads at most (MB)'],
+    [testRuns, 1, 'Test runs at once'],
+    [testWorkers, 2, 'Test processes per run'],
   ]
-  const set = usual.filter(([one, value]) => one.kept !== undefined && one.at !== value).length
+  // (Set here: as saved, by name and value.)
+  const set = usual
+    .filter(([one, value]) => one.kept !== undefined && one.kept !== value)
+    .map(([one, , name]) => `${name} ${one.kept ?? 'no limit'}`)
   const judge = useJudgeModel()
   const experimental = useExperimental()
   // (What the save bar says changed, by name.)
@@ -343,7 +346,7 @@ function useAnswerIn(failed: (why: string) => void) {
         whyId="answer-in-more"
         doc={GUIDE.settingsApp}
         why="The language the agents write in, in every project. Auto: the language you write in. KOLONİ’s own screens stay in English."
-        from={kept === undefined ? undefined : !valid ? 'dirty' : fromOf(sent, kept, '')}
+        from={kept === undefined ? null : !valid ? 'dirty' : fromOf(sent, kept, '')}
         warn={!valid && <span className="choice-note">A language’s name: at most 40 letters, spaces and hyphens.</span>}
       >
         <input
@@ -392,7 +395,7 @@ function useExperimental() {
     show,
     view: (
       <div className="settings-app-form">
-        <Marked from={fromOf(show, show, false)}>
+        <Marked from={show === undefined ? null : fromOf(show, show, false)}>
           <label className="choice">
             <input
               type="checkbox"

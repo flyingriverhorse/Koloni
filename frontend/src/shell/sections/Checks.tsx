@@ -81,7 +81,10 @@ export function useChecks(project: Project, shown: boolean) {
         </label>
       </Marked>
       <FinishWay finishWay={finishWay} setFinishWay={setFinishWay} prOff={prOff} saved={project.finish_way ?? null} />
-      <More count={found ? 3 : 2} set={Number(kinds.set) + measure.set}>
+      <More
+        count={found ? 3 : 2}
+        set={[...(kinds.set ? ['Check by kind of work'] : []), ...(measure.set ? ['Measure command'] : [])]}
+      >
         {kinds.view}
         {after.found}
         {measure.row}
@@ -98,7 +101,7 @@ function useMeasure(project: Project) {
   const changed = text.trim() !== kept
   return {
     patch: changed ? { measure_command: text.trim() } : {},
-    set: Number(kept !== ''),
+    set: kept !== '',
     row: (
       <Row
         label="Measure command"

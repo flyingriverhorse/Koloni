@@ -454,7 +454,7 @@ test('This project › Limits and money: the monthly budget and a job’s budget
   unmount()
   render(<Settings {...base} project={{ ...project, spawn_max_parallel: 4 }} onSave={vi.fn()} />)
   await userEvent.click(levels().getByRole('button', { name: /^Limits and money/ }))
-  expect(shownMore()).toHaveTextContent('More limits · 6 settings, 1 set here')
+  expect(shownMore()).toHaveTextContent('More limits · 6 settings, 1 set here: Agents at the same time 4')
 })
 
 test('a value under More limits that cannot be saved keeps it open - the field that says why stays in sight while Save is off; fixed, it closes again (N7)', async () => {
@@ -512,11 +512,12 @@ test('The app › Agents: the step limit, the unattended limits, and what knowle
     'Test processes per run',
   ])
     expect(screen.getByLabelText(label).closest('.set-more-rows'), label).toBe(more)
-  // A limit typed away from its default says so on it.
+  // A limit typed away from its default is a change the bar names; More names what is set here once it is saved.
   await openMore()
   await userEvent.clear(steps)
   await userEvent.type(steps, '40')
-  expect(shownMore()).toHaveTextContent('More limits · 7 settings, 1 set here')
+  expect(screen.getByRole('status')).toHaveTextContent('1 change not saved: Steps an agent may take')
+  expect(shownMore()).toHaveTextContent('More limits · 7 settings, all at their defaults')
 })
 
 test('This project › How agents work: the teams and other folders a new chat starts with (rooms and their limits are gone, 0.1.10)', async () => {
@@ -609,7 +610,7 @@ test('App: Answer in is sent tidied - spaces between words once; “auto” in a
   await userEvent.type(language, 'x'.repeat(41))
   expect(language).toHaveAttribute('aria-invalid', 'true')
   expect(save()).toBeDisabled()
-  expect(screen.getByRole('status')).toHaveTextContent(/^$/)
+  expect(screen.getByRole('status')).toHaveTextContent(/^A value here cannot be saved yet/)
   await userEvent.clear(language)
   await userEvent.type(language, ' AUTO ')
   expect(language).not.toHaveAttribute('aria-invalid')

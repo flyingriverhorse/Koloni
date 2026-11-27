@@ -8,7 +8,8 @@ The Settings page holds everything you set for one chat, for one project and for
   **The app** for a chat with no folder. Press it again, or the close button, to close the page.
 - Or press Ctrl+K and choose **Settings**. Ctrl+K also lists each section by name (the app's with
   "(the app)" after it), and opens Settings right at it. A section's name before 0.1.10 finds it too: "Asking and
-  away" finds **When you're asked**.
+  away" finds **When you're asked**; one folded into another is listed by its old name after the one it is in now -
+  **How agents work › Slash commands** - and opens it there, its **More** or rules shown.
 - Under the message box, **Chat settings** (**Settings** in a narrow chat) opens this chat's short sheet; its
   **All settings** opens Settings at **This chat**.
 
@@ -45,14 +46,17 @@ mean:
 | Light honey | **changed, not saved**: you changed it here and have not saved it yet. |
 
 The settings few change are under a section's **More** (**More limits** in Limits and money and in The app › Agents),
-closed until you open it. Its button says how many settings it holds and how many are set here, so a closed one never
-hides a setting of yours unsaid; it stays open while one of them holds a value that cannot be saved.
+closed until you open it. Its button says how many settings it holds and names those set here - "· 6 settings, 1 set
+here: secret files are not hidden from commands" - so a closed one never hides a setting of yours unsaid (When you're
+asked's sentence says them too, "Under More: …"). It stays open, and says so, while one of them holds a value that
+cannot be saved.
 
 ## Saving
 
 A section's **Save** is in a bar at its foot, there only while something in the section is changed. The bar says
-what: "2 changes not saved: When the judge finds a command risky, When you're away" - or that a value cannot be saved
-yet, with **Save** off until it is fixed. After saving, the bar goes and "Saved" stays.
+what, in a status line a screen reader reads out: "2 changes not saved: When the judge finds a command risky, When
+you're away" - or that a value cannot be saved yet, with **Save** off until it is fixed. After saving, the bar goes,
+"Saved" stays in that line, and the focus goes to it. Enter in a field saves only where something changed.
 
 A section with changes you have not saved shows a **not saved** tag next to its name in the list.
 You can move between sections without losing those changes. Some rows save on their own, with no Save: **Runs without
@@ -141,7 +145,8 @@ opening a sub-agent; under **More**: disposable deletes and Commands and secrets
 
 #### Runs without asking
 
-A row of its own under **Commands**, with **Show the rules**: each is removed there at once, not by Save.
+A row of its own under **Commands**, saying how many rules there are ("2 rules"), with **Show the rules**: each is
+removed there at once, not by Save.
 
 - **Sites agents open**: the agents' own browsers open these in every chat of this project without
   asking, unless marked **Ask first**. Add one with **Allow site**.

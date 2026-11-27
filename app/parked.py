@@ -489,7 +489,7 @@ ENDED["stopped"] = "ran {what}, which was stopped ({said})"
 # ...and, once for all of them (F411 P4), the secrets held back from them (`AwayMixin._morning`).
 HELD = (
     "(secret variables held back from these commands: {names} - the user can pass one in "
-    "Settings › This project › Commands and secrets)"
+    "Settings › This project › When you're asked, under More)"
 )
 
 

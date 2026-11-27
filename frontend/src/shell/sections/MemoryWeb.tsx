@@ -5,7 +5,7 @@ import { useApp } from '../../state/store'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
 import { fromOf, Legend, Marked, More, part, Row, Said } from './part'
-import { memorySaid } from './said'
+import { memorySaid, times } from './said'
 import { USUAL } from './usual'
 
 /** What noting by itself costs, holds up and does not do, in sight under its box; how it is made, behind ⓘ. */
@@ -51,7 +51,10 @@ export function useMemoryWeb(project: Project) {
         </label>
       </Marked>
       {web.view}
-      <More count={1} set={Number(savedLinks.length > 0)}>
+      <More
+        count={1}
+        set={savedLinks.length ? [`recall also looks in ${times(savedLinks.length, 'other project')}`] : []}
+      >
         <OtherMemories project={project} links={links} setLinks={setLinks} changed={linksChanged} />
       </More>
       <Legend />

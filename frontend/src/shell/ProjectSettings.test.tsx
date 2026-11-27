@@ -717,7 +717,8 @@ test('a section saved says so beside its Save, until it is changed again', async
   expect(screen.getByRole('status')).toHaveTextContent('Saved')
   expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.click(screen.getByLabelText(/^Note what the work found, by itself/))
-  expect(screen.getByRole('status')).toHaveTextContent('')
+  // (Changed again: the status line says what, the bar's Save is back.)
+  expect(screen.getByRole('status')).toHaveTextContent('1 change not saved: Note what the work found, by itself')
   expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
 })
 

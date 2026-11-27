@@ -1,5 +1,6 @@
 import type { Budget, JudgeOut, Project, Storage } from '../../api/types'
 import type { VoiceSettings } from '../../voice/voice'
+import { USUAL } from './usual'
 import { UNENFORCED, unenforced } from '../../usage/budgetText'
 
 /**
@@ -9,7 +10,7 @@ import { UNENFORCED, unenforced } from '../../usage/budgetText'
  */
 type Now<K extends keyof Project> = Pick<Project, K>
 
-const times = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
+export const times = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 const LEAD: Record<Project['lead_work'], string> = {
   delegates: 'The Orchestrator plans, asks and checks; sub-agents change the files.',
@@ -37,11 +38,32 @@ const SPAWN: Record<Project['spawn_approval'], string> = {
   never: 'Sub-agents open without asking.',
 }
 
+/** What When you’re asked folds under More, as it stands. */
+export type Folded = Pick<
+  Project,
+  'disposable_deletes' | 'exec_location' | 'docker_network' | 'longest_command' | 'hide_secrets' | 'canary'
+> & { pass_env: string | null }
+
+/** What of When you’re asked's More is not its default, in words: its sentence says it, and More's button - so a
+ *  folded value that lets more run, or shows more, is never unsaid. */
+export function askedMore(now: Folded): string[] {
+  return [
+    now.disposable_deletes && 'agents delete what is disposable without asking',
+    now.exec_location === 'docker' && `commands run in Docker${now.docker_network ? ', with network access' : ''}`,
+    now.longest_command !== USUAL.longest_command && `a command may take ${now.longest_command} minutes`,
+    !now.hide_secrets && 'secret files are not hidden from commands',
+    !!now.pass_env?.trim() && `commands see ${now.pass_env?.trim()}`,
+    !now.canary && 'no planted test key',
+  ].filter((one): one is string => typeof one === 'string')
+}
+
 /** This project › When you’re asked. */
 export function askedSaid(
   now: Now<'full_auto_judge' | 'judge_risky' | 'judge_words' | 'when_away' | 'away_minutes' | 'spawn_approval'> & {
     /** No model can be asked for the judge now (`/api/judge`'s `now` null). */
     no_judge?: boolean
+    /** What of More is not its default (`askedMore`). */
+    folded?: string[]
   },
 ) {
   const judge = !now.full_auto_judge
@@ -61,7 +83,8 @@ export function askedSaid(
       : now.away_minutes === 0
         ? 'The Orchestrator answers what it safely can of a card at once.'
         : `When a card has waited ${times(now.away_minutes, 'minute')} - at once while you’re away - the Orchestrator answers what it safely can.`
-  return `${judge}${words} ${away} ${SPAWN[now.spawn_approval] ?? ''}`.trim()
+  const folded = now.folded?.length ? ` Under More: ${now.folded.join('; ')}.` : ''
+  return `${judge}${words} ${away} ${SPAWN[now.spawn_approval] ?? ''}${folded}`.trim()
 }
 
 const AFTER: Record<Project['after_change'], string> = {

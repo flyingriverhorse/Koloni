@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import type { JudgeOut, Project } from '../../api/types'
+import type { ChatRules, JudgeOut, Project } from '../../api/types'
 import { useJudgeMeasured } from '../../chat/judgeMeasured'
 import { wordsMeasured } from '../../chat/levels'
 import { ProjectRules } from '../../commands/ProjectRules'
@@ -9,8 +9,8 @@ import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
 import { OPENING, WHEN_AWAY } from './Agents'
 import { useCommands, type Where } from './Commands'
-import { fromOf, Legend, Marked, More, part, Row, Said, within } from './part'
-import { askedSaid } from './said'
+import { fromOf, Legend, Marked, More, noSubmit, part, Row, Said, within } from './part'
+import { askedMore, askedSaid } from './said'
 import { USUAL } from './usual'
 
 const AWAY_WHY =
@@ -62,7 +62,13 @@ export function useAsking(project: Project, where: Where, chat?: { id: string; t
     away.valid && commands.valid,
     <>
       <Said title="When you’re asked">
-        {askedSaid({ ...judge.now, ...away.now, ...opening.now, no_judge: noJudge })}
+        {askedSaid({
+          ...judge.now,
+          ...away.now,
+          ...opening.now,
+          no_judge: noJudge,
+          folded: askedMore({ ...disposable.now, ...commands.now }),
+        })}
       </Said>
       <h3>Commands</h3>
       {judge.row}
@@ -72,7 +78,7 @@ export function useAsking(project: Project, where: Where, chat?: { id: string; t
       {opening.row}
       <More
         count={6}
-        set={disposable.set + commands.set}
+        set={askedMore(saved(project))}
         bad={!commands.valid}
         asked={asked?.what === 'more' ? asked.n : undefined}
       >
@@ -220,7 +226,8 @@ function useFullAutoJudge(project: Project) {
       ...(words !== project.judge_words && { judge_words: words }),
       ...(risky !== project.judge_risky && { judge_risky: risky }),
     },
-    now: { full_auto_judge: on, judge_words: words, judge_risky: risky },
+    // (Its box for your words does nothing until its measurement has passed: the sentence says what is so.)
+    now: { full_auto_judge: on, judge_words: words && measured, judge_risky: risky },
     row: (
       <>
         <Marked from={fromOf(on, project.full_auto_judge, USUAL.full_auto_judge)}>
@@ -276,7 +283,7 @@ function useDisposableDeletes(project: Project) {
   const [allowed, setAllowed] = useState(project.disposable_deletes)
   return {
     patch: allowed === project.disposable_deletes ? {} : { disposable_deletes: allowed },
-    set: Number(project.disposable_deletes !== USUAL.disposable_deletes),
+    now: { disposable_deletes: allowed },
     row: (
       <Marked from={fromOf(allowed, project.disposable_deletes, USUAL.disposable_deletes)}>
         <label className="choice">
@@ -317,6 +324,7 @@ function Rules({
     setSeen(asked)
     if (asked !== undefined) setOpen(true)
   }
+  const rules = useRuleCount(projectId, open)
   return (
     <>
       {/* (No cell: a list of its own, each removed at once - its place keeps the row in line with those that have one.) */}
@@ -325,8 +333,8 @@ function Rules({
         from={null}
         warn={
           <span className="choice-note">
-            The project’s sites, for every chat, and each chat’s own “Always run” commands and requests: each is removed
-            there at once.
+            {rules !== null && `${rules} rule${rules === 1 ? '' : 's'}: `}The project’s sites, for every chat, and each
+            chat’s own “Always run” commands and requests: each is removed there at once.
           </span>
         }
       >
@@ -334,18 +342,56 @@ function Rules({
           type="button"
           className="btn btn-small"
           aria-expanded={open}
-          aria-controls="rules-without-asking"
+          aria-controls={open ? 'rules-without-asking' : undefined}
           onClick={() => setOpen(!open)}
         >
           {open ? 'Hide the rules' : 'Show the rules'}
         </button>
       </Row>
       {open && (
-        <div id="rules-without-asking" className="set-rules">
+        // (Saved rule by rule: Enter in a field or on a box of theirs sends nothing of the section's Save.)
+        <div id="rules-without-asking" className="set-rules" onKeyDown={noSubmit}>
           <ProjectSites projectId={projectId} onCount={setSiteCount} />
           <ProjectRules projectId={projectId} chat={chat} sites={siteCount} />
         </div>
       )}
     </>
   )
+}
+
+/** What of More a project has saved, its fields' defaults where an older server leaves one out. */
+const saved = (project: Project) => ({
+  disposable_deletes: project.disposable_deletes,
+  exec_location: project.exec_location,
+  docker_network: project.docker_network,
+  longest_command: project.longest_command ?? USUAL.longest_command,
+  hide_secrets: project.hide_secrets ?? USUAL.hide_secrets,
+  pass_env: project.pass_env ?? null,
+  canary: project.canary ?? USUAL.canary,
+})
+
+/**
+ * How many rules run without asking here - the project's sites and each chat's commands and requests - read without
+ * opening them, and again each time they are shown or hidden (a rule removed there). null until read.
+ */
+function useRuleCount(projectId: string, open: boolean) {
+  const [count, setCount] = useState<number | null>(null)
+  useEffect(() => {
+    let live = true
+    Promise.all([
+      api.get<unknown[]>(`/projects/${projectId}/sites`),
+      api.get<ChatRules[]>(`/projects/${projectId}/allowed`),
+    ]).then(
+      ([sites, chats]) =>
+        live &&
+        Array.isArray(sites) &&
+        Array.isArray(chats) &&
+        setCount(sites.length + chats.reduce((sum, one) => sum + one.commands.length + one.web.length, 0)),
+      () => undefined,
+    )
+    return () => {
+      live = false
+    }
+  }, [projectId, open])
+  return count
 }
