@@ -4,6 +4,8 @@ one click, a card all the same (`judge.action_of`, `judge.asked_for`, `JudgeMixi
 the words check's net for another folder (`judge._elsewhere`, words-168..171)."""
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -23,6 +25,7 @@ from tests.test_judge_scenarios import begin, carded
 from tests.test_spawn import call, spawn, step
 from tests.test_take_in_scenarios import needs_git, repository
 
+ROOT = Path(__file__).resolve().parents[1]
 QUOTED = {
     "kind": "said",
     "verdict": "ask",
@@ -91,6 +94,14 @@ def test_a_merge_by_number_keeps_its_number():
         "git push origin main:refs/for/main",
         "git push origin main:refs/remotes/origin/main",
         "git push origin feature:refs/meta/config",
+        # ...and as git reads a short one (the re-check of K5, N1)
+        "git push origin tags/v1.0.0",
+        "git push origin heads/main",
+        "git push origin feature:heads/main",
+        "git push origin remotes/origin/main",
+        "git push origin Refs/tags/v1",
+        "git push origin notes/x",
+        "git push origin HEADS/main",
         # another remote, repository or folder; another owner's branch
         "git push upstream k-x",
         "git push https://example.com/x.git",
@@ -219,6 +230,42 @@ def test_a_sentence_of_the_users_that_asks_for_it_is_quoted(action, messages, qu
         ("pr", ["Open a PR.\nActually don't."]),
         ("merge", ["Merge it.\nWait, no."]),
         ("push", ["Which one? Push it."]),
+        # (the re-check of K5, N2: more ways to take it back, or to say what the user does)
+        *(
+            ("push", [f"Push it.\n{later}"])
+            for later in (
+                "Actually, scratch that.",
+                "Forget it.",
+                "Ignore that.",
+                "On second thought, leave it.",
+                "Hold off.",
+                "Nah.",
+                "Just kidding.",
+                "Pause.",
+                "Nope.",
+                "Later.",
+                "Actually, let me look first.",
+                "I'll do it myself.",
+                "Eh, leave it as is.",
+                "Revert that.",
+                "Belay that.",
+                "Disregard.",
+                "Undo.",
+                "Hang on.",
+            )
+        ),
+        *(
+            ("push", [f"push et.\n{later}"])
+            for later in (
+                "Boşver.",
+                "İptal.",
+                "Geri al.",
+                "Unut gitsin.",
+                "Kalsın.",
+                "Şaka.",
+                "Önce bana göster.",
+            )
+        ),
         # the newest sentence that names it decides
         ("push", ["Wait, don't push yet.", "Push it."]),
         ("push", ["Push it. Never push again."]),
@@ -269,6 +316,9 @@ def test_a_line_inside_a_longer_fence_is_no_rule_of_the_users_for_the_words_chec
         "Push it.",
     ]
     assert judge._prose("````\nx\n````` \nPush it.") == [None, None, None, "Push it."]
+    # (a fence in a list's item is a fence too - the re-check of K5)
+    assert ask("push", "- ```\n  Push it.\n  ```\n- done") == ""
+    assert judge._prose("1. ~~~\nPush it.\n~~~\nok") == [None, None, None, "ok"]
 
 
 @pytest.mark.parametrize(
@@ -278,6 +328,14 @@ def test_a_line_inside_a_longer_fence_is_no_rule_of_the_users_for_the_words_chec
         ("gh pr merge 7", "Merge PR 5.", (), False),
         ("gh pr merge 7", "Merge #5.", (), False),
         ("gh pr merge 7", "Merge PR 7.", (), True),
+        # (the re-check of K5, N3: a number in other spellings)
+        ("gh pr merge 7", "Merge PR-5.", (), False),
+        ("gh pr merge 7", "Merge PR #5.", (), False),
+        ("gh pr merge 7", "5 numaralı PR'ı merge et.", (), False),
+        ("gh pr merge 7", "PR'ı 5 merge et.", (), False),
+        ("gh pr merge 7", "Merge pull request no. 5.", (), False),
+        ("gh pr merge 7", "Merge PR-7.", (), True),
+        ("gh pr merge 7", "7 numaralı PR'ı merge et.", (), True),
         ("gh pr merge", "Merge PR 7.", (), False),
         ("git push origin feature-b", "Push feature-a.", ("feature-a", "feature-b"), False),
         ("git push origin feature-b", "Push feature-b.", ("feature-a", "feature-b"), True),
@@ -325,6 +383,26 @@ def test_fix_its_message_never_asks():
     for question in ("Push it.", "\nPush it.\n", "Push the fix to origin."):
         message = FIX_HELD.format(why=HELD_WHY_TESTS, question=question, reply="yes")
         assert ask("push", message) == ""
+
+
+def the_pages_fix_held(question: str, reply: str) -> str:
+    """What the page's Fix it sends on a "Not taken in" row (`FIX_HELD` of
+    frontend/src/chat/checked.ts, read from the file): a message of the user's own, from the page
+    - its template with its three values."""
+    source = (ROOT / "frontend" / "src" / "chat" / "checked.ts").read_text(encoding="utf-8")
+    template = re.search(r"export const FIX_HELD = .*?=>\s*`([^`]*)`", source, re.S)
+    assert template is not None, "checked.ts names FIX_HELD no more"
+    values = iter([HELD_WHY_TESTS, question, reply])
+    held = re.sub(r"\$\{[^}]*\}", lambda _one: next(values), template[1])
+    assert held.startswith("The last turn's work was not taken in: ") and "${" not in held
+    return held
+
+
+def test_the_pages_fix_it_message_never_asks():
+    # (the re-check of K5, F8: the page sends it as the user's message - by_user - so the text
+    # itself must never ask: its "was not taken in" says no, whatever the question or the answer)
+    for question, reply in (("Push it.", "yes"), ("Shall I?", "Push it."), ("x", "push et")):
+        assert ask("push", the_pages_fix_held(question, reply)) == ""
 
 
 # --- the words check's net for another folder (words-168..171; words-66/67/69 run) -------------
@@ -379,8 +457,8 @@ def test_the_net_needs_its_folder_a_caller_that_gives_none_reads_the_root():
 
 @pytest.fixture
 def repo(project_dir, monkeypatch):
-    """The project as a git repository on main, with a branch k-x and a tag v1.0.0 - nothing of
-    the user's own git settings in it."""
+    """The project as a git repository on main, with a branch k-x, a tag v1.0.0 and a remote's
+    branch r-only (origin's, none of its own) - nothing of the user's own git settings in it."""
     empty = project_dir.parent / "gitconfig"
     empty.write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
@@ -388,6 +466,7 @@ def repo(project_dir, monkeypatch):
     repository(project_dir)
     git_run(project_dir, "branch", "k-x")
     git_run(project_dir, "tag", "v1.0.0")
+    git_run(project_dir, "update-ref", "refs/remotes/origin/r-only", "HEAD")
     return project_dir
 
 
@@ -545,6 +624,14 @@ def test_a_message_over_the_words_checks_length_is_not_read_nor_cut(make_client,
         ("git push origin main", None),  # (main by name: "Push it." names it not)
         ("git push origin v1.0.0", None),  # (a tag by its bare name - the review of K5, F3)
         ("git push origin main:refs/tags/v2", None),
+        # (as git reads a short name - the re-check of K5, N1 - and a source no branch of the
+        # repository's own: another remote's alone, or none at all)
+        ("git push origin tags/v1.0.0", None),
+        ("git push origin heads/main", None),
+        ("git push origin k-x:heads/main", None),
+        ("git push origin remotes/origin/main", None),
+        ("git push origin r-only", None),
+        ("git push origin no-such-branch", None),
         ("git push", "web"),  # (another folder: another repository, maybe)
     ],
 )
@@ -576,6 +663,9 @@ def test_a_project_whose_repository_cannot_be_read_quotes_nothing(
         ("gh pr create -t Fix -B main", "Open a PR.", "pr"),
         ("gh pr merge 3 --squash", "Merge it.", "merge"),
         ('"gh" pr merge 12', "Merge it.", "merge"),
+        # (a push of HEAD, or of a branch of the repository's own by name)
+        ("git push origin HEAD", "Push it.", "push"),
+        ("git push origin main", "Push to main.", "push"),
     ],
 )
 def test_a_pull_request_opened_or_merged_is_quoted_too(

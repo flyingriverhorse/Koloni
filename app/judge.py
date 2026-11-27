@@ -57,9 +57,10 @@ SENTENCE = re.compile(r"(?<!\be\.g\.)(?<!\bi\.e\.)(?<!\bvs\.)(?<=[.!?;])\s+", re
 UNIT = re.compile(rf"{SENTENCE.pattern}|\n+", re.IGNORECASE)
 # Code and quoted text are no words of the user's - they may be an agent's they pasted: a fenced
 # block (three backticks or tildes or more, to a line of the same alone, at least as many - or its
-# end where it is not closed: "Ask about this" fences a text that holds ``` in ````), a line four
-# spaces or a tab in, a line quoted with `>`, and a sentence with a backtick in it.
-FENCE = re.compile(r"\s*(`{3,}|~{3,})")
+# end where it is not closed: "Ask about this" fences a text that holds ``` in ````; one in a
+# list's item too), a line four spaces or a tab in, a line quoted with `>`, and a sentence with a
+# backtick in it.
+FENCE = re.compile(r"\s*(?:(?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
 # A list's mark before an item ("- ", "* ", "1. "): no part of what the item says.
 LIST_MARK = re.compile(r"^(?:[-*+•]|\d+[.)])\s+")
 # A line no run stands on: it says no (`NO`), or sets a condition (`CONDITION`) - "without", and
@@ -453,6 +454,10 @@ _PR_OPTIONS = {
 # A branch's plain name, or a pull request's number: no `+` (a force), `:` (a delete, an address,
 # another owner's branch) nor `..`.
 _BRANCH = re.compile(r"(?!.*\.\.)[A-Za-z0-9_][\w./-]*")
+# What git reads a name's first part as where it is no branch of the repository's own (`tags/v1`
+# pushes a tag, `heads/main` main unnamed, `remotes/origin/main` another remote's): never pushed
+# by a quote (`_push`; its source must be a branch of the repository's own besides: `_said_so`).
+_NOT_BRANCHES = frozenset({"refs", "heads", "tags", "remotes", "notes"})
 # A push to one of these by name is quoted only on a sentence that names it too; a pull request
 # whose base is not named, and a merge, may go into either.
 DEFAULT_BRANCHES = ("main", "master")
@@ -460,8 +465,12 @@ QUOTE_CHARS = 300
 # What turns a text's reading order around (left-to-right and right-to-left embeddings,
 # overrides and isolates): never in a quote on a card.
 _BIDI = re.compile("[\u202a-\u202e\u2066-\u2069]")
-# A pull request a sentence names by its number ("PR 5", "#5", "pull request #5").
-_PR_NUMBER = re.compile(r"(?:\bprs?|\bpull requests?|#)\s*#?(\d+)\b")
+# A pull request a sentence names by its number: "PR 5", "#5", "PR #5", "PR-5", "pull request no.
+# 5", "PR'ı 5" - a short word or marks between - and "5 numaralı PR", "5. PR".
+_PR_NUMBER = re.compile(
+    r"(?:\b(?:prs?|pull requests?)\b\W{0,3}\w{0,3}\W{0,3}|#)(\d+)\b"
+    r"|\b(\d+)\W{0,2}(?:numaralı|nolu|no'?lu|sayılı)?\s*(?:pr|pull request)\b"
+)
 # What in a sentence of the user's names each (`MENTIONS`: the newest such sentence decides), and
 # asks for it (`ASKS`): in English an imperative or a leave at a sentence's start or after an
 # opener ("Push it.", "Commit and push.", "You may open a PR.", "Squash and merge."); in Turkish a
@@ -506,9 +515,16 @@ _NOT_ASKED = re.compile(
     r"|would|shall|later|tomorrow|tonight|already|maybe|perhaps|yarın|ileride|belki|zaten"
     r"|kendim)\b|\w+[ae]c[ae][kğ]\w*"
 )
-# ...nor one in a message that takes it back anywhere - says no (`_says_no`), asks ("?"), or
-# waits or calls it off ("Never mind.", "Wait, no.", "Hayır, bekle.", "Yok, vazgeçtim.").
-_RETRACTS = re.compile(r"\b(?:wait|hold on|stop|cancel\w*|hayır|yok|vazgeç\w*|bekle\w*|dur)\b")
+# ...nor one in a message that takes it back anywhere - says no (`_says_no`), asks ("?"), says
+# what the user does or will do (`_NOT_ASKED`), or waits or calls it off ("Never mind.", "Wait,
+# no.", "Scratch that.", "Hold off.", "Hayır, bekle.", "Yok, vazgeçtim.", "Boşver.", "Önce bana
+# göster.").
+_RETRACTS = re.compile(
+    r"\b(?:wait|hold on|hold off|hang on|stop|cancel\w*|pause\w*|nah|nope|scratch that|forget\w*"
+    r"|ignor\w*|disregard\w*|undo|revert\w*|kidding|second thought\w*|leave it|later|belay"
+    r"|hayır|yok|vazgeç\w*|bekle\w*|dur|boşver\w*|iptal\w*|kalsın|şaka\w*|geri al\w*|unut\w*)\b"
+    r"|\bönce\b.*\bgöster"
+)
 
 
 class Doing(NamedTuple):
@@ -554,7 +570,8 @@ def _push(args: list[str]) -> Doing | None:
     """`git push`'s words after it, read as a plain push to origin (`Doing`: the branches it
     pushes to - `a:b`'s b, `refs/heads/` off; none named: its own - and what it sends by name), or
     None - a flag not `_PUSH_FLAGS`'s, a remote not "origin", a refspec that forces (`+x`),
-    deletes (`:x`), is no plain name, or a ref other than a branch (`refs/tags/…`, `refs/for/…`)."""
+    deletes (`:x`), is no plain name, or a ref other than a branch, in full or as git reads a short
+    one (`refs/tags/…`, `tags/v1`, `heads/main`, `remotes/origin/x`: `_NOT_BRANCHES`)."""
     named = [word for word in args if not word.startswith("-")]
     if set(args) - set(named) - _PUSH_FLAGS or named[:1] not in ([], ["origin"]):
         return None
@@ -565,7 +582,8 @@ def _push(args: list[str]) -> Doing | None:
             return None
         source, target = (one.removeprefix("refs/heads/") for one in (source, target or source))
         if not all(
-            _BRANCH.fullmatch(one) and not one.startswith("refs/") for one in (source, target)
+            _BRANCH.fullmatch(one) and one.split("/")[0].casefold() not in _NOT_BRANCHES
+            for one in (source, target)
         ):
             return None
         sources.append(source)
@@ -622,14 +640,21 @@ def asked_for(doing: Doing, said: dict[str, list[str]], known: set[str]) -> str:
 
 def _decides(doing: Doing, text: str, known: set[str]) -> tuple[bool, str] | None:
     """`asked_for` in one message: its last sentence that names `doing`'s action - (True, it as
-    written) where it asks for it: in prose with no backtick, `ASKS` and not `_NOT_ASKED`, naming
-    no other branch or pull request (`_fits`), in a message whose prose (headings too) asks
-    nothing, says no to nothing, takes nothing back (`_RETRACTS`) and sets no condition; (True,
-    "") where it does not - an older one is not read; None where none names it."""
+    written) where it asks for it: in prose with no backtick, `ASKS`, naming no other branch or
+    pull request (`_fits`), in a message whose prose (headings too) asks nothing, says no to
+    nothing, says nothing the user does or will do (`_NOT_ASKED`), takes nothing back
+    (`_RETRACTS`) and sets no condition; (True, "") where it does not - an older one is not read;
+    None where none names it."""
     lines = list(_headed(text))
     said = " ".join(line for line, is_prose, _head in lines if is_prose)
     prose = _plain(said)
-    whole = not ("?" in said or _says_no(prose) or _RETRACTS.search(prose) or _conditional(prose))
+    whole = not (
+        "?" in said
+        or _says_no(prose)
+        or _NOT_ASKED.search(prose)
+        or _RETRACTS.search(prose)
+        or _conditional(prose)
+    )
     for line, is_prose, _head in reversed(lines):
         ones = SENTENCE.split(LIST_MARK.sub("", line.strip())) if is_prose else [line]
         for one in reversed(ones):
@@ -641,7 +666,6 @@ def _decides(doing: Doing, text: str, known: set[str]) -> tuple[bool, str] | Non
                 and is_prose
                 and "`" not in one
                 and bool(ASKS[doing.action].search(plain))
-                and not _NOT_ASKED.search(plain)
                 and _fits(plain, doing, known)
             )
             return True, one.strip().rstrip(";") if asks else ""
@@ -656,6 +680,7 @@ def _fits(plain: str, doing: Doing, known: set[str]) -> bool:
     words = {one.strip(".").removeprefix("origin/") for one in re.findall(r"[\w./-]+", plain)}
     mine = {one.casefold() for one in doing.names}
     named = words & (known | set(DEFAULT_BRANCHES))
-    numbers = set(_PR_NUMBER.findall(plain)) if doing.action == "merge" else set()
+    found = _PR_NUMBER.findall(plain) if doing.action == "merge" else []
+    numbers = {after or before for after, before in found}
     pushed = mine & set(DEFAULT_BRANCHES) if doing.action == "push" else set()
     return named <= mine and pushed <= words and numbers <= {doing.number}

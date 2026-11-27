@@ -45,9 +45,9 @@ _JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\b(?:remote|Docke
 _MORE_LINES = re.compile(r"(?:[\n\r\v\f\x1c-\x1e\x85\u2028\u2029])|(?:[`\\][ \t]*$)")
 
 
-def _refs(root: Path) -> tuple[set[str], set[str]] | None:
-    """K5: the names, case folded, of the branches - the repository's own and its remotes', the
-    remote's name off - and of the tags of the repository whose top folder `root` is
+def _refs(root: Path) -> tuple[set[str], set[str], set[str]] | None:
+    """K5: the names, case folded, of the repository's own branches, of its remotes' (the
+    remote's name off) and of its tags - the repository whose top folder `root` is
     (`git.repository`); None where git does not answer. A look as `git.look` takes one: read
     only, no hook, no fetch."""
     try:
@@ -66,10 +66,10 @@ def _refs(root: Path) -> tuple[set[str], set[str]] | None:
         return None
     if names is None:
         return None
-    branches = {one[len("refs/heads/") :] for one in names if one.startswith("refs/heads/")}
-    branches |= {one.split("/", 3)[-1] for one in names if one.startswith("refs/remotes/")}
+    own = {one[len("refs/heads/") :] for one in names if one.startswith("refs/heads/")}
+    remote = {one.split("/", 3)[-1] for one in names if one.startswith("refs/remotes/")}
     tags = {one[len("refs/tags/") :] for one in names if one.startswith("refs/tags/")}
-    return branches - {"head"}, tags
+    return own, remote - {"head"}, tags
 
 
 def only_deletes(line: str) -> bool:
@@ -129,7 +129,8 @@ class JudgeMixin:
         later push is not its - that asked for it (`judge.asked_for`; one over MOST_CHARS is not
         read, never cut: its condition may stand past the cut) - `kind` "said", an ask: a card
         all the same, one click, with its `action`. None where none asks for it, the project's
-        repository cannot be read (`_refs`), or a push sends a tag by its bare name."""
+        repository cannot be read (`_refs`), or a push sends by name what is no branch of the
+        repository's own (nor HEAD): a tag, another remote's, a name git would read otherwise."""
         doing = judge.action_of(command)
         if (
             doing is None
@@ -141,7 +142,8 @@ class JudgeMixin:
         ):
             return None
         refs = await asyncio.to_thread(_refs, Path(ctx.root))
-        if refs is None or {one.casefold() for one in doing.sources} & refs[1]:
+        sources = {one.casefold() for one in doing.sources}
+        if refs is None or sources - refs[0] - {"head"} or sources & refs[2]:
             return None
         with self._factory() as session:
             if not session.get_one(Run, ctx.run_id).by_user:
@@ -158,7 +160,7 @@ class JudgeMixin:
         if sum(map(len, started)) > judge.MOST_CHARS:
             return None
         texts["message"] = [raw.hidden(one) for one in started]
-        quote = judge.asked_for(doing, texts, refs[0] | refs[1])
+        quote = judge.asked_for(doing, texts, refs[0] | refs[1] | refs[2])
         said = {"kind": "said", "verdict": "ask", "quote": quote, "source": "message"}
         return {**said, "action": doing.action} if quote else None
 
