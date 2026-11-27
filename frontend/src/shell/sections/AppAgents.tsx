@@ -5,6 +5,7 @@ import { experimentalChanged } from '../../models/experimental'
 import { GUIDE } from '../guide'
 import { LANGUAGES } from '../ProjectSettings'
 import { useJudgeModel } from './JudgeModel'
+import { useAdvisorModel } from './AdvisorModel'
 import { fromOf, Legend, Marked, More, Row, Said, SaveBar } from './part'
 import { appSaid } from './said'
 
@@ -174,6 +175,7 @@ export function AppAgents({ toLimits, moreAsked }: { toLimits?: () => void; more
     .filter(([one, value]) => one.kept !== undefined && one.kept !== value)
     .map(([one, , name]) => `${name} ${one.kept ?? 'no limit'}`)
   const judge = useJudgeModel()
+  const advisor = useAdvisorModel()
   const experimental = useExperimental()
   // (What the save bar says changed, by name.)
   const named: [{ changed: boolean }, string][] = [
@@ -312,6 +314,7 @@ export function AppAgents({ toLimits, moreAsked }: { toLimits?: () => void; more
       </form>
       {experimental.view}
       {judge.view}
+      {advisor}
       <Legend />
     </>
   )

@@ -255,7 +255,7 @@ def test_codex_reaches_other_agents_and_the_user_through_koloni(native_app, wait
         "post_note",
         "read_notes",
         "remember",
-        *("recall", "stop_agent", "agents_at_work"),  # (0.1.11: beside its agents)
+        *("recall", "stop_agent", "agents_at_work", "ask_advisor"),  # (0.1.11)
         "recall_output",
     ]
     assert [reported(r["content"][0]["text"]) for r in seen["results"]] == [
