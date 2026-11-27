@@ -9,11 +9,12 @@ import contextlib
 import json
 import logging
 from dataclasses import replace
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, or_, select
 
-from app import away, recipe_run, web
+from app import away, injection, recipe_run, web
 from app.agent.ctx import TERMINAL, Ctx
 from app.agent.questions_mixin import USER_TOLD
 from app.agent.spawn_mixin import INTERNAL, SPAWN_ENDED, SPAWN_ENDED_SEE, SPAWN_REJECTED
@@ -41,6 +42,7 @@ from app.agent.words import (
     YOU_STOPPED,
 )
 from app.command_runner import DRAIN_GRACE_SECONDS, KILL_SECONDS, OUTPUT_AT_MOST
+from app.commands import OutputMask
 from app.db.models import (
     Agent,
     Command,
@@ -61,7 +63,13 @@ from app.serialize import message_out, run_out
 from app.team import quoted
 from app.tools import WRITE_TOOLS, ToolError, parse_arguments
 from app.tools_at_work import (
+    AGENTS_AT_WORK_SCHEMA,
+    AT_WORK_HEAD,
+    AT_WORK_LINE,
+    AT_WORK_NONE,
+    AT_WORK_SAID,
     COMMAND_BACKGROUND_PROPERTY,
+    SAID_MOST,
     SPAWN_BACKGROUND_PROPERTY,
     STOP_AGENT_SCHEMA,
 )
@@ -120,6 +128,7 @@ class AtWorkMixin:
             s["function"]["name"] == "spawn_agent" for s in schemas
         ):
             schemas.append(STOP_AGENT_SCHEMA)
+            schemas.append(AGENTS_AT_WORK_SCHEMA)  # (D4: who of them is at work)
         if self._background_offered(ctx) and self._serving_not(ctx) is None:
             for run in (s["function"] for s in schemas if s["function"]["name"] == "run_command"):
                 run["parameters"]["properties"]["background"] = COMMAND_BACKGROUND_PROPERTY
@@ -210,11 +219,16 @@ class AtWorkMixin:
             f"with since={end}:\n{shown}"
         )
 
-    async def _at_work_call(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
+    async def _at_work_call(
+        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
+    ) -> str:
         """`_tool_call_4`'s part for `AT_WORK_TOOLS`, held to the agent they are offered to (a
         CLI keeps the tools it was given at its start)."""
+        name, args = request.name, parse_arguments(request.arguments)
         if ctx.depth or ctx.answering or ctx.discussion:
             raise ToolError(f"{name} is not available: only the Orchestrator at its own work")
+        if name == "agents_at_work":
+            return self._agents_at_work(ctx)
         named = args.get("name")
         if not isinstance(named, str) or not named.strip():
             raise ToolError("missing required argument: name")
@@ -1031,3 +1045,63 @@ class AtWorkMixin:
                 self._apart(cid, run_id, apart)
             self._halt(run_id, stopping, TEAM_STOPPED)
         return why[0]
+
+    # --- D4: agents_at_work ------------------------------------------------------------------
+
+    def _agents_at_work(self: "AgentRunner", ctx: Ctx) -> str:
+        """agents_at_work: the agents of this turn at work now, below its Orchestrator - each
+        one's name and role, how it stands and since when (this machine's clock), whether its
+        opener went on without it, and its last words: masked, cut, quoted, after KOLONİ's note
+        where they read like orders. Read from this turn's record only."""
+        with self._factory() as session:
+            rows = session.scalars(
+                select(Agent)
+                .where(
+                    Agent.run_id == ctx.run_id,
+                    Agent.depth > 0,
+                    Agent.status.in_((*AT_WORK, "blocked")),
+                )
+                .order_by(Agent.created_at, literal_column("agents.rowid"))
+            ).all()
+            last = {
+                one.id: session.scalar(
+                    select(Message.content)
+                    .where(
+                        Message.agent_id == one.id,
+                        Message.role == "assistant",
+                        Message.content != "",  # (not the step it streams now)
+                    )
+                    .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+                    .limit(1)
+                )
+                for one in rows
+            }
+        if not rows:
+            return AT_WORK_NONE
+        later = {one[1] for one in self._later_work.get(ctx.run_id, ())}
+        at = now()
+        lines = [AT_WORK_HEAD.format(n=len(rows))]
+        for one in rows:
+            since = one.started_at or one.created_at
+            lines.append(
+                AT_WORK_LINE.format(
+                    name=one.name,
+                    role=one.role_name,
+                    status=AT_WORK_SAID.get(one.status, one.status),
+                    at=since.replace(tzinfo=UTC).astimezone().strftime("%H:%M"),
+                    minutes=max(0, int((at - since).total_seconds() // 60)),
+                    later=", in the background" if one.id in later else "",
+                    said=_last_said(last.get(one.id)),
+                )
+            )
+        return "\n".join(lines)
+
+
+def _last_said(words: str | None) -> str:
+    """An agent's last words as agents_at_work gives them: masked, cut, quoted - after KOLONİ's
+    note where they read like orders; "nothing yet" for none."""
+    if not words or not words.strip():
+        return "nothing yet"
+    shown = OutputMask(()).hide(" ".join(words.split()))
+    shown = shown if len(shown) <= SAID_MOST else shown[: SAID_MOST - 1] + "…"
+    return f"{injection.NOTE} {quoted(shown)}" if injection.scan(words, "agent") else quoted(shown)
