@@ -645,6 +645,6 @@ async def answer_notes_offer(
     announce(
         request.app.state.session_factory, request.app.state.bus, project.id, project_notes.OFFERED
     )
-    if offer.status == "added":  # (Memory's Told tab: its Project notes box)
+    if offer.status == "added":  # (Memory's Your words: its Project notes box)
         announce_memory(request.app.state.session_factory, request.app.state.bus, project.id)
     return project_notes.out(offer)

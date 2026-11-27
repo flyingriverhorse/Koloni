@@ -4,9 +4,11 @@ Memory is what a project remembers between chats: your preferences, the project'
 Project notes, facts you approved, and notes agents wrote while they worked. Open it with **Memory**
 on the left rail. Each project has its own memory.
 
-The Memory page has two parts, at its top: **What the project knows** - this page - and **Sources to
-look things up in**, the documents, files and repositories agents read
-([Sources to look things up in](knowledge.md); until 0.1.10 the Knowledge page).
+The Memory page has two parts, as two tabs near its top: **What the project knows** - this page - and
+**Sources to look things up in**, the documents, files and repositories agents read
+([Sources to look things up in](knowledge.md); until 0.1.10 the Knowledge page). Each tab says what waits
+in it: "1 waits for your word" (a fact an agent put forward), "2 may be old" (a source whose guide may be
+out of date).
 
 Memory is one of the two places KOLONİ keeps notes. The other is a job's
 [notebook](automation/todo.md#the-storys-notebook): what a To-do story's or task's turns, or a night's
@@ -20,22 +22,55 @@ checks those lines again each time it reads the fact.
 
 *From a note to an approved fact, and how agents get it.*
 
+## The page
+
+![The Memory page: the search and the three ways on top, the two parts' tabs, a fact waiting for your word in the honey box beside the fact it would replace, the core's facts each with its cell and the journal's notes at the left, and your preferences, the project's rules and the Project notes at the right](images/memory.png)
+
+*What the project knows: what waits for your word on top, what agents were told at the left, your own words at the right.*
+
+From the top:
+
+- **The search**: "Search everything this project remembers" ([Searching memory](#searching-memory)).
+- **Three ways memory reaches an agent**, one line each: **Given at the start**, **Found when asked**
+  and **Sources given to a role** ([below](#the-three-ways-memory-reaches-an-agent)).
+- **The two parts' tabs**, each with what waits in it.
+- **What waits for your word**: a honey box, only while an agent's proposal waits for you
+  ([Who writes what](#who-writes-what)).
+- At the left, **Facts** (the core) and **Notes** (the journal), and under them **History**, folded.
+- At the right, **Your words**: your preferences, this project's rules and its Project notes, set apart
+  from what agents wrote. Only you write them. Under them, which other projects' memory **Search deeper**
+  and **Recall** also look in, with **Change** (Settings › This project › Memory and web).
+
+### The cells
+
+Each fact has a small hexagon, a cell, that says how it stands for agents. A word always says it too:
+its name for a screen reader, the line above the facts and the words under the fact. A cell never says
+a fact is right.
+
+| Cell | What it means |
+|---|---|
+| Green, filled | Given when the work names its subject. |
+| Red-orange, filled | Given to no agent until you look again: its source changed or moved. One with no subject, or one too general to match, says "its source changed: look again - only found by looking it up": looking again does not make it given. |
+| Empty | Only found by looking it up: it has no subject, or one too general to match. |
+
+Ten smaller cells beside **Facts** fill in honey as facts take the core's room, with the count beside
+them ("1 240 / 4 000 characters").
+
 ## The kinds of memory
 
 | Kind | Who writes it | Where you see it |
 |---|---|---|
-| **Your preferences** | You. One text, used in every project. | **Told** tab |
-| **This project's rules** | You. Kept in the folder's `.koloni/rules.md`, so they go into git with the project. | **Told** tab |
-| **Project notes** | You, ticking lines on the **Add to Project notes?** card at the end of a turn. | **Told** tab, under the rules |
-| **Facts** (the core) | You, or an agent's proposal that you approved. | **Facts** tab |
-| **Notes** (the journal) | Agents, while they work, and KOLONİ's own note-taker if you switch it on. | **Notes** tab |
+| **Your preferences** | You. One text, used in every project. | **Your words**, at the right |
+| **This project's rules** | You. Kept in the folder's `.koloni/rules.md`, so they go into git with the project. | **Your words** |
+| **Project notes** | You, ticking lines on the **Add to Project notes?** card at the end of a turn. | **Your words**, under the rules |
+| **Facts** (the core) | You, or an agent's proposal that you approved. | **Facts**, at the left |
+| **Notes** (the journal) | Agents, while they work, and KOLONİ's own note-taker if you switch it on. | **Notes**, under the facts |
 
 A fact has a subject (a few words, such as `test command`) and usually a source: a file and a
-range of lines. The core holds at most 4 000 characters of facts; the **Facts** tab shows how much
-is used.
+range of lines. The core holds at most 4 000 characters of facts; **Facts** shows how much is used.
 
 The rules you save here are also written to the folder's `.koloni/rules.md`. When that file says
-something else (a `git pull` or a script changed it), the **Told** tab says so - "The folder's
+something else (a `git pull` or a script changed it), **Your words** say so - "The folder's
 rules.md differs from what you saved here; Full auto's check goes by what you saved." - and shows the
 folder's text, with **Use the folder's rules here** to take it into the box. Full auto's
 [Check what I said first](use/permissions.md#check-what-i-said-first) reads the rules saved here.
@@ -49,8 +84,8 @@ At the end of a turn, KOLONİ may ask **Add to Project notes?** It lists finding
 changes to the project's `docs/`, at most 8, in the words of the agent or the file. Tick the ones to keep
 and press **Add**, or **Not now**. The card never holds the turn: answer it whenever you like.
 
-Each line you add goes into the second box under **This project's rules**, on the **Told** tab, as
-`- <line>`. The Orchestrator is given them every turn, each line in quotes, as notes written from the
+Each line you add goes into the **Project notes** box under **This project's rules**, in **Your words**,
+as `- <line>`. The Orchestrator is given them every turn, each line in quotes, as notes written from the
 agents' work: they are not your instructions. They are not written to `.koloni/rules.md`, and Full auto's
 check of your words does not read them. Correct a line or take it out in the box, then press **Save
 Project notes**. They hold at most 4 000 characters; past that, **Add** asks you to take some lines out
@@ -61,18 +96,24 @@ were copied here ([Upgrade notes](reference/upgrade-notes.md#0110)).
 
 ## The three ways memory reaches an agent
 
-The page has four tabs. The first three are the three ways memory reaches an agent:
+The strip at the top of the page says them, one line each:
 
-1. **Told**: "Said to every agent, always." Your preferences and the project's rules are put in
-   every agent's briefing. The Orchestrator is also given the [Project notes](#project-notes), every turn.
-2. **Facts**: "Given to an agent when its work names the subject." When every word of a fact's
-   subject appears in the agent's task, the fact is given to it. The agent is also told how many
-   other facts exist, so it can look them up. A fact whose subject is too general to match is
-   only found by looking it up.
-3. **Notes**: "Found only when an agent looks." Notes are never given by themselves. An agent
-   finds them with its **Recall** tool ("look in memory").
+1. **Given at the start**: your preferences and rules, to every agent; the Project notes, to the
+   Orchestrator; a fact, when the work names its subject.
+   - **Your words** are "Said to every agent, always": your preferences and the project's rules are put
+     in every agent's briefing. The Orchestrator is also given the [Project notes](#project-notes), every
+     turn.
+   - **Facts** are "Given to an agent when its work names the subject." When every word of a fact's
+     subject appears in the agent's task, the fact is given to it. The agent is also told how many other
+     facts exist, so it can look them up. A fact whose subject is too general to match is only found by
+     looking it up: its cell is empty.
+2. **Found when asked**: an agent's **Recall** tool ("look in memory") finds notes and facts, earlier
+   messages and linked projects' memory. **Notes** are "Found only when an agent looks": they are never
+   given by themselves.
+3. **Sources given to a role**: only a role you give a source looks in it - docs, repositories, folders
+   ([Sources to look things up in](knowledge.md)).
 
-The fourth tab, **History**, shows decisions and what was removed.
+**History**, folded under the notes, shows decisions and what was removed.
 
 While an agent works, KOLONİ keeps checking what it was given. If a fact it was given changes or
 is removed during its work, the agent is told.
@@ -102,7 +143,7 @@ it with **Look again**. You see the lines as they read now, and you can choose:
 - **Correct**: rewrite the fact.
 - **Remove**: take it out of the core.
 
-**Look at the sources again**, at the top of the page, checks every source again.
+**Look at the sources again**, beside **Facts**, checks every source again.
 
 A record written in a turn nobody watched (a trigger's turn, before 0.1.10) is tagged "written with nobody
 watching".
@@ -121,19 +162,22 @@ the journal as KOLONİ's, under "flaky test: `test`", with how many times it was
 ([Not this turn's](use/checked.md#not-this-turns-flaky-tests-and-failures-from-before)).
 
 **Agents propose facts; you approve them.** An agent can put a note forward for the core. Nothing
-enters the core unless you approve it. Waiting proposals show above the tabs, with a line such as
-"1 fact waits for your word". For each one you can choose **Approve**, **Edit and approve**
-(then **Approve as edited**) or **Reject**. If it would replace a fact on the same subject, you
-see both side by side.
+enters the core unless you approve it. Waiting proposals show at once in a honey box at the top of
+the part, headed such as "1 fact waits for your word"; the part's tab says so too. The box shows three;
+the rest wait behind **Show N more**, so that the facts and your words stay near the top. For each one you
+can choose **Approve**, **Edit and approve** (then **Approve as edited**) or **Reject**. If it would
+replace a fact on the same subject, you see both side by side: **Would replace** and **Put forward**.
+Once you decided the last one, the box says "Nothing waits for you." until you leave the page.
 
 A proposal can be approved only while its source is unchanged, and not if the file was changed
 in the same turn the note was written. A note on a subject the core already has a fact on waits
 for you too; until you decide, no agent is given it and **Recall** does not find it.
 
-**You write facts yourself.** On the **Facts** tab, **＋ Add a fact** asks for the fact, its
+**You write facts yourself.** Under the facts, **＋ Add a fact** asks for the fact, its
 subject and, if you like, a file with its first and last line. **Add to the core** saves it. It
-replaces any fact on the same subject. A fact's **⋯** menu has **Correct** and **Remove**. A
-note's **⋯** menu has **Remove** and **Make it a fact**.
+replaces any fact on the same subject. A fact's **⋯** menu has **Correct** and **Remove**. A note
+has **Make it a fact** in sight, which opens **Add a fact** with its words and subject, and **Remove**
+in its **⋯** menu.
 
 **Your words on a card become a fact.** When you ask for changes on a card and say why, that text
 is kept as a fact, shown as "said by you at a card, asking for changes".
@@ -148,9 +192,11 @@ by themselves and never replace an agent's note or a fact.
 
 ## Searching memory
 
-One search box sits above the tabs: "Search everything this project remembers".
+One search box sits at the top of the page: "Search everything this project remembers".
 
-- **Typing** filters what is on the page. Every word must match.
+- **Typing** filters what is on the page, grouped by where it is: **Waiting for your word**, **In Your
+  words**, **In Facts**, **In Notes** and **In History**. Every word must match. A hit goes to its row,
+  whatever the filters say, and unfolds **History** for one of its rows.
 - **Search deeper** (or Enter) runs the same search an agent's **Recall** does in memory (an
   agent's also looks in its role's [sources](knowledge.md#how-agents-look-things-up)). It looks in the
   project's memory, in earlier messages, and in the memory of linked projects. Results are grouped
@@ -229,14 +275,15 @@ sees that work, and can go on with the agents that did it.
 
 ## Sources to look things up in
 
-The page's second part holds the knowledge: expert topics learned from web pages, project files,
+The page's second part, its second tab, holds the knowledge: expert topics learned from web pages, project files,
 a repository or a folder. Roles use them while they work, and an agent's **Recall** looks in a
 role's own ([Sources to look things up in](knowledge.md)). What the project knows is short facts and
 notes, each checked against its source; a source is longer material an expert reads.
 
 ## History and Export
 
-The **History** tab says "Decisions and what was removed. Nothing is deleted."
+**History**, folded under the notes with how many it holds beside it, says "Decisions and what was
+removed. Nothing is deleted."
 
 - **Recent decisions** lists the latest decisions, such as "Approved into the core", "Corrected",
   "Rejected" or "Removed".
@@ -245,7 +292,7 @@ The **History** tab says "Decisions and what was removed. Nothing is deleted."
 
 Correcting a fact keeps the old one as replaced. Removing or rejecting never deletes a record.
 
-**Export**, at the top of the page, downloads the core as `MEMORY.md`: each fact with its subject,
+**Export**, beside **Facts**, downloads the core as `MEMORY.md`: each fact with its subject,
 who wrote it and when, and its source with its status now. Only facts are exported, not notes. The
 file is a copy to read; editing it does not change the memory.
 
@@ -256,8 +303,8 @@ Settings › The app › Your data. See [Settings](settings.md).
 
 **Why didn't an agent use a fact I approved?**
 A fact is given only when the agent's task names every word of its subject, and only while its
-source is unchanged. Check the fact's status on the **Facts** tab. The agent can still find it with
-**Recall**.
+source is unchanged. Check the fact's cell and its line under **Facts**. The agent can still find it
+with **Recall**.
 
 **A fact says "source changed". Is it wrong now?**
 Not necessarily. Its lines changed, so KOLONİ stopped giving it to agents until you look. Open

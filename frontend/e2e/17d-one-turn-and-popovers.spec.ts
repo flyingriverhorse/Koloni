@@ -98,7 +98,7 @@ test('the canvas draws one turn, picked in Recent or from the chat; what a node 
 
   // You write a fact into the core, about the port. The page says who will be given it.
   await rail(page, 'Memory').click()
-  const core = page.getByRole('tabpanel', { name: /^Facts/ })
+  const core = page.getByRole('region', { name: 'Facts', exact: true })
   await expect(core.getByText('Given to an agent when its work names the subject.')).toBeVisible()
   await core.getByRole('button', { name: '＋ Add a fact' }).click()
   const write = page.getByRole('region', { name: 'Add a fact' })

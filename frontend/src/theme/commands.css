@@ -4504,6 +4504,64 @@ fieldset.choice > label .choice-note,
   box-shadow: 0 0 0 1px var(--accent) inset;
 }
 
+/* 0.1.10, as cells: Memory's sources part - its head, then a card for each knowledge in a grid, a cell for how fresh it
+   is; a card opened (or asked with Try it) goes across the row. */
+.knowledge-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.knowledge-lede {
+  flex: 1;
+  min-width: 220px;
+}
+
+.knowledge-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.knowledge-card-wide {
+  grid-column: 1 / -1;
+}
+
+.knowledge-card-head .knowledge-source {
+  flex-basis: 100%;
+}
+
+.knowledge-offer {
+  border: 1px dashed var(--border-strong);
+  box-shadow: none;
+}
+
+.knowledge-acts,
+.knowledge-roles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--text-note);
+}
+
+.knowledge-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+}
+
+/* (As small as a role's tick beside it.) */
+.knowledge-give {
+  width: auto;
+  padding: 2px 6px;
+  font-size: var(--text-note);
+}
+
 /* Ready for you (K-bekleyenler): the chat's one list of what waits for you, by kind. */
 .waiting-list section {
   display: flex;

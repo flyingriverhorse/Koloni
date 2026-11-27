@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { type Browser, expect, type Locator, type Page, test } from './fixtures'
+import { type APIRequestContext, type Browser, expect, type Locator, type Page, test } from './fixtures'
 import {
   LINK,
   OWN,
@@ -181,7 +181,7 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await picture(page, 'settings-project')
   await page.getByRole('button', { name: 'Close settings' }).click()
   await page.getByRole('button', { name: 'Memory', exact: true }).click()
-  await page.getByRole('button', { name: 'Sources to look things up in' }).click()
+  await page.getByRole('tab', { name: /^Sources to look things up in/ }).click()
   await expect(page.getByRole('article', { name: 'MLflow' })).toBeVisible()
   await picture(page, 'knowledge')
 })
@@ -338,6 +338,65 @@ test('a story’s strip and notebook', async ({ page }) => {
   } finally {
     for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
     for (const id of added.story_ids) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
+  }
+})
+
+/** Everything in effect or waiting goes to Past, and your words are emptied: the pictures after start from an empty memory. */
+async function clearMemory(request: APIRequestContext, pid: string) {
+  const memory = await (await request.get(`/api/projects/${pid}/memory`)).json()
+  for (const one of [...memory.proposals, ...memory.core, ...memory.journal] as { id: string }[])
+    await request.post(`/api/memory/${one.id}/reject`, { headers: OWN })
+  await request.put(`/api/projects/${pid}/rules`, { headers: OWN, data: { rules: '' } })
+  await request.put(`/api/projects/${pid}/project-notes`, { headers: OWN, data: { text: '' } })
+  await request.put('/api/preferences', { headers: OWN, data: { text: '' } })
+}
+
+test('the Memory page as cells', async ({ page, request }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const shown = path.join(PROJECT_DIR, 'settings.txt')
+  const moved = path.join(PROJECT_DIR, 'deploy-notes.txt')
+  await clearMemory(request, pid)
+  writeFileSync(shown, '# settings\nThe service listens on port 8123.\n')
+  writeFileSync(moved, '# deploy\nStaging runs on host stage-1.\n')
+  const write = async (data: object) =>
+    expect((await request.post(`/api/projects/${pid}/memory`, { headers: OWN, data })).status()).toBe(201)
+  try {
+    // A fact the lead's note would take the place of; one of your words; one too general to be given; one whose lines
+    // change after it was written.
+    await write({ text: 'The service listens on port 8000.', about: 'port', file: 'settings.txt', start_line: 1 })
+    await write({ text: 'Commits are signed off.', about: 'commits' })
+    await write({ text: 'Docs are Markdown.', about: 'md' })
+    await write({
+      text: 'Staging runs on host stage-1.',
+      about: 'staging host',
+      file: 'deploy-notes.txt',
+      start_line: 2,
+    })
+    writeFileSync(moved, '# deploy\nStaging runs on host stage-2.\n')
+    await request.put('/api/preferences', { headers: OWN, data: { text: 'Answer in short sentences.' } })
+    await request.put(`/api/projects/${pid}/rules`, {
+      headers: OWN,
+      data: { rules: 'Sign off every commit.\nNever push to main.' },
+    })
+    await request.put(`/api/projects/${pid}/project-notes`, {
+      headers: OWN,
+      data: { text: '- The export module is being rewritten: leave export.py alone.' },
+    })
+    await say(page, 'note the port', 'Noted where the port is set. It waits for you.')
+    // (Loaded again: the turn's "Done" toast is not in the picture.)
+    await page.reload()
+    await rail(page, 'Memory').click()
+    await expect(
+      page.getByRole('region', { name: 'Waits for you' }).getByRole('group', { name: 'Would replace' }),
+    ).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Facts', exact: true }).getByRole('article')).toHaveCount(4)
+    // (Taller than the others: the box that waits, the facts with their cells and your words, in one picture.)
+    await page.setViewportSize({ width: 1280, height: 1300 })
+    await picture(page, 'memory')
+  } finally {
+    await clearMemory(request, pid)
+    rmSync(moved, { force: true })
   }
 })
 

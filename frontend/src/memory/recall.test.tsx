@@ -32,9 +32,9 @@ const auto = memoryRecord('a1', {
 
 const BOX = 'Search everything this project remembers'
 const search = () => screen.getByRole('region', { name: 'Search' })
+/** The journal's area (0.1.10: beside the core, no tab). */
 async function notes() {
-  await userEvent.click(screen.getByRole('tab', { name: /^Notes/ }))
-  return screen.getByRole('tabpanel', { name: /^Notes/ })
+  return screen.getByRole('region', { name: 'Notes' })
 }
 
 test('a note made by itself is signed as the summariser’s, with the model that made it', async () => {

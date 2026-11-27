@@ -244,8 +244,8 @@ def test_ticks_name_lines_a_changed_offer_is_shown_again_and_a_bad_tick_waits_on
 
 def test_full_project_notes_refuse_and_the_offer_waits_on(make_client, wait_run, project_dir):
     """0.1.10: past MOST_KEPT characters an answer adds nothing - the user is told to take lines
-    out on Memory's Told tab - and the offer waits on; Memory's box holds what the user saves
-    there, tidied, refused past the same size."""
+    out of Memory's Project notes box - and the offer waits on; Memory's box holds what the user
+    saves there, tidied, refused past the same size."""
     client, _cid, _run_id, offer = _offered(make_client, wait_run, project_dir)
     full = "- " + "x" * (project_notes.MOST_KEPT - 2)
     with client.app.state.session_factory() as session:
@@ -253,7 +253,7 @@ def test_full_project_notes_refuse_and_the_offer_waits_on(make_client, wait_run,
         session.get_one(Project, pid).project_notes = full
         session.commit()
     refused = _say(client, offer, offer["lines"])
-    assert refused.status_code == 409 and "Told tab" in refused.text
+    assert refused.status_code == 409 and "Memory's Project notes box" in refused.text
     with client.app.state.session_factory() as session:
         assert session.get(NotesOffer, offer["id"]).status == "waiting"
     assert _kept(client, pid) == full
@@ -490,7 +490,8 @@ def test_the_notes_reach_their_projects_orchestrator_every_turn_as_data(
 ):
     """0.1.10: what the user keeps reaches that project's Orchestrator at every turn - its lines
     in its instructions, quoted, noted where one reads like orders - no other project's, no
-    sub-agent's; nothing to look up (no knowledge). Taken out on Memory's Told tab, it is gone."""
+    sub-agent's; nothing to look up (no knowledge). Taken out of Memory's Project notes box, it is
+    gone."""
     other = tmp_path / "other"
     other.mkdir()
     client, model = make_client(
@@ -538,7 +539,7 @@ def test_the_notes_reach_their_projects_orchestrator_every_turn_as_data(
     # Another project's Lead: not these.
     system, _tools = lead(other)
     assert project_notes.HEAD not in system
-    # Taken out on Memory's Told tab: gone.
+    # Taken out of Memory's Project notes box: gone.
     cleared = client.put(f"/api/projects/{pid}/project-notes", headers=OWN, json={"text": ""})
     assert cleared.status_code == 200
     system, _tools = lead(project_dir)

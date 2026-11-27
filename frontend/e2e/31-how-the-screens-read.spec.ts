@@ -166,7 +166,7 @@ async function walk(page: Page, theme: 'light' | 'dark') {
   await expect(page.getByRole('table').first()).toBeVisible()
   await snap('8-type-usage')
   await rail(page, 'Memory').click()
-  await expect(page.getByRole('tabpanel', { name: /^Facts/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Facts', exact: true })).toBeVisible()
   await snap('8-type-memory')
 }
 
@@ -640,7 +640,7 @@ for (const theme of ['light', 'dark'] as const)
       await check(page.locator('.conv-page'), 4)
       await narrow(page.locator('.conv-page'))
       await rail(page, 'Memory').click()
-      await expect(page.getByRole('tabpanel', { name: /^Facts/ })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Facts', exact: true })).toBeVisible()
       await check(page.locator('.memory-page'), 15)
       await narrow(page.locator('.memory-page'))
     } finally {

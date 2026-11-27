@@ -30,7 +30,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByRole('heading', { name: 'Usage' })).toBeVisible()
     await snap('usage')
     await rail(page, 'Memory').click()
-    await expect(page.getByRole('tabpanel', { name: /^Facts/ })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Facts', exact: true })).toBeVisible()
     await snap('memory')
   })
 }
@@ -160,7 +160,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByRole('heading', { name: 'Chats', exact: true })).toBeVisible()
     await snap('conversations')
     await rail(page, 'Memory').click()
-    await expect(page.getByRole('tabpanel', { name: /^Facts/ })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Facts', exact: true })).toBeVisible()
     await snap('memory')
     // The turn that waits is answered, so what runs after finds nothing waiting.
     await rail(page, 'Canvas').click()
