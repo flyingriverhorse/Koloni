@@ -390,11 +390,18 @@ class MemoryMixin:
         return note
 
     async def _reply_turn(
-        self: "AgentRunner", ctx: Ctx, target: Ctx, kind: str, body: str, koloni: bool = False
+        self: "AgentRunner",
+        ctx: Ctx,
+        target: Ctx,
+        kind: str,
+        body: str,
+        koloni: bool = False,
+        left: str | None = None,
     ) -> tuple[str, str]:
         """The receiver's turn on a message: it works on, or answers; then its reply.
         `koloni`: the words are KOLONİ's own (G3's Go on), not the opener's - told as a
-        nudge, no message between agents, not counted against the turn's."""
+        nudge, no message between agents, not counted against the turn's. `left`: the note it
+        was left (C1, `message_modes`), its message - read in this turn, once."""
         with self._factory() as session:
             record = session.get_one(Agent, target.agent_id)
             previous, limited = record.status, _at_a_step_limit(record.error)
@@ -433,7 +440,7 @@ class MemoryMixin:
             refused, gives = self._go_on_gate(ctx, target, now_on, previous == "failed" and limited)
             if refused is not None:
                 return "failed", refused
-        inbound_id = self._reply_turn_send(ctx, target, body, koloni, inbound_id)
+        inbound_id = self._reply_turn_send(ctx, target, body, koloni, inbound_id, left)
 
         # A turn taken on somebody's message writes nothing into the project's memory,
         # whether it answers or carries on: what is kept is noted in an agent's own work.
@@ -537,14 +544,20 @@ class MemoryMixin:
         return None, "once" if limited else ""
 
     def _reply_turn_send(
-        self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, koloni: bool, inbound_id
+        self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, koloni: bool, inbound_id, left=None
     ):
         """`_reply_turn`: the words handed to it - KOLONİ's as a nudge, else a message between
-        agents (its id: where its reply begins)."""
+        agents (its id: where its reply begins) - the note it was `left`, handed now."""
         if koloni:
             self._nudge(target, body)
         else:
-            inbound_id = self._send(ctx, target, body, delivered=True)
+            if left is None:
+                inbound_id = self._send(ctx, target, body, delivered=True)
+            else:
+                with self._factory() as session:
+                    session.get_one(Message, left).delivered_at = now()
+                    session.commit()
+                inbound_id = left
             self._channel(ctx, ctx.agent_id, target.agent_id, "message", body)
             # Read by it in its turn, with the note (`_from`): the user is told here (93-A4) -
             # but not of the word of the agent it works for.

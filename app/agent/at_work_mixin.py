@@ -17,6 +17,7 @@ from sqlalchemy import literal_column, or_, select
 
 from app import away, injection, recipe_run, web
 from app.agent.ctx import TERMINAL, Ctx
+from app.agent.message_modes import HOW_PROPERTY
 from app.agent.questions_mixin import USER_TOLD
 from app.agent.spawn_mixin import INTERNAL, SPAWN_ENDED, SPAWN_ENDED_SEE, SPAWN_REJECTED
 from app.agent.words import (
@@ -133,11 +134,14 @@ class AtWorkMixin:
 
     def _at_work_offered(self: "AgentRunner", ctx: Ctx, schemas: list[dict]) -> None:
         """`_offered`'s schemas, with what goes on beside the turn's agents where it is this
-        agent's: spawn_agent's `background` (D1); stop_agent for the Orchestrator that may open
-        agents (D3) - a CLI's too, over MCP."""
+        agent's: spawn_agent's `background` (D1) and message_agent's `how` (C1); stop_agent for
+        the Orchestrator that may open agents (D3) - a CLI's too, over MCP."""
         if self._background_offered(ctx):
-            for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
-                spawn["parameters"]["properties"]["background"] = SPAWN_BACKGROUND_PROPERTY
+            for one in (s["function"] for s in schemas):
+                if one["name"] == "spawn_agent":
+                    one["parameters"]["properties"]["background"] = SPAWN_BACKGROUND_PROPERTY
+                elif one["name"] == "message_agent":
+                    one["parameters"]["properties"]["how"] = HOW_PROPERTY
         if self._at_work_open(ctx) and any(s["function"]["name"] == "spawn_agent" for s in schemas):
             schemas.append(STOP_AGENT_SCHEMA)
             schemas.append(AGENTS_AT_WORK_SCHEMA)  # (D4: who of them is at work)
