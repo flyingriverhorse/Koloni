@@ -298,7 +298,13 @@ def _named_file(root: Path, command: str, cwd: str) -> tuple[Path | None, bool]:
     for name in names:
         try:
             path = (root / cwd / name).resolve()
-            if name and path.is_relative_to(home) and path.is_file():
+            # (by its own spelling: on macOS's case-blind disk `makefile` would find Makefile)
+            if (
+                name
+                and path.is_relative_to(home)
+                and path.is_file()
+                and path.name in os.listdir(path.parent)
+            ):
                 # (a package's __main__.py: its __init__.py runs first - `python -m pkg`)
                 return path, exact and path.name != "__main__.py"
         except (OSError, ValueError):
