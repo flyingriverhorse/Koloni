@@ -32,3 +32,11 @@ STOP_AGENT_SCHEMA = {
 }
 # The tools above, by name, for `_tool_call_4`'s dispatch (`AtWorkMixin._at_work_call`).
 AT_WORK_TOOLS = frozenset({"stop_agent"})
+
+# Task 8: run_command's, for the API Orchestrator where command_output and stop_command are its
+# (`AtWorkMixin._command_offered_later`).
+COMMAND_BACKGROUND_PROPERTY = {
+    "type": "boolean",
+    "description": "Optional, true: the command starts and you go on at once. Read its output "
+    "with command_output, stop it with stop_command; you are told when it ends.",
+}

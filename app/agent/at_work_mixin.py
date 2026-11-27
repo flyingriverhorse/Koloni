@@ -6,11 +6,12 @@ turn (`_unread_messages`) - `AtWorkMixin`.
 
 import asyncio
 import contextlib
+import json
 import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import literal_column, or_, select
 
 from app import away, recipe_run, web
 from app.agent.ctx import TERMINAL, Ctx
@@ -18,6 +19,9 @@ from app.agent.questions_mixin import USER_TOLD
 from app.agent.spawn_mixin import INTERNAL, SPAWN_ENDED, SPAWN_ENDED_SEE, SPAWN_REJECTED
 from app.agent.words import (
     AGENT_TERMINAL,
+    COMMAND_ENDED,
+    COMMAND_LATER,
+    COMMANDS_FULL,
     LISTEN,
     NOT_HEARD,
     STEERED,
@@ -29,19 +33,38 @@ from app.agent.words import (
     STOP_NOT_SPAWNED,
     STOP_NOT_YOURS,
     STOPPED_BY,
+    TEAM_STOPPED,
     USER_STOPPED,
     WHY_ENDING,
     WHY_NOT,
     WHY_TOPIC,
     YOU_STOPPED,
 )
-from app.db.models import Agent, Message, Question, Run, ToolCall, now
+from app.command_runner import DRAIN_GRACE_SECONDS, KILL_SECONDS, OUTPUT_AT_MOST
+from app.db.models import (
+    Agent,
+    Command,
+    Conversation,
+    ConversationTeam,
+    Message,
+    Question,
+    Role,
+    Run,
+    Team,
+    ToolCall,
+    now,
+    settings_of,
+)
 from app.model_client import OwnStop, ToolCallRequest
 from app.proof import PROOF_CALL
 from app.serialize import message_out, run_out
 from app.team import quoted
 from app.tools import WRITE_TOOLS, ToolError, parse_arguments
-from app.tools_at_work import SPAWN_BACKGROUND_PROPERTY, STOP_AGENT_SCHEMA
+from app.tools_at_work import (
+    COMMAND_BACKGROUND_PROPERTY,
+    SPAWN_BACKGROUND_PROPERTY,
+    STOP_AGENT_SCHEMA,
+)
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -52,6 +75,7 @@ LEADS_STOP = STOPPED_BY.format(who="the Orchestrator")
 DONE_FOUND = "{name} finished: {n} finding{s}"
 DONE_SAID = "{name} {how}"
 DONE_HOW = {"completed": "finished", "cancelled": "stopped", "interrupted": "stopped"}
+STOP_WAIT = KILL_SECONDS + DRAIN_GRACE_SECONDS  # (stop_command's, as for a command that serves)
 
 # B-376 (live): a Copilot Lead gave its last answer while a team's "All at once" group had just
 # opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
@@ -73,6 +97,8 @@ class AtWorkMixin:
         self._stopped_one: dict[str, str] = {}
         # D1: the API Orchestrator's background spawns answered "started" (`_said_at_once`).
         self._went_on_calls: set[str] = set()
+        # Task 8: its background commands at work, by their call's id: (its turn, its task).
+        self._commands_later: dict[str, tuple[str, asyncio.Task]] = {}
         # D2: the user's words sent into a turn that no step of its Orchestrator read yet (by
         # the turn), what wakes its waits for them, the turns whose door is shut, the
         # Orchestrators that answer one now (no writes), and what each was sent at its step.
@@ -94,6 +120,95 @@ class AtWorkMixin:
             s["function"]["name"] == "spawn_agent" for s in schemas
         ):
             schemas.append(STOP_AGENT_SCHEMA)
+        if self._background_offered(ctx) and self._serving_not(ctx) is None:
+            for run in (s["function"] for s in schemas if s["function"]["name"] == "run_command"):
+                run["parameters"]["properties"]["background"] = COMMAND_BACKGROUND_PROPERTY
+
+    def _command_offered_later(self: "AgentRunner", ctx: Ctx, request, args: dict) -> bool:
+        """Task 8: whether this run_command is the API Orchestrator's in the background - where
+        command_output and stop_command are its (`_serving_not`: not in a job nobody watches,
+        not in an answer); else it runs as ever, whatever it asked."""
+        return (
+            request.name == "run_command"
+            and args.get("background") is True
+            and not args.get("keep_running")
+            and self._background_offered(ctx)
+            and self._serving_not(ctx) is None
+        )
+
+    async def _command_later(
+        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest, args: dict
+    ) -> tuple[str, str]:
+        """Task 8: the command started as its own call would run it - the same list, judge,
+        cards, places kept out and copy (`_run_call` with it, in a task) - and answered at once;
+        its record's result is what it printed once it ends, when a note of KOLONİ's wakes the
+        Orchestrator (`team_requests.woken`). Held to the chat's spawn_max_parallel at once (its
+        others named); stopped with stop_command, the turn's Stop, and the turn's end."""
+        mine = [one for one, (run, _task) in self._commands_later.items() if run == ctx.run_id]
+        with self._factory() as session:
+            most = settings_of(session, session.get_one(Conversation, ctx.cid)).spawn_max_parallel
+        if len(mine) >= most:
+            raise ToolError(COMMANDS_FULL.format(n=len(mine), ids=", ".join(mine)))
+        alone = {key: value for key, value in args.items() if key != "background"}
+        later = replace(request, arguments=json.dumps(alone))
+        task = asyncio.ensure_future(self._command_comes(ctx, call_id, later))
+        self._commands_later[call_id] = (ctx.run_id, task)
+        task.add_done_callback(lambda _done: self._commands_later.pop(call_id, None))
+        self._answers_out.setdefault(ctx.agent_id, []).append(task)
+        return "succeeded", COMMAND_LATER.format(id=call_id)
+
+    async def _command_comes(
+        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
+    ) -> tuple[str, str, str]:
+        """`_command_later`'s command, and KOLONİ's note at its end - for `woken`."""
+        status, output = await self._run_call(ctx, call_id, request)
+        opener = self._ctxs.get(ctx.agent_id, ctx)
+        note = COMMAND_ENDED.format(id=call_id, status=status)
+        return "command", output, self._send(ctx, opener, note, delivered=False, koloni=True)
+
+    def _command_later_of(self: "AgentRunner", ctx: Ctx, given: str):
+        """The background command of this Orchestrator's turn that `given` names - by its call's
+        id, or its own record's: (its call's id, its record) - or None."""
+        with self._factory() as session:
+            command = session.scalar(
+                select(Command).where(
+                    Command.run_id == ctx.run_id,
+                    Command.agent_id == ctx.agent_id,
+                    or_(Command.tool_call_id == given, Command.id == given),
+                )
+            )
+            if command is None:  # (asked for before it is on record: its check, its card)
+                return (given, None) if given in self._commands_later else None
+            if command.tool_call_id not in self._commands_later:
+                return None
+            session.expunge(command)
+        return command.tool_call_id, command
+
+    async def _command_later_call(
+        self: "AgentRunner", ctx: Ctx, name: str, found: tuple, since: object
+    ) -> str:
+        """command_output and stop_command on one of its background commands (`_serving_call`)."""
+        call_id, command = found
+        if command is None and name == "command_output":
+            return f"Command {call_id} has not started yet: it is being checked, or its card waits."
+        if name == "stop_command":
+            task = self._commands_later[call_id][1]
+            task.cancel()  # (its process, with what it started, ends as the turn's Stop ends one)
+            await asyncio.wait({task}, timeout=STOP_WAIT)
+            return f"Command {call_id} is stopped."
+        live = self.commands.live_outputs(ctx.cid).get(command.id)
+        if live is None:  # (not started yet, or just over: its record's)
+            return self.commands.output_of(command, since if isinstance(since, int) else None)
+        start = (
+            min(since, len(live)) if isinstance(since, int) else max(0, len(live) - OUTPUT_AT_MOST)
+        )
+        shown = live[start : start + OUTPUT_AT_MOST]
+        end = start + len(shown)
+        return (
+            f"Command {call_id} ({command.command}) runs in the background. Characters "
+            f"{start}-{end} of {len(live)} of its output; for what it prints next, call again "
+            f"with since={end}:\n{shown}"
+        )
 
     async def _at_work_call(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
         """`_tool_call_4`'s part for `AT_WORK_TOOLS`, held to the agent they are offered to (a
@@ -859,3 +974,51 @@ class AtWorkMixin:
         for question_id in asked:
             if self.answer_question(question_id, word):  # (not one the user answered first)
                 self._closed_cards.add((run_id, question_id))
+
+    def stop_team(self: "AgentRunner", cid: str, team_id: str, finish: bool = False) -> str | None:
+        """The user's Stop on a team of the chat: its row stops, and so does each of its
+        agents at its next step (`_hold_to_role`); the other teams go on. Not once its work
+        waits at Ready for you. A card its step waits on is answered "Stop" for the user: the
+        spawn call it is put in goes on; and a wait for a limit's reset ends (`_go_on_again`).
+        Returns why it is not stopped; None: it is. `finish`: the user's Finish now on a
+        recipe's row - its loop goes round no more: the row is at Ready for you with what was
+        found so far, its agents stopped as for Stop.
+        shortcut: an agent stops at its next model step - a long command, a card it waits on,
+        or a CLI between its messages runs on till then; and what the team changed stays in
+        the turn's one copy, taken in with the other teams' at Take in. Cancel its calls and
+        give each team a copy if felt. Finish now with no agent at work asks Ready for you
+        only as the Lead hears back - else the turn ends with its work kept for Take in."""
+        run_id = next((c.run_id for c in self._ctxs.values() if c.cid == cid), None)
+        why: list[str | None] = ["this team is at work in no turn now"]
+
+        def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
+            if row.team_id != team_id:
+                return False
+            if state["status"] == recipe_run.READY:
+                why[0] = "its work waits for your Take in or Ask for changes"
+                return False
+            if state["status"] != recipe_run.RUNNING:
+                return False
+            at = recipe_run.name_of(recipe_run.graph_of(state), state["at"]) if finish else ""
+            state["status"], state["why"] = (
+                (
+                    recipe_run.READY,
+                    (f"finished by you at its {at} step: what was found so far is left to you"),
+                )
+                if finish
+                else (recipe_run.STOPPED, "Stopped by you")
+            )
+            stopping.extend(state["agents"])
+            why[0] = None
+            return True
+
+        def apart(row: ConversationTeam, team: Team, lead: Role, state: dict | None) -> dict | None:
+            return state if state and how(row, team, lead, state) else None
+
+        stopping: list[str] = []
+        if run_id is not None:
+            self._change_rows(cid, run_id, how)
+            if not finish:  # (B-101: a team with no recipe beside one)
+                self._apart(cid, run_id, apart)
+            self._halt(run_id, stopping, TEAM_STOPPED)
+        return why[0]

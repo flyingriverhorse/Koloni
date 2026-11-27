@@ -393,3 +393,17 @@ STILL_AT_WORK = (
     "KOLONİ: the user wrote while your agents work ({what}). Answer them now; say what is still "
     "at work, never what it found before it reports - you are woken again when it is back."
 )
+
+# Task 8 (0.1.11): run_command in the background - its answer at once, the note at its end, and
+# what is refused over the chat's ceiling (its spawn_max_parallel).
+COMMAND_LATER = (
+    "Command {id} started in the background (a card may ask the user first). Read it with "
+    'command_output(id="{id}"); you are told when it ends.'
+)
+COMMAND_ENDED = (
+    "KOLONİ: your background command {id} ended ({status}); what it printed is its call's result."
+)
+COMMANDS_FULL = (
+    "{n} of your commands run in the background already ({ids}), as many as this chat lets "
+    "work at once: wait for one to end, or stop one with stop_command"
+)

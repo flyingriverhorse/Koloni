@@ -333,7 +333,6 @@ from app.agent.words import (
     SECRET_IN_COPY,
     SHARED_WITH_PROJECT,
     SOME_NOT_HERE,
-    TEAM_STOPPED,
     TESTS_TAIL_LINES,
     UNCHECKED,
 )
@@ -5825,6 +5824,8 @@ class AgentRunner(
         self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
     ) -> tuple[str, str]:
         """run_command and run_skill_script, for `_run_call`."""
+        if self._command_offered_later(ctx, request, args):  # (Task 8: in the background)
+            return await self._command_later(ctx, call_id, request, args)
         run_id, cid = ctx.run_id, ctx.cid
         # A skill's script is a command, with the leave the user gave the skill.
         unasked = False
@@ -9306,54 +9307,6 @@ class AgentRunner(
         if not ctx.depth:
             said += await self._ready_for_you(ctx, child)
         return said
-
-    def stop_team(self, cid: str, team_id: str, finish: bool = False) -> str | None:
-        """The user's Stop on a team of the chat: its row stops, and so does each of its
-        agents at its next step (`_hold_to_role`); the other teams go on. Not once its work
-        waits at Ready for you. A card its step waits on is answered "Stop" for the user: the
-        spawn call it is put in goes on; and a wait for a limit's reset ends (`_go_on_again`).
-        Returns why it is not stopped; None: it is. `finish`: the user's Finish now on a
-        recipe's row - its loop goes round no more: the row is at Ready for you with what was
-        found so far, its agents stopped as for Stop.
-        shortcut: an agent stops at its next model step - a long command, a card it waits on,
-        or a CLI between its messages runs on till then; and what the team changed stays in
-        the turn's one copy, taken in with the other teams' at Take in. Cancel its calls and
-        give each team a copy if felt. Finish now with no agent at work asks Ready for you
-        only as the Lead hears back - else the turn ends with its work kept for Take in."""
-        run_id = next((c.run_id for c in self._ctxs.values() if c.cid == cid), None)
-        why: list[str | None] = ["this team is at work in no turn now"]
-
-        def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
-            if row.team_id != team_id:
-                return False
-            if state["status"] == recipe_run.READY:
-                why[0] = "its work waits for your Take in or Ask for changes"
-                return False
-            if state["status"] != recipe_run.RUNNING:
-                return False
-            at = recipe_run.name_of(recipe_run.graph_of(state), state["at"]) if finish else ""
-            state["status"], state["why"] = (
-                (
-                    recipe_run.READY,
-                    (f"finished by you at its {at} step: what was found so far is left to you"),
-                )
-                if finish
-                else (recipe_run.STOPPED, "Stopped by you")
-            )
-            stopping.extend(state["agents"])
-            why[0] = None
-            return True
-
-        def apart(row: ConversationTeam, team: Team, lead: Role, state: dict | None) -> dict | None:
-            return state if state and how(row, team, lead, state) else None
-
-        stopping: list[str] = []
-        if run_id is not None:
-            self._change_rows(cid, run_id, how)
-            if not finish:  # (B-101: a team with no recipe beside one)
-                self._apart(cid, run_id, apart)
-            self._halt(run_id, stopping, TEAM_STOPPED)
-        return why[0]
 
     async def _ask_folder(self, ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """An agent asks, with why, for a folder outside the project to read in or to read

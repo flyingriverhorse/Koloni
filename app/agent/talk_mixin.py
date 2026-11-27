@@ -192,6 +192,8 @@ class TalkMixin:
         command_id = args.get("id")
         if not isinstance(command_id, str) or not command_id.strip():
             raise ToolError("missing required argument: id")
+        if (later := self._command_later_of(ctx, command_id.strip())) is not None:  # (Task 8)
+            return await self._command_later_call(ctx, name, later, args.get("since"))
         command = self.commands.server(ctx.cid, command_id.strip())
         if name == "stop_command":
             return await self.commands.stop_own(command, ctx.agent_id)

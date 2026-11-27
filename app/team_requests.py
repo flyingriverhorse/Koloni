@@ -752,6 +752,10 @@ async def _each_back(runner: "AgentRunner", ctx: "Ctx", out: list, late: list, e
                 done, pending = await asyncio.wait(
                     [*waiting, word], return_when=asyncio.FIRST_COMPLETED
                 )
+            except asyncio.CancelledError:  # (Stop: as `gather` did, they stop with it)
+                for one in waiting:
+                    one.cancel()
+                raise
             finally:
                 word.cancel()
             done.discard(word)
