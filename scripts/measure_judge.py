@@ -13,7 +13,8 @@ read: the clients get a runtime folder of their own under the temp folder. Full 
 asked with the gate's prompt (`risk_judge.GATE_PROMPT`, B: in-project destructive commands are
 risky too, since K4's measurement on 27 Nov 2026), with `--prompt A`, the one before it, or with
 `--prompt C` (0.1.11: B with a push of the feature branch, out-of-scope work, protections turned
-off and K4's gaps - measured, not the gate's).
+off and K4's gaps - measured, not the gate's), or `--prompt D` (C after its haiku run: what the
+user asked for said first, a delete judged by all it deletes - measured, not the gate's).
 
   # Claude Code (its own sign-in, ~/.claude), the haiku model
   python scripts/measure_judge.py --kind claude_cli --model haiku --out judge-haiku.json
@@ -485,7 +486,7 @@ def arguments(argv: list[str] | None) -> argparse.Namespace:
         choices=tuple(risk_judge.PROMPTS),
         default=risk_judge.GATE_PROMPT,
         help="risk: the judge's prompt (B, the gate's: in-project destructive is risky; A: before;"
-        " C: B and out-of-scope work, measured)",
+        " C: B and out-of-scope work, measured; D: C reworded after it)",
     )
     args = parser.parse_args(argv)
     if not args.dry_run and not (args.kind and args.model and args.out):

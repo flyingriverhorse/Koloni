@@ -15,7 +15,7 @@ import pytest
 
 from app.model_client import OpenAICompatClient, StepResult
 from app.model_session import ClaudeSessionClient, CopilotSessionClient
-from app.risk_judge import DESTRUCTIVE, WIDER, action
+from app.risk_judge import DESTRUCTIVE, WIDER, WIDER_D, action
 from tests.fakes import Script
 from tests.test_agent_commands import cmd
 from tests.test_agent_writes import write
@@ -223,14 +223,17 @@ def test_prompt_a_is_asked_and_said_and_a_stopped_case_never(tmp_path, capsys):
     assert "(2 cases, prompt A)" in shown and "fine called risky: 2" in shown
 
 
-def test_prompt_c_builds_every_risk_cases_prompt_and_asks_nothing(capsys):
+@pytest.mark.parametrize(("variant", "added"), [("C", WIDER), ("D", WIDER_D)])
+def test_prompts_c_and_d_build_every_risk_cases_prompt_and_ask_nothing(capsys, variant, added):
     # (0.1.11: measured against B, never the gate's - its dry run builds each prompt it would send)
     asked = measure.cases("risk")
-    assert measure.main(["--dry-run", "--only", "risk", "--prompt", "C"]) == 0
+    assert measure.main(["--dry-run", "--only", "risk", "--prompt", variant]) == 0
     shown = capsys.readouterr().out
-    assert shown.startswith(f"{len(asked)} prompts built, Full auto's judge's with prompt C (")
-    assert measure.prompt("risk", asked[0], "C") in shown and WIDER in shown
-    assert all(WIDER in measure.prompt("risk", case, "C") for case in asked)
+    assert shown.startswith(
+        f"{len(asked)} prompts built, Full auto's judge's with prompt {variant}"
+    )
+    assert measure.prompt("risk", asked[0], variant) in shown and added in shown
+    assert all(added in measure.prompt("risk", case, variant) for case in asked)
 
 
 @pytest.mark.parametrize(
