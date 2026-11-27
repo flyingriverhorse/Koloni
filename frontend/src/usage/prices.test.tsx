@@ -101,11 +101,12 @@ test('every model is listed once, priced ones first: those with a price, those t
   expect(prices.getByLabelText('Output price of claude-sonnet-5-5')).toHaveValue('15')
   expect(prices.getByLabelText('Currency of claude-sonnet-5-5')).toHaveValue('USD')
   expect(prices.queryByRole('button', { name: 'Remove the price of claude-haiku-5-5' })).not.toBeInTheDocument()
-  expect(onLoad).toHaveBeenCalledTimes(1)
+  // (Each reading is two: the strip's 30 days, and the period's.)
+  expect(onLoad).toHaveBeenCalledTimes(2)
   await userEvent.click(prices.getByRole('button', { name: 'Remove the price of claude-sonnet-5-5' }))
   expect(onRemovePrice).toHaveBeenCalledWith('claude-sonnet-5-5')
   // The usage is read again, for the same project and period: its cost is of the prices as they are now.
-  expect(onLoad).toHaveBeenCalledTimes(2)
+  expect(onLoad).toHaveBeenCalledTimes(4)
 
   // A price is two numbers that are not negative and a currency: until then it cannot be saved.
   const save = prices.getByRole('button', { name: 'Save the price of typed-by-hand' })
@@ -118,7 +119,7 @@ test('every model is listed once, priced ones first: those with a price, those t
   await userEvent.type(prices.getByLabelText('Output price of typed-by-hand'), '4')
   await userEvent.click(save)
   expect(onPrice).toHaveBeenCalledWith({ model_id: 'typed-by-hand', input: 0.8, output: 4, currency: 'TL' })
-  expect(onLoad).toHaveBeenCalledTimes(3)
+  expect(onLoad).toHaveBeenCalledTimes(6)
   expect(onLoad).toHaveBeenLastCalledWith('p', expect.any(String))
 })
 
@@ -145,7 +146,8 @@ test('the models can be priced though no agent ran, and a refused price says why
   await userEvent.type(prices.getByLabelText('Currency of claude-haiku-5-5'), 'USD')
   await userEvent.click(prices.getByRole('button', { name: 'Save the price of claude-haiku-5-5' }))
   expect(await prices.findByRole('alert')).toHaveTextContent('origin not allowed')
-  expect(onLoad).toHaveBeenCalledTimes(1)
+  // (the strip's reading and the period's, once)
+  expect(onLoad).toHaveBeenCalledTimes(2)
 })
 
 test('without the price handlers the page has no Prices, and with nothing to list it says so', async () => {

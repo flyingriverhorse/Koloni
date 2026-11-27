@@ -3,7 +3,19 @@ import { errorText } from '../api/client'
 import type { Limits, Provider } from '../api/types'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
-import { asOf, limitsLine, NO_PLAN, nearOf, nearWords, readAgo, windowName } from './limitsText'
+import { Bar } from './Bar'
+import {
+  asOf,
+  limitsLine,
+  NEAR_AT,
+  NO_PLAN,
+  nearOf,
+  nearWords,
+  readAgo,
+  stepsDown,
+  stepWords,
+  windowName,
+} from './limitsText'
 
 interface Props {
   providers: Provider[]
@@ -11,6 +23,66 @@ interface Props {
   onLimits: (providerId: string, afresh: boolean) => Promise<Limits>
   /** Opens a provider on the Models page, where its own limit is set. */
   onModels?: (providerId: string) => void
+  /** Told each reading that comes: provider id -> what it said, or why it could not be read (the page's summary). */
+  onRead?: (told: Record<string, Limits | string>) => void
+}
+
+type Window = Limits['windows'][number]
+
+/** Where a subscription's picks go a tier lower, in words: from its share, or past it now - of the windows a step down
+ *  reads (`used`). */
+function StepNote({ step, used }: { step: number | null; used: number[] }) {
+  if (step == null || used.length === 0) return null
+  const most = Math.max(...used)
+  return (
+    <span className="choice-note">
+      <span className={most >= step ? 'tag tag-warn' : undefined}>{stepWords(most, step)}</span>
+    </span>
+  )
+}
+
+/**
+ * A plan's row: a bar for each window whose used share is known now (a stale or unsaid one has none), what is known of
+ * it in a line, and its notes. The line on a bar of a window its step down reads is where its picks go a tier lower
+ * (`step_down_at`); a bar is orange past it or near its limit, and its row says which in words.
+ */
+function PlanCell({ provider, limits }: { provider: Provider; limits: Limits | string | undefined }) {
+  const read = typeof limits === 'object' ? limits : null
+  const known = read?.windows.filter(w => w.used_percent !== null && !w.stale) ?? []
+  const step = provider.step_down_at
+  const mark = (w: Window) => (step != null && stepsDown(w) ? step : null)
+  return (
+    <td>
+      {known.map((w, at) => (
+        <Bar
+          key={at}
+          label={`${provider.name}: ${windowName(w)} used`}
+          value={w.used_percent!}
+          mark={mark(w)}
+          hot={w.used_percent! >= NEAR_AT || (mark(w) !== null && w.used_percent! >= step!)}
+        />
+      ))}
+      {limits === undefined ? 'reading…' : read ? limitsLine(read) : `could not be read: ${limits}`}
+      {provider.kind === 'claude_cli' && (
+        <span className="choice-note">
+          Check now does not read it: that takes a Claude Code turn. Read now on its Models card does.
+        </span>
+      )}
+      <StepNote step={step} used={known.filter(w => mark(w) !== null).map(w => w.used_percent!)} />
+      {read &&
+        nearOf(read).map((w, at) => (
+          <span key={`near ${at}`} className="choice-note">
+            <span className="tag tag-warn">{nearWords(provider.name, w)}</span>
+          </span>
+        ))}
+      {read?.read_at && (
+        // A reading that failed leaves the last good one, with its time, and says so beside it.
+        <span className="choice-note">
+          {`${read.failed ? `could not be read just now: ${read.failed}; last ` : ''}${readAgo(read.read_at)} (${asOf(read.read_at)})${read.source ? `, from ${read.source}` : ''}`}
+        </span>
+      )}
+    </td>
+  )
 }
 
 /**
@@ -19,7 +91,7 @@ interface Props {
  * them, and DeepSeek's balance (slice 73). Opening the page shows the last readings; only "Check now" has Codex, agy,
  * Copilot and DeepSeek asked afresh. Without a CLI or an API that says anything there is nothing to say: no section.
  */
-export function PlanLimits({ providers, onLimits, onModels }: Props) {
+export function PlanLimits({ providers, onLimits, onModels, onRead }: Props) {
   const all = providers.filter(p => p.kind.endsWith('_cli') || p.kind === 'anthropic' || p.kind === 'openai_compat')
   const ids = all.map(p => p.id).join(' ')
   // Asked afresh on "Check now": all but Claude Code (the server asks only those it can ask without a model turn).
@@ -41,12 +113,15 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
         async id => [id, await onLimits(id, round > 0 && afresh.split(' ').includes(id)).catch(errorText)] as const,
       ),
     ).then(told => {
-      if (latest) setRead({ round, told: Object.fromEntries(told) })
+      if (!latest) return
+      const found = Object.fromEntries(told)
+      setRead({ round, told: found })
+      onRead?.(found)
     })
     return () => {
       latest = false
     }
-  }, [ids, afresh, onLimits, round])
+  }, [ids, afresh, onLimits, round, onRead])
 
   // An OpenAI-compatible server is shown once it has said something: a model server on this machine says nothing.
   const clis = all.filter(
@@ -66,69 +141,26 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
       </div>
       <table className="usage-table usage-limits" aria-label="Plan limits by provider">
         <tbody>
-          {clis.map(provider => {
-            const limits = read.told[provider.id]
-            return (
-              <tr key={provider.id}>
-                <th scope="row">
-                  {provider.name}
-                  {onModels && (
-                    <span className="choice-note">
-                      <button
-                        type="button"
-                        className="usage-open"
-                        aria-label={`Limit ${provider.name} in Models`}
-                        onClick={() => onModels(provider.id)}
-                      >
-                        Limit in Models →
-                      </button>
-                    </span>
-                  )}
-                </th>
-                <td>
-                  {/* A bar for each window whose used share is known now: a stale or unsaid one has none. */}
-                  {typeof limits === 'object' &&
-                    limits.windows
-                      .filter(w => w.used_percent !== null && !w.stale)
-                      .map((w, at) => (
-                        <meter
-                          key={at}
-                          className="budget-meter"
-                          aria-label={`${provider.name}: ${windowName(w)} used`}
-                          min={0}
-                          max={100}
-                          low={80}
-                          high={100}
-                          optimum={0}
-                          value={w.used_percent!}
-                        />
-                      ))}
-                  {limits === undefined
-                    ? 'reading…'
-                    : typeof limits === 'string'
-                      ? `could not be read: ${limits}`
-                      : limitsLine(limits)}
-                  {provider.kind === 'claude_cli' && (
-                    <span className="choice-note">
-                      Check now does not read it: that takes a Claude Code turn. Read now on its Models card does.
-                    </span>
-                  )}
-                  {typeof limits === 'object' &&
-                    nearOf(limits).map((w, at) => (
-                      <span key={`near ${at}`} className="choice-note">
-                        <span className="tag tag-warn">{nearWords(provider.name, w)}</span>
-                      </span>
-                    ))}
-                  {typeof limits === 'object' && limits.read_at && (
-                    // A reading that failed leaves the last good one, with its time, and says so beside it.
-                    <span className="choice-note">
-                      {`${limits.failed ? `could not be read just now: ${limits.failed}; last ` : ''}${readAgo(limits.read_at)} (${asOf(limits.read_at)})${limits.source ? `, from ${limits.source}` : ''}`}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            )
-          })}
+          {clis.map(provider => (
+            <tr key={provider.id}>
+              <th scope="row">
+                {provider.name}
+                {onModels && (
+                  <span className="choice-note">
+                    <button
+                      type="button"
+                      className="usage-open"
+                      aria-label={`Limit ${provider.name} in Models`}
+                      onClick={() => onModels(provider.id)}
+                    >
+                      Limit in Models →
+                    </button>
+                  </span>
+                )}
+              </th>
+              <PlanCell provider={provider} limits={read.told[provider.id]} />
+            </tr>
+          ))}
         </tbody>
       </table>
       <div className="muted memory-hint">

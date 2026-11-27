@@ -13,7 +13,8 @@ from app.api.deps import get_session, require_own_origin
 from app.db.models import Agent, Conversation, OwnRequest, Price, Project, Provider, Run
 from app.providers import HTTP_KINDS
 from app.roles import LEAD, find_role, shown_name
-from app.schemas import BudgetOut, CataloguePriceOut, PriceIn, PriceOut, UsageOut
+from app.schemas import BudgetOut, CataloguePriceOut, PriceIn, PriceOut
+from app.schemas_usage import UsageOut
 
 router = APIRouter(prefix="/api", tags=["usage"])
 

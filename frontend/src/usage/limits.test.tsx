@@ -89,11 +89,11 @@ test('each CLI has a row with what it says of its plan, and what is not known sa
   expect(
     within(own)
       .getAllByRole('meter')
-      .map(m => [m.getAttribute('aria-label'), m.getAttribute('value')]),
+      .map(m => [m.getAttribute('aria-label'), m.getAttribute('aria-valuenow')]),
   ).toEqual([['Claude Code: 5 hours used', '99']])
   expect(
     within(rows.getByRole('row', { name: /^Codex/ })).getByRole('meter', { name: 'Codex: the week used' }),
-  ).toHaveAttribute('value', '7')
+  ).toHaveAttribute('aria-valuenow', '7')
   expect(within(rows.getByRole('row', { name: /^agy/ })).queryByRole('meter')).not.toBeInTheDocument()
   expect(rows.getByRole('row', { name: /^agy/ })).toHaveTextContent(
     'not known — this CLI does not say what is left of its plan',
@@ -110,6 +110,40 @@ test('each CLI has a row with what it says of its plan, and what is not known sa
     screen.getByText(/These are the limits of the account the CLI on this machine is signed in to\./),
   ).toBeInTheDocument()
   expect(screen.getByText(/Claude Code is not asked here: its limits are read from its own runs/)).toBeInTheDocument()
+})
+
+test('a subscription’s bar has a line where its picks go a tier lower: past it the bar is orange and its row says so', async () => {
+  const week = (used: number) => ({ name: null, minutes: 10080, used_percent: used, resets_at: SOON, stale: false })
+  const stepped = { ...provider('c', 'Codex', 'codex_cli'), step_down_at: 80 }
+  const onRead = vi.fn()
+  const { unmount } = render(
+    <PlanLimits
+      providers={[stepped]}
+      onLimits={vi.fn().mockResolvedValue({ ...codex, windows: [week(84)] })}
+      onRead={onRead}
+    />,
+  )
+  const row = await screen.findByRole('row', { name: /^Codex/ })
+  const bar = within(row).getByRole('meter', { name: 'Codex: the week used' })
+  expect(bar).toHaveAttribute('aria-valuenow', '84')
+  expect(bar).toHaveClass('usage-bar-hot')
+  expect(bar.querySelector('.usage-bar-mark')).toHaveStyle({ left: '80%' })
+  expect(row).toHaveTextContent('Past 80%: a model picked by tier on it is one tier lower')
+  // what was read is told to the page, for its summary
+  expect(onRead).toHaveBeenLastCalledWith({ c: { ...codex, windows: [week(84)] } })
+  unmount()
+  // Under it: the line, and where it is in words. A window no step down reads (one model's week) has no line.
+  const own = { name: 'seven_day_fable', minutes: 10080, used_percent: 85, resets_at: SOON, stale: false }
+  render(
+    <PlanLimits providers={[stepped]} onLimits={vi.fn().mockResolvedValue({ ...codex, windows: [week(40), own] })} />,
+  )
+  const again = await screen.findByRole('row', { name: /^Codex/ })
+  const [plain, fable] = within(again).getAllByRole('meter')
+  expect(plain).not.toHaveClass('usage-bar-hot')
+  expect(plain.querySelector('.usage-bar-mark')).toHaveStyle({ left: '80%' })
+  expect(fable.querySelector('.usage-bar-mark')).toBeNull()
+  expect(again).toHaveTextContent('One tier lower from 80%')
+  expect(again).not.toHaveTextContent('Past 80%')
 })
 
 test('opening the page reads nothing afresh; "Check now" does, and a reading that fails says why in its row', async () => {

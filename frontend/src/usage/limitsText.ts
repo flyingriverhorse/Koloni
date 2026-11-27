@@ -20,6 +20,15 @@ export interface Near {
 export const nearOf = (limits: Limits): Window[] =>
   limits.windows.filter(w => !w.stale && w.used_percent !== null && w.used_percent >= NEAR_AT)
 
+/** A window a plan's step down reads (app/limits.py `plan_used`): the whole account's - Codex's unnamed ones, Claude
+ *  Code's 5 hours and week, Copilot's premium requests - not one model's week, agy's groups or Copilot's chat. */
+export const stepsDown = (w: Window) =>
+  w.name === null || ['five_hour', 'seven_day', 'premium requests'].includes(w.name)
+
+/** Where a subscription's picks go a tier lower, as its row on Usage says it: past `at`% of a window that counts. */
+export const stepWords = (used: number, at: number) =>
+  used >= at ? `Past ${at}%: a model picked by tier on it is one tier lower` : `One tier lower from ${at}%`
+
 /** What the toast and Usage say of a window near its limit. */
 export const nearWords = (provider: string, w: Window) =>
   `${provider} is near its limit: ${Math.round(w.used_percent!)}% of ${windowName(w)} used${w.resets_at ? `, resets ${dayAndTime(w.resets_at)}` : ''}`

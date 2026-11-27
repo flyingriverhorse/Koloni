@@ -58,8 +58,22 @@ test('the top bar’s pill shows only near the budget: from 80% on, rounded down
 test('Usage shows this month’s spend against the budget, a bar and its numbers; unpriced turns said apart', () => {
   const { rerender } = render(<BudgetSection budget={spend({ unpriced_runs: 2 })} />)
   const bar = screen.getByRole('meter', { name: 'Monthly budget used' })
-  expect(bar).toHaveAttribute('value', '10.5')
-  expect(bar).toHaveAttribute('max', '12')
+  expect(bar).toHaveAttribute('aria-valuenow', '10.5')
+  expect(bar).toHaveAttribute('aria-valuemax', '12')
+  // Ten cells, a tenth each: 8.75 of them spent - eight full, one light, one empty; said in words beside them.
+  // (its tone and fill: "honey full")
+  const cells = () =>
+    Array.from(bar.querySelectorAll('.cell'), cell =>
+      Array.from(cell.classList)
+        .filter(name => name !== 'cell' && name !== 'cell-big')
+        .map(name => name.slice('cell-'.length))
+        .join(' '),
+    )
+  expect(cells()).toEqual([...Array(8).fill('honey full'), 'honey soft', 'plain none'])
+  expect(bar.querySelector('.cell')).toHaveAttribute('title', 'A tenth of the budget, 1.2 USD: spent')
+  expect(
+    screen.getByText(/Each cell is a tenth of it\. Once all are full, new work waits for your word/),
+  ).toBeInTheDocument()
   expect(screen.getByText(/≈ 10\.50 USD of 12 USD/)).toBeInTheDocument()
   expect(screen.getByText(/87% used/)).toBeInTheDocument()
   expect(screen.getByText(/2 messages this month ran on a model with no price/)).toBeInTheDocument()
@@ -67,6 +81,8 @@ test('Usage shows this month’s spend against the budget, a bar and its numbers
   // Over it, what that means is in sight here, where the top bar's pill leads.
   rerender(<BudgetSection budget={spend({ spent: 13, share: 13 / 12, over: true })} />)
   expect(screen.getByText(/used 108% of its monthly budget: a new message asks before its work starts/)).toBeVisible()
+  // Over it, every cell is full and red-orange.
+  expect(cells()).toEqual(Array(10).fill('warn full'))
   rerender(<BudgetSection budget={spend({ currency: null, spent: null, share: null, warn: false })} />)
   expect(screen.queryByRole('meter')).toBeNull()
   expect(screen.getByText(/This budget is not enforced: prices are in more than one currency/)).toBeInTheDocument()
