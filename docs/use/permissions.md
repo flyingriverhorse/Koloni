@@ -431,7 +431,8 @@ It is not asked about:
 - ordinary work, as a plain command with its common options only: a test runner (`pytest`, `python -m
   pytest`, `npm test`, `cargo test`, `go test`), a compiler or checker (`tsc`, `ruff`, `eslint`, `mypy`,
   `cargo build`, `go build`), local git at the project's root (`status`, `add`, `commit`, `diff`, `log`,
-  `switch`, `branch`; in a folder below it, git is judged: a repository shaped there sets what it runs) and
+  `switch`, `branch`; in a folder below it, one KOLONİ does not know, or a top folder with no `.git`
+  shaped as a bare repository, git is judged: a repository shaped there sets what it runs) and
   `npm run <script>` - but not where an agent wrote what it runs (the program, or the project's
   `package.json`);
 - your own test command (the project map's) - but it is, where the line runs a program an agent wrote -,

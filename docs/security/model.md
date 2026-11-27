@@ -136,11 +136,13 @@ of these is a wall: a script in the job reaches your repository as you could. Se
 Some files change what agents, git or your editor do later, by themselves. Writing them asks at every
 level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vscode/`, `.idea/`,
 `.devcontainer/` (and `.devcontainer.json`), `.husky/`, `.gitmodules`, `.cargo/`, `.mvn/`, Gradle's wrapper
-(`gradle-wrapper.properties`, `gradle-wrapper.jar`), `.bazelrc`, `.mcp.json`, commit-hook settings
-(`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's `.pth` files in `site-packages`,
-and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except at Full auto. A project's own
-`gradlew` or `mvnw` does not: `./gradlew test` is ordinary work. On Windows, device names (`CON`, `COM1`)
-and file streams (`a.txt:x`) are never written.
+(`gradle-wrapper.properties`, `gradle-wrapper.jar`), `.bazelrc`, `.bazelversion`, `.mcp.json`,
+commit-hook settings (`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's `.pth` files
+in `site-packages`, and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except at Full
+auto. A project's own `gradlew` or `mvnw` does not: `./gradlew test` is ordinary work. One written
+without being named is put back after the command - but in `.idea/`, which a JetBrains IDE rewrites
+itself: there only a write or a command that names it asks. On Windows, device names (`CON`, `COM1`) and
+file streams (`a.txt:x`) are never written.
 
 ## Secrets
 

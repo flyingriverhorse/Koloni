@@ -19,7 +19,15 @@ from sqlalchemy import or_, select
 from app import raw
 from app.copies import LINKED, folders
 from app.db.models import AllowedCommand, AllowedWeb
-from app.read_edges import NET_PATH, SEARCH_DOES, globs_an_option
+from app.read_edges import (
+    NET_PATH,
+    SEARCH_DOES,
+    SINKS,
+    chained,
+    globs_an_option,
+    looks_bare,
+    submodule_writes,
+)
 from app.workspace import (
     FREE,
     INSTRUCTION_FILES,
@@ -3759,32 +3767,16 @@ def names_standing(command: str) -> str:
 
 # A chain's commands, a pipeline one of them: `_PARTS` less a single `|`.
 _CHAIN = re.compile(r"&&|\|\||[;&\r\n]")
-# B-316: what a pipe may hand a read's text to that only picks, sorts, counts or lays it out,
-# writing nothing (not `sort`: sort.exe's `/o` and `sort -o` write a file).
-_SINKS = frozenset(
-    {
-        "select-object",
-        "select",
-        "select-string",
-        "sls",
-        "sort-object",
-        "measure-object",
-        "out-string",
-        "ft",
-        "fl",
-        "fw",
-    }
-)
 
 
 def _sink(stage: str) -> bool:
-    """A stage of a pipeline that only shapes the text it is handed: one of `_SINKS` or a
+    """A stage of a pipeline that only shapes the text it is handed: one of `SINKS` (B-316) or a
     Format-*, handed no block, hashtable, bracket, variable, redirection or escape (`{`, `@{`,
     `(`, `$`, `>`, a backtick): with those it could run or write anything."""
     words = _words(stage.strip())
     program = _program(words[0]) if words else ""
     return not re.search(r"[{}()$<>`]", stage) and (
-        program in _SINKS or program.startswith("format-")
+        program in SINKS or program.startswith("format-")
     )
 
 
@@ -3813,18 +3805,18 @@ _RENAMES = re.compile(
 
 def only_searches(part: str) -> bool:
     """B-198: a lone search that only reads - rg, ag, ack, a grep or find by its own name,
-    nothing piped, redirected, substituted, wrapped (`_script`, B-307) or chained (`rg x; cd y &&
-    git log`), none of `SEARCH_DOES`, no wildcard that may be an option (`globs_an_option`). A file
-    that steers later turns it names (`rg --files -g AGENTS.md`, `rg foo .github/`) it reads, as a
-    `cat` does: `names_standing` asks nothing of it. (`.koloni` and a secret still ask: `_harm`.)"""
+    nothing piped, redirected, substituted, wrapped (`_script`, B-307) or chained out of quotes
+    (`chained`: `rg x; cd y && git log`, not `rg 'a;b'`), none of `SEARCH_DOES`, no wildcard that
+    may be an option (`globs_an_option`). A file that steers later turns it names (`rg foo .github`)
+    it reads, as `cat` does: `names_standing` asks nothing of it (`.koloni`, a secret: `_harm`)."""
     words = [word.strip("'\"") for word in _words(part.strip())]
-    if not words or re.search(r"[|<>`$(){};&\r\n]", part) or re.search(r"[\\/]", words[0]):
+    if not words or re.search(r"[|<>`$(){}]", part) or re.search(r"[\\/]", words[0]):
         return False
     program = _program(words[0])
     replaces = program in ("rg", "ripgrep", "ag")  # (as the shell joins a word: `-de""lete`)
     return (
         program in _SEARCHERS | _GREPS | {"find"}
-        and not globs_an_option(part)
+        and not (chained(part) or globs_an_option(part))
         and not any(
             SEARCH_DOES.fullmatch(_as_word(word)) or replaces and word == "-r" for word in words
         )
@@ -4069,8 +4061,9 @@ def _sets_git_config(command: str) -> bool:
 
 
 # git's own commands that rewrite `.git/config` in their ordinary work: a remote, a branch's
-# upstream, a submodule, a new repository (K-yazma-denetimi lets that stand, `writes_git_config`).
-_CONFIG_WRITERS = frozenset({"init", "remote", "submodule", "branch", "checkout", "switch"})
+# upstream, a new repository (K-yazma-denetimi lets that stand, `writes_git_config`); a
+# submodule's by its verb, never `foreach` (`read_edges.submodule_writes`).
+_CONFIG_WRITERS = frozenset({"init", "remote", "branch", "checkout", "switch"})
 
 
 def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
@@ -4088,23 +4081,29 @@ def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
     return [_git_sub(words) for words in parts]
 
 
-def writes_git_config(command: str) -> bool:
-    """Whether a command is git's own alone (`_git_alone`) and one of its parts rewrites
-    `.git/config` as it works (`git init`, `git remote add`, `git push -u`, `git checkout
-    --track`, `git config` not `--global`) - in every reading (`_readings`, k-okuyucu): what
-    it lets stand is the least any reading lets (`git init # `⏎`rm .git/config` is not git's
-    own alone as written)."""
-    return all(map(_writes_git_config, _readings(command)))
+def writes_git_config(command: str) -> frozenset[str]:
+    """What of git's own files a command rewrites as it works, where it is git's own alone
+    (`_git_alone`): `.git/config` (`git init`, `git remote add`, `git push -u`, `git checkout
+    --track`, `git config` not `--global`), `.gitmodules` too (`git submodule add`) - in every
+    reading (`_readings`, k-okuyucu): the least any reading lets stand (`git init # `⏎`rm
+    .git/config` is not git's own alone as written)."""
+    return frozenset.intersection(*[_writes_git_config(line) for line in _readings(command)])
 
 
-def _writes_git_config(command: str) -> bool:
-    return any(
-        sub in _CONFIG_WRITERS
-        or sub == "push"
-        and bool({"-u", "--set-upstream"} & set(rest))
-        or sub == "config"
-        and not {"--global", "--system"} & set(rest)
-        for sub, rest in _git_alone(command)
+def _writes_git_config(command: str) -> frozenset[str]:
+    return frozenset().union(
+        *(
+            submodule_writes(rest)
+            if sub == "submodule"
+            else {".git/config"}
+            if sub in _CONFIG_WRITERS
+            or sub == "push"
+            and bool({"-u", "--set-upstream"} & set(rest))
+            or sub == "config"
+            and not {"--global", "--system"} & set(rest)
+            else ()
+            for sub, rest in _git_alone(command)
+        )
     )
 
 
@@ -5362,15 +5361,16 @@ def only_looks(command: str) -> bool:
 def reads_here(command: str, root: Path, at_root: bool, cwd: str = ".") -> bool:
     """Whether a command runs unasked below Full auto (`only_reads`): git's only at the root
     of the folder it works in (a repository shaped in a folder below could set what git
-    runs) and while that folder holds no secret file - its diff, log and show print a
-    committed one's lines without naming it. And (k-okuma-yol) every path it names, followed
-    through links and junctions as `read_file` follows them (`Workspace.resolve`), ends in the
-    folder and on no secret path (`_named_here`). `cwd`: where in `root` it runs. shortcut: a
-    gitignored .env cards git too; ask `git ls-files` if that is met. Blocking: call it off the
-    event loop."""
+    runs; the root itself shaped as a bare one: `looks_bare`) and while that folder holds no
+    secret file - its diff, log and show print a committed one's lines without naming it. And
+    every path it names, followed through links and junctions as `read_file` follows them, ends
+    in the folder and on no secret path (`_named_here`, k-okuma-yol). `cwd`: where in `root` it
+    runs. shortcut: a gitignored .env cards git too; ask `git ls-files` if that is met. Blocking:
+    call it off the event loop."""
     if not only_reads(command) or not _named_here(command, root, cwd):
         return False
-    return _program(_words(command.strip())[0]) != "git" or at_root and secret_held(root) is None
+    git = _program(_words(command.strip())[0]) == "git"
+    return not git or at_root and secret_held(root) is None and not looks_bare(root)
 
 
 # What a read's paths are followed for, at most: a line naming more is asked.
@@ -6205,7 +6205,7 @@ def _leads_out(word: str) -> bool:
 
 # K-r147 (live): what a pipe may hand a command's output to, at night too - it only picks,
 # counts, sorts or lays out the text, and runs nothing it is handed (`_filters`).
-_FILTERS = _SINKS | {
+_FILTERS = SINKS | {
     "where-object",
     "where",
     "?",
@@ -6542,7 +6542,7 @@ def _reaches_by_word(words: list[str]) -> bool:
 
 
 def _reaches_of(command: str) -> str:
-    if found := _NETWORK.search(command) or NET_PATH.search(_as_word(command)):
+    if found := _NETWORK.search(command) or NET_PATH.search(f"{command}\n{_as_word(command)}"):
         return found[0]
     for words in (words for words in _commands_in(command) if words):
         program, sub = _program(words[0]), _git_sub(words)[0]

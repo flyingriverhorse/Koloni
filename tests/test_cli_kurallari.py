@@ -8,6 +8,7 @@ from app import commands, risk_judge
 from app.agent import _command_names
 from app.commands import _looks_only, only_reads, only_searches, reaches_network, web_off_reason
 from app.project_view import standing
+from app.proof import may_write
 from app.read_edges import globs_an_option
 from tests.fakes import Script
 from tests.test_agent_commands import cmd
@@ -38,6 +39,7 @@ GLOBS = [
     "head -n 5 ?.log",
     "ls [-a]*",
     "rg x \\\n*",  # (a line continued: `rg x *`)
+    'rg foo .github "\\"" *',  # (sh's `\"` in double quotes ends none)
 ]
 # bash's /dev/tcp and /dev/udp: the internet, by a redirection (and as the shell joins the word)
 NET = [
@@ -46,6 +48,11 @@ NET = [
     "echo hi > /dev/udp/10.0.0.1/53",
     'cat </dev/t""cp/h/80',
     "grep x < /dev/tcp/h/80",
+    # (a part after /dev/ the shell builds as it runs)
+    "t=tcp; cat </dev/$t/h/80",
+    "cat </dev/${t}/h/80",
+    "exec 3<>/dev/$'tcp'/h/80",
+    "cat < $'/dev/tc\\x70/h/80'",
 ]
 # A line that sets IFS or PATH: what runs, or how its words split, is not what is written.
 SETS = [
@@ -69,6 +76,9 @@ CD_GIT = [
     "cd sub\ngit log",
     "rg x; cd sub && git log",
     "rg x && git log",
+    # (a `;` out of quotes: PowerShell's `\;` is one, and sh's `\"` opens no quote)
+    "rg a\\;b .github",
+    'rg \\"a;b" .github',
 ]
 
 
@@ -120,13 +130,25 @@ def test_a_plain_search_stays_a_search(line):
     assert only_searches(line) and commands._reads(line) and commands.names_standing(line) == ""
 
 
+@pytest.mark.parametrize(
+    "line",
+    ["rg '&&' .github/workflows", "grep -rn ';' .github", "rg -F 'x;y' .", 'rg "a&b" .claude'],
+)
+def test_a_quoted_semicolon_or_ampersand_leaves_a_search_a_search(line):
+    # (the review: each was a card at every level on this branch, and a line that may write)
+    assert only_searches(line) and commands.names_standing(line) == "" and not may_write(line)
+
+
 @pytest.mark.parametrize("line", NET)
 def test_bashs_dev_tcp_reaches_the_internet_and_asks_with_web_off(line):
-    assert reaches_network(line).startswith(("/dev/tcp/", "/dev/udp/"))
+    assert reaches_network(line).startswith("/dev/")
     assert "/dev/" in web_off_reason(line, ["http_request"])
 
 
-@pytest.mark.parametrize("line", ["cat src/dev/tcp/a.py", "ls ./dev/udp", "cat mydev/tcp/x"])
+@pytest.mark.parametrize(
+    "line",
+    ["cat src/dev/tcp/a.py", "ls ./dev/udp", "cat mydev/tcp/x", "cat /dev/null", "ls /dev/fd/3"],
+)
 def test_a_project_path_with_dev_tcp_in_it_reaches_nothing(line):
     assert reaches_network(line) == ""
 
@@ -135,8 +157,23 @@ def test_git_below_the_root_is_neither_a_read_nor_ordinary_to_the_judge():
     assert risk_judge.git_below("git status", "sub")
     assert risk_judge.git_below("git log -3", "a/b")
     assert not risk_judge.git_below("git status", ".")
-    assert not risk_judge.git_below("git status", None)  # (where it runs is not said: the root)
+    assert not risk_judge.git_below("git status", "")
+    # (where it runs is not known - Claude Code's PowerShell keeps a Set-Location: not the root)
+    assert risk_judge.git_below("git status", None)
     assert not risk_judge.git_below("cat a.txt", "sub")
+
+
+def test_a_root_shaped_as_a_bare_repository_is_no_root_to_git(tmp_path):
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    assert not risk_judge.git_below("git status", ".", tmp_path)
+    assert commands.reads_here("git status", tmp_path, True)
+    (tmp_path / "HEAD").write_text("ref: refs/heads/main", encoding="utf-8")
+    (tmp_path / "objects").mkdir()
+    assert risk_judge.git_below("git status", ".", tmp_path)
+    assert not commands.reads_here("git status", tmp_path, True)
+    assert commands.reads_here("cat a.txt", tmp_path, True)  # (only git's)
+    (tmp_path / ".git").mkdir()  # (a .git there: git takes that one)
+    assert not risk_judge.git_below("git status", ".", tmp_path)
 
 
 @pytest.mark.judge
@@ -168,6 +205,7 @@ PROTECTED = {
     "echo x > gradle/wrapper/gradle-wrapper.properties": "gradle-wrapper.properties",
     "cp x.jar gradle/wrapper/gradle-wrapper.jar": "gradle-wrapper.jar",
     "echo x >> .bazelrc": ".bazelrc",
+    "echo 9.0.0 > .bazelversion": ".bazelversion",
 }
 
 
@@ -198,11 +236,11 @@ def test_running_the_build_or_reading_its_settings_names_none(line):
 def test_the_write_audit_looks_at_them_and_lets_a_submodule_line_write_gitmodules(tmp_path):
     looked = {
         ".cargo/config.toml",
-        ".idea/workspace.xml",
         ".gitmodules",
         "gradle/wrapper/gradle-wrapper.properties",
     }
-    for rel in [*looked, "src/a.py", "gradlew"]:
+    # (.idea's is not looked at: the IDE rewrites workspace.xml itself - asked by name only)
+    for rel in [*looked, "src/a.py", "gradlew", ".idea/workspace.xml", ".idea/dataSources/x"]:
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / rel).write_text("x", encoding="utf-8")
     assert set(standing(tmp_path)) == looked
@@ -214,3 +252,28 @@ def test_the_write_audit_looks_at_them_and_lets_a_submodule_line_write_gitmodule
     }
     assert _command_names("git push -u origin x", True, False)[0] == {".git/config"}
     assert _command_names("git submodule add https://x lib", False, False)[0] == set()
+
+
+@pytest.mark.parametrize(
+    "line, stands",
+    [
+        ("git submodule add https://x lib", {".git/config", ".gitmodules"}),
+        ("git submodule set-url lib https://y", {".git/config", ".gitmodules"}),
+        ("git submodule -q set-branch -b main lib", {".git/config", ".gitmodules"}),
+        ("git submodule update --init", {".git/config"}),
+        ("git submodule sync", {".git/config"}),
+        ("git submodule deinit lib", {".git/config"}),
+        # (the review: by git's own sub-command and verb, never a word of the line)
+        ("git checkout fix-submodule", {".git/config"}),
+        ("git switch feat/submodule", {".git/config"}),
+        ("git checkout main -- docs/submodule.md", {".git/config"}),
+        # (foreach runs any command - core.fsmonitor in .git/config would stand)
+        ("git submodule foreach 'git config core.fsmonitor ../w.sh'", set()),
+        ("git submodule status", set()),
+        ("git submodule summary", set()),
+        ("git submodule", set()),
+        ("git submodule update", set()),
+    ],
+)
+def test_what_a_git_line_lets_stand_is_by_its_own_verb(line, stands):
+    assert _command_names(line, True, False)[0] == stands

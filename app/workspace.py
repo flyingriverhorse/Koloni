@@ -50,9 +50,8 @@ NOT_WRITTEN_UNATTENDED = {
     ".git": "git's hooks and config: programs that run by themselves at the next git command",
     ".github": "workflows and actions: they run by themselves once pushed",
     ".vscode": "the editor's tasks and settings: they can run when the folder is opened",
-    # shortcut: a JetBrains IDE rewrites `.idea/workspace.xml` itself as the user works; while an
-    # agent's turn is looked at, the write audit puts that back too, on a card - narrow this to
-    # the run configurations if that is met.
+    # (A write or a command naming it asks; the write audit does not look into it: the IDE
+    # rewrites `.idea/workspace.xml` itself - `project_view.UNLOOKED`.)
     ".idea": "a JetBrains IDE's run configurations and settings: they can run in the folder",
     **dict.fromkeys(
         (".devcontainer", ".devcontainer.json"),
@@ -74,6 +73,7 @@ NOT_WRITTEN_UNATTENDED = {
         "Gradle's wrapper: the Gradle that ./gradlew and the editor download and run",
     ),
     ".bazelrc": "bazel's settings: programs it runs at the next build (its status command)",
+    ".bazelversion": "the Bazel that bazelisk downloads and runs (a fork's too) at the next build",
     **dict.fromkeys(
         (
             ".pre-commit-config.yaml",

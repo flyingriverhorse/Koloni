@@ -579,6 +579,9 @@ class ApprovalsMixin:
             always=always or bool(reason),
             held=bool(searched),
             web_off=bool(web_off),
+            # shortcut: a git read where its folder is not known (`unnamed` None) is judged at the
+            # root below Full auto, as Copilot's ordinary commands often are such (bash, and any
+            # its version was not read for); Full auto's judge takes it as below (`git_below`).
             reads=not given.get("not_read_only")
             and await asyncio.to_thread(
                 reads_here, command, root, where in ("", "."), where or "."

@@ -166,6 +166,11 @@ messages.
   `rsync --delete`, `robocopy /MIR`, `mail`, `ssh host 'command'`.
 - At Full auto, the harm check sees honest commands only; a command written to hide what it does is not
   seen. See [Security model](../security/model.md).
+- A command that writes into `.idea/` without naming it is not seen: KOLONİ puts back files that steer
+  later turns after a command, but does not look into `.idea/`, which a JetBrains IDE rewrites itself.
+- Below Full auto, a `git` read whose folder KOLONİ does not know - Claude Code's PowerShell or Monitor,
+  and many of Copilot's commands - is judged as run at the project's top, where it runs unasked; at Full
+  auto it goes to the judge.
 - [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
     - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
       at Full auto before the judge.
