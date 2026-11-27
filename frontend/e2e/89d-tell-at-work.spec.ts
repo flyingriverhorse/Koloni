@@ -73,7 +73,7 @@ test.describe('telling Claude Code something while it works', () => {
     await chat.getByRole('button', { name: 'Use this model' }).click()
     await expect(chat.getByRole('button', { name: /^Model: Claude Code/ })).toBeVisible()
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('make the button a nice colour')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByText('Working on it.')).toBeVisible()
 
     // Its window, opened while it works from the icon at its node's right (none opens by itself).

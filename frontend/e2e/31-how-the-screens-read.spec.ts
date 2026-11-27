@@ -128,7 +128,7 @@ async function walk(page: Page, theme: 'light' | 'dark') {
   await settled(page)
   await snap('7-status-canvas')
   await page.getByLabel('Message', { exact: true }).fill('edit the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect((await openTurns(page)).locator('.turn-row').getByText('waits for you')).toBeVisible({ timeout: 20_000 })
   await page.keyboard.press('Escape')
   await chat.getByRole('button', { name: 'Reject' }).click()
@@ -251,7 +251,7 @@ test('the row under the message box reads whole, ⚙ Chat and the model open the
         model,
         chat.getByRole('button', { name: /^Permission level:/ }),
         moreButton,
-        chat.getByRole('button', { name: 'Send' }),
+        chat.getByRole('button', { name: 'Send', exact: true }),
       ].map(async control => (await control.boundingBox())!),
     )
     const middle = (box: { y: number; height: number }) => Math.round(box.y + box.height / 2)
@@ -366,7 +366,7 @@ test('a turn of two nodes opens closer and whole; an agent’s header and a role
       ).size,
     ).toBe(1)
     await page.getByLabel('Message', { exact: true }).fill('edit the greeting')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await openTurns(page)
     await expect(list.locator('.turn-row').getByText('waits for you')).toBeVisible({ timeout: 20_000 })
     await page.keyboard.press('Escape')
@@ -521,7 +521,7 @@ for (const theme of ['light', 'dark'] as const)
       await page.keyboard.press('Escape')
       await check(chat.locator('.msg-list'), 5)
       await page.getByLabel('Message', { exact: true }).fill('edit the greeting')
-      await page.getByRole('button', { name: 'Send' }).click()
+      await page.getByRole('button', { name: 'Send', exact: true }).click()
       await expect((await openTurns(page)).locator('.turn-row').getByText('waits for you')).toBeVisible({
         timeout: 20_000,
       })
@@ -537,7 +537,7 @@ for (const theme of ['light', 'dark'] as const)
       await view.getByRole('button', { name: 'Close workspace' }).click()
       // What an agent shows opens it by itself; beside the small box, Workspace, and the window's tabs (slices 38e, 42c).
       await page.getByLabel('Message', { exact: true }).fill('show the chart')
-      await page.getByRole('button', { name: 'Send' }).click()
+      await page.getByRole('button', { name: 'Send', exact: true }).click()
       await expect(chat.getByText('There is the chart.')).toBeVisible({ timeout: 20_000 })
       await expect(view.getByRole('img', { name: 'chart39.png' })).toBeVisible({ timeout: 10_000 })
       await chat.getByRole('button', { name: 'Hide chat' }).click()

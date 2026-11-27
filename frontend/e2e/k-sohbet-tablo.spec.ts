@@ -9,7 +9,7 @@ test('a wide table scrolls in its own box with whole words, and a long link keep
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message', { exact: true }).fill(`show me a wide table http://127.0.0.1:9/${'a'.repeat(120)}`)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const table = chat.locator('.markdown table')
   await expect(table).toBeVisible()
   const box = await table.evaluate(t => ({

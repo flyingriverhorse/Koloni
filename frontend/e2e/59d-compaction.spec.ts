@@ -14,7 +14,7 @@ test('the working state is shown under the agent window’s context line, correc
 
   await openFreshConversation(page)
   await page.getByLabel('Message', { exact: true }).fill('Fill the state.')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByText('Summarised, and on.')).toBeVisible()
 
@@ -51,7 +51,7 @@ test('the working state is shown under the agent window’s context line, correc
   await rail(page, 'Chats').click()
   await page.getByRole('button', { name: /^Fill the state\./ }).click()
   await page.getByLabel('Message', { exact: true }).fill('And on?')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Going on from your words.')).toBeVisible()
 
   // Put back, so that later runs start from the defaults.

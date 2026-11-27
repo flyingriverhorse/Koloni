@@ -26,7 +26,7 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   const asks = chat.getByRole('form', { name: 'Orchestrator asks' })
 
   await page.getByLabel('Message', { exact: true }).fill('use the notebook')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   // Both reviewers have noted and reported; the lead asks before it reports, so the turn is still at work.
   await expect(asks.getByText('Anything to add before I report?')).toBeVisible({ timeout: 15_000 })
@@ -140,7 +140,7 @@ test('with no turn at work there is nothing to write on, and a turn that used no
 
   await chat.getByRole('tab', { name: 'Chat' }).click()
   await page.getByLabel('Message', { exact: true }).fill('hello')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
   await expect(page.locator('.react-flow__node-agent')).toHaveCount(1)
   await expect(page.locator('.react-flow__node-shared')).toHaveCount(0)

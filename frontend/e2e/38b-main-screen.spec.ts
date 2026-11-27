@@ -63,7 +63,7 @@ test('open, the chat is a column at the canvas’s left edge, as tall as it, wid
   await page.keyboard.press('Escape')
   // (hidden, not gone: what was written in it stays)
   await expect(chat.getByRole('tab', { name: 'Chat' })).toBeHidden()
-  await expect(chat.getByRole('button', { name: 'Send' })).toBeHidden()
+  await expect(chat.getByRole('button', { name: 'Send', exact: true })).toBeHidden()
   await expect(chat.getByLabel('Message', { exact: true })).toHaveValue('kept as it is')
   const line = chat.getByRole('button', { name: /^Chat/ })
   await expect(line).toBeFocused()
@@ -88,7 +88,7 @@ test('a card that waits for the user is said on the closed chat’s line, in hon
   const chat = chatOf(page)
   try {
     await page.getByLabel('Message', { exact: true }).fill('edit the greeting')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByRole('button', { name: 'Reject' })).toBeVisible({ timeout: 20_000 })
     await chat.getByRole('button', { name: 'Hide chat' }).click()
     const waits = chat.getByRole('button', { name: /^Chat/ }).getByText('1 waits for you')
@@ -133,7 +133,7 @@ test('while the canvas works, its nodes at work stay in view as the chat grows a
   const zoom = () => viewport.evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)
   // The lead takes a moment before it opens its two reviewers, who take a while each.
   await page.getByLabel('Message', { exact: true }).fill('have both files reviewed slowly')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   // The chat is made wider while the turn is at work: new nodes come beside it.
   await dragTo(page, 480)
   expect(await across(page)).toBe(480)
@@ -189,7 +189,7 @@ test('as the inspector slides in and out over work in progress, every node at wo
   // A command that runs half a minute, without asking: the lead and its command are at work.
   await level(page, 'full_auto')
   await page.getByLabel('Message', { exact: true }).fill('run slow.py')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   try {
     await dragTo(page, 480)
     await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, {
@@ -235,7 +235,7 @@ for (const theme of ['light', 'dark'] as const) {
     const chat = chatOf(page)
     await level(page, 'full_auto')
     await page.getByLabel('Message', { exact: true }).fill('run slow.py')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const lead = page.locator('.react-flow__node-agent')
     const now = lead.locator('.node-now')
     try {

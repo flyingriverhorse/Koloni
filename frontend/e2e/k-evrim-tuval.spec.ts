@@ -53,7 +53,7 @@ test('Evolve’s rounds on the canvas: the first a line, the second under it in 
   })
   expect(set.ok()).toBe(true)
   await page.getByLabel('Message', { exact: true }).fill('evolve it, ev2')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('Evolved.').last()).toBeVisible({ timeout: 60_000 })
 
   const line = page.locator('.react-flow__node-round')

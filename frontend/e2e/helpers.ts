@@ -122,7 +122,7 @@ export async function settled(page: Page) {
 
 export async function say(page: Page, message: string, answer: string | RegExp) {
   await messageBox(page).fill(message)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText(answer).last()).toBeVisible({ timeout: 20_000 })
 }
 

@@ -34,7 +34,7 @@ test('a pasted picture, ticked, is saved into docs/attachments/ and said under t
   await expect(save).not.toBeChecked()
   await save.check()
   await box.fill('keep this picture, 23')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByText('Kept the picture.')).toBeVisible({ timeout: 20_000 })

@@ -6,7 +6,7 @@ test('the lead carries on with its Reviewer by sending it a message', async ({ p
   const chat = page.getByRole('region', { name: 'Chat' })
 
   await page.getByLabel('Message', { exact: true }).fill('look twice at the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('The reviewer looked twice.')).toBeVisible()
 
   // The message is one row in the chat: who to whom, and the reply inside.

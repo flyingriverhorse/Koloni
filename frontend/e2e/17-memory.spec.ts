@@ -35,7 +35,7 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   // Turn 1: the lead reads settings.txt, notes what it says with that line as the source,
   // and puts the note forward for the core.
   await page.getByLabel('Message', { exact: true }).fill('note the port')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Noted where the port is set. It waits for you.')).toBeVisible({ timeout: 15_000 })
   // Nobody was given anything, one note was written: the Lead's, on the card beside it - on hover, who wrote what.
   await expect(memoryNodes).toHaveCount(1)
@@ -83,7 +83,7 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   // fact's subject (the port), so both are given the fact when they start.
   await rail(page, 'Canvas').click()
   await page.getByLabel('Message', { exact: true }).fill('review the port of hello.py')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toHaveCount(1, { timeout: 15_000 })
   // The canvas draws this turn only, with the part memory played in it; the first turn is a
   // row of the turn list beside it.
@@ -137,7 +137,7 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   // Reviewer no such section.
   await rail(page, 'Canvas').click()
   await page.getByLabel('Message', { exact: true }).fill('review the port of hello.py again')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toHaveCount(2, { timeout: 15_000 })
   // A turn of yours that starts is the one drawn, though the first turn was picked before:
   // its two agents, and no memory node. The two turns before it still have theirs.

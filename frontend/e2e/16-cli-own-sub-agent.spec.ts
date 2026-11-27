@@ -52,7 +52,7 @@ test.describe('with Claude Code working natively as a provider', () => {
     await chat.getByRole('button', { name: 'Use this model' }).click()
     await expect(chat.getByRole('button', { name: /^Model: Claude Code/ })).toBeVisible()
     await page.getByLabel('Message', { exact: true }).fill('what does hello.py print?')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByText('The helper says it prints hi.')).toBeVisible()
 
     // One agent of KOLONİ's. Its own sub-agent is not a second one: it is counted on the agent's node (the user's,

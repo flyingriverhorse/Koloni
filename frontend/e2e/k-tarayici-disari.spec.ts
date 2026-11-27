@@ -43,7 +43,7 @@ test('at Auto-edit an unlisted site is a card: This time keeps nothing, Allow th
   await page
     .getByLabel('Message', { exact: true })
     .fill(`k-tarayici-disari open http://site.test:${port}/ http://other.test:${port}/`)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const chat = page.getByRole('region', { name: 'Chat' })
   const card = chat.locator('.cmd-approval').filter({ hasText: 'Open this site?' })
@@ -80,7 +80,7 @@ test('at Full auto an unlisted site opens unasked, but sending its form waits on
   const id = await openFreshConversation(page)
   await level(page, id, 'full_auto')
   await page.getByLabel('Message', { exact: true }).fill(`k-tarayici-disari order http://shop.test:${port}/order`)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const chat = page.getByRole('region', { name: 'Chat' })
   const card = chat.locator('.cmd-approval').filter({ hasText: 'Send this form?' })

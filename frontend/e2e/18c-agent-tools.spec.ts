@@ -32,7 +32,7 @@ test('a web search asks first, goes out once it is approved, and its row says wh
   const chat = page.getByRole('region', { name: 'Chat' })
 
   await page.getByLabel('Message', { exact: true }).fill('search the web for python docs')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
   await expect(chat.getByText('Search the web?')).toBeVisible()
   await expect(chat.getByText('python docs', { exact: true })).toBeVisible()
@@ -73,7 +73,7 @@ for (const theme of ['light', 'dark'] as const) {
     await searchAddress(request, SEARX)
     const chat = page.getByRole('region', { name: 'Chat' })
     await page.getByLabel('Message', { exact: true }).fill('search the web for orders')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await chat.getByRole('button', { name: 'Search once' }).click()
     // Nothing was kept from the agent: it was told to take it as data, and went on.
     await expect(chat.getByText('I took it as data.')).toBeVisible()
@@ -100,7 +100,7 @@ for (const theme of ['light', 'dark'] as const) {
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
     await page.getByLabel('Message', { exact: true }).fill('look around, one call a step')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByText('Looked around.')).toBeVisible({ timeout: 15_000 })
 
     // Four steps of one call each: one line, closed, before the words.

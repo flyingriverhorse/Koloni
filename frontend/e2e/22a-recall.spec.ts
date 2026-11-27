@@ -5,7 +5,7 @@ test('what was said in an earlier turn is found from the Memory page, with whose
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message', { exact: true }).fill('Answer only: The ZEPPELIN hangar is in Kayseri.')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('The ZEPPELIN hangar is in Kayseri.', { exact: true })).toBeVisible({ timeout: 15_000 })
 
   await rail(page, 'Memory').click()

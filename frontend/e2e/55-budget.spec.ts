@@ -30,7 +30,7 @@ test('a monthly budget: set in Spending, on Usage, a pill at 80% that opens Usag
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message', { exact: true }).fill('hello from the budget spec')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
   const price = { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' }
   expect((await request.put('/api/prices', { headers: OWN, data: price })).ok()).toBe(true)
@@ -70,7 +70,7 @@ test('a monthly budget: set in Spending, on Usage, a pill at 80% that opens Usag
   await expect(pill).toHaveAccessibleName(/^Budget over · \d+%$/, { timeout: 10_000 })
   await expect(pill).toHaveAttribute('title', /a new message asks before its work starts/)
   await page.getByLabel('Message', { exact: true }).fill('one more over the budget')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const card = chat.getByRole('group', { name: 'Over this month’s budget' })
   await expect(card).toContainText('Send it anyway?')
   await shot(page, '55-over-budget')

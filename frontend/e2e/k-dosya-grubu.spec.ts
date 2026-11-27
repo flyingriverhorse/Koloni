@@ -21,7 +21,7 @@ for (const theme of ['light', 'dark'] as const) {
     // Files are written without asking: none waits for the user.
     await level(page, 'auto_edit')
     await page.getByLabel('Message', { exact: true }).fill('write three files, k-dosya-grubu')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Chat' }).getByText('Wrote three files.')).toBeVisible({
       timeout: 15_000,
     })

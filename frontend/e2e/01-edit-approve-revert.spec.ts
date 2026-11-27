@@ -11,7 +11,7 @@ test('ask the agent for an edit, approve it, see it on disk, then revert it', as
   await openFreshConversation(page)
 
   await page.getByLabel('Message', { exact: true }).fill('say hello instead of hi')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   // The agent reads the file, then proposes an edit and waits for a decision.
   await expect(page.getByText('read_file hello.py').first()).toBeVisible()
@@ -78,7 +78,7 @@ test('a message sent while the agent waits is queued, and rejecting lets it run'
   await openFreshConversation(page)
 
   await page.getByLabel('Message', { exact: true }).fill('change the greeting again')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
 
   await page.getByLabel('Message', { exact: true }).fill('hello there')

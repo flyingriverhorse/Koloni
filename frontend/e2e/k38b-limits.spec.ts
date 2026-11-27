@@ -38,7 +38,7 @@ for (const [width, height] of [
       await openFreshConversation(page)
       const chat = page.getByRole('region', { name: 'Chat' })
       await page.getByLabel('Message', { exact: true }).fill('run the tests')
-      await page.getByRole('button', { name: 'Send' }).click()
+      await page.getByRole('button', { name: 'Send', exact: true }).click()
       await expect(chat.getByText('Run this command?')).toBeVisible()
 
       // Workspace beside the chat, then the Lead picked (the inspector takes the stage's right) and its window opened.

@@ -58,7 +58,7 @@ for (const theme of ['light', 'dark'] as const)
     await narrow.evaluate(el => el.remove())
 
     await box.fill('what does hello.py print?')
-    await chat.getByRole('button', { name: 'Send' }).click()
+    await chat.getByRole('button', { name: 'Send', exact: true }).click()
     const card = chat.locator('.cmd-approval').filter({ hasText: 'Approve this plan?' })
     await expect(card).toBeVisible({ timeout: 20_000 })
     await expect(chat.getByText('PLAN: 1. Read hello.py.')).toBeVisible()
@@ -89,7 +89,7 @@ for (const theme of ['light', 'dark'] as const)
 
     // another message plans again; turned down, it says why and nothing more runs
     await box.fill('and check.py?')
-    await chat.getByRole('button', { name: 'Send' }).click()
+    await chat.getByRole('button', { name: 'Send', exact: true }).click()
     const next = chat.locator('.cmd-approval').filter({ hasText: 'Approve this plan?' })
     await expect(next).toBeVisible({ timeout: 20_000 })
     await next.getByRole('button', { name: 'Reject' }).click()

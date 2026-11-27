@@ -22,7 +22,7 @@ for (const theme of ['light', 'dark'] as const)
     await expect(folder).not.toHaveAccessibleName(/more folder/)
 
     await page.getByLabel('Message', { exact: true }).fill('ask for the shelf, 86b')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByText(`Orchestrator asks to read in ${SHELF}`)).toBeVisible({ timeout: 20_000 })
     await expect(chat.getByRole('button', { name: 'This time' })).toBeVisible()
     await chat.getByRole('button', { name: 'Add to this chat' }).click()
@@ -68,7 +68,7 @@ test('in a chat with no folder a file the user names is read once on “Allow on
   const chat = page.getByRole('region', { name: 'Chat' })
 
   await page.getByLabel('Message', { exact: true }).fill(`summarise the report, 86b: ${report}`)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Read a file?')).toBeVisible({ timeout: 20_000 })
   await expect(chat.getByText(`Orchestrator wants to read ${report}`)).toBeVisible()
   await expect(chat.getByRole('button', { name: /this folder/ })).toHaveCount(0)

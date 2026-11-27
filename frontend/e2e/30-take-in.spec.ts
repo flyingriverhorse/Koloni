@@ -56,7 +56,7 @@ test('the same line changed on both sides is asked about, the Coder’s own test
 
   await level(page, 'ask')
   await page.getByLabel('Message', { exact: true }).fill('a clash in lines.txt')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await chat.getByRole('button', { name: 'Open agent' }).click()
 
   // The Coder has changed line two in its copy and is still at work. Meanwhile, by the user's own

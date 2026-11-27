@@ -66,7 +66,7 @@ test('the canvas under the settings: new work that came meanwhile is in view whe
 
   // The lead takes a moment before it starts its two reviewers: by then the settings are open over the canvas.
   await page.getByLabel('Message', { exact: true }).fill('have both files reviewed slowly')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await gear.click()
   await expect(page.getByRole('form', { name: 'Project settings' })).toBeVisible()
   await expect(agents).toHaveCount(3, { timeout: 15_000 })

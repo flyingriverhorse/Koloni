@@ -15,7 +15,7 @@ test('a turn’s tokens are on the Usage page, its conversation opens from there
   const chat = page.getByRole('region', { name: 'Chat' })
   // One model step: the scripted model reports 120 tokens sent and 18 written for it.
   await page.getByLabel('Message', { exact: true }).fill('hello from the usage spec')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
 
   await rail(page, 'Usage').click()

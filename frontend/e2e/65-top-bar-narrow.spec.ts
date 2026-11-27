@@ -17,7 +17,7 @@ for (const [width, title] of [
     await openFreshConversation(page)
     // (The first message is the conversation's title.)
     await page.getByLabel('Message', { exact: true }).fill(title ?? 'say hello instead of hi')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const state = page.locator('[data-run="waiting_approval"]')
     const turns = page.getByRole('button', { name: /^Recent/ })
     await expect(state).toBeVisible()

@@ -3,7 +3,7 @@ import { openFreshConversation, openAgentFold, projectSettings, saveSettings, wi
 
 async function ask(page: Page, text: string) {
   await page.getByLabel('Message', { exact: true }).fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('the lead hands a review to a Reviewer and its report comes back', async ({ page }) => {

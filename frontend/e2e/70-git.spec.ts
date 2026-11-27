@@ -83,7 +83,7 @@ test('the project’s git in the top bar, its map, a copy’s way back to main, 
 
   await level(page, 'ask')
   await page.getByLabel('Message', { exact: true }).fill('two coders in their own copies, in git')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   for (const _ of [1, 2]) await chat.getByRole('button', { name: 'Open agent' }).first().click()
   // Coder 2 is done and asks; Coder is still at work in its copy.

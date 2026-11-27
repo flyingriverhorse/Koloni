@@ -14,7 +14,7 @@ test('an image the model names is not fetched until the user clicks its address'
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message', { exact: true }).fill('show me a picture')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const address = `${MODEL_URL}/pixel.png?carried=secret`
   const link = chat.getByRole('link', { name: address })

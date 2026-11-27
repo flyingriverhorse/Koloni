@@ -43,7 +43,7 @@ for (const theme of ['light', 'dark'] as const) {
     // (The first message names the chat; the scripted Lead asks to write a file of its own - none another spec's chat
     // holds: the chat waits for you.)
     await page.getByLabel('Message', { exact: true }).fill(one)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
     await expect(tabs(page).getByRole('tab')).toHaveCount(1)
     await expect(tab(page, 'project')).toHaveAttribute('aria-selected', 'true')

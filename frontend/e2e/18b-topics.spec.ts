@@ -24,7 +24,7 @@ test.afterEach(async () => {
 
 async function say(page: Page, text: string, answer: string, times = 1) {
   await page.getByLabel('Message', { exact: true }).fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText(answer)).toHaveCount(times, { timeout: 20_000 })
 }
 

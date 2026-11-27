@@ -22,7 +22,7 @@ test('in a new conversation the Lead hands code to a Coder; switched to doing it
   await page.getByRole('button', { name: 'Close settings' }).click()
 
   await page.getByLabel('Message', { exact: true }).fill('make farewell')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Chat' }).getByText('The coder added a farewell.')).toBeVisible({
     timeout: 20_000,
   })

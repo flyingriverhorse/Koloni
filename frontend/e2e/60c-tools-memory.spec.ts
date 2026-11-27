@@ -92,7 +92,7 @@ for (const theme of ['light', 'dark'] as const) {
       await request.put(`/api/projects/${project.id}/rules`, { headers: OWN, data: { rules: 'Sign every commit.' } })
       // The lead puts a note forward for the core.
       await page.getByLabel('Message', { exact: true }).fill('note the port')
-      await page.getByRole('button', { name: 'Send' }).click()
+      await page.getByRole('button', { name: 'Send', exact: true }).click()
       await expect(
         page.getByRole('region', { name: 'Chat' }).getByText('Noted where the port is set. It waits for you.'),
       ).toBeVisible({ timeout: 15_000 })

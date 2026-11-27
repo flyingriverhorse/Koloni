@@ -23,7 +23,7 @@ async function open(page: Page, title: string) {
 
 async function ask(page: Page, message: string) {
   await page.getByLabel('Message', { exact: true }).fill(message)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('two conversations of one project: the limit, and the file both want', async ({ page }) => {

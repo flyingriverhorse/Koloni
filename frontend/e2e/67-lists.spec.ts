@@ -13,7 +13,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page
       .getByLabel('Message', { exact: true })
       .fill(`hello ${theme} - calc.html adinda basit bir hesap makinesi sayfasi yaz (HTML+CSS+JS tek dosya)`)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const last = async () => (await (await page.request.get(`/api/conversations/${id}`)).json()).runs.at(-1)?.status
     await expect.poll(last, { timeout: 20_000 }).toBe('completed')
     const title = `hello ${theme} - calc.html adinda basit bir hesap makinesi…`

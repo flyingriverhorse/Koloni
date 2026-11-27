@@ -44,7 +44,7 @@ for (const theme of ['light', 'dark'] as const) {
     // and the chat says why: at the turn's end its steps fold, and the first refusal's reason stays in sight under the
     // fold's line (waited for once the turn is over, not while it runs).
     await page.getByLabel('Message', { exact: true }).fill('make farewell')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     await expect(chat.locator('details.turn-steps > summary')).toHaveText(/^Completed \d+ steps.*\d+ failed/, {
       timeout: 20_000,

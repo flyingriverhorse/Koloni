@@ -22,7 +22,7 @@ test('a window set in the Lead role is used: past three quarters its older part 
   // Its second step sends 800 of 1000: before the third, the older part is summarised.
   await openFreshConversation(page)
   await page.getByLabel('Message', { exact: true }).fill('Fill the context.')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByText('Summarised, and on.')).toBeVisible()
 

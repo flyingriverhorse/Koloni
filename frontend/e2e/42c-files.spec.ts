@@ -48,7 +48,7 @@ test.beforeAll(() => {
 async function aPageWaits(page: Page) {
   // (the version spec 39 leaves unwritten - or the one written above: a change whichever ran before)
   await page.getByLabel('Message', { exact: true }).fill('change the view page')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chatOf(page).getByRole('button', { name: 'Approve' })).toBeVisible({ timeout: 20_000 })
   await expect(filesOf(page)).toBeVisible()
 }

@@ -47,7 +47,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(box).toBeFocused()
     await box.fill('')
     await paste(box, CODE)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
 
     // The Lead got it fenced; the user's message shows it as code, coloured.
     const chat = page.getByRole('region', { name: 'Chat' })

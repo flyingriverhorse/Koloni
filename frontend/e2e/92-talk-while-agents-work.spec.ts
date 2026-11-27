@@ -33,7 +33,7 @@ test('92: Send now into the open turn, the line over the chat, and Stop on one a
 
   // Your word while the Coder works: into this turn, answered in it.
   await page.getByRole('textbox', { name: 'Message', exact: true }).fill('how is it going?')
-  await chat.getByRole('button', { name: 'Send now' }).click()
+  await chat.getByRole('button', { name: 'Send now', exact: true }).click()
   await expect(chat.getByText('Coder is still at work.')).toBeVisible()
   await expect(line).toBeVisible()
 

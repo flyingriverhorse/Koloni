@@ -48,7 +48,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect(set.ok()).toBe(true)
 
     await page.getByLabel('Message', { exact: true }).fill(`make it by the recipe, kb ${theme}`)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     // (Other chats of the run may wait too: the panel's This chat is this one's.)
     const pill = page.locator('.ready-pill')

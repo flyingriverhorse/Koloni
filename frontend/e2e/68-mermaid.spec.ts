@@ -79,7 +79,7 @@ test('a diagram in an answer is drawn, a broken one stays code with its error, n
   await openFreshConversation(page)
   const chat = chatOf(page)
   await page.getByLabel('Message', { exact: true }).fill('draw me a diagram')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const drawing = chat.getByRole('img', { name: 'Diagram: flowchart' })
   await expect(drawing).toBeVisible({ timeout: 20_000 })
@@ -137,7 +137,7 @@ test('a .md file with a diagram is drawn in the Workspace preview, in both theme
   const id = await openFreshConversation(page)
   try {
     await page.getByLabel('Message', { exact: true }).fill('write the diagram note')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chatOf(page).getByRole('button', { name: 'Approve' })).toBeVisible({ timeout: 20_000 })
     const panel = page.getByRole('region', { name: 'Workspace' })
     await expect(panel.getByRole('tab', { name: 'diagram68.md' })).toHaveAttribute('aria-selected', 'true')

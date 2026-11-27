@@ -6,7 +6,7 @@ test('agents discuss in a shared place, and you can speak in it', async ({ page 
   const chat = page.getByRole('region', { name: 'Chat' })
 
   await page.getByLabel('Message', { exact: true }).fill('discuss the greeting with the others')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   // The shared place opens by itself and fills as each one speaks.
   const place = page.getByRole('region', { name: 'Discussion' })

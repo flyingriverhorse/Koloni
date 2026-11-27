@@ -88,7 +88,7 @@ for (const theme of ['light', 'dark'] as const)
 
     // a turn waits on a command: /stop stops it
     await box.fill('run the slow job')
-    await chat.getByRole('button', { name: 'Send' }).click()
+    await chat.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByRole('button', { name: 'Run once' })).toBeVisible({ timeout: 20_000 })
     await box.fill('/sto')
     await expect(stop).not.toHaveAttribute('aria-disabled')

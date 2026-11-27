@@ -50,7 +50,7 @@ test('the user’s (5 Nov): two agents are two small nodes - what each did is co
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message', { exact: true }).fill('review the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
 
   // Joined by the line of the hand-off; three lines each at most, nothing inside.
@@ -86,7 +86,7 @@ test('the user’s (5 Nov): two agents are two small nodes - what each did is co
 test('an agent that waits for your answer is lit, and says so on its state line', async ({ page }) => {
   await openFreshConversation(page)
   await page.getByLabel('Message', { exact: true }).fill('review the greeting carefully')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
 
   const reviewer = reviewerGroup(page)
