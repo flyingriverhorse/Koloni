@@ -81,12 +81,42 @@ class JudgeMixin:
         (`judge_pick`: the user's Judge model, else the Fast tier's first; `ask_once`), in the
         turn's usage (`_own_request`); a verdict is kept for the turn by
         command, folder and those words as they are (`_judge_cache`: a rule taken away is asked
-        again). Whatever goes wrong in it but a Stop is today's card."""
+        again). Whatever goes wrong in it but a Stop is today's card. K5: a card the check did not
+        decide may quote the user's sentence that asked for it (`_said_so`)."""
         try:
-            return await self._judging(ctx, command, cwd, reason, asked_anyway)
+            found = await self._judging(ctx, command, cwd, reason, asked_anyway)
+            if found[1] is None and reason and not asked_anyway:
+                return reason, self._said_so(ctx, command, cwd)
+            return found
         except Exception:
             log.warning("run %s: the check of the user's words failed", ctx.run_id, exc_info=True)
             return reason, None
+
+    def _said_so(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None) -> dict | None:
+        """K5 (decision 7): a push, a pull request opened or merged (`judge.action_of`) at the
+        project's root, in a turn of the chat - not a side of a comparison nor a job while the
+        user is away -, which no measured judge model let run: the record that its card quotes
+        the sentence of the user's own messages in this chat that asked for it
+        (`judge.asked_for`) - `kind` "said", an ask: a card all the same, one click. None where
+        no sentence of theirs asks for it."""
+        doing = judge.action_of(command)
+        if (
+            doing is None
+            or cwd not in ("", ".")
+            or ctx.run_id in self._sides
+            or ctx.run_id in self._away_jobs
+            or harm_class(command) != "soft"
+        ):
+            return None
+        with self._factory() as session:
+            project = project_of(session, session.get_one(Conversation, ctx.cid))
+            texts = self._users_words(session, ctx.cid, project.rules if project else None)
+        quote = judge.asked_for(doing[0], texts, doing[1])
+        return (
+            {"kind": "said", "verdict": "ask", "quote": quote, "source": "message"}
+            if quote
+            else None
+        )
 
     async def _judging(
         self: "AgentRunner",
@@ -167,7 +197,7 @@ class JudgeMixin:
         def names(one: str) -> bool:  # (a line that names what this delete takes: `cards`')
             return bool(cards.mentioned([one], command, cwd))
 
-        cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts, names)
+        cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts, names, cwd)
         return self._judgement(ctx, reason, cache[key])
 
     def _away_holds(self: "AgentRunner", session, ctx: Ctx, line: str) -> bool:
@@ -208,10 +238,12 @@ class JudgeMixin:
         asked: str,
         texts: dict[str, list[str]],
         names: Callable[[str], bool],
+        where: str | None,
     ) -> dict | None:
         """`_judged`'s one request: the record of what the judge said (`kind` "words", §8), or
         None where it failed, timed out (Full auto's judge's limits) or said nothing that can be
-        read - a run never beside a line that forbids what `names` reads. Stop goes on as Stop."""
+        read - a run never beside a line that forbids what `names` reads, nor in a folder
+        (`where`) its line does not name (`judge._elsewhere`). Stop goes on as Stop."""
         try:
             try:
                 # (a CLI's one-shot start is longer: Full auto's judge's limit for it)
@@ -230,7 +262,7 @@ class JudgeMixin:
         except Exception:
             log.warning("run %s: the check of the user's words failed", ctx.run_id, exc_info=True)
             return None
-        got = judge.verdict(_answer(said), texts, names)
+        got = judge.verdict(_answer(said), texts, names, where)
         if got is None:
             return None
         return {"kind": "words", **got, "model": f"{asking.provider} · {asking.model_name}"}

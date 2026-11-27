@@ -15,9 +15,11 @@ class Judged(BaseModel):
     `why`, the judge's sentence, or KOLONİ's where it was not asked or gave no answer to go by
     (`model` then "" where none was asked); "refuse", not run, its agent told the judge's sentence
     (the project's Refuse and go on; `seen` as above). Since §8 the check of the user's words is
-    the judge's too, `kind` "words" ("" on a record from before 0.1.9)."""
+    the judge's too, `kind` "words" ("" on a record from before 0.1.9). K5 (0.1.10): `kind` "said",
+    an "ask" whose card quotes the sentence of the user's own message (`quote`, `source`
+    "message") that asked for this push, pull request or merge (`judge.asked_for`)."""
 
-    kind: Literal["", "risk", "words"] = ""
+    kind: Literal["", "risk", "words", "said"] = ""
     verdict: Literal["run", "ask", "refuse", "fine", "risky"]
     quote: str = ""
     source: Literal["preferences", "rules", "message", ""] = ""

@@ -306,6 +306,46 @@ test('a card the check found nothing of yours for says so - and not the check’
   expect(screen.queryByText(/Nothing you said covers this/)).not.toBeInTheDocument()
 })
 
+// K5 (decision 7): a push, a pull request opened or merged that a sentence of yours asked for - quoted, one click.
+test.each([
+  ['git push -u origin k-x', 'push et', 'You said “push et” — push now?', 'Push, as you said'],
+  [
+    'gh pr create -t Fix -B main',
+    'Open a PR.',
+    'You said “Open a PR.” — open the pull request now?',
+    'Open the PR, as you said',
+  ],
+  ['gh pr merge 12 --squash', 'Merge it.', 'You said “Merge it.” — merge the pull request now?', 'Merge, as you said'],
+])('a card for %s quotes your sentence and runs on one click', async (line, quote, ask, run) => {
+  const onDecide = vi.fn().mockResolvedValue(undefined)
+  const asked = command('k', 'r', {
+    status: 'proposed',
+    command: line,
+    suggested_prefix: '',
+    danger: 'It sends work off this machine (git push).',
+    judged: judged({ kind: 'said', verdict: 'ask', quote, source: 'message', model: '' }),
+  })
+  render(<CommandApproval command={asked} onDecide={onDecide} />)
+  expect(screen.getByText(ask)).toBeInTheDocument()
+  expect(screen.queryByText('Run this command?')).not.toBeInTheDocument()
+  expect(screen.queryByText(/Nothing you said covers this/)).not.toBeInTheDocument()
+  // (its two buttons, keyboard first: the verb, then Reject)
+  expect(screen.getAllByRole('button').map(button => button.textContent)).toEqual([run, 'Reject'])
+  await userEvent.tab()
+  expect(screen.getByRole('button', { name: run })).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
+  expect(onDecide).toHaveBeenCalledWith('once')
+})
+
+test('a card with no sentence of yours quoted stays “Run this command?” with Run once', () => {
+  render(
+    <CommandApproval command={command('k', 'r', { status: 'proposed', command: 'git push' })} onDecide={vi.fn()} />,
+  )
+  expect(screen.getByText('Run this command?')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Run once' })).toBeInTheDocument()
+  expect(screen.queryByText(/as you said/)).not.toBeInTheDocument()
+})
+
 test('a delete KOLONİ found disposable offers Allow such deletes in this project, until the project allows them', async () => {
   const onDecide = vi.fn().mockResolvedValue(undefined)
   const asked = command('k', 'r', {

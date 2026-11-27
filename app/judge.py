@@ -8,6 +8,7 @@ those words: never in the command, an agent's text or a file. The gate is
 import json
 import os
 import re
+import shlex
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
@@ -331,6 +332,26 @@ def _forbids(plain: str) -> bool:
     return _says_no(plain) or _conditional(plain)
 
 
+def _elsewhere(context: str, where: str | None) -> bool:
+    """K5's net for another folder (the measurement of 27 Nov: words-168/169, "You may delete
+    dist/." for `rm -rf dist` in `packages/api`): whether a command runs in a folder other than
+    the project's root (`where`, relative to it; None: not known) that its line - with its
+    heading - does not name from the root ("You may delete packages/api/dist." does): a path the
+    line names is read from the root, and the command's is another."""
+    if where is None:
+        return True
+    folder = where.replace("\\", "/").removeprefix("./").rstrip("/")
+    if folder in ("", "."):
+        return False
+    named = re.compile(
+        r"(?<![\w./\\-])(?:\.[/\\])?"
+        + re.escape(folder).replace("/", r"[/\\]")
+        + r"(?![\w-]|\.[\w-])",
+        re.IGNORECASE,
+    )
+    return not named.search(context)
+
+
 def set_against(said: dict[str, list[str]], names: Callable[[str], bool]) -> bool:
     """§8 (CL-352): whether a line of the user's words that `names` the command's target - code
     and quotes too - forbids it or sets a condition (`_forbids`), itself or by its heading
@@ -351,13 +372,17 @@ def whole(text: str) -> str:
 
 
 def verdict(
-    answer: str, said: dict[str, list[str]], names: Callable[[str], bool] | None = None
+    answer: str,
+    said: dict[str, list[str]],
+    names: Callable[[str], bool] | None = None,
+    where: str | None = ".",
 ) -> dict | None:
     """The judge's word, from its JSON line (the first "{" to the last "}"); None for no JSON
     object. "run" and "refuse" hold only with a whole sentence of the user's (`source_of`) - a
     run never on a line with a question, nor on one whose line or heading forbids or sets a
     condition (`_forbids`), nor beside another that forbids its target (`set_against`, where
-    `names` reads one); a refuse only on a sentence, no question and no heading (one that
+    `names` reads one), nor for a command run in another folder (`where`) than its line names
+    (`_elsewhere`); a refuse only on a sentence, no question and no heading (one that
     ends in ":" says nothing of what it forbids: the agent would be told no item), that says no
     and sets no condition (its line's other sentences and its heading aside) - kept as they
     wrote it; anything else is "ask", with the judge's one line only where it said ask itself."""
@@ -378,6 +403,7 @@ def verdict(
         word == "run"
         and not ("?" in context.partition("\n")[0] or _forbids(_plain(context)))
         and not (names and set_against(said, names))
+        and not _elsewhere(context, where)
         or (
             word == "refuse"
             and "?" not in shown
@@ -389,3 +415,190 @@ def verdict(
     if source and holds:
         return {"verdict": word, "quote": shown, "source": source, "why": why}
     return {"verdict": "ask", "quote": "", "source": "", "why": why if word == "ask" else ""}
+
+
+# K5 (decision 7): a push, a pull request opened or merged is the user's word to give. While no
+# judge model is measured, the card of one quotes the sentence of theirs that asked for it
+# (`asked_for`) - a card all the same, one click. What a line must be to be read so (`action_of`):
+# one program's words with nothing of a shell's in them - no `;&|<>$`, backtick, bracket, `%^\*?#~`,
+# tab or line break, in quotes neither; nor PowerShell's `,` (`-t a,--repo,x` is three words to
+# it) and `@` (`@x` splats a variable), nor cmd's `!` (a variable, where delayed expansion is on).
+_ONE_PROGRAM = re.compile(r"[\w .:/'\"=+-]+")
+# `git push` to origin with these flags alone - never a force, a delete, a mirror, all tags, an
+# option git runs a program by...
+_PUSH_FLAGS = frozenset(
+    {"-u", "--set-upstream", "-q", "--quiet", "-v", "--verbose", "--progress", "--no-progress"}
+)
+# ...and `gh pr create` / `gh pr merge` with these (the options that take a value, the flags) -
+# never another repository (`-R`), a file read in (`-F`, `--template`), a branch deleted (merge's
+# `-d`), `--admin` past a branch's protection, an editor or a browser opened.
+_PR_OPTIONS = {
+    "pr": (
+        {"-t", "--title", "-b", "--body", "-B", "--base", "-H", "--head", "-l", "--label"}
+        | {"-a", "--assignee", "-r", "--reviewer", "-m", "--milestone", "-p", "--project"},
+        {"-d", "--draft", "-f", "--fill", "--fill-first", "--fill-verbose"},
+    ),
+    "merge": (
+        {"-t", "--subject", "-b", "--body", "--match-head-commit"},
+        {"-m", "--merge", "-s", "--squash", "-r", "--rebase", "--auto"},
+    ),
+}
+# A branch's plain name, or a pull request's number: no `+` (a force), `:` (a delete, an address)
+# nor `..`.
+_BRANCH = re.compile(r"(?!.*\.\.)[A-Za-z0-9_][\w./-]*")
+# A push to one of these by name is quoted only on a sentence that names it too.
+DEFAULT_BRANCHES = ("main", "master")
+QUOTE_CHARS = 300
+# What in a sentence of the user's names each (`MENTIONS`: the newest such sentence decides), and
+# asks for it (`ASKS`): in English an imperative or a leave at a sentence's start or after an
+# opener ("Push it.", "Commit and push.", "You may open a PR.", "Squash and merge."); in Turkish a
+# request's ending ("push et", "pushla", "PR aç", "merge edebilirsin", "PR'ı birleştir") - not
+# "push etme", "push ettim", "push eder misin".
+_OPENER = (
+    r"(?:^|[,:]\s*|\b(?:and|then|now|please|also|just|so|ok|okay|yes|sure|you can|you may"
+    r"|go ahead and|feel free to|let's)\s+)"
+)
+_TURKISH_DO = (
+    r"\s+(?:et|edin|ediniz|etsene|edebilirsin|edebilirsiniz|edelim"
+    r"|yap|yapın|yapınız|yapsana|yapabilirsin|yapabilirsiniz|yapalım)\b"
+)
+_NOT_ENGLISH = r"(?!\s+(?:et|ed|yap)\w*)"  # (before Turkish's "et" / "yap": its ending decides)
+MENTIONS = {
+    "push": re.compile(r"\bpush"),
+    "pr": re.compile(r"\b(?:prs?|pull requests?)\b"),
+    "merge": re.compile(r"\b(?:merg|birleştir)"),
+}
+ASKS = {
+    "push": re.compile(
+        rf"{_OPENER}push\b{_NOT_ENGLISH}(?!\s+notification)"
+        rf"|\bpush(?:{_TURKISH_DO}|'?la(?:yın|yınız|sana|yabilirsin|yabilirsiniz|yalım)?\b)"
+    ),
+    "pr": re.compile(
+        rf"{_OPENER}(?:open|create|make|raise|file|submit|send)\s+(?:an?\s+|the\s+)?"
+        r"(?:new\s+|draft\s+)?(?:pr|pull request)\b"
+        r"|\b(?:pr|pull request)(?:'?[ıi])?\s+(?:aç(?:ın|ınız|sana|abilirsin|abilirsiniz|alım)?"
+        r"|oluştur(?:un|unuz|sana|abilirsin|abilirsiniz|alım)?)\b"
+    ),
+    "merge": re.compile(
+        rf"{_OPENER}merge\b{_NOT_ENGLISH}(?!\s+(?:conflict|commit|request|marker))"
+        rf"|\bmerge(?:{_TURKISH_DO}|'?le(?:yin|yiniz|sene|yebilirsin|yebilirsiniz|yelim)?\b)"
+        r"|\b(?:pr|pull request|dal|branch|main|master)\w*\b.*\bbirleştir"
+        r"(?:in|iniz|sene|ebilirsin|ebilirsiniz|elim)?\b"
+    ),
+}
+# ...never one that says what the user does or will do, or puts it off ("I'll push it myself",
+# "We push on Fridays", "Push it tomorrow", "push edeceğim").
+_NOT_ASKED = re.compile(
+    r"(?<!')\b(?:i|we|i'll|we'll|i'm|we're|i've|we've|i'd|we'd|let me|myself|ourselves|will"
+    r"|would|shall|later|tomorrow|tonight|already|maybe|perhaps|yarın|ileride|belki|zaten"
+    r"|kendim)\b|\w+[ae]c[ae][kğ]\w*"
+)
+
+
+def action_of(command: str) -> tuple[str, list[str]] | None:
+    """K5: which of decision 7's a line is - "push", "pr" (opens one) or "merge" (merges one) -
+    as `_ONE_PROGRAM` and the options above allow, by its bare program's name (`./git` is a
+    script of the project's); with the default branches it pushes to by name (a sentence quoted
+    for it names them). None for any other line."""
+    if not _ONE_PROGRAM.fullmatch(command.strip()):
+        return None
+    try:
+        words = shlex.split(command)
+    except ValueError:  # (a quote not closed)
+        return None
+    program, rest = words[0].casefold().removesuffix(".exe"), words[1:]
+    if program == "git" and rest[:1] == ["push"]:
+        to = _pushed_to(rest[1:])
+        named = [one.casefold() for one in to or [] if one.casefold() in DEFAULT_BRANCHES]
+        return None if to is None else ("push", named)
+    kind = {"create": "pr", "merge": "merge"}.get(rest[1]) if rest[:1] == ["pr"] else None
+    if program == "gh" and kind and _plain_options(rest[2:], *_PR_OPTIONS[kind], kind == "merge"):
+        return kind, []
+    return None
+
+
+def _pushed_to(args: list[str]) -> list[str] | None:
+    """`git push`'s words after it, read as a plain push to origin: the branches it pushes to
+    (`a:b`'s b, `refs/heads/` off; none named: its own), or None - a flag not `_PUSH_FLAGS`'s, a
+    remote not "origin", a refspec that forces (`+x`), deletes (`:x`) or is no plain name."""
+    named = [word for word in args if not word.startswith("-")]
+    if set(args) - set(named) - _PUSH_FLAGS or named[:1] not in ([], ["origin"]):
+        return None
+    to = []
+    for spec in named[1:]:
+        source, colon, target = spec.partition(":")
+        target = (target if colon else source).removeprefix("refs/heads/")
+        if not (_BRANCH.fullmatch(source) and _BRANCH.fullmatch(target)):
+            return None
+        to.append(target)
+    return to
+
+
+def _plain_options(args: list[str], takes: set[str], flags: set[str], most: int) -> bool:
+    """Whether `gh pr`'s words after its command are options of `takes` with their value (the next
+    word, or after a long one's `=`) and `flags` alone, with at most `most` plain names (a pull
+    request's number or branch, `_BRANCH`)."""
+    at = named = 0
+    while at < len(args):
+        word, at = args[at], at + 1
+        if word in takes:
+            at += 1  # (its value)
+        elif word.startswith("-"):
+            if not (word in flags or word.startswith("--") and word.partition("=")[0] in takes):
+                return False
+        elif _BRANCH.fullmatch(word):
+            named += 1
+        else:
+            return False
+    return at == len(args) and named <= most
+
+
+def asked_for(action: str, said: dict[str, list[str]], branches: list[str]) -> str:
+    """K5: the sentence of the user's own messages in this chat (`said`'s "message", newest first)
+    that asks for `action` (`action_of`), as they wrote it, cut to QUOTE_CHARS; "" for none. The
+    newest sentence that names it at all decides (`MENTIONS`, in code and quotes too: "Push it."
+    and after it "Wait, `git push` later." is none). Their preferences and the project's rules ask
+    for none, and a line of them that names it and forbids it or sets a condition (`set_against`:
+    "Never push to main.") leaves none. Never an agent's words, a tool's result or a file: `said`
+    holds none (`JudgeMixin._users_words`)."""
+    mentions = MENTIONS[action]
+
+    def names(line: str) -> bool:
+        return bool(mentions.search(_plain(line)))
+
+    if set_against({"preferences": said["preferences"], "rules": said["rules"]}, names):
+        return ""
+    found = next(
+        (one for one in (_decides(action, text, branches) for text in said["message"]) if one),
+        None,
+    )
+    shown = found[1] if found else ""
+    return shown if len(shown) <= QUOTE_CHARS else shown[: QUOTE_CHARS - 1] + "…"
+
+
+def _decides(action: str, text: str, branches: list[str]) -> tuple[bool, str] | None:
+    """`asked_for` in one message: its last sentence that names `action` - (True, it as written)
+    where it asks for it: in prose with no backtick, `ASKS` and not `_NOT_ASKED`, its line holding
+    no question and saying no to nothing (its heading too), the message's prose setting no
+    condition (`_conditional`), naming each of `branches`; (True, "") where it does not - an older
+    one is not read; None where none names it."""
+    lines = list(_headed(text))
+    prose = _plain(" ".join(line for line, is_prose, _head in lines if is_prose))
+    for line, is_prose, head in reversed(lines):
+        ones = SENTENCE.split(LIST_MARK.sub("", line.strip())) if is_prose else [line]
+        for one in reversed(ones):
+            plain = _plain(one)
+            if not MENTIONS[action].search(plain):
+                continue
+            asks = (
+                is_prose
+                and "`" not in one
+                and "?" not in line
+                and bool(ASKS[action].search(plain))
+                and not _NOT_ASKED.search(plain)
+                and not _says_no(_plain(f"{line} {head}"))
+                and not _conditional(prose)
+                and all(re.search(rf"\b{re.escape(name)}\b", plain) for name in branches)
+            )
+            return True, one.strip().rstrip(";") if asks else ""
+    return None
