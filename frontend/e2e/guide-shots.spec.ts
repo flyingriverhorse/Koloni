@@ -316,6 +316,29 @@ test('To-do in a chat', async ({ page }) => {
   }
 })
 
+test('talking while agents work: Send now, the line over the chat and At work in this turn', async ({ page }) => {
+  await setProject(page, { spawn_approval: 'never' })
+  const id = await openFreshConversation(page)
+  await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+  const chat = page.getByRole('region', { name: 'Chat' })
+  const box = page.getByRole('textbox', { name: 'Message' })
+  // (the stand-in model's 92: a Coder in the background, held till it is stopped)
+  await box.fill('talk while agents work')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(chat.getByText('Coder is at work on it.')).toBeVisible()
+  await box.fill('how is it going?')
+  await chat.getByRole('button', { name: 'Send now' }).click()
+  await expect(chat.getByText('Coder is still at work.')).toBeVisible()
+  await chat.getByRole('button', { name: /^1 agent at work/ }).click()
+  await expect(chat.getByRole('region', { name: 'At work in this turn' })).toBeVisible()
+  await box.fill('and keep the old greeting')
+  await settled(page)
+  await picture(chat, 'talk-while-agents-work')
+  await box.fill('')
+  await chat.getByRole('button', { name: 'Stop Coder' }).click()
+  await expect(chat.getByText('Coder is stopped; I will not open it again.')).toBeVisible()
+})
+
 test('a story’s strip and notebook', async ({ page }) => {
   await openFreshConversation(page)
   const pid = await e2eProject(page)

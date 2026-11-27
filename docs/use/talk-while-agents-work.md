@@ -4,6 +4,10 @@ A turn stays open while the Orchestrator's agents work, and you can talk to the 
 ask how things stand, add a wish, have it open, message or stop an agent - without waiting for the
 turn to end.
 
+![The chat while its Coder works in the background: the line "1 agent at work" over the chat, opened to At work in this turn with the Coder, since when, and its Stop and Message; the Orchestrator's answer to "how is it going?" in the same turn; and the message box with After this turn and Send now](../images/talk-while-agents-work.png)
+
+*A word sent now answered in the same turn, while the Coder works: the line over the chat, opened.*
+
 ## Send now and After this turn
 
 While a turn runs, the message box has two ways to send:
@@ -92,3 +96,62 @@ When a background agent ends while its chat is not open anywhere, KOLONİ shows 
 "Reviewer finished: 2 findings", "Coder stopped", "Tester failed" - where the project has
 **Desktop notifications** on (Settings › This project › Notifications). The notice holds only the
 agent's name and how it ended, never its words.
+
+## The line over the chat
+
+While a turn runs with agents at work below the Orchestrator, a plan of the Orchestrator's, or
+something that waits for you, one line sits over the chat, under its tabs:
+
+> 3 agents at work · step 3 of 6 · 1 waits for you · ≈ 0.40 USD
+
+- **agents at work**: those working, waiting for their own agents, for a place or for a file. One that
+  waits for your yes to start is a card, counted with what waits for you.
+- **step 3 of 6**: the step of the Orchestrator's plan after those done (see `update_plan` below), there
+  only while it shows one.
+- **waits for you**: the cards of this chat that wait for your word, as the canvas counts them.
+- **what the turn cost so far** at your prices - its agents and KOLONİ's own requests for it, the
+  advisor's too. "≥" where a part of it has no price; left out where nothing of it is priced (a CLI on a
+  plan, a model with no price), never a made-up zero. It is read again at most every 5 seconds as the
+  agents report their tokens.
+
+Click the line for **At work in this turn**: each agent, "Coder · working · since 14:02", with its
+**Stop** and **Message**; the Orchestrator's plan, a step a line; and **Open Ready for you**.
+
+## What the Orchestrator has while its agents work
+
+The Orchestrator at its own work - not a sub-agent, an answer or a discussion, nor a plan turn or a
+side of a comparison - also has these, besides `stop_agent`. Each answer of theirs is data for it:
+what agents, models and other people wrote stays in quotes, with secrets masked.
+
+- **agents_at_work** - who of this turn is at work now: "2 at work in this turn:", then a line each,
+  "- Coder (Coder role): running since 14:02 (3 min), in the background; last said: "Reading the
+  tests…"". An agent's last words are cut at 300 characters and marked where they read like orders;
+  one that waits for your yes "waits for the user's yes", one that waits for a place "waits for a
+  place". A CLI Orchestrator has it too.
+- **update_plan** - the Orchestrator of an API model shows you its plan: its steps, each pending, in
+  progress or done, at most 30 of 200 characters. It is its own words, and says so: its window shows
+  it under **Plan (its own words)** (a Codex Orchestrator's own plan shows there too), and the line over
+  the chat says its step. The plan goes with the turn. A CLI's own plan is its own, so a CLI is not given
+  it.
+- **ask_advisor** - a second model's advice on a hard choice, at most 3 times a turn. The advisor is
+  your **Advisor model** (Settings › The app › Agents: "A model the Orchestrator may ask for advice. It
+  sees the Orchestrator's summary and the turn's recent steps, masked."); with none chosen, a model
+  on another provider than the Orchestrator's, the strongest first. Only models that can answer with
+  every tool off are offered, as for the Judge model. It is sent the Orchestrator's question (1,000
+  characters) and summary (4,000), its last 12 steps of the turn and who is at work - every secret
+  KOLONİ knows, and keys known by their shape, masked - and no tools. Its answer (2,000 characters) is
+  data. Where no advisor can be asked - none to ask, no room on its provider, the turn past its token
+  limit, no answer within a minute (two for a CLI) - the Orchestrator is told why and goes on. Its
+  request counts in the turn's spend and on [Usage](../money/usage.md) under its model.
+- **note_decision** - a decision the Orchestrator took for you without asking (a library, an
+  approach) goes under **Decided for you** on Ready for you: "Orchestrator · Decided: "Use SQLite for
+  the cart"" with its reason, marked **new** until your **OK**. At most 10 a turn, each one line of 200
+  characters. It changes nothing by itself. **Change** takes your own words: while that turn is still
+  at work they go into it as your message ("I change your decision …: …"), else a turn of KOLONİ's
+  in that chat tells the Orchestrator. See [Decisions](decisions.md#ok-and-change).
+- **read_pr_feedback** - one pull request of the project's GitHub repository, by its number or address:
+  the review decision, the checks that failed or have not ended, each review and comment with who wrote
+  it, and the comments on lines. It is read with your own `gh` - offered where `gh` is installed and the
+  project's origin is on github.com; not logged in, it says so - and it only reads: there is no way to
+  reply with it. What reviewers and checks say is theirs, never yours: framed as data, masked, cut at
+  20,000 characters.
