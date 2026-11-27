@@ -36,7 +36,7 @@ Only what needs your attention after an update; everything else is in the [Chang
   KOLONİ copies it to `runtime/data/backups/`: where the Orchestrator had a project's **Project notes** on
   (Agents › **Lead** › **Knowledge**), their lines, as the folder's
   `.koloni/knowledge/project-notes/learned.json` lists them, are copied into the second box under
-  **This project's rules** on Memory's **Told** tab - the newest that fit in 4 000 characters. Notes you had
+  **This project's rules** in Memory's **Your words** - the newest that fit in 4 000 characters. Notes you had
   switched off, or never switched on, are not copied. The folder is only read; the knowledge and its pages
   stay in the database and in the folder, but no role is given it and the Knowledge page no longer lists it.
   Lines not copied are still in the folder's `pages/`: add them in the box if you want them. From now on the
@@ -45,7 +45,7 @@ Only what needs your attention after an update; everything else is in the [Chang
   Project notes you keep and tasks' notebooks written after the upgrade go with them (the copy in
   `runtime/data/backups/` is the database as it was before the upgrade, without them).
 - **Knowledge is the Memory page's second part.** The rail's **Knowledge** is gone: press **Memory**,
-  then **Sources to look things up in** (or Ctrl+K, **Knowledge**). Agents look things up with
+  then its tab **Sources to look things up in** (or Ctrl+K, **Knowledge**). Agents look things up with
   **Recall**, which also reads the pages of a role's knowledge; a role, recipe or prompt of yours that
   names `lookup` keeps working in 0.1.10 - name **recall** instead before the next release. Nothing in
   the database changes.

@@ -3,22 +3,33 @@
 Knowledge is "what agents can look things up in": documentation, files or a topic that KOLONİ reads
 once and turns into a short guide. A role uses a knowledge only if you give it to the role. Since
 0.1.10 it is the second part of the [Memory](memory.md) page: open **Memory** on the left rail and
-press **Sources to look things up in** (Ctrl+K: **Knowledge**). Its first part, **What the project
-knows**, is the project's rules, facts and notes.
+press its second tab, **Sources to look things up in** (Ctrl+K: **Knowledge**). The tab says how many
+sources may be old ("2 may be old"). Its first part, **What the project knows**, is the project's rules,
+facts and notes.
 
 ## The sources part {#the-knowledge-page}
 
-Each knowledge is a card. Its header shows its first source, and buttons to **Try it** and to
-**Learn** (later **Learn more** or **Learn again**), with what learning may cost beside it. The card
-also says when it was last read (**Fresh:**), how much it spent (**Spent:**), which model it learns
-with (**Learns with:**) and which roles use it (**Used by:**).
+Each knowledge is a card, the cards side by side in a grid. A card's head has a small hexagon, a cell,
+for how fresh it is, its topic and its first source. Under them it says when it was last read
+(**Fresh:**), how much it spent (**Spent:**) and which model it learns with (**Learns with:**); then
+**Used by:**, a tick for each role that uses it; then **Try it** and **Learn** (later **Learn more** or
+**Learn again**), with what learning may cost beside it.
 
-![The Memory page's sources part: the Databricks and MLflow cards, and the lines offering This project's code and KOLONİ's own guide](images/knowledge.png)
+| Cell | What it means |
+|---|---|
+| Green, filled | Fresh: learned, and not old. |
+| Honey, filled | Learning (or, for this project's code, scanning). |
+| Red-orange, filled | May be old - its sources changed since it learned, a file it read changed or went, or its guide is a week old and **Learn again weekly** is on (**Fresh: old**, the reason on hover) - or its last learning failed. |
+| Empty | Not learned yet. |
 
-*Memory's sources, with this project's code and KOLONİ's own guide offered below the cards.*
+The cell's word is its name for a screen reader, and **Fresh:** says it too: never its colour alone.
 
-Click the topic to open the card. Its tabs are **Guide**, **Pages**, **Not known yet**, **Settings**
-and **Copy**.
+![The Memory page's sources part: the Databricks and MLflow cards side by side, each with its cell, and This project's code and KOLONİ's own guide offered as dashed cards](images/knowledge.png)
+
+*Memory's sources, with this project's code and KOLONİ's own guide offered as cards of their own.*
+
+Click the topic to open the card: it goes across the row. Its tabs are **Guide**, **Pages**, **Not known
+yet**, **Settings** and **Copy**. **Try it** opens across the row too.
 
 ## Adding knowledge
 
@@ -67,8 +78,8 @@ another site the page redirects to. Reading stops after 10 minutes.
 
 **Learning again** reads only what changed. If nothing changed, no model is asked.
 
-**This project's code** has its own card. "Free: KOLONİ reads the files here, no model." Press **Scan the
-code**.
+**This project's code** is offered as a dashed card until you add it. "Free: KOLONİ reads the files
+here, no model." Press **Scan the code**: it becomes a card like the others.
 
 **Try it** asks a question as an agent would, and shows the answer.
 
@@ -144,7 +155,8 @@ this copy of KOLONİ's folder or its `runtime/`, another KOLONİ's runtime or ch
 
 ## KOLONİ's own guide
 
-**Add KOLONİ's own guide** adds this guide as a knowledge called **KOLONİ guide**. Its source is
+**Add KOLONİ's own guide**, on a dashed card of its own until you press it, adds this guide as a
+knowledge called **KOLONİ guide**. Its source is
 `koloni-guide:`. KOLONİ reads only the Markdown pages of its own `docs/` folder and keeps them in the
 project, as for any source. Its code, its `.env` and `runtime/` are never read, and agents read only
 the kept pages, never KOLONİ's folder.
@@ -170,6 +182,11 @@ On the Agents page, open a role and its **Knowledge** tab. Switch a knowledge on
   its name stays. Copying a knowledge to a project where the role is already Full gives it Map.
 
 A role with knowledge can look things up in it while it works.
+
+The same is on the knowledge's card, under **Used by:**: untick a role and it no longer uses the
+knowledge; **+ Role…** gives it to another role, as **Map**. A role that is **Full** in it (an expert)
+has its tick marked "full" and greyed: change that on the role's **Knowledge** tab. A refusal is said
+on the card.
 
 ## How agents look things up
 
