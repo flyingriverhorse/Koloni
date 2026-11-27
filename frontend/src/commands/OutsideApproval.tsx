@@ -111,7 +111,7 @@ function SecretAsked({ call, who, onDecide, plain }: Props) {
           A secret file is asked about every time, at every permission level: by KOLONİ’s file tools, by a command that
           names it and by a CLI’s own tools that ask KOLONİ first. agy started to only read does not ask. A script that
           does not name the file can still read it, unless the project’s commands keep secret files hidden (Settings ›
-          This project › Commands and secrets: in Docker or Copilot’s sandbox).
+          This project › When you’re asked, under More: in Docker or Copilot’s sandbox).
         </div>
       )}
       {error && (
