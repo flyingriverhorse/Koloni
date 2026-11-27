@@ -370,7 +370,8 @@ started** (with **Add to To-do** or **Dismiss**) and **Kept out, as you asked** 
 those places, refused).
 
 Each job row says what its reviews found, and warns where its copy changed a place you kept out, or a
-file another job changed too. A job that changed nothing is "Done, nothing changed". For each job:
+file another job changed too. A job that changed nothing is "Done, nothing changed"; one whose work
+you took in or discarded says which files ("taken in: hello.py", "discarded: hello.py"). For each job:
 
 - **Allow and go on** or **Refuse**, when it waits for a change, a web request or an agent to open. A
   folder or a secret is answered in its chat: **Open its chat**. The job then goes on in its copy. What

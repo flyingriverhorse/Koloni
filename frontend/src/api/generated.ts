@@ -5066,6 +5066,11 @@ export interface components {
              * @default []
              */
             decisions: components["schemas"]["Decision"][];
+            /**
+             * Discarded
+             * @default []
+             */
+            discarded: string[];
             /** Ended At */
             ended_at?: string | null;
             /**

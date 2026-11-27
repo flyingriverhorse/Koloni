@@ -183,8 +183,9 @@ def test_a_take_in_or_discard_says_the_branch_is_gone(make_client, wait_run, rep
     assert git_run(repo, "branch", "--list", name_of(job)) == ""
     (job,) = night(client, pid)["jobs"]
     assert job["kept"] == [] and job["branch"]["gone"] is True
-    taken = ["b.txt", "hello.py"] if retried else ["hello.py"]
-    assert job["taken"] == (taken if word == "approve" else [])
+    files = ["b.txt", "hello.py"] if retried else ["hello.py"]
+    # (and a discarded job is not one that changed nothing)
+    assert (job["taken"], job["discarded"]) == ((files, []) if word == "approve" else ([], files))
 
 
 def test_detached_at_job_start_works_in_a_copy_and_says_why(

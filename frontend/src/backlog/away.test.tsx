@@ -22,6 +22,7 @@ const job = (over: Partial<AwayJob>): AwayJob => ({
   kept: [],
   files: [],
   taken: [],
+  discarded: [],
   shared: [],
   kept_out: [],
   asks: [],
@@ -660,7 +661,14 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
         taken: ['t.txt'],
         branch: branch({ gone: true, why: 'git said no', moved: ["git's config changed during the job"] }),
       }),
-      job({ title: 'five', task_id: 't5', state: 'done', mode: 'branch', branch: branch({ gone: true }) }),
+      job({
+        title: 'five',
+        task_id: 't5',
+        state: 'done',
+        mode: 'branch',
+        discarded: ['t.txt'],
+        branch: branch({ gone: true }),
+      }),
       job({
         title: 'two',
         task_id: 't2',
@@ -685,5 +693,9 @@ test('0.1.9: a job on its branch says its commits, files and checks; with no rem
   expect(row(/^four/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was taken in.')
   expect(row(/^four/)).not.toHaveTextContent(/On branch|commits|No remote|git said no/)
   expect(within(row(/^four/)).getByText("git's config changed during the job").className).toBe('away-shared')
+  // (a discarded job changed something: not "Done, nothing changed" - B-122's word for one that did not)
+  expect(row(/^five/)).toHaveAccessibleName('five: Done')
+  expect(row(/^five/)).toHaveTextContent('discarded: t.txt')
+  expect(row(/^five/)).not.toHaveTextContent('nothing changed')
   expect(row(/^five/)).toHaveTextContent('Its branch koloni/x-ab12 was deleted: its work was discarded.')
 })

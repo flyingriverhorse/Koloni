@@ -71,8 +71,9 @@ class AwayJobOut(BaseModel):
     # Its work kept for the user's Take in: the kept copies, and the files in them.
     kept: list[str] = []
     files: list[str] = []
-    # The files of its work the user took into the project (B-123).
+    # The files of its work the user took into the project (B-123) - or discarded, all of it.
     taken: list[str] = []
+    discarded: list[str] = []
     # The files another done job of the night changed too: joined line by line at Take in.
     shared: list[str] = []
     # The files its copy changed in a place the user kept out: theirs to look at first.

@@ -433,8 +433,9 @@ class TiersMixin:
             with self._factory() as session:
                 provider = session.get(Provider, ctx.provider_id) if ctx.provider_id else None
                 self._failed[ctx.agent_id] = (str(exc), *self.providers.limits.why(provider, exc))
-        # A model it may not run with is a setting: whose, so the user knows where to look.
-        return f"{ctx.role}: {exc}" if isinstance(exc, NotListed) else str(exc)
+        # A model it may not run with is a setting: whose, so the user knows where to look - its
+        # role as the screen names it (the Lead's is the Orchestrator).
+        return f"{title_of(ctx.role)}: {exc}" if isinstance(exc, NotListed) else str(exc)
 
     def _refused(self: "AgentRunner", ctx: Ctx, exc: ModelUnavailable) -> bool:
         """B-396 (live): Copilot CLI refuses a model of its card the account does not have

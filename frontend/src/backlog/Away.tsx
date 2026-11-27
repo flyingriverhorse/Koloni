@@ -17,8 +17,9 @@ const STATE_MARK: Record<AwayJob['state'], string> = {
   failed: '✕',
   stopped: '■',
 }
-/** A job done that left nothing: nothing kept in its copy, nothing taken in from it. */
-const unchanged = (job: AwayJob) => job.state === 'done' && !job.kept.length && !job.taken.length
+/** A job done that left nothing: nothing kept in its copy, nothing taken in from it, nothing of it discarded. */
+const unchanged = (job: AwayJob) =>
+  job.state === 'done' && !job.kept.length && !job.taken.length && !job.discarded.length
 /** How long from one time to another (now, without it): "1 h 48 m". */
 function lasted(from: string | null, to: string | null) {
   if (!from) return ''
