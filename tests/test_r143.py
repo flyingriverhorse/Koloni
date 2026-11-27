@@ -318,7 +318,11 @@ def test_codex_in_a_copy_gets_the_scratch_and_nothing_more_to_take_in(
     cid, run_id = start(client, project_dir, None)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert (project_dir / "made.txt").exists() and not (project_dir / ".koloni").exists()
+    assert (project_dir / "made.txt").exists()
+    # B-358: neither the copy's scratch nor an ignore file of it came in (the project's `.koloni/`
+    # may hold KOLONİ's copies: K-koloni-alan).
+    assert not (project_dir / ".koloni" / "tmp").exists()
+    assert not (project_dir / ".koloni" / ".gitignore").exists()
     assert [c["path"] for c in snap["file_changes"]] == ["made.txt"]
     assert [m["status"] for m in snap["merges"]] in ([], ["applied"])
 

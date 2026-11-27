@@ -57,8 +57,8 @@ NOT_CHECKED = "nothing was checked"
 # pick with no score to compare (`advance`), up to its loop's rounds of agents spent for nothing.
 NO_MEASURE = "no measure command"
 ONE_ROUND = (
-    "No measure command: one round only - set one in Settings › This project › Checks "
-    "and git to let the candidates try again until the target."
+    "No measure command: one round only - set one in Settings › This project › When the "
+    "work is done (under More) to let the candidates try again until the target."
 )
 # Why the team's experts' step is passed, nobody there to fill it (`_ahead`): by which it takes.
 NO_EXPERT = {

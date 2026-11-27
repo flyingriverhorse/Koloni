@@ -53,7 +53,7 @@ interface Props {
   onJudge?: (on: boolean) => void
   /** §8: what the judge does with your words - its box off, on, or on but not until its measurement. */
   judgeWords?: JudgeWords
-  /** What it does with a command it finds risky, the project's (Settings › This project › Asking and away). */
+  /** What it does with a command it finds risky, the project's (Settings › This project › When you’re asked). */
   judgeRisky?: JudgeRisky
   /** S10: Check after a change for this chat; without it (a plain chat, nothing to check) no switch. */
   checks?: Checks

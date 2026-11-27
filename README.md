@@ -40,7 +40,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/ready-morning.png" alt="Ready for you the morning after a night while you were away: the night&#39;s report with a row per job, what waits for your word, and To-do&#39;s cards on the right"><br><sub><b>The morning.</b> ☾ Away works your To-do through while you are away; Ready for you says what was done, what waits for your word, and your To-do beside it.</sub></td>
-<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
+<td width="50%"><img src="docs/images/usage.png" alt="The Usage page: what the month cost in a sentence, its budget as ten cells, the last 30 days in a strip, and the table by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them, and the cards you were asked; nothing invented.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>

@@ -6,7 +6,8 @@ Each provider's window has a **Limits** tab. What it offers depends on how the p
 
 **Step down a tier at [ ] % of the plan**: once this much of the plan is used, agents picked by tier
 move one tier down. A whole number from 50 to 100, or empty for never. "A role that always runs on
-one tier, or on one model, is never stepped down: your own rule wins."
+one tier, or on one model, is never stepped down: your own rule wins." On the Usage page, **Plan limits** marks
+that share with a line on the plan's bar; past it the bar turns orange.
 
 ## An API key
 

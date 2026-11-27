@@ -124,7 +124,7 @@ A team's recipe keeps its work in one copy until you press **Take in** on the **
 ## Branches
 
 The Orchestrator can give a team's work a git branch of its own. Then the card offers **Merge** or **Open
-pull request**, as you chose under Settings › This project › Checks and git › **How a team's finished branch reaches
+pull request**, as you chose under Settings › This project › When the work is done › **How a team's finished branch reaches
 yours**. Until you choose, the first finished branch on a GitHub project asks. A pull request lets KOLONİ
 push the branch; it never merges one. **Keep this branch after merging** keeps the branch.
 
@@ -308,6 +308,6 @@ no issues are listed. The project folder must be a git repository. Listing issue
 
 ## Committing
 
-With **Save each sub-agent's work as a git commit** on (Settings › This project › Checks and git), the card offers a
+With **Save each sub-agent's work as a git commit** on (Settings › This project › When the work is done), the card offers a
 commit once the changes are in: one commit per piece of work, only where the folder is the top of a git
 repository. It is always your click, and nothing is pushed.

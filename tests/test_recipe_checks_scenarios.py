@@ -1588,7 +1588,7 @@ def test_the_leads_command_runs_in_the_recipes_copy_it_reads(make_client, wait_r
     )
     assert "built here" in read["result"]
     assert ran["status"] == "succeeded" and "built here" in ran["result"], ran["result"]
-    assert str(project_dir) not in ran["result"]
+    assert ran["result"].split("built here")[1].split()[0].endswith("tree"), ran["result"]
     answer(client, asked(snap), "Take in")
     wait_run(client, cid, run_id)
 

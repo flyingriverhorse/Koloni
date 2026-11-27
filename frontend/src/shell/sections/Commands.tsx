@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
-import { part, Row, sent, within } from './part'
+import { fromOf, Marked, part, Row, sent, within } from './part'
+import { USUAL } from './usual'
 
 /** Where commands run, as this machine says it: which shell, and what 5.1 costs (K-pwsh; B-324: its Set-Content writes a BOM). */
 function shellSaid(shell: string | null | undefined, shellNote: string | null | undefined) {
@@ -12,14 +13,15 @@ function shellSaid(shell: string | null | undefined, shellNote: string | null | 
   return shell ? ` Commands run in ${shell}.` : ''
 }
 
-interface Where {
+export interface Where {
   dockerAvailable: boolean
   dockerError: string | null
   shell?: string | null
   shellNote?: string | null
 }
 
-/** This project › Commands and secrets: where its commands run, how long one may, and what of your secrets they may see. */
+/** This project › When you’re asked › More (0.1.10; Commands and secrets before): where its commands run, how long one
+ *  may, and what of your secrets they may see. `now`: as typed, for the section's sentence. */
 export function useCommands(project: Project, where: Where) {
   const runOn = useRunOn(project, where)
   const longest = useLongest(project)
@@ -30,6 +32,7 @@ export function useCommands(project: Project, where: Where) {
     ...part({ ...runOn.patch, ...sentIfChanged }, runOn.valid && longest.valid, null),
     changed: !runOn.valid || !longest.valid || runOn.moved || Object.keys(sentIfChanged).length > 0,
     take: runOn.take,
+    now: { ...runOn.now, ...longest.now, ...secrets.now },
     view: (
       <>
         {runOn.view}
@@ -49,10 +52,12 @@ function useLongest(project: Project) {
   return {
     patch: sent('longest_command', value, kept),
     valid: value !== undefined,
+    now: { longest_command: value ?? kept },
     view: (
       <Row
         label="Longest command (minutes)"
         htmlFor="longest-command"
+        from={fromOf(text.trim(), String(kept), String(USUAL.longest_command))}
         whyId="longest-command-more"
         doc={GUIDE.settingsCommands}
         why="The most an agent’s command may ask for (one still stops after 2 minutes unless it asks for more), and how long KOLONİ’s own test runs are given. Raise it for a test suite or build that takes longer than 10 minutes."
@@ -89,6 +94,7 @@ function useRunOn(project: Project, where: Where) {
   return {
     patch: { exec_location: location, docker_image: image.trim() || null, docker_network: network },
     valid: location === 'host' || image.trim() !== '',
+    now: { exec_location: location, docker_network: network },
     moved: location !== project.exec_location || image.trim() !== kept || network !== project.docker_network,
     take: (now: Project) => {
       setLocation(now.exec_location)
@@ -97,7 +103,9 @@ function useRunOn(project: Project, where: Where) {
     },
     view: (
       <>
-        <h2>Run commands on</h2>
+        <Marked from={fromOf(location, project.exec_location, USUAL.exec_location)}>
+          <h3>Run commands on</h3>
+        </Marked>
         <label className="choice">
           <input type="radio" name="exec-location" checked={location === 'host'} onChange={() => setLocation('host')} />
           <span>
@@ -132,7 +140,7 @@ function useRunOn(project: Project, where: Where) {
         )}
         {location === 'docker' && (
           <>
-            <Row label="Image" htmlFor="docker-image">
+            <Row label="Image" htmlFor="docker-image" from={fromOf(image.trim(), kept, '')}>
               <input
                 id="docker-image"
                 className="input mono"
@@ -141,10 +149,12 @@ function useRunOn(project: Project, where: Where) {
                 placeholder="python:3.12"
               />
             </Row>
-            <label className="choice">
-              <input type="checkbox" checked={network} onChange={e => setNetwork(e.target.checked)} />
-              <span>Allow network access</span>
-            </label>
+            <Marked from={fromOf(network, project.docker_network, USUAL.docker_network)}>
+              <label className="choice">
+                <input type="checkbox" checked={network} onChange={e => setNetwork(e.target.checked)} />
+                <span>Allow network access</span>
+              </label>
+            </Marked>
           </>
         )}
       </>
@@ -162,6 +172,7 @@ function useSecrets(project: Project) {
   const [passEnv, setPassEnv] = useState(passed)
   const [canary, setCanary] = useState(planted)
   return {
+    now: { hide_secrets: hideSecrets, pass_env: passEnv, canary },
     patch: {
       ...(hideSecrets !== hidden && { hide_secrets: hideSecrets }),
       ...(passEnv.trim() !== passed && { pass_env: passEnv.trim() }),
@@ -169,19 +180,22 @@ function useSecrets(project: Project) {
     },
     view: (
       <>
-        <label className="choice">
-          <input type="checkbox" checked={hideSecrets} onChange={e => setHideSecrets(e.target.checked)} />
-          <span>
-            Hide secret files from commands
-            <span className="choice-note">
-              In Docker and in Copilot’s sandbox, commands see secret files (.env, keys) as empty or blocked. Elsewhere,
-              an agent’s read or search of one asks you first. Turn off only if a command must read one.
+        <Marked from={fromOf(hideSecrets, hidden, USUAL.hide_secrets)}>
+          <label className="choice">
+            <input type="checkbox" checked={hideSecrets} onChange={e => setHideSecrets(e.target.checked)} />
+            <span>
+              Hide secret files from commands
+              <span className="choice-note">
+                In Docker and in Copilot’s sandbox, commands see secret files (.env, keys) as empty or blocked.
+                Elsewhere, an agent’s read or search of one asks you first. Turn off only if a command must read one.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        </Marked>
         <Row
           label="Secret variables commands may see"
           htmlFor="pass-env"
+          from={fromOf(passEnv.trim(), passed, '')}
           whyId="pass-env-more"
           doc={GUIDE.settingsCommands}
           why="Names, comma-separated. Any other variable named like a secret is held back from commands."
@@ -203,22 +217,25 @@ function useSecrets(project: Project) {
             onChange={e => setPassEnv(e.target.value)}
           />
         </Row>
-        <label className="choice">
-          <input type="checkbox" checked={canary} onChange={e => setCanary(e.target.checked)} />
-          <span>
-            Planted test key (canary)
-            <span className="choice-note">
-              Each message’s commands get a made-up key, <code>KOLONI_CANARY_KEY</code>, that no agent is told of. A
-              command, web request, browser or MCP call that would send it out is refused and the work stops: a page,
-              file or tool output the agent read may have told it to.
-            </span>{' '}
-            <Hint id="canary-more" doc={GUIDE.secrets}>
-              Claude Code, Codex, Copilot and agy working with their own tools get it too, but KOLONİ sees only what
-              reaches its hook before each tool: a web search of their own that asks nothing, a key sent without its
-              name, encoded or from a file is not caught. Printed in a command’s output it is hidden, and nothing stops.
-            </Hint>
-          </span>
-        </label>
+        <Marked from={fromOf(canary, planted, USUAL.canary)}>
+          <label className="choice">
+            <input type="checkbox" checked={canary} onChange={e => setCanary(e.target.checked)} />
+            <span>
+              Planted test key (canary)
+              <span className="choice-note">
+                Each message’s commands get a made-up key, <code>KOLONI_CANARY_KEY</code>, that no agent is told of. A
+                command, web request, browser or MCP call that would send it out is refused and the work stops: a page,
+                file or tool output the agent read may have told it to.
+              </span>{' '}
+              <Hint id="canary-more" doc={GUIDE.secrets}>
+                Claude Code, Codex, Copilot and agy working with their own tools get it too, but KOLONİ sees only what
+                reaches its hook before each tool: a web search of their own that asks nothing, a key sent without its
+                name, encoded or from a file is not caught. Printed in a command’s output it is hidden, and nothing
+                stops.
+              </Hint>
+            </span>
+          </label>
+        </Marked>
       </>
     ),
   }

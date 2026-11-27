@@ -48,7 +48,7 @@ type Tab = PanelTab
 const NEW_CATEGORY = '+new'
 /** The built-in Scout's card: its description says what an opened Scout does; this, KOLONİ's own request in its name. */
 export const SCOUT_AFTER =
-  'After each turn KOLONİ also asks a model, in the Scout’s name, for follow-up tasks (Settings › This project › Agents).'
+  'After each turn KOLONİ also asks a model, in the Scout’s name, for follow-up tasks (Settings › This project › How agents work).'
 const isScout = (role: Role) => role.builtin && role.name.replace(/ \(built-in( \d+)?\)$/, '') === 'Scout'
 
 interface Props {

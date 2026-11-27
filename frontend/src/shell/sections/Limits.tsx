@@ -2,7 +2,9 @@ import { useState } from 'react'
 import type { Budget, Project } from '../../api/types'
 import { UNENFORCED, unenforced } from '../../usage/budgetText'
 import { GUIDE } from '../guide'
-import { limitOf, MoreLimits, part, Row, sent, type Setter, typed, within } from './part'
+import { type From, fromOf, Legend, limitOf, More, part, Row, Said, sent, type Setter, typed, within } from './part'
+import { moneySaid } from './said'
+import { USUAL } from './usual'
 
 /** What so many levels allow: "Orchestrator → sub-agent → its own sub-agent" for 2. */
 function levelsChain(levels: number): string {
@@ -10,45 +12,81 @@ function levelsChain(levels: number): string {
   return ['Orchestrator', 'sub-agent', ...Array<string>(levels - 1).fill('its own sub-agent')].join(' → ')
 }
 
-/** A number as typed, and what of it can be sent: undefined for anything that cannot. */
+/** A number as typed, and what of it can be sent: undefined for anything that cannot. `shown`: what the section's
+ *  sentence says - what is typed, or what is saved while what is typed cannot be sent. */
 interface Field<T> {
   text: string
   set: Setter<string>
   value: T
+  /** As saved. */
+  kept: T
+  shown: T
+  from: From
 }
 
-function useField<T>(start: string, read: (text: string) => T): Field<T> {
+/** A number field, `start` as saved: its cell says one that cannot be sent is changed and not saved, as one that
+ *  differs; `usual` is a new project's. */
+function useField<T>(start: string, read: (text: string) => T, usual: unknown): Field<T> {
   const [text, set] = useState(start)
-  return { text, set, value: read(text) }
+  const value = read(text)
+  const kept = read(start)
+  return {
+    text,
+    set,
+    value,
+    kept,
+    shown: value === undefined ? kept : value,
+    from: value === undefined ? 'dirty' : fromOf(value, kept, usual),
+  }
 }
 
 /**
  * This project › Limits and money: what a month may cost and a job's budget up front; under More limits (closed unless
- * `moreOpen`: the app's link to Continue's steps) how many agents, Continue's steps and a discussion's tokens.
+ * asked open, each time with a new count: the app's link to Continue's steps) how many agents, Continue's steps and a
+ * discussion's tokens.
  */
-export function useLimits(project: Project, spend: Budget | null, toApp?: () => void, moreOpen = false) {
+export function useLimits(project: Project, spend: Budget | null, toApp?: () => void, moreAsked?: number) {
   // Empty: no limit. Anything else has to be a whole number from 1 to 1000 - nothing else is sent.
-  const most = useField(typed(project.max_agents || null), text =>
-    text.trim() === '' ? null : /^[1-9]\d{0,3}$/.test(text.trim()) && Number(text) <= 1000 ? Number(text) : undefined,
+  const most = useField(
+    typed(project.max_agents || null),
+    text =>
+      text.trim() === '' ? null : /^[1-9]\d{0,3}$/.test(text.trim()) && Number(text) <= 1000 ? Number(text) : undefined,
+    USUAL.max_agents,
   )
-  const parallel = useField(String(project.spawn_max_parallel ?? 2), text => within(text, 1, 32))
-  const depth = useField(String(project.spawn_max_depth ?? 2), text => within(text, 1, 4))
-  const per = useField(String(project.spawn_max_agents ?? 6), text => within(text, 1, 20))
+  const parallel = useField(
+    String(project.spawn_max_parallel ?? 2),
+    text => within(text, 1, 32),
+    USUAL.spawn_max_parallel,
+  )
+  const depth = useField(String(project.spawn_max_depth ?? 2), text => within(text, 1, 4), USUAL.spawn_max_depth)
+  const per = useField(String(project.spawn_max_agents ?? 6), text => within(text, 1, 20), USUAL.spawn_max_agents)
   // K-devam-butce: a whole number from 1 to 200. (A server older than the page has no such field yet.)
-  const more = useField(String(project.continue_steps ?? 25), text =>
-    /^[1-9]\d{0,2}$/.test(text.trim()) && Number(text) <= 200 ? Number(text) : undefined,
+  const more = useField(
+    String(project.continue_steps ?? 25),
+    text => (/^[1-9]\d{0,2}$/.test(text.trim()) && Number(text) <= 200 ? Number(text) : undefined),
+    USUAL.continue_steps,
   )
   // Empty: no limit. Anything else has to be a whole number above zero.
-  const turn = useField(typed(project.turn_token_limit || null), text =>
-    text.trim() === '' ? null : /^[1-9]\d*$/.test(text.trim()) ? Number(text) : undefined,
+  const turn = useField(
+    typed(project.turn_token_limit || null),
+    text => (text.trim() === '' ? null : /^[1-9]\d*$/.test(text.trim()) ? Number(text) : undefined),
+    USUAL.turn_token_limit,
   )
   // Empty: no limit. (The user, 6 Nov: a discussion's tokens have none by default.)
-  const talk = useField(typed(project.discussion_budget), text => limitOf(text, Number.MAX_SAFE_INTEGER))
+  const talk = useField(
+    typed(project.discussion_budget),
+    text => limitOf(text, Number.MAX_SAFE_INTEGER),
+    USUAL.discussion_budget,
+  )
   // Empty: no budget. Anything else has to be an amount above zero; "12,5" is 12.5.
-  const budget = useField(typed(project.monthly_budget), text => {
-    const amount = text.trim().replace(',', '.')
-    return amount === '' ? null : /^\d*\.?\d+$/.test(amount) && Number(amount) > 0 ? Number(amount) : undefined
-  })
+  const budget = useField(
+    typed(project.monthly_budget),
+    text => {
+      const amount = text.trim().replace(',', '.')
+      return amount === '' ? null : /^\d*\.?\d+$/.test(amount) && Number(amount) > 0 ? Number(amount) : undefined
+    },
+    USUAL.monthly_budget,
+  )
   const fields = [most, parallel, depth, per, more, turn, talk, budget]
   const patch = {
     ...sent('max_agents', most.value, project.max_agents),
@@ -61,25 +99,36 @@ export function useLimits(project: Project, spend: Budget | null, toApp?: () => 
     ...sent('monthly_budget', budget.value, project.monthly_budget),
   }
   // (Anything under More limits not at its default: said on it while it is closed.)
-  const usual: [Field<unknown>, number | null][] = [
-    [most, null],
-    [parallel, 2],
-    [depth, 2],
-    [per, 6],
-    [more, 25],
-    [talk, null],
+  const usual: [Field<unknown>, number | null, string][] = [
+    [most, null, 'Agents at work in this project'],
+    [parallel, 2, 'Agents at the same time'],
+    [depth, 2, 'Sub-agent levels'],
+    [per, 6, 'Sub-agents per request'],
+    [more, 25, 'Continue gives'],
+    [talk, null, 'A discussion’s tokens'],
   ]
-  const set = usual.some(([field, value]) => field.value !== value)
+  // (Set here: as saved, by name and value.)
+  const set = usual
+    .filter(([field, value]) => field.kept !== value)
+    .map(([field, , name]) => `${name} ${field.kept ?? 'no limit'}`)
+  const now = { monthly_budget: budget.shown, turn_token_limit: turn.shown }
   return part(
     patch,
     fields.every(field => field.value !== undefined),
     <>
-      <h2>Limits and money</h2>
+      <Said title="Limits and money">{moneySaid(now, spend)}</Said>
       <MoneyLimits budget={budget} turn={turn} spend={spend} />
-      <MoreLimits set={set} bad={usual.some(([field]) => field.value === undefined)} open={moreOpen}>
+      <More
+        label="More limits"
+        count={usual.length}
+        set={set}
+        bad={usual.some(([field]) => field.value === undefined)}
+        asked={moreAsked}
+      >
         <AgentLimits most={most} parallel={parallel} depth={depth} per={per} more={more} toApp={toApp} />
         <TalkRow talk={talk} />
-      </MoreLimits>
+      </More>
+      <Legend />
     </>,
   )
 }
@@ -105,6 +154,7 @@ function AgentLimits({
     <>
       <Row
         label="At most this many agents at work in this project"
+        from={most.from}
         htmlFor="max-agents"
         whyId="max-agents-more"
         doc={GUIDE.settingsLimits}
@@ -129,6 +179,7 @@ function AgentLimits({
       </Row>
       <Row
         label="Agents at the same time"
+        from={parallel.from}
         htmlFor="spawn-parallel"
         doc={GUIDE.settingsLimits}
         why="Of one message’s work. Each provider has its own limit too, in its window; this is the most over all of them."
@@ -152,6 +203,7 @@ function AgentLimits({
       </Row>
       <Row
         label="Sub-agent levels"
+        from={depth.from}
         htmlFor="spawn-depth"
         doc={GUIDE.settingsLimits}
         why="How deep sub-agents may open their own, from 1 to 4."
@@ -168,6 +220,7 @@ function AgentLimits({
       </Row>
       <Row
         label="Sub-agents per request"
+        from={per.from}
         htmlFor="spawn-agents"
         doc={GUIDE.settingsLimits}
         why="For each message you send, the Orchestrator opens at most this many in all. A recipe opens as many sub-agents as its drawing has: this limit is for the ones opened outside a recipe."
@@ -201,6 +254,7 @@ function MoneyLimits({
     <>
       <Row
         label="Monthly budget"
+        from={budget.from}
         htmlFor="monthly-budget"
         warn={
           <span className="choice-note" id="monthly-budget-note">
@@ -226,6 +280,7 @@ function MoneyLimits({
       </Row>
       <Row
         label="Stop the work on a message over this many tokens"
+        from={turn.from}
         htmlFor="turn-token-limit"
         warn={
           <span className="choice-note">
@@ -263,6 +318,7 @@ function TalkRow({ talk }: { talk: Field<number | null | undefined> }) {
   return (
     <Row
       label="A discussion’s tokens, at most"
+      from={talk.from}
       htmlFor="discussion-budget"
       doc={GUIDE.discussionsEnd}
       why="Each step of a speech sends the speaker’s whole work so far again, so the count grows faster than the talk does."
@@ -293,6 +349,7 @@ function ContinueRow({ more, toApp }: { more: Field<number | undefined>; toApp?:
   return (
     <Row
       label="Continue gives this many more steps"
+      from={more.from}
       htmlFor="continue-steps"
       doc={GUIDE.settingsLimits}
       why="What Continue gives an agent stopped at a step limit: on its card, or the Orchestrator’s at Full auto. An agent told to go on by a message gets a fresh app step limit instead."

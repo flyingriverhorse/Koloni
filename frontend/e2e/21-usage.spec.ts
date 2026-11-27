@@ -19,15 +19,17 @@ test('a turn’s tokens are on the Usage page, its conversation opens from there
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
 
   await rail(page, 'Usage').click()
-  await expect(page.getByLabel('Projects')).toHaveValue('this')
-  await page.getByLabel('Period').selectOption({ label: 'Today' })
+  await expect(
+    page.getByRole('group', { name: 'Projects' }).getByRole('button', { name: 'This project' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'Today' }).click()
   // Earlier specs' turns are in the same project: this turn is told by its conversation's row,
-  // under its folded heading (slice 60a).
-  await openFold(page, 'By conversation')
+  // under its folded heading (slice 60a); a chat's cost is its models', none yet.
+  await openFold(page, 'Chats that spent most')
   await openFold(page, 'Who started it')
   const talks = page.getByRole('table', { name: 'Usage by conversation' })
   const row = talks.getByRole('row', { name: /hello from the usage spec/ })
-  await expect(row.getByRole('cell')).toHaveText(['1', '1', '120', '18'])
+  await expect(row.getByRole('cell')).toHaveText(['1', '1', '120', '18', '–'])
   const models = page.getByRole('table', { name: 'Usage by provider and model' })
   const local = models.getByRole('row', { name: /Local · fake-qwen/ })
   await expect(local).toBeVisible()

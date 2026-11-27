@@ -162,6 +162,26 @@ test('a team on the canvas, and Take in', async ({ page, request }) => {
   await expect(ready).toContainText('In the project ✓', { timeout: 20_000 })
 })
 
+/** The fake model the Fast tier's first while `then` runs, as on a machine set up: Full auto's judge has a model to
+ *  ask, and Settings says so. */
+async function withFastJudge(page: Page, then: () => Promise<void>) {
+  type Local = { id: string; models: { name: string }[] }
+  const local: Local = (await (await page.request.get('/api/providers')).json()).find(
+    (one: { name: string }) => one.name === 'Local',
+  )
+  const tiered = [...local.models.filter(one => one.name !== 'fake-qwen'), { name: 'fake-qwen', tier: 'fast' }]
+  const models = async (data: unknown[]) =>
+    expect(
+      (await page.request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: data } })).ok(),
+    ).toBe(true)
+  await models(tiered)
+  try {
+    await then()
+  } finally {
+    await models(local.models)
+  }
+}
+
 test('the Models, Settings › This project and Knowledge pages', async ({ page }) => {
   await openFreshConversation(page)
   await rail(page, 'Models').click()
@@ -172,14 +192,18 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await setProject(page, { when_away: 'lead', away_minutes: 5, full_auto_judge: true })
   await page.reload()
   await page.getByLabel('Message').waitFor()
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
-  // (At Asking and away: when you're away, Full auto's judge (0.1.9) and its box for your words (§8), disposable deletes.)
-  await settings.getByRole('button', { name: /^Asking and away/ }).click()
-  await expect(settings.getByRole('checkbox', { name: /^Full auto’s judge/ })).toBeChecked()
-  await expect(settings.getByRole('checkbox', { name: /^It also lets a delete or a push run/ })).toBeDisabled()
-  await picture(page, 'settings-project')
-  await page.getByRole('button', { name: 'Close settings' }).click()
+  await withFastJudge(page, async () => {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
+    // (At When you’re asked: its sentence, Full auto's judge (0.1.9) and its box for your words (§8), when you're
+    // away; disposable deletes under More.)
+    await settings.getByRole('button', { name: /^When you’re asked/ }).click()
+    await expect(settings.getByRole('checkbox', { name: /^Full auto’s judge/ })).toBeChecked()
+    await expect(settings.getByRole('checkbox', { name: /^It also lets a delete or a push run/ })).toBeDisabled()
+    await expect(settings.locator('.set-said')).toContainText('a small model looks at each command')
+    await picture(page, 'settings-project')
+    await page.getByRole('button', { name: 'Close settings' }).click()
+  })
   await page.getByRole('button', { name: 'Memory', exact: true }).click()
   await page.getByRole('tab', { name: /^Sources to look things up in/ }).click()
   await expect(page.getByRole('article', { name: 'MLflow' })).toBeVisible()
@@ -415,9 +439,27 @@ test('Memory search and Usage', async ({ page, request }) => {
   await expect(search.getByRole('list', { name: 'In earlier messages' }).getByRole('listitem').first()).toBeVisible()
   await picture(page, 'memory-search')
 
-  await rail(page, 'Usage').click()
-  await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
-  await picture(page, 'usage')
+  // Usage's picture: a price for the model and a monthly budget three times what the month spent at it (the earlier
+  // pictures' turns too), so that the summary says what was spent and a third of the budget's cells fill. Both are
+  // taken away after it, whatever happens: the backend is shared.
+  const project = await e2eProject(page)
+  const price = { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' }
+  const budget = (monthly_budget: number | null) =>
+    request.patch(`/api/projects/${project}`, { headers: OWN, data: { monthly_budget } })
+  try {
+    expect((await request.put('/api/prices', { headers: OWN, data: price })).ok()).toBe(true)
+    const { spent } = await (await request.get(`/api/projects/${project}/budget`)).json()
+    expect((await budget(Math.max(spent * 3, 0.5))).ok()).toBe(true)
+    await page.reload()
+    await rail(page, 'Usage').click()
+    await page.getByRole('group', { name: 'Period' }).getByRole('button', { name: 'This month' }).click()
+    await expect(page.getByRole('table', { name: 'Usage by provider and model' })).toBeVisible()
+    await expect(page.getByRole('meter', { name: 'Monthly budget used' })).toBeVisible()
+    await picture(page, 'usage')
+  } finally {
+    await request.delete('/api/prices?model_id=fake-qwen', { headers: OWN })
+    await budget(null)
+  }
 })
 
 test('the Chats page: each chat’s cell and line, and Now', async ({ page, request }) => {
@@ -789,28 +831,18 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(chat.getByRole('switch', { name: 'Full auto’s judge' })).toBeChecked()
     await picture(page, 'level-menu-checks')
     await page.keyboard.press('Escape')
-    // This project › Checks and git: After a change with its live line, Fix rounds (Then a stronger model, once in),
-    // Check by kind of work, Found by KOLONİ.
+    // This project › When the work is done: its sentence, After a change with its live line, Fix rounds, Then a stronger
+    // model (Check by kind of work and Found by KOLONİ are under its More, below).
     await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
     const settings = page.getByRole('form', { name: 'Project settings' })
-    await settings.getByRole('button', { name: /^Checks and git/ }).click()
+    await settings.getByRole('button', { name: /^When the work is done/ }).click()
     await expect(settings.getByLabel('After a change')).toBeVisible()
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')
     await page.getByRole('button', { name: 'Close settings' }).click()
     // The app › Agents: KOLONİ's test runs at once, the test processes each may use, and Show experimental features and the
     // Judge model (0.1.9) under Save (read once shown) - the fake model the Fast tier's first, as on a machine set up.
-    type Local = { id: string; models: { name: string }[] }
-    const local: Local = (await (await page.request.get('/api/providers')).json()).find(
-      (one: { name: string }) => one.name === 'Local',
-    )
-    const tiered = [...local.models.filter(one => one.name !== 'fake-qwen'), { name: 'fake-qwen', tier: 'fast' }]
-    const models = async (data: unknown[]) =>
-      expect(
-        (await page.request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: data } })).ok(),
-      ).toBe(true)
-    await models(tiered)
-    try {
+    await withFastJudge(page, async () => {
       const app = await appSettings(page, 'Agents')
       const experimental = app.getByRole('checkbox', { name: /Show experimental features/ })
       await expect(experimental).toBeEnabled()
@@ -824,9 +856,7 @@ test.describe('proven finish (0.1.6)', () => {
       await expect(app.getByText('Test processes per run')).toBeInViewport()
       await expect(experimental).toBeInViewport()
       await picture(page, 'settings-app-test-runs')
-    } finally {
-      await models(local.models)
-    }
+    })
   })
 
   test('Checked under the answer, and the Checks node with its ⋯ menu', async ({ page }) => {

@@ -279,7 +279,7 @@ test('each card says its kind, the default and its models by tier; the last one 
       providers={[tiered, claude, deepseek]}
       {...handlers()}
       onLimits={onLimits}
-      onUsage={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })}
+      onUsage={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [], by_day: [] })}
     />,
   )
   const local = screen.getByRole('button', { name: /^Local/ })
@@ -580,7 +580,7 @@ test('a model’s row unfolds to every fact known of it, each with where it came
         })
       : facts({}),
   )
-  const month = { by_model: [row('Local', 'big', null)], by_conversation: [], by_start: [] }
+  const month = { by_model: [row('Local', 'big', null)], by_conversation: [], by_start: [], by_day: [] }
   render(
     <ModelsPage providers={[listed]} {...handlers()} onFacts={onFacts} onUsage={vi.fn().mockResolvedValue(month)} />,
   )

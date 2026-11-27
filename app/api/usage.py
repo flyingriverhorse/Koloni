@@ -13,7 +13,8 @@ from app.api.deps import get_session, require_own_origin
 from app.db.models import Agent, Conversation, OwnRequest, Price, Project, Provider, Run
 from app.providers import HTTP_KINDS
 from app.roles import LEAD, find_role, shown_name
-from app.schemas import BudgetOut, CataloguePriceOut, PriceIn, PriceOut, UsageOut
+from app.schemas import BudgetOut, CataloguePriceOut, PriceIn, PriceOut
+from app.schemas_usage import UsageOut
 
 router = APIRouter(prefix="/api", tags=["usage"])
 
@@ -31,7 +32,10 @@ class _Sum:
         self.read: int | None = None
         self.written: int | None = None
         self.cli = False
-        # Of who started it: the same, by model - what its cost is made of.
+        # What Copilot said it spent in its own units: AI credits in billionths, premium requests.
+        self.nano: int | None = None
+        self.premium: float | None = None
+        # Of who started it, a chat or a day: the same, by model - what its cost is made of.
         self.models: dict[tuple, _Sum] = {}
 
     def add(
@@ -43,6 +47,8 @@ class _Sum:
         cut: bool,
         read: int | None,
         written: int | None,
+        nano: int | None = None,
+        premium: float | None = None,
     ) -> None:
         if run_id is not None:  # (KOLONİ's own request with no turn: in no message)
             self.runs.add(run_id)
@@ -58,6 +64,10 @@ class _Sum:
             self.read = (self.read or 0) + read
         if written is not None:
             self.written = (self.written or 0) + written
+        if nano is not None:
+            self.nano = (self.nano or 0) + nano
+        if premium is not None:
+            self.premium = (self.premium or 0) + premium
         self.cli = self.cli or cli
 
     def row(self) -> dict:
@@ -70,6 +80,8 @@ class _Sum:
             "cache_read_tokens": self.read,
             "cache_write_tokens": self.written,
             "unknown_agents": self.unknown,
+            "nano_aiu": self.nano,
+            "premium_requests": self.premium,
         }
 
 
@@ -169,7 +181,7 @@ def usage(
         turns.append(Run.created_at >= kept if after else Run.created_at < kept)
         if own is not None:
             own.append(OwnRequest.created_at >= kept if after else OwnRequest.created_at < kept)
-    models, talks, starts = _sums(session, turns, own)
+    models, talks, starts, days = _sums(session, turns, own)
     cost = _coster(session)
     # Which provider a row is now (the record keeps the name, which follows a rename).
     ids = {provider.name: provider.id for provider in session.scalars(select(Provider))}
@@ -178,9 +190,14 @@ def usage(
             {**one.row(), "provider_id": ids.get(one.named["provider_name"]), "cost": cost(one)}
             for one in _most_first(models.values())
         ],
-        "by_conversation": [one.row() for one in _most_first(talks.values())],
+        "by_conversation": [
+            {**one.row(), "cost": _models_cost(cost, one)} for one in _most_first(talks.values())
+        ],
         "by_start": [
-            {**one.row(), "cost": _start_cost(cost, one)} for one in _most_first(starts.values())
+            {**one.row(), "cost": _models_cost(cost, one)} for one in _most_first(starts.values())
+        ],
+        "by_day": [
+            {**one.row(), "cost": _models_cost(cost, one)} for _, one in sorted(days.items())
         ],
     }
 
@@ -194,10 +211,11 @@ def money(amount: float) -> str:
     return f"{amount:.2f}" if abs(amount) >= 0.01 else f"{amount:.4f}"
 
 
-def _start_cost(cost, one: _Sum) -> dict | None:
-    """What a "Who started it" row cost: its models' costs, each as its row by model has it
-    (`cost`), added up - so the rows add up to what those do. None where none of its models
-    has one, or they are in two currencies; the least it cost where one of them has none."""
+def _models_cost(cost, one: _Sum) -> dict | None:
+    """What a row of several models cost - who started it, a chat, a day: its models' costs,
+    each as its row by model has it (`cost`), added up - so the rows add up to what those do.
+    None where none of its models has one, or they are in two currencies; the least it cost
+    where one of them has none."""
     found = [cost(model) for model in one.models.values()]
     priced = [each for each in found if each]
     if not priced or len({each["currency"].upper() for each in priced}) > 1:
@@ -214,10 +232,13 @@ def _sums(
     session: Session,
     turns: list,
     own: list | None = None,
-) -> tuple[dict[tuple, _Sum], dict[str, _Sum], dict[str, _Sum]]:
+    whole: bool = True,
+) -> tuple[dict[tuple, _Sum], dict[str, _Sum], dict[str, _Sum], dict[str, _Sum]]:
     """What the agents of the turns `turns` narrows to reported: by model, by
-    conversation and by who started the turn. With `own`, also the requests KOLONİ made
-    with no turn that it narrows to (`OwnRequest`'s own columns): "KOLONİ itself"."""
+    conversation, by who started the turn and by day (this machine's, as `day_start`'s;
+    the turn's start, or the request's) - by model only, without `whole` (what a budget
+    or a limit adds up). With `own`, also the requests KOLONİ made with no turn that it
+    narrows to (`OwnRequest`'s own columns): "KOLONİ itself"."""
     of_turn = (Run.unattended, Conversation.id, Conversation.project_id, Conversation.title)
     asked = union_all(
         select(
@@ -230,7 +251,10 @@ def _sums(
             Agent.cut_short,
             Agent.cache_read_tokens,
             Agent.cache_write_tokens,
+            Agent.nano_aiu,
+            Agent.premium_requests,
             *of_turn,
+            Run.created_at,
         )
         .join(Run, Run.id == Agent.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
@@ -245,7 +269,10 @@ def _sums(
             OwnRequest.cut_short,
             OwnRequest.cache_read_tokens,
             OwnRequest.cache_write_tokens,
+            null(),
+            null(),
             *of_turn,
+            Run.created_at,
         )
         .join(Run, Run.id == OwnRequest.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
@@ -266,8 +293,11 @@ def _sums(
                     OwnRequest.cache_write_tokens,
                     null(),
                     null(),
+                    null(),
+                    null(),
                     OwnRequest.project_id,
                     null(),
+                    OwnRequest.created_at,
                 ).where(OwnRequest.run_id.is_(None), *own)
             ]
         ),
@@ -275,6 +305,7 @@ def _sums(
     models: dict[tuple, _Sum] = {}
     talks: dict[str, _Sum] = {}
     starts: dict[str, _Sum] = {}
+    days: dict[str, _Sum] = {}
     for (
         rid,
         provider,
@@ -285,27 +316,34 @@ def _sums(
         cut,
         read,
         written,
+        nano,
+        premium,
         unattended,
         cid,
         pid,
         title,
+        at,
     ) in session.execute(asked):
-        by = "koloni" if rid is None else "trigger" if unattended else "user"
-        start = starts.setdefault(by, _Sum(started_by=by))
-        for one in (
-            models.setdefault((provider, model), _Sum(provider_name=provider, model_id=model)),
-            *(
-                []
+        key = (provider, model)
+        sums = [models.setdefault(key, _Sum(provider_name=provider, model_id=model))]
+        if whole:
+            by = "koloni" if rid is None else "trigger" if unattended else "user"
+            day = at.replace(tzinfo=UTC).astimezone().date().isoformat()  # (UTC, no zone)
+            for one_of in (
+                starts.setdefault(by, _Sum(started_by=by)),
+                None
                 if cid is None
-                else [talks.setdefault(cid, _Sum(conversation_id=cid, project_id=pid, title=title))]
-            ),
-            start,
-            start.models.setdefault(
-                (provider, model), _Sum(provider_name=provider, model_id=model)
-            ),
-        ):
-            one.add(rid, sent, made, mode is not None, cut, read, written)
-    return models, talks, starts
+                else talks.setdefault(cid, _Sum(conversation_id=cid, project_id=pid, title=title)),
+                days.setdefault(day, _Sum(day=day)),
+            ):
+                if one_of is not None:
+                    sums += [
+                        one_of,
+                        one_of.models.setdefault(key, _Sum(provider_name=provider, model_id=model)),
+                    ]
+        for one in sums:
+            one.add(rid, sent, made, mode is not None, cut, read, written, nano, premium)
+    return models, talks, starts, days
 
 
 def _coster(session: Session):
@@ -313,16 +351,17 @@ def _coster(session: Session):
     prices = {price.model_id: price for price in session.scalars(select(Price))}
     copy = models_dev.load(session.info.get("runtime_root"))
     served = {provider.name: provider for provider in session.scalars(select(Provider))}
+    # Each model's price looked up once: a chat's, a starter's and a day's rows ask again.
+    found: dict[tuple, Price | SimpleNamespace | None] = {}
 
     def cost(one: _Sum) -> dict | None:
         provider = served.get(one.named["provider_name"])
         if provider is not None and provider.plan:
             return None  # a key that is a plan counts no money, whatever its price (81c)
-        return _cost(
-            one,
-            prices.get(one.named["model_id"])
-            or _catalogue_price(provider, one.named["model_id"], copy),
-        )
+        key = (one.named["provider_name"], one.named["model_id"])
+        if key not in found:
+            found[key] = prices.get(key[1]) or _catalogue_price(provider, key[1], copy)
+        return _cost(one, found[key])
 
     return cost
 
@@ -347,7 +386,7 @@ def day_start() -> datetime:
 def spend(session: Session, turns: list, own: list | None = None) -> dict:
     """What the turns `turns` narrows to cost at the user's prices; with `own`, and KOLONİ's
     own requests with no turn that it narrows to (`_sums`)."""
-    return _spent(session, _sums(session, turns, own)[0])
+    return _spent(session, _sums(session, turns, own, whole=False)[0])
 
 
 def _spent(session: Session, models: dict[tuple, _Sum]) -> dict:
@@ -450,7 +489,10 @@ def _over_limit(session: Session, provider: Provider) -> str | None:
             session,
             ("sums", per),
             lambda since=since: _sums(
-                session, [Run.created_at >= since()], [OwnRequest.created_at >= since()]
+                session,
+                [Run.created_at >= since()],
+                [OwnRequest.created_at >= since()],
+                whole=False,
             )[0],
         )
         # (By the provider's name, as Usage's rows are: a rename takes its record along.)

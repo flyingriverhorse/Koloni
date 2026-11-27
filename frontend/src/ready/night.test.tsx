@@ -46,6 +46,7 @@ const job = (over: Partial<AwayJob>): AwayJob => ({
   kept: [],
   files: [],
   taken: [],
+  discarded: [],
   shared: [],
   kept_out: [],
   asks: [],

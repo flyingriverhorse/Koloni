@@ -79,7 +79,7 @@ the files it changed; click a file to see its diff. Nothing is in your folder ye
 to bring the changes into your project, or **Discard** to throw the copy away. See
 [Working copies and Take in](../use/workspace.md).
 
-If you let the Orchestrator change the files itself (Settings › This project › Agents › **Who
+If you let the Orchestrator change the files itself (Settings › This project › How agents work › **Who
 changes the files**), or no copy can be made (a very large project), each change comes on a card
 with its diff and **Approve** or **Reject** instead, and after it is written you can still
 **Revert** it.

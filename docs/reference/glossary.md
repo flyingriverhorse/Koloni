@@ -35,7 +35,7 @@ KOLONİ's own words, as they appear on screen.
   searches, secret files, opening a sub-agent, plans and more.
 
 **Check what I said first**
-: Full auto's judge's question of your words (its box in Settings › This project › Asking and away,
+: Full auto's judge's question of your words (its box in Settings › This project › When you're asked,
   since 0.1.9): at Full auto, before a delete, a push or a send waits for you on a card - or a delete
   in the project goes to Full auto's judge -, a fast model reads your own words, and the command runs
   without a card only where a line of yours names it - never a force push. Until a model has passed its
@@ -55,7 +55,7 @@ KOLONİ's own words, as they appear on screen.
 
 **Decided for you**
 : Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
-  card waited the project's minutes (Settings › This project › Asking and away › **When you're
+  card waited the project's minutes (Settings › This project › When you're asked › **When you're
   away**); and the commands **Check what I said first** ran, or did not run, on a line of yours.
   The project's whole list is on the Ready for you page, with OK and Change; a chat says it in one
   line: [Decisions](../use/decisions.md).
@@ -87,7 +87,7 @@ KOLONİ's own words, as they appear on screen.
   **Servers**. Each tool asks before it runs unless you say otherwise.
 
 **Measure command**
-: A command, set under Settings › This project › Checks and git, whose last line of output is a score from 0 to
+: A command, set under Settings › This project › When the work is done, whose last line of output is a score from 0 to
   100. It scores candidates.
 
 **Memory**
@@ -105,7 +105,7 @@ KOLONİ's own words, as they appear on screen.
 
 **Orchestrator**
 : The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
-  sub-agents, unless you let it change files itself (Settings › This project › Agents › **Who
+  sub-agents, unless you let it change files itself (Settings › This project › How agents work › **Who
   changes the files**). (Behind the scenes its role is named Lead.)
 
 **Outside content**

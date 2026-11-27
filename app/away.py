@@ -1211,9 +1211,10 @@ def kept_copies(session: Session, cid: str) -> list[Merge]:
     )
 
 
-def taken_in(session: Session, away: AwayRun, cid: str) -> list[str]:
+def taken_in(session: Session, away: AwayRun, cid: str, status: str = "applied") -> list[str]:
     """A job's files the user took into the project from its kept copy (B-123): of its turns
-    of the night - not of later work in its chat."""
+    of the night - not of later work in its chat. `status` "rejected": the files of a card the
+    user discarded whole, each it offered (N12: such a job did change something)."""
     night = [Run.created_at >= (away.started_at or now()).replace(tzinfo=None)] + (
         [Run.created_at <= away.ended_at.replace(tzinfo=None)] if away.ended_at else []
     )
@@ -1223,10 +1224,10 @@ def taken_in(session: Session, away: AwayRun, cid: str) -> list[str]:
             for merge in session.scalars(
                 select(Merge)
                 .join(Run, Run.id == Merge.run_id)
-                .where(Run.conversation_id == cid, Merge.status == "applied", *night)
+                .where(Run.conversation_id == cid, Merge.status == status, *night)
             )
             for one in merge.files
-            if one["state"] == "applied"
+            if (one["state"] == "applied" if status == "applied" else one["state"] != "left_out")
         }
     )
 
@@ -1331,6 +1332,7 @@ def report(session: Session, away: AwayRun) -> dict:
                 "kept": [merge.id for merge in kept],
                 "files": files,
                 "taken": taken_in(session, away, cid) if cid else [],
+                "discarded": taken_in(session, away, cid, "rejected") if cid else [],
                 # What its copy changed where the user said not to, refused or not (a
                 # command that wrote there without naming it): for them to see first.
                 "kept_out": [path for path in files if kept_out(away, path, root=root)],

@@ -2422,7 +2422,8 @@ export interface paths {
          * @description KOLONİ's record of the project gone for good, in one transaction: its chats with all
          *     of their turns, its memory, knowledge, To-do, nights and usage. Not
          *     while anything of it is at work (409, why in words). Its folder, files, git and .koloni/
-         *     are never touched; KOLONİ's own files of its chats go as a chat's delete takes them
+         *     are never touched - but KOLONİ's own worktrees and copies in .koloni/ (K-koloni-alan,
+         *     `copy_git.drop_project`); KOLONİ's own files of its chats go as a chat's delete takes them
          *     (`_forget_files`: CLI sessions, attachments, kept sides of a commit). On the loop, as the
          *     app's clock is.
          *     shortcut: KOLONİ's own model call after a turn that ended (the note of what it found) is
@@ -4980,7 +4981,7 @@ export interface components {
          * @description 0.1.9: a job's branch as its turn left it (`away_branch.row`) - its name, its commit and
          *     the branch it was made from, its commits and files since, KOLONİ's checks' verdict, origin's
          *     address (never its password) and what moved outside it meanwhile (H2); `why`: what git said
-         *     where it could not look at the branch.
+         *     where it could not look at the branch; `gone`: git deleted it at its Take in or Discard.
          */
         AwayBranchOut: {
             /** Checks */
@@ -4991,6 +4992,11 @@ export interface components {
             files: number | null;
             /** From Head */
             from_head?: string | null;
+            /**
+             * Gone
+             * @default false
+             */
+            gone: boolean;
             /** Into */
             into: string | null;
             /**
@@ -5060,6 +5066,11 @@ export interface components {
              * @default []
              */
             decisions: components["schemas"]["Decision"][];
+            /**
+             * Discarded
+             * @default []
+             */
+            discarded: string[];
             /** Ended At */
             ended_at?: string | null;
             /**
@@ -6305,6 +6316,7 @@ export interface components {
             cache_write_tokens: number | null;
             /** Conversation Id */
             conversation_id: string;
+            cost?: components["schemas"]["CostOut"] | null;
             /** Input Tokens */
             input_tokens: number | null;
             /** Output Tokens */
@@ -6465,6 +6477,26 @@ export interface components {
             turns: number;
             /** Waiting */
             waiting: number;
+        };
+        /** DayUsage */
+        DayUsage: {
+            /** Agents */
+            agents: number;
+            /** Cache Read Tokens */
+            cache_read_tokens: number | null;
+            /** Cache Write Tokens */
+            cache_write_tokens: number | null;
+            cost: components["schemas"]["CostOut"] | null;
+            /** Day */
+            day: string;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Runs */
+            runs: number;
+            /** Unknown Agents */
+            unknown_agents: number;
         };
         /** DayWordsIn */
         DayWordsIn: {
@@ -8517,8 +8549,12 @@ export interface components {
             input_tokens: number | null;
             /** Model Id */
             model_id: string | null;
+            /** Nano Aiu */
+            nano_aiu?: number | null;
             /** Output Tokens */
             output_tokens: number | null;
+            /** Premium Requests */
+            premium_requests?: number | null;
             /** Provider Id */
             provider_id?: string | null;
             /** Provider Name */
@@ -11355,6 +11391,8 @@ export interface components {
         UsageOut: {
             /** By Conversation */
             by_conversation: components["schemas"]["ConversationUsage"][];
+            /** By Day */
+            by_day: components["schemas"]["DayUsage"][];
             /** By Model */
             by_model: components["schemas"]["ModelUsage"][];
             /** By Start */

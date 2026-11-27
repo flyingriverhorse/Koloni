@@ -48,8 +48,8 @@ test('with "Always ask" a sub-agent waits for approval before it starts', async 
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
 
-  // (Every chat of the project follows it: Settings › This project › Asking and away - tek-ev.)
-  const settings = await projectSettings(page, /^Asking and away/)
+  // (Every chat of the project follows it: Settings › This project › When you’re asked - tek-ev.)
+  const settings = await projectSettings(page, /^When you’re asked/)
   await settings.getByLabel('Opening a sub-agent').selectOption('always')
   await saveSettings(page)
 
@@ -68,8 +68,8 @@ test('rejecting a sub-agent returns the decision to the lead', async ({ page }) 
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
 
-  // (Every chat of the project follows it: Settings › This project › Asking and away - tek-ev.)
-  const settings = await projectSettings(page, /^Asking and away/)
+  // (Every chat of the project follows it: Settings › This project › When you’re asked - tek-ev.)
+  const settings = await projectSettings(page, /^When you’re asked/)
   await settings.getByLabel('Opening a sub-agent').selectOption('always')
   await saveSettings(page)
 

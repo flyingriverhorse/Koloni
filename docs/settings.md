@@ -7,7 +7,9 @@ The Settings page holds everything you set for one chat, for one project and for
 - Press **Settings** (the gear) at the bottom of the left rail. It opens on **This project**, or on
   **The app** for a chat with no folder. Press it again, or the close button, to close the page.
 - Or press Ctrl+K and choose **Settings**. Ctrl+K also lists each section by name (the app's with
-  "(the app)" after it), and opens Settings right at it.
+  "(the app)" after it), and opens Settings right at it. A section's name before 0.1.10 finds it too: "Asking and
+  away" finds **When you're asked**; one folded into another is listed by its old name after the one it is in now -
+  **How agents work › Slash commands** - and opens it there, its **More** or rules shown.
 - Under the message box, **Chat settings** (**Settings** in a narrow chat) opens this chat's short sheet; its
   **All settings** opens Settings at **This chat**.
 
@@ -28,15 +30,37 @@ A chat takes what it does not set from its project, and the project from the app
 at one level only: This chat shows what it takes from the project, read only, with a link up.
 What you type at one level is kept while you look at another.
 
+## How a section reads
+
+Each section of This project and The app first reads itself in a sentence or two: what happens now, made from its
+values as they stand - "At Full auto a small model looks at each command the list does not stop; one it finds risky
+is refused…". Change a setting and the sentence changes with it, before anything is saved.
+
+Beside each setting a honeycomb cell says where its value comes from, and the foot of the section says what the cells
+mean:
+
+| Cell | Means |
+|---|---|
+| Full honey | **set here**: this project (or the app) has its own value. |
+| An empty rim | **the default**: as a new project (or a new KOLONİ) has it. |
+| Light honey | **changed, not saved**: you changed it here and have not saved it yet. |
+
+The settings few change are under a section's **More** (**More limits** in Limits and money and in The app › Agents),
+closed until you open it. Its button says how many settings it holds and names those set here - "· 6 settings, 1 set
+here: secret files are not hidden from commands" - so a closed one never hides a setting of yours unsaid (When you're
+asked's sentence says them too, "Under More: …"). It stays open, and says so, while one of them holds a value that
+cannot be saved.
+
 ## Saving
 
-Each section has its own **Save** button. It is on only when something changed and every value is
-valid. After saving, the button says "Saved".
+A section's **Save** is in a bar at its foot, there only while something in the section is changed. The bar says
+what, in a status line a screen reader reads out: "2 changes not saved: When the judge finds a command risky, When
+you're away" - or that a value cannot be saved yet, with **Save** off until it is fixed. After saving, the bar goes,
+"Saved" stays in that line, and the focus goes to it. Enter in a field saves only where something changed.
 
 A section with changes you have not saved shows a **not saved** tag next to its name in the list.
-You can move between sections without losing those changes. Three sections have no Save button for
-the whole section and save each row on its own: **Runs without asking**, **Slash commands** and
-**This folder**. This chat's settings take effect as you change them.
+You can move between sections without losing those changes. Some rows save on their own, with no Save: **Runs without
+asking**'s rules, **Slash commands** and **This folder**'s map. This chat's settings take effect as you change them.
 
 ## This chat
 
@@ -47,7 +71,7 @@ The same rows as the sheet **Chat settings** opens under the message box:
 | **Teams** | Who picks this chat's teams, and the ones picked. Set with the Teams button over the canvas. |
 | **Folders** | Where this chat's agents work, and its other folders. Set with the folder button. |
 | **Page scripts** | **Ask each time** or **Always run in this chat**, for a page an agent shows in the Workspace. Also offered over the page's preview. |
-| **Runs without asking** | A project's chat: how many rules it has, and a link to This project › Runs without asking. A chat with no folder keeps its own list here. |
+| **Runs without asking** | A project's chat: how many rules it has, and a link to This project › When you're asked, its rules shown. A chat with no folder keeps its own list here. |
 
 Its permission level, **Plan first** and its model stay under the message box. Under them, **From**
 *the project* lists what the chat takes from its project (who changes the files, opening a sub-agent,
@@ -57,22 +81,58 @@ defaults: ask when it matters, 2 at the same time, 2 levels, 6 per request.
 
 ## This project
 
-The sections are listed on the left, in this order.
+The sections are listed on the left, in this order, each by its job (0.1.10: eleven became seven, and no setting is
+gone - what few change is under **More**):
 
-### Agents
+| Section | Holds (its name before 0.1.10) |
+|---|---|
+| **How agents work** | Agents · New chats start with · Slash commands, under More |
+| **When you're asked** | Asking and away · Runs without asking · Commands and secrets, under More |
+| **When the work is done** | Checks and git |
+| **Limits and money** | Limits and money |
+| **Memory and web** | Memory and web |
+| **Notifications** | Notifications |
+| **This folder** | This folder |
 
-"Every chat of this project follows these, the ones made before too."
+### How agents work
+
+"Every chat of this project follows these, the ones made before too." Its sentence: who changes the files, the
+Scout's follow-up tasks, and what a new chat starts with.
+
+#### Agents
 
 | Setting | What it does |
 |---|---|
 | **Who changes the files** | **Orchestrator delegates the work**: it plans, asks and checks; sub-agents change the files. **Orchestrator decides**: a small change (one or two files, a few lines) it makes itself, bigger work goes to a sub-agent. **Orchestrator does it itself**: it changes the files itself, and may still hand a part to a sub-agent. |
 | **Suggest follow-up tasks after each turn** | On by default. After a turn that did something, the Scout - the role that looks for what is left - proposes at most three [follow-up tasks](automation/todo.md#follow-up-tasks) for the To-do list; they wait for your **Add to To-do**, **Edit** or **Not wanted**. One small model request per such turn, made once the turn is over, and at Full auto in a turn you started one more for the Orchestrator's decision. **Follow-up tasks from** picks the tier: **Fast tier** (the default), **Balanced tier** or **Strongest tier**. |
 
-### Asking and away
+#### New chats start with
 
-![Settings, This project: the sections on the left, and Asking and away on the right with Opening a sub-agent, When you're away, Full auto's judge with its box for your words under it (after its measurement), and Agents may delete what is disposable without asking](images/settings-project.png)
+"A new chat of this project starts with these; each chat then sets its own." Its teams are in sight; its other folders
+are under **More**.
 
-*Settings › This project, at **Asking and away**.*
+| Setting | What it does |
+|---|---|
+| **New chats' teams** | **Orchestrator decides**, **Manual** or **No teams**. With Manual, the teams a chat kept with **Use for new chats in this project**. |
+| **Other folders** | The folders a new chat starts with, besides the project. Remove one here; add one from a chat's folder button with **Keep for this project**. |
+
+#### Slash commands
+
+Under **More**: your own commands for the message box. Each has a **Name**, **What it does**, the
+**Text it puts in the box**, and can **Hand it to a role**. Tick **In every project** to use it
+everywhere. **Add command** saves a new one; **Edit** and **Delete** change the list.
+
+### When you're asked
+
+Its sentence says what Full auto's judge does now, who answers a card that waits, and when a sub-agent asks. Under
+**Commands**: Full auto's judge, then **Runs without asking**; under **While you're away**: when you're away and
+opening a sub-agent; under **More**: disposable deletes and Commands and secrets.
+
+#### Asking and away
+
+![Settings, This project: the sections on the left, and When you're asked on the right - its sentence, then under Commands Full auto's judge with When the judge finds a command risky and its box for your words under it (after its measurement), Runs without asking with Show the rules, and under While you're away When you're away](images/settings-project.png)
+
+*Settings › This project, at **When you're asked**.*
 
 | Setting | What it does |
 |---|---|
@@ -83,35 +143,21 @@ The sections are listed on the left, in this order.
 | **It also lets a delete or a push run when a line you saved names it** | Under **Full auto's judge**: [Check what I said first](use/permissions.md#check-what-i-said-first), a question of the judge's since 0.1.9 - it replaces the row **A harmful-looking command at Full auto**. It works only once your Judge model's measurement has passed - none has yet (Claude Code's **haiku**, measured on 25 Nov 2026, did not): the box says **(after its measurement)** and cannot be ticked - or in a project where you had turned Check what I said first on: its box comes ticked there, and you may untick it. With the box unticked, a push or a send waits for you on a card at Full auto - one that quotes you, one click, where the message that started the turn asked for a push, a pull request or a merge ([how](use/permissions.md#a-push-a-pull-request-or-a-merge-you-asked-for)) -, and a delete in the project goes to Full auto's judge where it runs (with the judge off, its card). A force push or a branch deleted on the remote waits on a card at every level, whatever you said. Where it works, your **Judge model** (The app › Agents) first reads your preferences, this project's rules as saved on the Memory page and your own messages in this chat (while you're away, in the chat you went away from) - not the folder's `.koloni/rules.md`, nor anything an agent wrote - and the command runs without a card only when a whole line of yours names it and what it touches ("You may delete build/ and dist/.") - one that forbids nothing and sets no condition. A command a whole sentence of yours forbids ("Never push to main.") is not run and opens no card: the agent is told your sentence (of a message of yours in the chat, only that one of yours forbids it - the sentence itself stays with you), and not to run it again or anything that does the same, and carries on with the rest of its task. A sentence that sets a condition or asks to be asked ("unless", "ask me before") keeps the card, and so does a line that forbids the same delete beside one that allows it ("Never delete ./x." and "You may delete ./x."). Either way the command says which sentence it rested on, and waits under "Decided for you" until you press OK. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat, and the rest of that turn asks you on a card. Secret files, `.koloni`, files that steer later turns, paths outside the folder, a delete or a send of the whole folder, a force push, and a CLI's command whose folder is not known are always asked, and anything that goes wrong - no model to ask, over the budget, a slow or unreadable answer - opens the card as before. Each such command is one request of your Judge model (on a CLI, of your plan). |
 | **Agents may delete what is disposable without asking** | Off by default. At **Auto-edit files** and **Full auto**, in a chat you started, a delete KOLONİ checks is disposable runs without a card: a build or cache folder (`build`, `dist`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `coverage`, `.next`, `.turbo`, `target`) below where the command runs, spelt as it is on disk, that git ignores, holding no file git tracks or does not ignore, no link and no repository of its own; a worktree of yours that git lists, not locked and not one of KOLONİ's, holding nothing its commits do not, no link, no secret file and nothing else git ignores; a local branch that neither the project, the turn nor any worktree stands on (with `-D`, only one whose commits the default branch has). Only such a delete alone on its line, in its shell's own form (in PowerShell, KOLONİ's own commands on Windows: `Remove-Item -Recurse dist` or `rm -r build`, never `rm -rf`; in sh, on Linux, macOS, Docker and Claude Code's Bash tool: `rm -rf build`; git's `git worktree remove ../wt/x` and `git branch -d old` in any), never a forced worktree remove; a folder's delete by Codex or agy, whose shell is not said, keeps its card; worktrees and branches only by the Orchestrator in the project. Its row says "Ran without asking · disposable: …", or, where it then failed, "… and failed: exit 1". At **Ask before changes** it still asks. The card of such a delete offers **Allow such deletes in this project**, which turns this on. See [Disposable deletes](use/permissions.md#disposable-deletes). |
 
-### New chats start with
+#### Runs without asking
 
-"A new chat of this project starts with these; each chat then sets its own."
+A row of its own under **Commands**, saying how many rules there are ("2 rules"), with **Show the rules**: each is
+removed there at once, not by Save.
 
-| Setting | What it does |
-|---|---|
-| **New chats' teams** | **Orchestrator decides**, **Manual** or **No teams**. With Manual, the teams a chat kept with **Use for new chats in this project**. |
-| **Other folders** | The folders a new chat starts with, besides the project. Remove one here; add one from a chat's folder button with **Keep for this project**. |
+- **Sites agents open**: the agents' own browsers open these in every chat of this project without
+  asking, unless marked **Ask first**. Add one with **Allow site**.
+- **Commands and requests, by chat**: the rules made with **Always run** on a card, grouped by
+  chat. Remove one with its ✕. You can also allow plain GET requests to a host for a chat.
 
-### Limits and money
+See [Permission levels](use/permissions.md) for what a rule can and cannot cover.
 
-Two are in sight: **Monthly budget** and **Stop the work on a message over this many tokens**, a job's budget. The
-rest are under **More limits**, closed until you open it; it says **· set** while one of them is not its default,
-and stays open while one holds a value that cannot be saved - **Save** is off until it is fixed. A provider's own limits are on its **Limits** tab (Models), and a night's limits on the **Go away** card.
+#### Commands and secrets
 
-| Setting | What it does |
-|---|---|
-| **Monthly budget** | For this calendar month's messages, in the currency of your prices (else USD). At 80% you are told. At 100% a new message asks before its work starts. Work on a model with no price is not counted. |
-| **Stop the work on a message over this many tokens** | A job's budget, in tokens: all the agents working on one message together - yours, a To-do task's, or a job's while you're away. Over it, the work stops as failed and says so: "this turn used N tokens, over the project's limit of M". A job tried again, or a message that goes on with it, starts from zero. Only what a model reports is counted. Empty: no limit. See [Usage](money/usage.md#a-jobs-budget). |
-| **At most this many agents at work in this project** | Counted over all of this project's chats together. A new agent waits for a free place. Empty: no limit. |
-| **Agents at the same time** | The most agents at work at once for one message. 1 to 32. Each provider has its own limit too. Above 8 the page warns that this may strain this machine and your subscription. |
-| **Sub-agent levels** | How deep sub-agents may open their own, from 1 to 4. |
-| **Sub-agents per request** | The most sub-agents opened for one message outside a recipe. 1 to 20. |
-| **Continue gives this many more steps** | How many more steps **Continue** gives an agent that stopped at a step limit, on its card or on its kept work's card. 25 unless you change it, 1 to 200. A go on by message gives a new step limit instead. The step limit itself is the app's: **Steps an agent may take**, a link away. See [Step limits](agents/step-limits.md). |
-| **A discussion's tokens, at most** | A token budget for each discussion. Empty: no limit. Its speakers count toward the job's budget too: above that, the job stops first. See [Discussions](agents/discussions.md#when-it-ends). |
-
-### Commands and secrets
-
-Heading: "Run commands on".
+Under **More**, after **Agents may delete what is disposable without asking**; heading: "Run commands on".
 
 | Setting | What it does |
 |---|---|
@@ -122,18 +168,15 @@ Heading: "Run commands on".
 | **Secret variables commands may see** | Environment variables with secret names are held back from commands and CLIs. Name the ones they may see, separated by commas, for example `OPENAI_API_KEY, NPM_TOKEN`. The page lists what is held back. Copilot's commands never get `GH_TOKEN`, `GITHUB_TOKEN` or `COPILOT_*`, whatever you name here: it signs in its own way. |
 | **Planted test key (canary)** | On by default. Each message's commands get a made-up key that no agent is told of. A command, web request, browser or MCP call that would send it out is refused and the work stops: something the agent read may have told it to. |
 
-### Runs without asking
+### When the work is done
 
-- **Sites agents open**: the agents' own browsers open these in every chat of this project without
-  asking, unless marked **Ask first**. Add one with **Allow site**.
-- **Commands and requests, by chat**: the rules made with **Always run** on a card, grouped by
-  chat. Remove one with its ✕. You can also allow plain GET requests to a host for a chat.
+Its sentence says what runs after a change, how far failing work goes back, and how the work reaches git.
+**Check by kind of work**, **Found by KOLONİ** and **Measure command** are under **More**; what runs before a
+sub-agent's work is added is said in sight.
 
-See [Permission levels](use/permissions.md) for what a rule can and cannot cover.
+#### Checks and git
 
-### Checks and git
-
-![Settings, This project, Checks and git: After a change, Fix rounds, Then a stronger model and Check by kind of work](images/settings-checks.png)
+![Settings, This project, When the work is done: its sentence, After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, and Then a stronger model](images/settings-checks.png)
 
 Heading: "After a turn that changed code".
 
@@ -149,13 +192,41 @@ Heading: "When a sub-agent's work is added".
 
 Before a sub-agent's work is added, the tests it wrote or changed run in its working copy - only those, each part's test command from the [project map](use/checked.md#which-tests) narrowed to them (`python -m pytest -q tests/test_new.py`). None written: no test before adding, and its card says so; KOLONİ's check at the turn's end still runs every test. There is no command to fill in for it (0.1.7: **Test before adding** is gone).
 
+Heading: "How the work reaches git".
+
 | Setting | What it does |
 |---|---|
-| **Measure command** | A command whose last line of output is a score from 0 to 100, for example `python measure.py`. Recipes use it to pick the best of several candidates. |
 | **Save each sub-agent's work as a git commit** | One commit per piece of work, offered on the card once the changes are in, and only where this folder is the top of a git repository. It is always your click, never made by itself, and nothing is pushed. |
 | **How a team's finished branch reaches yours** | **Merge here** or **Open a pull request**. If you have not chosen, the first finished branch on a GitHub project asks. |
 
+Under **More**, with **Check by kind of work** and **Found by KOLONİ** above:
+
+| Setting | What it does |
+|---|---|
+| **Measure command** | A command whose last line of output is a score from 0 to 100, for example `python measure.py`. Recipes use it to pick the best of several candidates. |
+
+### Limits and money
+
+Two are in sight: **Monthly budget** and **Stop the work on a message over this many tokens**, a job's budget. The
+rest are under **More limits**, closed until you open it; it says how many there are and how many are set here
+(**· 6 settings, all at their defaults**), and stays open while one holds a value that cannot be saved - **Save** is off
+until it is fixed. A provider's own limits are on its **Limits** tab (Models), and a night's limits on the **Go away** card.
+
+| Setting | What it does |
+|---|---|
+| **Monthly budget** | For this calendar month's messages, in the currency of your prices (else USD). At 80% you are told. At 100% a new message asks before its work starts. Work on a model with no price is not counted. |
+| **Stop the work on a message over this many tokens** | A job's budget, in tokens: all the agents working on one message together - yours, a To-do task's, or a job's while you're away. Over it, the work stops as failed and says so: "this turn used N tokens, over the project's limit of M". A job tried again, or a message that goes on with it, starts from zero. Only what a model reports is counted. Empty: no limit. See [Usage](money/usage.md#a-jobs-budget). |
+| **At most this many agents at work in this project** | Counted over all of this project's chats together. A new agent waits for a free place. Empty: no limit. |
+| **Agents at the same time** | The most agents at work at once for one message. 1 to 32. Each provider has its own limit too. Above 8 the page warns that this may strain this machine and your subscription. |
+| **Sub-agent levels** | How deep sub-agents may open their own, from 1 to 4. |
+| **Sub-agents per request** | The most sub-agents opened for one message outside a recipe. 1 to 20. |
+| **Continue gives this many more steps** | How many more steps **Continue** gives an agent that stopped at a step limit, on its card or on its kept work's card. 25 unless you change it, 1 to 200. A go on by message gives a new step limit instead. The step limit itself is the app's: **Steps an agent may take**, a link away. See [Step limits](agents/step-limits.md). |
+| **A discussion's tokens, at most** | A token budget for each discussion. Empty: no limit. Its speakers count toward the job's budget too: above that, the job stops first. See [Discussions](agents/discussions.md#when-it-ends). |
+
 ### Memory and web
+
+Its sentence says what is noted by itself and where a web search asks. **Also look in the memory of** is under
+**More**.
 
 | Setting | What it does |
 |---|---|
@@ -167,18 +238,16 @@ Before a sub-agent's work is added, the tests it wrote or changed run in its wor
 
 ### Notifications
 
+Its sentence says whether a desktop notification shows and when the day's summary comes.
+
 | Setting | What it does |
 |---|---|
 | **Show a desktop notification** | Windows only. Where an agent's notifications go, and what KOLONİ tells you while you are away; off, agents have no notify tool. At most 6 a minute for one chat. |
 | **Send the day's summary at** | A time of day, by this computer's clock, for a daily summary: Usage's Today numbers for the project as text, counted from the record; no model is asked. Needs desktop notifications. If KOLONİ is closed then, it sends the summary late, when it next opens, and only for the last day it missed. |
 
-### Slash commands
-
-Your own commands for the message box. Each has a **Name**, **What it does**, the
-**Text it puts in the box**, and can **Hand it to a role**. Tick **In every project** to use it
-everywhere. **Add command** saves a new one; **Edit** and **Delete** change the list.
-
 ### This folder
+
+Its sentence says which of the project's settings and rules the folder's `.koloni/` keeps.
 
 **Project map** is a table of the project's parts: Folder, Language, Files, AGENTS.md and
 Test command. You can change a part's test command and save that row; **Use guess** puts back
@@ -210,9 +279,10 @@ jobs while you're away), while a command it started still runs (such as a dev se
 
 ### Agents, in every project
 
-**Answer in** and **Summarise a long context at (%)** are in sight. The step limit, the two limits of a turn nobody
-watches, what knowledge reads and KOLONİ's test runs are under **More limits**, closed until you open it (it says
-**· set** while one of them is not its default, and stays open while one holds a value that cannot be saved). The
+Its sentence says the language agents answer in, when a context is summarised, whom KOLONİ's judges ask and whether
+experimental features are offered. **Answer in** and **Summarise a long context at (%)** are in sight. The step limit,
+the two limits of a turn nobody watches, what knowledge reads and KOLONİ's test runs are under **More limits**, closed
+until you open it (it says how many are set here, and stays open while one holds a value that cannot be saved). The
 links between **Steps an agent may take** and **Continue gives this many more steps** open the other's **More limits**.
 
 | Setting | What it does |
@@ -226,17 +296,19 @@ links between **Steps an agent may take** and **Continue gives this many more st
 | **Knowledge reads at most (MB)** | The same, in MB: 300 unless you change it, from 1 to 10,240. |
 | **KOLONİ's test runs at once** | How many of the test runs KOLONİ makes at a turn's end go at the same time; the rest wait their turn. 1 unless you change it, a whole number from 1 to 4. More finishes sooner and loads the machine more. The agents' own commands are not counted. See [Checked](use/checked.md#how-many-run-at-once). |
 | **Test processes per run** | How many processes one of KOLONİ's test runs may start, where its runner reads it (pytest-xdist's `-n auto`). 2 unless you change it, a whole number from 1 to 16. The agents' own commands are not limited. |
-| **Show experimental features** | Under **Save**: off by default. Offers agy, and **Native** (a CLI with its own tools), under **Experimental** on the Models page, and **Let agy search too** in This project › Memory and web. It is less measured than the rest. A provider already set up so keeps working either way, tagged Experimental. Kept as you change it, without **Save**. See [Experimental CLIs](models/setup-cli.md#experimental-clis). |
-| **Judge model** | Under **Save**: whom KOLONİ's judges ask, in every project - [Full auto's judge](use/permissions.md#full-autos-judge), and its question of your words (**Check what I said first**). **Fast tier's first (now: …)**, the first model of your Fast tier that answers with no tools, unless you choose one of the models listed (of every tier, those that answer with no tools - a CLI with tools of its own among them, such as GitHub Copilot CLI run **Native**, asked with them off). Kept as you change it, without **Save**. A choice that cannot be asked now (its provider gone, closed to agents or down) stays chosen and says so; the Fast tier's first is asked meanwhile. With none to ask, each command Full auto's judge would look at waits for you on a card, and the chat says why. On a CLI each such command waits for it to start. |
+| **Show experimental features** | Below the rest, saved as you change it: off by default. Offers agy, and **Native** (a CLI with its own tools), under **Experimental** on the Models page, and **Let agy search too** in This project › Memory and web. It is less measured than the rest. A provider already set up so keeps working either way, tagged Experimental. Kept as you change it, without **Save**. See [Experimental CLIs](models/setup-cli.md#experimental-clis). |
+| **Judge model** | Below the rest, saved as you change it: whom KOLONİ's judges ask, in every project - [Full auto's judge](use/permissions.md#full-autos-judge), and its question of your words (**Check what I said first**). **Fast tier's first (now: …)**, the first model of your Fast tier that answers with no tools, unless you choose one of the models listed (of every tier, those that answer with no tools - a CLI with tools of its own among them, such as GitHub Copilot CLI run **Native**, asked with them off). Kept as you change it, without **Save**. A choice that cannot be asked now (its provider gone, closed to agents or down) stays chosen and says so; the Fast tier's first is asked meanwhile. With none to ask, each command Full auto's judge would look at waits for you on a card, and the chat says why. On a CLI each such command waits for it to start. |
 
 ### Voice
 
-This browser's, for every chat: **Auto-read reads** (the whole answer or a short summary), the
+Its sentence says whether Auto-read is on, what it reads, and whose voice reads aloud. This browser's, for every chat: **Auto-read reads** (the whole answer or a short summary), the
 **Dictation language**, **Read aloud with** the browser's own voice (its **Rate** and **Pitch**) or
 **Read aloud with Gemini** (a **Gemini API key**, and **How Gemini says it**), and **How the Orchestrator
 speaks**. **Dictate** and **Read aloud** stay beside the message box. See [Voice](use/voice.md).
 
 ### Your data
+
+Its sentence says what KOLONİ's data takes on this machine and how many places no agent opens.
 
 **Export**: your KOLONİ data in one `.zip`: chats, agents, providers, memory, skills and
 attachments. Not in it: your project folders (their `.koloni/` knowledge too), working copies,

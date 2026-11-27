@@ -6161,10 +6161,105 @@ fieldset.choice > label .choice-note,
   color: var(--muted);
 }
 
-/* Settings' More limits (sections/part.tsx): the limits few change, folded under the ones in sight. */
-.more-limits {
+/* --- Settings in the honeycomb cells (0.1.10, sections/part.tsx) ---------------------------------- */
+
+/* A section first reads itself: what it does now, in a sentence or two, under its name. */
+.set-said {
+  max-width: 70ch;
+  margin: 0;
+  padding: 12px 16px;
+  border-left: 4px solid var(--accent-fill);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--surface);
+  font-size: var(--text-heading);
+  line-height: 1.45;
+}
+
+.project-settings .role-editor h3,
+.settings-app-form h3 {
+  margin: 10px 0 0;
+  color: var(--text-soft);
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+}
+
+/* A row with its cell: where its value comes from, before its name. */
+.set-row-marked {
+  grid-template-columns: 14px minmax(166px, 246px) minmax(0, 1fr);
+}
+
+/* A setting that is its own label (a checkbox, a choice of radios), its cell beside it. */
+.set-line {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 4px 16px;
+  align-items: start;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.set-line > .cell {
+  margin-top: 2px;
+}
+
+.set-line > h3 {
+  margin: 0;
+}
+
+/* What hangs on the setting above it (the judge's two): set in under it. */
+.set-sub {
+  padding-left: 30px;
+}
+
+/* More: the settings few change, folded under the ones in sight, with how many and how many are set. */
+.set-more {
   padding-top: 9px;
   border-top: 1px solid var(--border);
+}
+
+.set-more-button {
+  font-size: var(--text-body);
+}
+
+.set-more-rows {
+  padding-top: 4px;
+}
+
+.set-rules {
+  padding-left: 30px;
+}
+
+/* What the cells mean, once under a section. */
+.set-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: var(--text-meta);
+}
+
+.set-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A section's Save: a bar at its foot only while something in it is changed, saying what; it stays in sight. */
+.save-bar-on {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent-fill);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.save-bar-what {
+  flex: 1 1 260px;
+  color: var(--text-soft);
 }
 
 .rules-chat {
@@ -6175,6 +6270,14 @@ fieldset.choice > label .choice-note,
 @media (max-width: 760px) {
   .set-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .set-row-marked {
+    grid-template-columns: 14px minmax(0, 1fr);
+  }
+
+  .set-row-marked > .set-value {
+    grid-column: 2;
   }
 }
 

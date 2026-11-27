@@ -12,20 +12,27 @@ message box. See [Settings](../settings.md#this-chat).
 
 | Section | Settings |
 |---|---|
-| **Agents** | Who changes the files · Suggest follow-up tasks after each turn · Follow-up tasks from |
-| **Asking and away** | Opening a sub-agent · When you're away · Full auto's judge · When the judge finds a command risky · It also lets a delete or a push run when a line you saved names it · Agents may delete what is disposable without asking |
-| **New chats start with** | New chats' teams · Other folders |
-| **Limits and money** | At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · Stop the work on a message over this many tokens · A discussion's tokens, at most · Monthly budget |
-| **Commands and secrets** | This machine / Docker container · Image · Allow network access · Longest command (minutes) · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
-| **Runs without asking** | Sites agents open · Commands and requests, by chat |
-| **Checks and git** | After a change · Fix rounds · Then a stronger model · Check by kind of work · Found by KOLONİ · Measure command · Save each sub-agent's work as a git commit · How a team's finished branch reaches yours |
-| **Memory and web** | Note what the work found, by itself · Also look in the memory of · Search address (SearXNG) · Otherwise search with · Let agy search too |
+| **How agents work** | Who changes the files · Suggest follow-up tasks after each turn · Follow-up tasks from · New chats' teams · Other folders · Name · What it does · Text it puts in the box · Hand it to a role · In every project |
+| **When you're asked** | Full auto's judge · When the judge finds a command risky · It also lets a delete or a push run when a line you saved names it · Sites agents open · Commands and requests, by chat · When you're away · Opening a sub-agent · Agents may delete what is disposable without asking · This machine / Docker container · Image · Allow network access · Longest command (minutes) · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
+| **When the work is done** | After a change · Fix rounds · Then a stronger model · Save each sub-agent's work as a git commit · How a team's finished branch reaches yours · Check by kind of work · Found by KOLONİ · Measure command |
+| **Limits and money** | Monthly budget · Stop the work on a message over this many tokens · At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · A discussion's tokens, at most |
+| **Memory and web** | Note what the work found, by itself · Search address (SearXNG) · Otherwise search with · Let agy search too · Also look in the memory of |
 | **Notifications** | Show a desktop notification · Send the day's summary at |
-| **Slash commands** | Name · What it does · Text it puts in the box · Hand it to a role · In every project |
 | **This folder** | Project map · This folder's rules |
 
-In **Limits and money**, **Monthly budget** and **Stop the work on a message over this many tokens** are in sight; the
-others are under **More limits**, closed until you open it. See [Settings](../settings.md).
+Under each section's **More**, closed until you open it: in How agents work, **Other folders** and your slash commands
+(**Name** and the rest); in When you're asked, **Agents may delete what is disposable without asking** and everything
+from **This machine / Docker container** on; in When the work is done, **Check by kind of work**, **Found by KOLONİ**
+and **Measure command**; in Limits and money (**More limits**), all but **Monthly budget** and **Stop the work on a
+message over this many tokens**; in Memory and web, **Also look in the memory of**. See [Settings](../settings.md).
+
+The sections before 0.1.10, and where they are now (Ctrl+K finds them by either name):
+
+| Before | Now |
+|---|---|
+| Agents · New chats start with · Slash commands | How agents work |
+| Asking and away · Runs without asking · Commands and secrets | When you're asked |
+| Checks and git | When the work is done |
 
 ## Settings › The app
 

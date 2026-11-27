@@ -97,10 +97,14 @@ test('the places never opened are The app’s, shown with why (Your data); a new
   expect(within(never).getByRole('listitem')).toHaveTextContent(
     "C:\\Users\\me\\.ssh - it holds the user's settings and secrets",
   )
-  expect(screen.queryByText('In every project')).not.toBeInTheDocument()
-  expect(screen.queryByText('In this project')).not.toBeInTheDocument()
+  // (in Your data: This project's slash commands, folded under its More, have an "In every project" of their own)
+  const data = within(never.closest('.settings-panel') as HTMLElement)
+  expect(data.queryByText('In every project')).not.toBeInTheDocument()
+  expect(data.queryByText('In this project')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'This project' }))
-  await userEvent.click(screen.getByRole('button', { name: /^New chats start with/ }))
+  // (New chats start with: in How agents work since 0.1.10, its other folders under More)
+  await userEvent.click(screen.getByRole('button', { name: /^How agents work/ }))
+  await userEvent.click(screen.getByRole('button', { name: /^More ·/ }))
   expect(
     within(screen.getByRole('list', { name: 'New chats’ other folders' })).getByRole('listitem'),
   ).toHaveTextContent('D:\\notes read only')

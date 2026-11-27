@@ -98,12 +98,21 @@ test('under “This machine” the shell is named; without PowerShell 7, or with
 })
 
 /** The page shows one section at a time: its row in the list is chosen first. */
-const choose = (name: RegExp) => userEvent.click(screen.getByRole('button', { name }))
+/** A section chosen, its More open: every field of it in sight. */
+async function choose(name: RegExp) {
+  await userEvent.click(screen.getByRole('button', { name }))
+  await openMores()
+}
+/** Every More of the section shown, opened. */
+async function openMores() {
+  for (const more of Array.from(document.querySelectorAll<HTMLElement>('.set-more-button[aria-expanded="false"]')))
+    await userEvent.click(more)
+}
 
 test('no test command to fill in for added work: what runs is said - the sub-agent’s own tests (0.1.7); the commit of what is taken is set here, sent only when changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   expect(screen.queryByLabelText('Test before adding')).toBeNull()
   const said = screen.getByText(
     /^Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those/,
@@ -136,15 +145,15 @@ test('no test command to fill in for added work: what runs is said - the sub-age
   // What is set is shown; left alone it is not sent.
   onSave.mockClear()
   render(<ProjectSettings {...base} project={{ ...project, git_commit: true }} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   expect(screen.getByLabelText(/^Save each sub-agent’s work as a git commit/)).toBeChecked()
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
 })
 
 test('the measure command is set beside the test command, saying its last line is the score; sent only when changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const measure = screen.getByLabelText('Measure command')
   expect(measure).toHaveAccessibleDescription(
     /^The last line of its output is a number from 0 to 100: the score .* measured in its working copy\. Empty: nothing is measured\./,
@@ -155,9 +164,9 @@ test('the measure command is set beside the test command, saying its last line i
   unmount()
   onSave.mockClear()
   render(<ProjectSettings {...base} project={{ ...project, measure_command: 'python measure.py' }} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   expect(screen.getByLabelText('Measure command')).toHaveValue('python measure.py')
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.clear(screen.getByLabelText('Measure command'))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ measure_command: '' })
@@ -176,7 +185,7 @@ test('After a change saves after_change', async () => {
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const box = screen.getByLabelText('After a change')
   expect(box).toHaveValue('check')
   expect(
@@ -206,7 +215,7 @@ test('S11: Then a stronger model is on, and saves off', async () => {
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const box = screen.getByRole('checkbox', { name: /Then a stronger model/ })
   expect(box).toBeChecked()
   await userEvent.click(box)
@@ -219,7 +228,7 @@ test('S11: Then a stronger model is on, and saves off', async () => {
 
 test('the old Finish only when the tests pass switch is gone', async () => {
   render(<ProjectSettings {...base} onSave={vi.fn()} />)
-  await choose(/^Agents/)
+  await choose(/^How agents work/)
   expect(screen.queryByRole('checkbox', { name: /Finish only when the tests pass/ })).toBeNull()
 })
 
@@ -236,7 +245,7 @@ test('a project moved from the old switch says so once', async () => {
   )
   const moved = { ...project, after_change: 'nothing' as const, after_change_from_off: true }
   render(<ProjectSettings {...base} project={moved} onSave={vi.fn()} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   expect(screen.getByTestId('after-change-from-off')).toHaveTextContent(
     'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.',
   )
@@ -299,7 +308,7 @@ test('agy searches only where the box is ticked, which says why it is a risk; it
   await choose(/^Memory and web/)
   expect(screen.getByLabelText(/^Let agy search too/)).toBeChecked()
   // Left as it is, nothing is sent: there is nothing to save.
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   expect(onSave).not.toHaveBeenCalled()
 })
 
@@ -377,7 +386,7 @@ test('a limit on a turn’s tokens is set and taken away here, says what it cann
   await choose(/^Limits and money/)
   expect(screen.getByLabelText('Stop the work on a message over this many tokens')).toHaveValue('200000')
   // Left as it is, nothing is sent: there is nothing to save.
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.clear(screen.getByLabelText('Stop the work on a message over this many tokens'))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ turn_token_limit: null })
@@ -420,7 +429,7 @@ test('secret files are hidden from commands unless turned off, a secret variable
   expect(passed).toHaveValue('')
   expect(passed).toHaveAccessibleDescription(/Any other variable named like a secret is held back from commands\./)
   expect(passed).toHaveAccessibleDescription(/Held back from commands: GITHUB_TOKEN, OPENAI_API_KEY/)
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.click(hide)
   await userEvent.type(passed, ' OPENAI_API_KEY ')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -527,7 +536,7 @@ test('noting what a turn found is switched here, says what it costs and that not
     said.closest('label')!.textContent!.replace('Learn more →', '').replace(/\s+/g, ''),
   )
   // Left as it is, nothing is sent: there is nothing to save.
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   expect(onSave).not.toHaveBeenCalled()
   await userEvent.click(box)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -544,20 +553,16 @@ test('noting what a turn found is switched here, says what it costs and that not
 
 const rows = () => screen.getAllByRole('button').filter(button => button.classList.contains('conv-row'))
 
-test('the list has the eleven sections of Settings › This project (sample A), by name, in a navigable list', () => {
+test('the list has the seven sections of Settings › This project (0.1.10: by job, and fewer), by name, in a navigable list', () => {
   render(<ProjectSettings {...base} picked={undefined} onSave={vi.fn()} />)
   expect(screen.getByRole('navigation', { name: 'Project settings sections' })).toBeInTheDocument()
   expect(rows().map(row => row.textContent)).toEqual([
-    'Agents',
-    'Asking and away',
-    'New chats start with',
+    'How agents work',
+    'When you’re asked',
+    'When the work is done',
     'Limits and money',
-    'Commands and secrets',
-    'Runs without asking',
-    'Checks and git',
     'Memory and web',
     'Notifications',
-    'Slash commands',
     'This folder',
   ])
   // The page opens on the first.
@@ -567,11 +572,18 @@ test('the list has the eleven sections of Settings › This project (sample A), 
 test('a chosen section alone is shown, each field under its label as before', async () => {
   render(<ProjectSettings {...base} desktopAvailable onSave={vi.fn()} />)
   const fields: [RegExp, (string | RegExp)[]][] = [
-    [/^Commands/, [/This machine/, /Docker container/]],
-    [/^Agents/, ['Who changes the files']],
-    [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', /^It also lets a delete or a push run/]],
-    [/^New chats start with/, ['New chats’ teams']],
-    [/^Checks/, ['After a change', /^Save each sub-agent’s work as a git commit/]],
+    [
+      /^When you’re asked/,
+      [
+        /This machine/,
+        /Docker container/,
+        'Opening a sub-agent',
+        'When you’re away',
+        /^It also lets a delete or a push run/,
+      ],
+    ],
+    [/^How agents work/, ['Who changes the files', 'New chats’ teams']],
+    [/^When the work is done/, ['After a change', /^Save each sub-agent’s work as a git commit/]],
     [/^Memory and web/, [/^Note what the work found, by itself/, 'Search address (SearXNG)', 'Otherwise search with']],
     [/^Notifications/, [/^Show a desktop notification/, 'Send the day’s summary at']],
     [
@@ -608,7 +620,7 @@ test('a section’s Save sends that section alone; a change elsewhere waits wher
   expect(screen.getByRole('button', { name: /^Limits and money/ })).toHaveAccessibleName('Limits and money')
   expect(screen.getByRole('button', { name: /^Limits and money/ })).toHaveAccessibleDescription('not saved')
   expect(screen.getByRole('button', { name: /^Notifications/ })).toHaveTextContent('not saved')
-  expect(screen.getByRole('button', { name: /^Commands/ })).not.toHaveTextContent('not saved')
+  expect(screen.getByRole('button', { name: /^When you’re asked/ })).not.toHaveTextContent('not saved')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledTimes(1)
   expect(onSave).toHaveBeenCalledWith({ notify_desktop: true })
@@ -648,9 +660,8 @@ test('Docker not running is one line under the Docker choice, with what Docker s
   await userEvent.click(within(line).getByRole('button', { name: 'About this' }))
   expect(within(line).getByText(said)).toBeVisible()
   for (const section of [
-    /^Agents/,
-    /^New chats start with/,
-    /^Checks/,
+    /^How agents work/,
+    /^When the work is done/,
     /^Memory and web/,
     /^Notifications/,
     /^Limits and money/,
@@ -672,8 +683,8 @@ test('the list and then the fields are reached in turn by the keyboard, each “
   await userEvent.tab()
   expect(screen.getByLabelText('Who changes the files')).toHaveFocus()
   // A section is chosen from the keyboard too.
-  for (let i = 0; i < 4; i++) await userEvent.tab({ shift: true })
-  expect(rows()[8]).toHaveFocus()
+  for (let i = 0; i < 3; i++) await userEvent.tab({ shift: true })
+  expect(rows()[5]).toHaveFocus()
   await userEvent.keyboard('{Enter}')
   expect(screen.getByLabelText(/^Show a desktop notification/)).toBeInTheDocument()
 })
@@ -704,9 +715,10 @@ test('a section saved says so beside its Save, until it is changed again', async
   // The project as saved comes back.
   rerender(<ProjectSettings {...base} project={{ ...project, auto_notes: true }} onSave={onSave} />)
   expect(screen.getByRole('status')).toHaveTextContent('Saved')
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.click(screen.getByLabelText(/^Note what the work found, by itself/))
-  expect(screen.getByRole('status')).toHaveTextContent('')
+  // (Changed again: the status line says what, the bar's Save is back.)
+  expect(screen.getByRole('status')).toHaveTextContent('1 change not saved: Note what the work found, by itself')
   expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
 })
 
@@ -716,7 +728,7 @@ test('an image typed for Docker and then left for this machine is still sent wit
   await userEvent.click(screen.getByLabelText(/Docker container/))
   await userEvent.type(screen.getByLabelText('Image'), 'python:3.12')
   await userEvent.click(screen.getByLabelText(/This machine/))
-  expect(screen.getByRole('button', { name: /^Commands/ })).toHaveTextContent('not saved')
+  expect(screen.getByRole('button', { name: /^When you’re asked/ })).toHaveTextContent('not saved')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ exec_location: 'host', docker_image: 'python:3.12', docker_network: false })
 })
@@ -724,7 +736,7 @@ test('an image typed for Docker and then left for this machine is still sent wit
 test('follow-up tasks after each turn are on by default, say what they cost, and come from the tier chosen', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Agents/)
+  await choose(/^How agents work/)
   const box = screen.getByRole('checkbox', { name: /^Suggest follow-up tasks after each turn/ })
   expect(box).toBeChecked()
   expect(box.closest('label')).toHaveTextContent('The Scout looks for what is left after each turn that did something')
@@ -810,7 +822,7 @@ test('what the folder’s settings ask for is used only on “Use them”; “No
   // The form shows them as saved, with nothing left to save.
   expect(screen.getByLabelText(/Docker container/)).toBeChecked()
   expect(screen.getByLabelText('Image')).toHaveValue('other:1')
-  expect(screen.getByRole('button', { name: /^Commands/ })).not.toHaveTextContent('not saved')
+  expect(screen.getByRole('button', { name: /^When you’re asked/ })).not.toHaveTextContent('not saved')
 })
 
 test('when the folder’s settings changed since the card showed them, it says so and nothing is used', async () => {
@@ -853,7 +865,7 @@ test('a file of .koloni/ that is not read is said, and the folder’s rules are 
 test('who changes the files is every chat’s, three ways, each said behind ⓘ; sent only when changed (K-devret, tek-ev)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Agents/)
+  await choose(/^How agents work/)
   expect(screen.getByText('Every chat of this project follows these, the ones made before too.')).toBeInTheDocument()
   const work = screen.getByLabelText('Who changes the files')
   expect(work).toHaveValue('delegates')
@@ -862,7 +874,7 @@ test('who changes the files is every chat’s, three ways, each said behind ⓘ;
       /^Orchestrator delegates the work: The Orchestrator plans, asks and checks; sub-agents change the files\. Orchestrator decides: A small change/,
     ),
   ).not.toBeVisible()
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.selectOptions(work, 'Orchestrator decides')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ lead_work: 'decides' })
@@ -871,7 +883,7 @@ test('who changes the files is every chat’s, three ways, each said behind ⓘ;
 test('who answers while you are away is every chat’s, said in sight to use your plan on a CLI; sent only when changed (K-cli-vekil, tek-ev)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Asking and away/)
+  await choose(/^When you’re asked/)
   const away = screen.getByLabelText('When you’re away')
   expect(away).toHaveValue('waits')
   // (its why: the minutes, and at once while you're away - ☾ Away on a chat's line)
@@ -896,7 +908,7 @@ test('§8: under the judge, its box for your words - closed until its measuremen
   const onSave = vi.fn().mockResolvedValue(undefined)
   const label = 'It also lets a delete or a push run when a line you saved names it'
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Asking and away/)
+  await choose(/^When you’re asked/)
   expect(screen.queryByLabelText('A harmful-looking command at Full auto')).toBeNull()
   const unmeasured = screen.getByRole('checkbox', { name: `${label} (after its measurement)` })
   expect(unmeasured).not.toBeChecked()
@@ -905,7 +917,7 @@ test('§8: under the judge, its box for your words - closed until its measuremen
   render(
     <ProjectSettings {...base} project={{ ...project, full_auto_check: 'judge', judge_words: true }} onSave={onSave} />,
   )
-  await choose(/^Asking and away/)
+  await choose(/^When you’re asked/)
   const words = screen.getByRole('checkbox', { name: label })
   expect(words).toBeChecked()
   await userEvent.click(words)
@@ -916,7 +928,7 @@ test('§8: under the judge, its box for your words - closed until its measuremen
 test('Full auto’s judge is on as a project comes, says what it costs, and only its change is sent', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Asking and away/)
+  await choose(/^When you’re asked/)
   const judge = screen.getByRole('checkbox', { name: /^Full auto’s judge/ })
   expect(judge).toBeChecked()
   expect(judge.closest('label')).toHaveTextContent(
@@ -930,7 +942,7 @@ test('Full auto’s judge is on as a project comes, says what it costs, and only
 test('a command the judge finds risky is refused until you choose Ask me; the choice waits while the judge is off', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Asking and away/)
+  await choose(/^When you’re asked/)
   const risky = screen.getByRole('combobox', { name: 'When the judge finds a command risky' })
   expect(risky).toHaveValue('refuse')
   expect(
@@ -951,7 +963,7 @@ test('a command the judge finds risky is refused until you choose Ask me; the ch
 test('disposable deletes are off until you allow them, and sent only when changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Asking and away/)
+  await choose(/^When you’re asked/)
   const allow = screen.getByRole('checkbox', { name: /^Agents may delete what is disposable without asking/ })
   expect(allow).not.toBeChecked()
   expect(allow.closest('label')).toHaveTextContent(
@@ -1027,7 +1039,7 @@ test('101: the planted test key is on by default under Commands, says what it do
   expect(box).toHaveAccessibleName(
     /A command, web request, browser or MCP call that would send it out is refused and the work stops/,
   )
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   await userEvent.click(box)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({
@@ -1046,7 +1058,7 @@ test('K-dal-takim D2: how a finished branch reaches yours - a pull request greye
   })
   const onSave = vi.fn().mockResolvedValue(undefined)
   const view = render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const pr = await screen.findByRole('radio', { name: /Open a pull request/ })
   expect(pr).toBeDisabled()
   expect(screen.getByText(/Not now: gh is not logged in: run gh auth login/)).toBeInTheDocument()
@@ -1058,7 +1070,7 @@ test('K-dal-takim D2: how a finished branch reaches yours - a pull request greye
   view.unmount()
   whyNot = null
   render(<ProjectSettings {...base} project={{ ...project, finish_way: 'merge' }} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   await act(async () => {})
   await userEvent.click(screen.getByRole('radio', { name: /Open a pull request/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -1121,7 +1133,7 @@ test('the test command KOLONİ found is shown with where it came from, and can b
     },
   }
   render(<ProjectSettings {...base} project={found} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const shown = screen.getByTestId('tests-found')
   expect(shown).toHaveTextContent('python -m pytest -q in ./ - its look at the code found it, 2026-11-22.')
   expect(shown).toHaveTextContent('npm test in web/ - from the project’s files, 2026-11-22.')
@@ -1149,7 +1161,7 @@ test('After a change names the test command you set for a part, then what KOLON�
     tests_found: { '.': saved('python -m pytest -q'), WEB: saved('npm run all') },
   }
   render(<ProjectSettings {...base} project={parts} onSave={vi.fn()} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(
     /^Runs npm test in web\/, make check in \.tools\/, python -m pytest -q in \.\/ \(found by KOLONİ\), related tests first/,
   )
@@ -1167,7 +1179,7 @@ test('with nothing found, nothing of it is shown', async () => {
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={vi.fn()} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   expect(screen.queryByTestId('tests-found')).toBeNull()
 })
 
@@ -1184,7 +1196,7 @@ test('Fix rounds: 1 to 10 beside After a change, saved as fix_rounds', async () 
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const box = screen.getByLabelText('Fix rounds')
   expect(box).toHaveValue('2')
   expect(
@@ -1213,7 +1225,7 @@ test('k-canli-016: Fix rounds Until it passes - a project’s null - is chosen a
   const { unmount } = render(
     <ProjectSettings {...base} project={{ ...base.project, fix_rounds: null }} onSave={onSave} />,
   )
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   expect(screen.getByLabelText('Fix rounds')).toHaveValue('until')
   expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(
     expect.stringMatching(
@@ -1222,7 +1234,7 @@ test('k-canli-016: Fix rounds Until it passes - a project’s null - is chosen a
   )
   unmount()
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   await userEvent.selectOptions(screen.getByLabelText('Fix rounds'), 'until')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 'until' })
@@ -1241,7 +1253,7 @@ test('Check by kind of work: on by default but Pages and A test for the change; 
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(
     within(group)
@@ -1282,7 +1294,7 @@ test('Check by kind of work: Pages and A test for the change, off unless ticked,
             : { paths: [], more: 0, partial: false }) as never,
   )
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(group).toHaveAccessibleDescription(/375, 768 and 1280 px/)
   expect(group).toHaveAccessibleDescription(/under Tests only too/)
@@ -1292,7 +1304,7 @@ test('Check by kind of work: Pages and A test for the change, off unless ticked,
   expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { ui: true, test: true } })
   unmount()
   render(<ProjectSettings {...base} project={{ ...project, check_kinds: { ui: true, test: true } }} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const again = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(within(again).getByRole('checkbox', { name: 'Pages' })).toBeChecked()
   expect(within(again).getByRole('checkbox', { name: 'A test for the change' })).toBeChecked()
@@ -1311,7 +1323,7 @@ test('Check by kind of work: Config is on, said, and unticking it saves check_ki
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(group).toHaveAccessibleDescription(/JSON, YAML and TOML files that parse/)
   expect(within(group).getByRole('checkbox', { name: 'Config' })).toBeChecked()
@@ -1333,7 +1345,7 @@ test('Check by kind of work: Scripts is on, said, and unticking it saves check_k
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(group).toHaveAccessibleDescription(
     /shell and PowerShell scripts that parse \(read by their own shell, never run\)/,
@@ -1357,7 +1369,7 @@ test('Check by kind of work: Code style and types is on, said, and unticking it 
             : { paths: [], more: 0, partial: false }) as never,
   )
   render(<ProjectSettings {...base} onSave={onSave} />)
-  await choose(/^Checks/)
+  await choose(/^When the work is done/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(group).toHaveAccessibleDescription(/ruff, eslint, tsc and mypy where it has them/)
   expect(within(group).getByRole('checkbox', { name: 'Code style and types' })).toBeChecked()
@@ -1396,7 +1408,7 @@ test('§8: the box for your words works, unlocked, where the Judge model was mea
     )
   const label = 'It also lets a delete or a push run when a line you saved names it'
   render(<ProjectSettings {...base} project={{ ...project, judge_words: true }} onSave={vi.fn()} />)
-  await choose(/^Asking and away/)
+  await choose(/^When you’re asked/)
   const words = await screen.findByRole('checkbox', { name: label })
   expect(words).toBeChecked()
   expect(words).toBeEnabled()

@@ -196,6 +196,31 @@ test('a copy kept for Take in is KOLONİ’s card about its agent too: "for Code
   expect(screen.getByRole('group', { name: 'chat: for Coder · “Fix the login”' })).toBeInTheDocument()
 })
 
+test('N11: the Orchestrator’s kept copy says “Orchestrator” on its card as over it, never its record’s “Lead”', () => {
+  // (live, 27 Nov 2026: "for Orchestrator" over it, "Lead's changes did not reach the project" on it)
+  const kept: Merge = {
+    id: 'g',
+    run_id: 'rx',
+    agent_id: 'rx',
+    status: 'kept',
+    files: [
+      { path: 'a.txt', kind: 'new', state: 'ready', whole: false, diff: '', additions: 1, deletions: 0, note: null },
+    ],
+    kept_in: 'C:/copies/c',
+    check: null,
+    commit: null,
+    created_at: 't',
+    decided_at: null,
+  }
+  useApp.setState({ readyChats: { x: { ...other, commands: [], agents: [agent('rx', 'completed')], merges: [kept] } } })
+  render(<Shown page />)
+  const row = screen.getByRole('group', { name: 'chat: for Orchestrator · “Fix the login”' })
+  expect(
+    within(row).getByText("Orchestrator's changes did not reach the project — take in what it had changed? · 1 file"),
+  ).toBeInTheDocument()
+  expect(row).not.toHaveTextContent(/Lead/)
+})
+
 test('the page: the same list, by where it is from', async () => {
   render(<Shown page />)
   const shows = screen.getByRole('group', { name: 'Show' })

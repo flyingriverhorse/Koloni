@@ -1051,7 +1051,7 @@ test('Your words say what Full auto’s check reads there', async () => {
   render(<MemoryPage memory={projectMemory()} {...handlers()} />)
   const told = await tab('Told')
   expect(within(told).getByText(/box for your words/)).toHaveTextContent(
-    'At Full auto, with Full auto’s judge’s box for your words on (Settings › This project › Asking and away - once its measurement has passed), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”',
+    'At Full auto, with Full auto’s judge’s box for your words on (Settings › This project › When you’re asked - once its measurement has passed), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”',
   )
   expect(within(told).queryByText(/differs from what you saved here/)).not.toBeInTheDocument()
 })
