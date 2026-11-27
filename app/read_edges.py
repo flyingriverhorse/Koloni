@@ -98,6 +98,34 @@ def chained(line: str) -> bool:
     return bool(quote)  # (a quote not paired: no simple line)
 
 
+# `git remote`'s verbs that change a remote in `.git/config` - its address, name, default or
+# branches. For origin, where a push the judge decides goes (`push_judge`: compared within a turn,
+# not across turns), they set git's config as `git config` does: asked at every level. Another
+# remote's (`git remote add upstream x`) stay as they were.
+_REMOTE_CHANGES = frozenset(
+    {"add", "set-url", "remove", "rm", "rename", "set-head", "set-branches"}
+)
+_CONFIG_WRITES = ("--unset", "--add", "--replace", "--rename", "--remove", "--edit", "-e")
+
+
+def sets_git_config(parts: list[tuple[str | None, list[str]]]) -> bool:
+    """Whether a line's parts (each git's command and its words past it, `commands._git_sub`) set
+    git's config: `git config` setting or taking off a value - not one that only reads (`--get…`,
+    `--list`, `-l`, a key alone, git 2.46's `get` and `list`) - or a `git remote` verb that changes
+    origin (`_REMOTE_CHANGES`, "origin" a word past it: `git remote rename x origin` too)."""
+    for sub, rest in parts:
+        named = [word.strip("'\"") for word in rest if not word.startswith("-")]
+        if sub == "remote" and named[:1] and named[0] in _REMOTE_CHANGES and "origin" in named[1:]:
+            return True
+        if sub != "config" or rest[:1] in (["get"], ["list"]):
+            continue
+        if not any(w.startswith(("--get", "--list", "-l")) for w in rest) and (
+            len(named) > 1 or any(w.startswith(_CONFIG_WRITES) for w in rest)
+        ):
+            return True
+    return False
+
+
 def looks_bare(root: Path) -> bool:
     """Whether a folder with no `.git` holds a `HEAD`: git may take it for a repository of its
     own - a bare one, one whose `objects` is a file, or whose `commondir` leads elsewhere -,

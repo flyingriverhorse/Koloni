@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
-from app import ledger, project_map, proof, proof_style, risk_judge
+from app import ledger, project_map, proof, proof_style, push_judge, risk_judge
 from app.cards import PLANTED, PLANTED_READ, PLANTED_SAYS, card_reason, rule_kept_off
 from app.commands import (
     _INTERPRETER,
@@ -713,14 +713,15 @@ class CommandRunner:
         reads = await asyncio.to_thread(
             reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel
         )
+        moved = await asyncio.to_thread(push_judge.moved, judgement)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
             check, judge = project.full_auto_judge and project.judge_words, project.full_auto_judge
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
-            # (K3's R2: a "fine" holds where what it names is still where it was - in a copy: no)
-            on = judge and (where is None and risk_judge.on_disk(ws.root, judged))
+            # (K3's R2: a "fine" holds where what it names is where it was, a push's branch too)
+            on = judge and (where is None and risk_judge.on_disk(ws.root, judged)) and not moved
             gate = _gate_open(conversation.permission_mode, check, judgement, on, judged)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
@@ -1202,15 +1203,14 @@ class CommandRunner:
         KOLONİ does not run it; the record is completed when the CLI reports the end.
         `always`: asked about at every level, whatever was allowed before - as one that
         names a secret file always is. `held`: as `command_out`'s; `web_off`: as `run`'s.
-        `reads`: it only reads (`reads_here`), so below Full auto it is not asked. `cwd`:
-        where the CLI says it runs, on the record as KOLONİ's own commands' is ("." for
-        the root), so that the card is judged the same when it is read again. What it
-        prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
-        screen and the record - the CLI's own model has read it already. `judgement`: as
-        `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too.
-        `why`: KOLONİ's own reason for its card, for the family it is counted in (`card_reason`)
-        - never the reason the CLI gave in words of its own, shown on its card all the same.
-        `park`: as `run`'s - (False, its id) once it is parked."""
+        `reads`: it only reads (`reads_here`), so below Full auto it is not asked. `cwd`: where the
+        CLI says it runs, on the record as KOLONİ's own commands' is ("." for the root), so that the
+        card is judged the same when it is read again. What it prints comes from the CLI, hidden
+        there (`AgentRunner._observe_command`) for the screen and the record - the CLI's own model
+        has read it already. `judgement`, `disposable`, `park`: as `run`'s - one refused or parked
+        is (False, its id); a push's "fine" lapses where it moved (`push_judge.moved`). `why`:
+        KOLONİ's reason for its card (`card_reason`), never the CLI's words, shown on it as well."""
+        moved = await asyncio.to_thread(push_judge.moved, judgement)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
@@ -1225,7 +1225,7 @@ class CommandRunner:
             ).one()
             # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
             judged = with_cwd(command, cwd)
-            gate = _gate_open(mode, judge and words, judgement, judge, judged)
+            gate = _gate_open(mode, judge and words, judgement, judge and not moved, judged)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)

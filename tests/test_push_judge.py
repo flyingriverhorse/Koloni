@@ -15,7 +15,7 @@ import threading
 import pytest
 
 from app import push_judge
-from app.commands import harms
+from app.commands import harm_class, harms, standing_asked
 from app.push_judge import at_start, refused, shape
 from tests.conftest import scaled
 from tests.fakes import Script
@@ -40,9 +40,9 @@ def git(folder, *args):
     return done.stdout.strip()
 
 
-def bare(at):
-    """A bare repository at `at`, empty."""
-    git(at.parent, "init", "-q", "--bare", str(at))
+def bare(at, head="main"):
+    """A bare repository at `at`, empty; its HEAD names `head` (origin's default branch)."""
+    git(at.parent, "init", "-q", "--bare", "-b", head, str(at))
     return at
 
 
@@ -155,6 +155,22 @@ def test_any_other_line_is_none(line):
 # --- the repository -----------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("change", ["none", "switched", "committed", "gone"])
+def test_what_a_fine_was_given_for_is_looked_at_again_as_it_runs(pushed, change):
+    seen = {}
+    assert refused(pushed, "", at_start(pushed), [], seen) == ""
+    assert seen == {"root": str(pushed), "branch": BRANCH, "tip": git(pushed, "rev-parse", "HEAD")}
+    if change == "switched":
+        git(pushed, "switch", "-q", "main")
+    elif change == "committed":
+        commit(pushed, "late.py", "x = 1\n", "while a card waited")
+    elif change == "gone":
+        seen = {**seen, "root": str(pushed.parent / "nowhere")}
+    assert push_judge.moved({"kind": "risk", "push": seen}) == (change != "none"), change
+    assert not push_judge.moved({"kind": "risk", "verdict": "fine"})
+    assert not push_judge.moved(None)
+
+
 def test_a_plain_push_of_the_feature_branch_is_not_refused(pushed):
     start = at_start(pushed)
     assert start is not None and start["url"] and start["default"] == "main", start
@@ -188,6 +204,28 @@ def test_origins_default_branch_is_a_card_as_it_is_now_and_as_it_was(pushed):
     assert "origin's default" in refused(pushed, "trunk", start, [])
 
 
+@pytest.mark.parametrize("line", ["git push", "git push origin develop", "git push origin HEAD"])
+@pytest.mark.parametrize("local", ["none", "deleted", "stale"])
+def test_the_branch_origin_itself_names_its_default_is_a_card(pushed, line, local):
+    # (the review's P2: origin's HEAD is develop, and this repository's origin/HEAD says nothing
+    # of it, or says main - origin itself is asked)
+    git(pushed, "switch", "-q", "-c", "develop", "main")
+    git(pushed, "push", "-q", "origin", "develop")
+    git(pushed.parent / "origin.git", "symbolic-ref", "HEAD", "refs/heads/develop")
+    if local == "none":
+        git(pushed, "symbolic-ref", "-d", "refs/remotes/origin/HEAD")
+    elif local == "deleted":
+        git(pushed, "remote", "set-head", "origin", "-d")
+    commit(pushed, "c.txt", "c\n")
+    found = refused(pushed, shape(line), at_start(pushed), [])
+    assert "origin does not say its default branch, or it is this one" in found, (line, found)
+
+
+def test_an_origin_whose_head_names_no_branch_is_a_card(pushed):
+    git(pushed.parent / "origin.git", "symbolic-ref", "HEAD", "refs/heads/gone")
+    assert "does not say its default" in refused(pushed, "", at_start(pushed), [])
+
+
 def test_a_detached_head_is_a_card(pushed):
     git(pushed, "switch", "-q", "--detach")
     assert refused(pushed, "", at_start(pushed), [])
@@ -216,6 +254,7 @@ def test_a_name_but_the_branch_checked_out_is_a_card(pushed, word):
         ("push.pushOption", "ci.skip", "sends more"),
         ("remote.origin.receivepack", "git-receive-pack", "sends more"),
         ("push.recurseSubmodules", "on-demand", "submodules"),
+        ("submodule.recurse", "true", "submodules"),
         ("hook.audit.event", "pre-push", "hooks of its own"),
     ],
 )
@@ -235,6 +274,7 @@ def test_gits_config_that_sends_it_elsewhere_or_more_is_a_card(pushed, key, valu
         ("remote.origin.mirror", "false"),
         ("push.followTags", "false"),
         ("push.recurseSubmodules", "check"),
+        ("submodule.recurse", "false"),
     ],
 )
 def test_gits_config_that_keeps_it_to_the_branch_on_origin_is_no_card(pushed, key, value):
@@ -287,6 +327,25 @@ def test_a_hook_a_push_does_not_run_and_the_samples_are_no_card(pushed):
     assert refused(pushed, "", at_start(pushed), []) == ""
 
 
+@pytest.mark.parametrize("legacy", ["remotes", "branches"])
+def test_an_origin_git_reads_from_its_old_files_is_a_card(pushed, legacy):
+    # (the review's P3, P3b: `.git/remotes/origin`'s `Push:` maps the branch to main)
+    origin = (pushed.parent / "origin.git").as_posix()
+    git(pushed, "remote", "remove", "origin")
+    (pushed / ".git" / legacy).mkdir(exist_ok=True)
+    (pushed / ".git" / legacy / "origin").write_text(
+        f"URL: {origin}\nPush: refs/heads/{BRANCH}:refs/heads/main\n"
+        if legacy == "remotes"
+        else f"{origin}#main\n"
+    )
+    found = refused(pushed, "", at_start(pushed), [])
+    assert found, found
+    # (whatever git makes of those files: with no `remote.origin.url` in its config, a card)
+    url = {"remote.origin.url": ["x"]}
+    assert push_judge._redirects({}, BRANCH) == "git's config does not name origin's address"
+    assert push_judge._redirects(url, BRANCH) == ""
+
+
 def test_an_origin_in_the_project_is_a_card(pushed):
     # (its own hooks run on this machine as the push lands, and they are files of the project)
     inside = bare(pushed / "up.git")
@@ -312,6 +371,25 @@ def test_a_secret_in_what_it_sends_is_a_card(pushed, where):
     assert "holds a secret" in refused(pushed, "", at_start(pushed), [SECRET.encode()])
 
 
+@pytest.mark.parametrize("how", ["an orphan branch", "an unrelated history merged in"])
+def test_a_secret_in_a_root_commit_is_a_card(pushed, how):
+    # (the review's P1, P1b: `diff-tree` lists a root commit's files only with `--root`)
+    if how == "an orphan branch":
+        git(pushed, "switch", "-q", "--orphan", "fresh")
+        commit(pushed, "cfg.py", f"KEY = '{SECRET}'\n", "init")
+        commit(pushed, "b.txt", "b\n", "more")
+        word = "fresh"
+    else:
+        git(pushed, "switch", "-q", "--orphan", "side")  # (an empty tree: git's switch)
+        commit(pushed, "cfg.py", f"KEY = '{SECRET}'\n", "side root")
+        git(pushed, "rm", "-q", "cfg.py")
+        commit(pushed, "s.txt", "s\n", "side clean")
+        git(pushed, "switch", "-q", BRANCH)
+        git(pushed, "merge", "-q", "--allow-unrelated-histories", "-m", "merge side", "side")
+        word = BRANCH
+    assert "holds a secret" in refused(pushed, word, at_start(pushed), [SECRET.encode()])
+
+
 def test_what_origin_holds_already_is_not_counted(pushed):
     commit(pushed, "config.py", f"KEY = '{SECRET}'\n")
     git(pushed, "push", "-q", "origin", BRANCH)
@@ -334,7 +412,13 @@ def test_more_commits_than_it_looks_at_is_a_card(pushed, monkeypatch):
 
 
 def test_an_origin_that_holds_nothing_to_count_from_is_a_card(pushed):
-    git(pushed, "remote", "set-url", "origin", str(bare(pushed.parent / "empty.git")))
+    # (its main is a commit of another history: nothing here to count from)
+    alien, other = bare(pushed.parent / "alien.git"), pushed.parent / "other"
+    other.mkdir()
+    (other / "x.txt").write_text("x\n")
+    repository(other)
+    git(other, "push", "-q", str(alien), "main")
+    git(pushed, "remote", "set-url", "origin", str(alien))
     assert "holds none" in refused(pushed, "", at_start(pushed), [])
 
 
@@ -596,3 +680,119 @@ def test_claude_codes_push_of_the_feature_branch_runs_through_the_judge(
     assert (ran["judged"]["kind"], ran["judged"]["verdict"]) == ("risk", "fine")
     assert len(default.calls) == 1
     assert claude_app.record()["asked"][0]["behavior"] == "allow"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "git remote add origin https://example.com/x.git",
+        "git remote set-url origin https://example.com/x.git",
+        "git remote set-url --push origin https://example.com/x.git",
+        "git remote -v set-url origin https://example.com/x.git",
+        "git remote remove origin",
+        "git remote rm origin",
+        "git remote rename origin old",
+        "git remote rename upstream origin",
+        "git remote set-head origin -d",
+        "git remote set-head origin develop",
+        "git remote set-branches origin main",
+        "git remote add -t main origin https://example.com/x.git",
+        "git remote set-url 'origin' https://example.com/x.git",
+    ],
+)
+def test_a_git_remote_that_changes_origin_is_asked_at_every_level(line):
+    # (the review's p9: an origin set in one turn was the next turn's origin - its card now)
+    assert harm_class(line, False) == "always" and standing_asked(line, False) == ".git", line
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "git remote add upstream https://example.com/x.git",
+        "git remote set-url upstream https://example.com/origin",
+        "git remote remove upstream",
+        "git remote -v",
+        "git remote get-url origin",
+        "git remote show origin",
+    ],
+)
+def test_a_git_remote_of_another_remote_or_a_read_is_as_before(line):
+    assert harm_class(line, False) == "" and not standing_asked(line, False), line
+
+
+def test_an_agents_origin_change_is_a_card_in_the_turn_it_makes_it(judging, wait_run, pushed):
+    line = f"git remote set-url origin {pushed.parent / 'other.git'}"
+    client, _lead, judge, executor = judging([cmd(line), text("left")], [said("fine")], [])
+    _, cid, run_id = go(client, pushed)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["command"] == line and asked["danger"].startswith("Names .git"), asked
+    assert judge.calls == [] and executor.started == []
+
+
+def test_a_branch_moved_between_the_fine_and_the_run_is_the_lists_card(
+    judging, wait_run, pushed, monkeypatch
+):
+    # (`_keeps_answered` may hold the command on another card after the judge's fine: the gate
+    # looks at the branch and its commit again just before it runs - `push_judge.moved`)
+    client, _lead, judge, executor = judging([cmd("git push"), text("left")], [said("fine")], [])
+    runner = client.app.state.runner
+    refuses = runner._risk_refuses
+
+    def then_committed(ctx, why, record):
+        commit(pushed, "late.py", "x = 1\n", "while a card waited")
+        return refuses(ctx, why, record)
+
+    monkeypatch.setattr(runner, "_risk_refuses", then_committed)
+    _, cid, run_id = go(client, pushed)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["command"] == "git push" and asked["judged"] is None, asked
+    assert len(judge.calls) == 1 and executor.started == []
+
+
+def test_claude_codes_push_that_moved_before_it_ran_is_the_lists_card(
+    claude_app,  # noqa: F811
+    wait_run,
+    pushed,
+    monkeypatch,
+):
+    client, cli, default = claude_app(
+        [{"tool": "Bash", "input": {"command": "git push"}, "result": ""}, {"say": "left"}],
+        default_steps=[said("fine", "Asked for.")],
+    )
+    judged_by_local(client, cli)
+    runner = client.app.state.runner
+    refuses = runner._risk_refuses
+
+    def then_switched(ctx, why, record):
+        git(pushed, "switch", "-q", "main")
+        return refuses(ctx, why, record)
+
+    monkeypatch.setattr(runner, "_risk_refuses", then_switched)
+    _, cid, run_id = go(client, pushed, provider=cli)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id, 30)
+    assert asked["command"] == "git push" and asked["origin"] == "cli", asked
+    assert asked["judged"] is None and len(default.calls) == 1
+
+
+@pytest.mark.parametrize("where", ["host", "docker"])
+def test_a_push_in_docker_is_the_lists_card(judging, pushed, monkeypatch, where):
+    # (its git, its config and its hooks are the container's: what KOLONİ looked at is not)
+    from app.agent.ctx import Ctx
+    from app.db.models import Project
+
+    client, *_ = judging([], [], [])
+    runner = client.app.state.runner
+    pid = client.post("/api/projects", json={"root_path": str(pushed)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    with client.app.state.session_factory() as session:
+        session.get_one(Project, pid).exec_location = where
+        session.commit()
+    monkeypatch.setattr(runner, "_full_auto", lambda _ctx: True)
+    monkeypatch.setitem(runner._git_at, "r", {"push": at_start(pushed)})
+    ctx = Ctx(run_id="r", cid=cid, root=str(pushed), agent_id="a", role="Lead", tools=(), depth=0)
+    found = (harms("git push", False), None)
+    got = client.portal.call(runner._push_takes, ctx, "git push", ".", pushed, found, True)
+    assert (got is not None) == (where == "host"), got

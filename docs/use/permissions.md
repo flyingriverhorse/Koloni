@@ -698,15 +698,19 @@ an address, a chain, a quote or a variable.
 Before the judge is asked, and again once it said fine, KOLONİ looks at the repository; any of these
 keeps the card:
 
-- the branch is `main`, `master` or origin's default (`origin/HEAD`, as it is now and as it was when
-  the turn began), or HEAD is on no branch;
-- git's settings send it elsewhere or send more: the branch's upstream is another branch, its remote
-  (or `remote.pushDefault`) is not `origin`, `push.default` is `matching` or `nothing`, origin has a
-  push map, a mirror, a receive-pack or push options, tags follow, submodules are pushed, or a hook is
-  set in git's settings (`hook.*`);
-- origin's address or git's settings in any scope are not what they were when the turn began - an
-  agent's `git remote set-url`, a `core.hooksPath` it set. A turn that began below Full auto has no such
-  record: its pushes are cards;
+- the branch is `main`, `master` or origin's default branch - as origin itself names it (its `HEAD`,
+  asked as the push would ask it; an origin that names none is a card), and as this repository's
+  `origin/HEAD` names it now and did when the turn began -, or HEAD is on no branch;
+- git's settings send it elsewhere or send more: no `remote.origin.url` in them (git would read origin
+  from an old `.git/remotes` or `.git/branches` file), the branch's upstream is another branch, its
+  remote (or `remote.pushDefault`) is not `origin`, `push.default` is `matching` or `nothing`, origin has
+  a push map, a mirror, a receive-pack or push options, tags follow, submodules are pushed
+  (`push.recurseSubmodules`, `submodule.recurse`), or a hook is set in git's settings (`hook.*`);
+- origin's address or git's settings in any scope are not what they were when the turn began - a
+  `core.hooksPath` an agent set. A turn that began below Full auto has no such record: its pushes are
+  cards. An agent's `git remote` that changes `origin` - `add`, `set-url`, `remove`, `rename`,
+  `set-head`, `set-branches` - is itself asked at every level, Full auto too, so an origin changed in
+  one turn is not the next turn's unseen;
 - a hook a push runs on this machine is there at all - `pre-push` or `reference-transaction` in
   `.git/hooks` or in the folder `core.hooksPath` names - yours too (husky's, Git LFS's): an unchanged
   hook can run what an agent wrote;
@@ -716,11 +720,15 @@ keeps the card:
   against what origin itself says it holds (asked as a push would ask it), never a branch git keeps of
   origin's here; origin that does not answer, holds none of the branch, `main`, `master` or its default,
   or more than 50 commits to send, is a card;
-- the agent works in a working copy, or KOLONİ does not know the folder the command runs in.
+- the agent works in a working copy, KOLONİ does not know the folder the command runs in, or the
+  project runs its commands in Docker (the container's git, settings and hooks are not the ones looked
+  at);
+- the branch or its commit moved between the judge's **fine** and the run - another card waited, say:
+  KOLONİ looks again just before it runs.
 
 Where you said "Push it." the judge decides too - it reads your words; where it does not call it fine,
-or is not asked, its card quotes you as before (never refused). Ask, Auto-edit, a To-do task's turn, a job while you're away and a turn of a chat
-you went away from keep the card.
+or is not asked, its card quotes you as before (never refused). Ask, Auto-edit, a To-do task's turn,
+a job while you're away and a turn of a chat you went away from keep the card.
 
 ### The judge is not a wall
 

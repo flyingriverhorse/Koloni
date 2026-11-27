@@ -272,14 +272,12 @@ messages.
     - Since 0.1.11 it decides [a plain push of your feature branch](../use/permissions.md#a-push-of-your-feature-branch)
       to its origin: a "fine" pushes with no card. Its prompt counts sending work off the machine as
       risky, and no model was measured on pushes yet: expect some pushes to be refused or carded
-      (one you asked for is carded, quoting you, never refused). Origin's default branch is known
-      only as `origin/HEAD` names it: where that is not set (a repository not cloned, `git remote
-      set-head` never run), a default other than `main` or `master` - `develop`, `trunk` - is pushed
-      as any feature branch. A bare `git push` (and `origin HEAD`) pushes the branch checked out as it runs:
-      KOLONİ looks just before, but a switch of the project's branch by your own hand in between is not
-      seen (another chat's switch while this turn works is asked). The judge is not told the
-      branch's name, only the line and what the agent did before it. Before it is asked, KOLONİ asks
-      origin what it holds, as the push would - a network request, and origin's own time limit. A
+      (one you asked for is carded, quoting you, never refused). A bare `git push` (and `origin
+      HEAD`) pushes the branch checked out as it runs: KOLONİ looks again just before it runs, but a
+      switch of the project's branch by your own hand in that moment is not seen. The judge is not
+      told the branch's name, only the line and what the agent did before it. Before it is asked,
+      and again after its fine, KOLONİ asks origin what it holds and which branch is its default, as
+      the push would - a network request each time, and origin's own time limit. A
       push that changes git's settings (`git push -u`, a branch made to track one) makes the next push
       of that turn a card; so does a turn begun below Full auto, a push of more than 50 commits, an
       origin that holds none of the branch, `main`, `master` or its default branch, and any

@@ -574,7 +574,10 @@ class RiskJudgeMixin:
         try:
             # (the list's own card stays one where the look at it fails: below)
             takes = self._risk_takes(ctx, command, cwd, root, found, known, shell)
-            pushes = not takes and await self._push_takes(ctx, command, cwd, root, found, known)
+            pushed = (
+                None if takes else await self._push_takes(ctx, command, cwd, root, found, known)
+            )
+            pushes = pushed is not None
             takes = takes or pushes
             if found != ("", None) and not takes:
                 return found
@@ -587,15 +590,15 @@ class RiskJudgeMixin:
                 return found
             # (R2: what it names looked at again once the judge said fine - a link may have been
             # made meanwhile, a push's repository moved; KOLONİ's own command is looked at once
-            # more as it runs: `_gate_open`)
-            line = with_cwd(command, cwd)
-            moved = takes and not judged[0]
-            if moved and not await (
-                self._push_takes(ctx, command, cwd, root, found, known)
-                if pushes
-                else asyncio.to_thread(risk_judge.on_disk, root, line)
-            ):
-                return found
+            # more as it runs: `_gate_open`, and a push's branch and commit: `push_judge.moved`)
+            if takes and not judged[0] and pushes:
+                pushed = await self._push_takes(ctx, command, cwd, root, found, known)
+                if pushed is None:
+                    return found
+                judged = ("", {**(judged[1] or {}), "push": pushed})
+            elif takes and not judged[0]:
+                if not await asyncio.to_thread(risk_judge.on_disk, root, with_cwd(command, cwd)):
+                    return found
             return self._risk_refuses(ctx, *judged) if watched else judged
         except asyncio.CancelledError:
             raise
@@ -647,13 +650,15 @@ class RiskJudgeMixin:
         root: Path,
         found: tuple[str, dict | None],
         known: bool,
-    ) -> bool:
+    ) -> dict | None:
         """A push of your feature branch to the judge (0.1.11): whether a plain push of the branch
         checked out to its own origin (`push_judge.shape`) is Full auto's judge's to decide, as
         K3's lines are (`_risk_takes`) - the list's card, or K5's quote of it (the judge reads
         your words too; a push it does not take keeps that card) -, run at the project's own top
-        (not a copy), and its repository as `push_judge.refused` reads it against the turn's start
-        (`_git_start`: none recorded, its card), the turn's secrets looked for in what it sends.
+        (not a copy) on this machine (not in Docker: its git is another's), and its repository as
+        `push_judge.refused` reads it against the turn's start (`_git_start`: none recorded, its
+        card), the turn's secrets looked for in what it sends: what was looked at (the root, the
+        branch, its commit - `push_judge.moved` compares them as it runs), None for its card.
         shortcut: the judge reads the line and what the agent did before it, not the branch a bare
         push sends; add it to what it is shown if the measurement finds that it needs it."""
         word = push_judge.shape(command)
@@ -668,14 +673,19 @@ class RiskJudgeMixin:
             or (record is not None and record.get("kind") != "said")
             or not self._risk_takes(ctx, command, cwd, root, (reason, None), known, push=True)
         ):
-            return False
+            return None
+        with self._factory() as session:
+            project = project_of(session, session.get_one(Conversation, ctx.cid))
+            if project is None or project.exec_location != "host":
+                return None
         start = (self._git_at.get(ctx.run_id) or {}).get("push")
         secrets = secret_set.checked(self.given_spellings(ctx.run_id))
         needles = [form for one in secrets for form in (one.encode(), one.encode("utf-16-le"))]
-        why = await asyncio.to_thread(push_judge.refused, root, word, start, needles)
+        seen: dict = {}
+        why = await asyncio.to_thread(push_judge.refused, root, word, start, needles, seen)
         if why:
             log.info("run %s: a push stays the list's card: %s", ctx.run_id, why)
-        return not why
+        return None if why else seen
 
     def _risk_line(
         self: "AgentRunner",

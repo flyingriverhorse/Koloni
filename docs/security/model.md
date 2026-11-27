@@ -141,7 +141,11 @@ level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vs
 (`gradle-wrapper.properties`, `gradle-wrapper.jar`), `.bazelrc`, `.bazelversion`, `.mcp.json`,
 commit-hook settings (`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's `.pth` files
 in `site-packages`, and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except at Full
-auto. A project's own `gradlew` or `mvnw` does not: `./gradlew test` is ordinary work. One written
+auto. So does setting git's settings (`git config` with a value), and since 0.1.11 a `git remote` that
+changes `origin` - `add`, `set-url`, `remove` / `rm`, `rename`, `set-head`, `set-branches` -, where a
+push of your feature branch goes ([Full auto's judge](../use/permissions.md#a-push-of-your-feature-branch));
+another remote's (`git remote add upstream …`) does not. A project's own `gradlew` or `mvnw` does not:
+`./gradlew test` is ordinary work. One written
 without being named is put back after the command - but in `.idea/`, which a JetBrains IDE rewrites
 itself: there only a write or a command that names it asks. On Windows, device names (`CON`, `COM1`) and
 file streams (`a.txt:x`) are never written.
