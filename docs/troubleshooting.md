@@ -272,8 +272,8 @@ No. Commands cannot be given input while they run.
 **Why can an agent still read `.env` at Full auto?**
 A script that opens `.env` without naming it (it builds the name, say) is not caught. A command that
 names it, or searches the whole folder, is asked about at every level, but when it runs **Native**, Codex
-runs the reads its own rules count as safe without asking KOLONİ, and agy reading with its own tools reads
-it without asking at any level. Only Docker and Copilot's sandbox hide secret files from commands. See
+runs a read an allow rule of its own covers without asking KOLONİ (0.172.0 asks before a plain read of
+`.env`), and agy reading with its own tools reads it without asking at any level. Only Docker and Copilot's sandbox hide secret files from commands. See
 [Known limits](reference/known-limits.md#secrets) and [Permission levels](use/permissions.md).
 
 **Are canvas positions saved?**

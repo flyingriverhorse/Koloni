@@ -50,7 +50,30 @@ NOT_WRITTEN_UNATTENDED = {
     ".git": "git's hooks and config: programs that run by themselves at the next git command",
     ".github": "workflows and actions: they run by themselves once pushed",
     ".vscode": "the editor's tasks and settings: they can run when the folder is opened",
+    # (A write or a command naming it asks; the write audit does not look into it: the IDE
+    # rewrites `.idea/workspace.xml` itself - `project_view.UNLOOKED`.)
+    ".idea": "a JetBrains IDE's run configurations and settings: they can run in the folder",
+    **dict.fromkeys(
+        (".devcontainer", ".devcontainer.json"),
+        "the dev container's settings: the commands it runs when the folder is opened in one",
+    ),
     ".husky": "git hooks kept in the project: they run by themselves at the next commit",
+    ".gitmodules": "git's submodules: where their code is fetched from at the next update",
+    # (Claude Code's protected names too, the comparison of 27 Nov 2026. Not `gradlew` or `mvnw`:
+    # a project's own script, run by its name - `./gradlew test` would ask at every level; nor
+    # `.ripgreprc`, which rg reads only where RIPGREP_CONFIG_PATH names it, nor
+    # `pyrightconfig.json`: paths and rule levels, no program it runs.)
+    # shortcut: a `.cargo` that is cargo's home (CARGO_HOME in the project) is looked at whole
+    # (`project_view.standing`), and what cargo downloads or installs there is put back; leave
+    # its registry/, git/ and bin/ out of the look if that is met.
+    ".cargo": "cargo's settings: a runner or a compiler wrapper it runs at the next build",
+    ".mvn": "Maven's extensions and wrapper: code it loads, and the Maven it downloads and runs",
+    **dict.fromkeys(
+        ("gradle-wrapper.properties", "gradle-wrapper.jar"),
+        "Gradle's wrapper: the Gradle that ./gradlew and the editor download and run",
+    ),
+    ".bazelrc": "bazel's settings: programs it runs at the next build (its status command)",
+    ".bazelversion": "the Bazel that bazelisk downloads and runs (a fork's too) at the next build",
     **dict.fromkeys(
         (
             ".pre-commit-config.yaml",

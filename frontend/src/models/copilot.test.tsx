@@ -294,7 +294,7 @@ test('the "How it runs" line itself says what each native CLI asks before', asyn
   // Since 89a/89c Codex and Copilot ask too (B-43), each before what it asks about
   const codex = provider({ id: 'cx', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'native' })
   for (const [other, said] of [
-    [codex, 'asks before each command and patch, but not those its own rules count as safe'],
+    [codex, 'asks before each command and patch, but not those its own allow rules cover'],
     [copilot, 'asks before each command, write and read'],
   ] as const) {
     const shown = render(

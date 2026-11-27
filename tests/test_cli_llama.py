@@ -169,6 +169,7 @@ def test_native_codex_gets_the_server_before_its_app_server_and_talkers_keep_it(
     argv = native._native_arguments(tmp_path, tmp_path / "b.json")
     assert argv[-1] == "app-server" and holds(argv, settings_of(server))
     assert holds(argv, ["-c", "features.multi_agent=false"])  # B-304: no sub-agents of its own
+    assert holds(argv, ["-c", "agents.enabled=false"])  # (0.172.0 opened one with that alone)
     assert holds(argv, ["-c", "features.plugins=false"])  # B-312: nor the user's own plugins
     assert native.talker().server == server
     assert ClaudeNativeClient(server=server).talker().server == server
