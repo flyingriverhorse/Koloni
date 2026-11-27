@@ -3735,7 +3735,7 @@ def names_standing(command: str) -> str:
     script = _script(command)
     sinks = not _RENAMES.search(command)
     parts = [part for part in _CHAIN.split(script or "") if part.strip()]
-    if parts and not _harm(command) and all(_reads(part, sinks) for part in parts):
+    if parts and not _harm(command) and all(_reads(part, sinks, True) for part in parts):
         return ""
     code = [found[1] for found in _INLINE_CODE.finditer(command)]
     named = {
@@ -3779,7 +3779,7 @@ def _sink(stage: str) -> bool:
     )
 
 
-def _reads(part: str, sinks: bool = True) -> bool:
+def _reads(part: str, sinks: bool = True, handed: bool = False) -> bool:
     """A command of a chain that reads what it names (`names_standing`): it only reads, only
     searches, or is a read piped on only into sinks (`_sink`) - not where the line may give a
     sink's name to another program (`sinks` False: `_RENAMES`). shortcut: a `|` inside quotes
@@ -3788,7 +3788,7 @@ def _reads(part: str, sinks: bool = True) -> bool:
     first, *stages = part.split("|")
     return (
         only_reads(part.strip())
-        or only_searches(part)
+        or only_searches(part, handed)
         or sinks
         and bool(stages)
         and (only_reads(first.strip()) and all(map(_sink, stages)))
@@ -3802,20 +3802,20 @@ _RENAMES = re.compile(
 )
 
 
-def only_searches(part: str) -> bool:
-    """B-198: a lone search that only reads - rg, ag, ack, a grep or find by its own name,
-    nothing piped, redirected, substituted, wrapped (`_script`, B-307) or chained out of quotes
-    (`chained`: `rg x; cd y && git log`, not `rg 'a;b'`), none of `SEARCH_DOES`, no wildcard that
+def only_searches(part: str, handed: bool = False) -> bool:
+    """B-198: a lone search that only reads - rg, ag, ack, a grep or find by its own name, nothing
+    piped, redirected, substituted, wrapped (`_script`, B-307) or chained out of quotes (`bare`:
+    `rg x; cd y`, not `rg 'a;b'`, but in a line `handed` on), no `SEARCH_DOES`, no wildcard that
     may be an option (`globs_an_option`). A file that steers later turns it names (`rg foo .github`)
     it reads, as `cat` does: `names_standing` asks nothing of it (`.koloni`, a secret: `_harm`)."""
     words = [word.strip("'\"") for word in _words(part.strip())]
-    if not words or re.search(r"[|<>`$(){}]", bare(part)) or re.search(r"[\\/]", words[0]):
+    if not words or re.search(r"[|<>`$(){}]", bare(part, handed)) or re.search(r"[\\/]", words[0]):
         return False
     program = _program(words[0])
     replaces = program in ("rg", "ripgrep", "ag")  # (as the shell joins a word: `-de""lete`)
     return (
         program in _SEARCHERS | _GREPS | {"find"}
-        and not (chained(part) or globs_an_option(part))
+        and not (chained(part, handed) or globs_an_option(part))
         and not any(
             SEARCH_DOES.fullmatch(_as_word(word)) or replaces and word == "-r" for word in words
         )

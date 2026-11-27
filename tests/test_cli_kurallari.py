@@ -177,6 +177,28 @@ def test_a_quoted_separator_still_cuts_any_line_but_a_lone_search(line):
     assert commands.harms(line, False), commands._commands_in(line, at=commands._BLOCKS)
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cmd /c \"rg 'x>.github/workflows/ci.yml ' src\"",  # (cmd: a `>` in `'` writes)
+        "cmd /c \"rg '(x)|y>.github/a' src\"",
+        "powershell -Command \"rg 'x>.github/workflows/ci.yml ' src\"",
+    ],
+)
+def test_a_search_handed_to_a_shell_keeps_no_quote_of_its_own(line):
+    # (the E12 review: a script's search part was a read past its quoted `>`)
+    assert commands.names_standing(line) == ".github" and commands.danger(line, False)
+    assert may_write(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["cmd /c \"rg 'x>y.txt ' src\"", "cmd /c \"rg 'x&del /q y' .\"", "bash -c \"rg 'a;b' .\""],
+)
+def test_a_search_handed_to_a_shell_may_write(line):
+    assert may_write(line)
+
+
 @pytest.mark.parametrize("line", ["rg 'a' | sh", "rg 'a;b' . | sh", "rg 'a|b' . | bash"])
 def test_a_pipe_out_of_quotes_still_hands_a_search_on(line):
     assert commands.runs_another(line)
@@ -193,22 +215,26 @@ def test_a_pipe_out_of_quotes_still_hands_a_search_on(line):
         "rg -F 'x;y' .github",
     ],
 )
+@pytest.mark.parametrize("judged", [False, pytest.param(True, marks=pytest.mark.judge)])
 def test_at_full_auto_a_search_with_a_quoted_separator_runs_with_no_card(
     judging,  # noqa: F811
     wait_run,
     project_dir,
     line,
+    judged,
 ):
-    # E12 (live, judge off): "Names .github: … asked at every level."
+    # E12 (live, judge off): "Names .github: … asked at every level." With the judge on, it is
+    # asked of the line as of any search at Full auto (`rg foo src` too), and its "fine" runs it.
     (project_dir / ".github" / "workflows").mkdir(parents=True)
-    client, _lead, judge, executor = judging([cmd(line), text("done")], [], [Script([])])
+    verdicts = [said("fine")] if judged else []
+    client, _lead, judge, executor = judging([cmd(line), text("done")], verdicts, [Script([])])
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    off = client.patch(f"/api/projects/{pid}", json={"full_auto_judge": False}, headers=OWN)
+    off = client.patch(f"/api/projects/{pid}", json={"full_auto_judge": judged}, headers=OWN)
     assert off.status_code == 200, off.text
     _, cid, run_id = go(client, project_dir)
     commands_ = wait_run(client, cid, run_id)["commands"]
     assert [one["status"] for one in commands_] == ["exited"], commands_
-    assert executor.started[0][0] == line and judge.calls == []
+    assert executor.started[0][0] == line and len(judge.calls) == judged
 
 
 BS = "\\"  # (one backslash)

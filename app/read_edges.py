@@ -73,27 +73,28 @@ def globs_an_option(line: str) -> bool:
     return False
 
 
-def chained(line: str) -> bool:
+def chained(line: str, handed: bool = False) -> bool:
     """Whether a line holds a `;`, `&` or line break that may end a command and start another:
     any of them - but in a simple line, one inside its quotes (`bare`: `rg '&&' .github`).
     shortcut: the simple line alone - a quoted `;` in any other line is a card; tell more lines
     apart if that is met often. cmd keeps no `'` quote: a line it runs comes as `cmd /c …`, whose
-    program is no search (its script is split at every `&` before it is read: `_script`)."""
-    return bool(re.search(r"[;&\r\n]", bare(line)))
+    program is no search, and what it hands on is `handed` (`bare`)."""
+    return bool(re.search(r"[;&\r\n]", bare(line, handed)))
 
 
 _QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"")
 
 
-def bare(line: str) -> str:
+def bare(line: str, handed: bool = False) -> str:
     """A simple line with each `'…'` and `"…"` blanked, its quotes too (`_` for each character):
     what is left is what sh and PowerShell (the shells a bare line runs in) both read out of
     quotes; any other line as it is. Simple: no backslash, backtick or `$` (sh does not end `"…"`
     at a backslash's `"`; in PowerShell a backslash before `'` escapes nothing, so the `'` opens
     a quote), no `#` (out of quotes it starts a comment, and a quote in that is none), no line
     break, nothing past ASCII (PowerShell's typographic quotes are quotes too), every quote
-    paired."""
-    if re.search(r"[\\`$#\r\n]|[^\x00-\x7f]", line):
+    paired - and not `handed` on to a shell (`cmd /c "…"`, `bash -c '…'`: cmd keeps no `'`
+    quote, and a `>` in it writes)."""
+    if handed or re.search(r"[\\`$#\r\n]|[^\x00-\x7f]", line):
         return line
     blank = _QUOTED.sub(lambda found: "_" * len(found[0]), line)
     return line if re.search("['\"]", blank) else blank  # (a quote not paired: no simple line)
