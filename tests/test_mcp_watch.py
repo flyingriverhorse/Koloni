@@ -22,6 +22,17 @@ def trust(client, made):
     return answer.json()
 
 
+def read_then_trust(client, made):
+    """Watched again by another command or variable: its tools as kept are not this one's -
+    trust waits for them to be read again, then is given."""
+    refused = client.patch(f"/api/mcp-servers/{made['id']}", json={"trusted": True})
+    assert refused.status_code == 409, refused.text
+    assert "read its tools first" in refused.json()["detail"]
+    read = client.post(f"/api/mcp-servers/{made['id']}/read")
+    assert read.status_code == 200 and read.json()["server"]["read_error"] is None, read.text
+    return trust(client, made)
+
+
 @pytest.mark.parametrize("mode, marks", [("full_auto", {}), ("ask", {"echo": "free"})])
 def test_a_new_servers_call_is_asked_about_at_full_auto_and_when_it_runs_without_asking(
     make_client, wait_run, project_dir, tmp_path, mode, marks
@@ -69,14 +80,14 @@ def test_trusted_its_calls_go_back_to_the_rules_and_another_command_watches_it_a
     # another variable by name is not what was trusted
     more = client.patch(f"/api/mcp-servers/{made['id']}", json={"env": {"MORE": "1"}}).json()
     assert more["trusted"] is False
-    trust(client, made)
+    read_then_trust(client, made)
     # another program is not the one trusted
     other = client.patch(
         f"/api/mcp-servers/{made['id']}", json={"command": [*made["command"], "-u"]}
     ).json()
     assert other["trusted"] is False
     # not even trusted in the same request: it is the reading of it that is trusted
-    trust(client, made)
+    read_then_trust(client, made)
     both = client.patch(
         f"/api/mcp-servers/{made['id']}", json={"command": made["command"], "trusted": True}
     ).json()
@@ -98,7 +109,7 @@ def test_a_reading_that_finds_a_new_or_changed_tool_watches_it_again(make_client
         plan_file.write_text(json.dumps({**plan, **change}), encoding="utf-8")
         assert client.post(read).json()["server"]["trusted"] is False
         trust(client, made)
-    # trusted before its first reading: that reading's tools are all new, so it is watched
+    # before its first reading there is nothing to trust: refused, and watched; read, it is trusted
     other = client.post(
         "/api/mcp-servers",
         json={
@@ -107,8 +118,10 @@ def test_a_reading_that_finds_a_new_or_changed_tool_watches_it_again(make_client
             "env": {"FAKE_MCP_PLAN": str(plan_file)},
         },
     ).json()
-    assert trust(client, other)["trusted"] is True
+    refused = client.patch(f"/api/mcp-servers/{other['id']}", json={"trusted": True})
+    assert refused.status_code == 409 and "read its tools first" in refused.json()["detail"]
     assert client.post(f"/api/mcp-servers/{other['id']}/read").json()["server"]["trusted"] is False
+    assert trust(client, other)["trusted"] is True
 
 
 def test_the_card_shows_no_crafted_tool_name_and_quotes_the_servers_words_as_json(

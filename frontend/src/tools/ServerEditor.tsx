@@ -1,4 +1,4 @@
-import { Plus, X } from '@phosphor-icons/react'
+import { Check, Plus, X } from '@phosphor-icons/react'
 import { type FormEvent, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import type { McpRead, McpServer, McpTool } from '../api/types'
@@ -468,21 +468,28 @@ export function ServerEditor({
         {tool.unusable ? (
           <span className="choice-note">Not offered: {tool.unusable}.</span>
         ) : (
-          // Its three marks side by side, the one it has checked; saved as it is chosen.
-          <span className="tools-marks" role="radiogroup" aria-label={`When an agent calls ${tool.name}`}>
-            {MARKS.map(([mark, label]) => (
-              <label key={mark} className={`tools-mark tools-mark-${mark}`}>
-                <input
-                  type="radio"
-                  name={`mark-${server.id}-${tool.name}`}
+          // Its three marks side by side, the one it has pressed - said by its check and weight too, not its ground
+          // alone; saved as one is pressed, never by an arrow key. Green only where it runs so: a trusted server's.
+          <span className="tools-marks" role="group" aria-label={`When an agent calls ${tool.name}`}>
+            {MARKS.map(([mark, label]) => {
+              const on = tool.mark === mark
+              return (
+                <button
+                  key={mark}
+                  type="button"
                   value={mark}
-                  checked={tool.mark === mark}
+                  className={`tools-mark${mark !== 'free' || server.trusted ? ` tools-mark-${mark}` : ''}`}
+                  aria-pressed={on}
                   disabled={busy}
-                  onChange={() => void run(() => onSave(server.id, { marks: { [tool.name]: mark } }))}
-                />
-                <span>{label}</span>
-              </label>
-            ))}
+                  onClick={() => {
+                    if (!on) void run(() => onSave(server.id, { marks: { [tool.name]: mark } }))
+                  }}
+                >
+                  {on && <Check size={11} weight="bold" aria-hidden />}
+                  {label}
+                </button>
+              )
+            })}
           </span>
         )}
       </td>

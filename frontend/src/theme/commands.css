@@ -2987,7 +2987,8 @@ fieldset.choice > label .choice-note,
   flex-wrap: wrap;
 }
 
-/* A tool's three marks side by side, the one it has checked: its own ground and weight, not its colour alone. */
+/* A tool's three marks side by side, the one pressed: its check and weight say it, and its ground - green only on a
+   trusted server, where it does run without asking. Buttons: no arrow key changes a mark. */
 .tools-marks {
   display: inline-flex;
   border: 1px solid var(--border-strong);
@@ -2997,8 +2998,14 @@ fieldset.choice > label .choice-note,
 }
 
 .tools-mark {
-  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   padding: 2px 9px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: var(--text-note);
   cursor: pointer;
 }
@@ -3007,32 +3014,25 @@ fieldset.choice > label .choice-note,
   border-left: 1px solid var(--border-strong);
 }
 
-.tools-mark input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.tools-mark:has(input:checked) {
+.tools-mark[aria-pressed='true'] {
   background: var(--accent-soft);
   font-weight: var(--weight-title);
 }
 
-.tools-mark-free:has(input:checked) {
+.tools-mark-free[aria-pressed='true'] {
   background: color-mix(in srgb, var(--ok) 14%, transparent);
 }
 
-.tools-mark-off:has(input:checked) {
+.tools-mark-off[aria-pressed='true'] {
   background: var(--hover);
 }
 
-.tools-mark:has(input:focus-visible) {
+.tools-mark:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
-.tools-mark:has(input:disabled) {
+.tools-mark:disabled {
   cursor: default;
 }
 

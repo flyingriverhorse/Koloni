@@ -45,9 +45,12 @@ const add = async (way: RegExp) => {
 }
 const edit = () => userEvent.click(screen.getByRole('button', { name: 'Edit' }))
 /** A tool's three marks, and the one it has. */
-const marks = (name: string) => screen.getByRole('radiogroup', { name: `When an agent calls ${name}` })
+const marks = (name: string) => screen.getByRole('group', { name: `When an agent calls ${name}` })
 const marked = (name: string) =>
-  (within(marks(name)).getAllByRole('radio') as HTMLInputElement[]).find(radio => radio.checked)?.value
+  within(marks(name))
+    .getAllByRole('button')
+    .find(button => button.getAttribute('aria-pressed') === 'true')
+    ?.getAttribute('value')
 
 test('a server shows its command, its variables by name only and what each tool costs a step', async () => {
   render(<ToolsPage servers={[server()]} roles={[]} {...handlers()} />)
@@ -74,17 +77,22 @@ test('a server shows its command, its variables by name only and what each tool 
   )
   expect(row('bad name!').queryByText(/Its inputs/)).not.toBeInTheDocument()
   expect(row('scan').getByText('about 1,200 characters')).toBeInTheDocument()
-  // its three marks side by side, in the card's words, the one it has checked
+  // its three marks side by side, in the card's words, the one it has pressed - with a check, not by its ground alone
   expect(
-    row('patch')
-      .getAllByRole('radio')
-      .map(radio => radio.getAttribute('value')),
+    within(marks('patch'))
+      .getAllByRole('button')
+      .map(button => button.getAttribute('value')),
   ).toEqual(['free', 'ask', 'off'])
-  expect(within(marks('patch')).getByRole('radio', { name: 'Runs without asking' })).toBeChecked()
+  const free = within(marks('patch')).getByRole('button', { name: 'Runs without asking' })
+  expect(free).toHaveAttribute('aria-pressed', 'true')
+  expect(free.querySelector('svg')).not.toBeNull()
+  expect(within(marks('patch')).getByRole('button', { name: 'Ask' }).querySelector('svg')).toBeNull()
+  // green only on a trusted server, where it does run without asking
+  expect(free).toHaveClass('tools-mark-free')
   expect(marked('scan')).toBe('ask')
   // one that cannot be offered says why, and has no mark to set
   expect(row('bad name!').getByText(/Not offered: its name has characters other than/)).toBeInTheDocument()
-  expect(row('bad name!').queryByRole('radiogroup')).not.toBeInTheDocument()
+  expect(row('bad name!').queryByRole('group', { name: /When an agent calls/ })).not.toBeInTheDocument()
   // the sum counts what is on: not the one switched off, not the one that cannot be offered
   expect(screen.getByText(/2 tools on: about 1,500 characters added to every model step/)).toBeInTheDocument()
   // and it is said above the table too, in sight before the table is read to its end
@@ -147,7 +155,12 @@ test('all of a server’s tools that can be offered are set to Ask or to Off in 
     'Set all to Ask',
     'Set all to Off',
   ])
-  expect(screen.queryByRole('button', { name: /without asking/i })).not.toBeInTheDocument()
+  // (each tool's own "Runs without asking" is in its own row's group, and only there)
+  expect(
+    screen
+      .getAllByRole('button', { name: /without asking/i })
+      .every(button => button.closest('[role="group"]')?.getAttribute('aria-label')?.startsWith('When an agent calls')),
+  ).toBe(true)
   // what "all" means is behind the ⓘ beside them, and describes it
   const why = screen.getByText(/^Each sets every one of this server’s 3 tools that can be offered/)
   expect(why).not.toBeVisible()
@@ -423,10 +436,20 @@ test('a mark is saved as it is chosen, and a role is given the server by its box
   const h = handlers()
   const roles = [role('r1', 'Lead', ['rea', 'other']), role('r2', 'Coder', ['other'])]
   render(<ToolsPage servers={[server()]} roles={roles} {...h} />)
-  await userEvent.click(within(marks('scan')).getByRole('radio', { name: 'Runs without asking' }))
+  await userEvent.click(within(marks('scan')).getByRole('button', { name: 'Runs without asking' }))
   expect(h.onSave).toHaveBeenCalledWith('s1', { marks: { scan: 'free' } })
-  await userEvent.click(within(marks('patch')).getByRole('radio', { name: 'Off' }))
+  await userEvent.click(within(marks('patch')).getByRole('button', { name: 'Off' }))
   expect(h.onSave).toHaveBeenLastCalledWith('s1', { marks: { patch: 'off' } })
+  // the one it has, pressed again, saves nothing
+  await userEvent.click(within(marks('wipe')).getByRole('button', { name: 'Off' }))
+  expect(h.onSave).toHaveBeenCalledTimes(2)
+  h.onSave.mockClear()
+  // no arrow key, Home or End changes a mark (the review's K1, K2): only a press does
+  within(marks('scan')).getByRole('button', { name: 'Ask' }).focus()
+  await userEvent.keyboard('{ArrowUp}{ArrowLeft}{ArrowDown}{ArrowRight}{Home}{End}')
+  within(marks('wipe')).getByRole('button', { name: 'Off' }).focus()
+  await userEvent.keyboard('{ArrowDown}{ArrowRight}')
+  expect(h.onSave).not.toHaveBeenCalled()
   expect(screen.getByLabelText('Lead')).toBeChecked()
   expect(screen.getByLabelText('Coder')).not.toBeChecked()
   await userEvent.click(screen.getByLabelText('Coder'))
@@ -512,24 +535,24 @@ test('slice 92: a server not yet trusted says on its card that every call asks, 
   // that every call asks is on its head; the rest behind the ⓘ beside its trust button
   const why = screen.getByText(/at every level, Full auto too, and “Runs without asking” waits/)
   expect(why).not.toBeVisible()
-  expect(screen.getByRole('button', { name: 'Trust this server' }).parentElement).toContainElement(why)
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' }).parentElement).toContainElement(why)
   // its tools are listed with the server's words, as for any server
   expect(screen.getByText('“Does scan.”')).toBeInTheDocument()
   // its trust is on its head: in sight with the card closed too
   await userEvent.click(screen.getByRole('button', { name: /^rea/ }))
   expect(screen.queryByText('“Does scan.”')).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: 'Trust this server' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Trust this server: rea' }))
   expect(h.onSave).toHaveBeenCalledWith('s1', { trusted: true })
   // a refused trust says why
   h.onSave.mockRejectedValueOnce(new Error('refused'))
-  await userEvent.click(screen.getByRole('button', { name: 'Trust this server' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Trust this server: rea' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('refused')
   unmount()
   // one trusted (every server added before slice 92) says none of it
   render(<ToolsPage servers={[server()]} roles={[]} {...handlers()} />)
   expect(screen.getByRole('button', { name: /^rea/ })).toHaveTextContent(/^rea trustedrea-agents --stdio4 tools/)
   expect(screen.queryByText(/at every level, Full auto too, and “Runs without asking” waits/)).toBeNull()
-  expect(screen.queryByRole('button', { name: 'Trust this server' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Trust this server: rea' })).toBeNull()
   expect(screen.getByRole('tab', { name: 'Servers' })).toBeInTheDocument()
 })
 
@@ -545,7 +568,7 @@ test('a reading that takes a trusted server’s trust back: its cell red-orange,
     'cell-warn',
   )
   expect(screen.getByRole('button', { name: /^rea trust taken back/ })).toBeInTheDocument()
-  const see = screen.getByRole('button', { name: 'See the difference' })
+  const see = screen.getByRole('button', { name: 'See the difference: rea' })
   const found = document.getElementById(see.getAttribute('aria-controls')!)!
   expect(found).not.toBeVisible()
   await userEvent.click(see)
@@ -555,18 +578,18 @@ test('a reading that takes a trusted server’s trust back: its cell red-orange,
   // closed and opened again, the card still knows: the reading is kept by the page
   await userEvent.click(screen.getByRole('button', { name: /^rea/ }))
   await userEvent.click(screen.getByRole('button', { name: /^rea/ }))
-  expect(screen.getByRole('button', { name: 'See the difference' })).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Trust it again' }))
+  expect(screen.getByRole('button', { name: 'See the difference: rea' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Trust it again: rea' }))
   expect(h.onSave).toHaveBeenLastCalledWith('s1', { trusted: true })
   // trusted again: no longer taken back
   rerender(<ToolsPage servers={[server()]} roles={[]} {...h} />)
-  expect(screen.queryByRole('button', { name: 'See the difference' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'See the difference: rea' })).toBeNull()
   expect(screen.queryByRole('img', { name: /trust taken back/ })).toBeNull()
   // and that reading is spent: watched again later (another command, say), it is only watched - not that reading's
   rerender(<ToolsPage servers={[server({ trusted: false, command: ['rea-agents', '--other'] })]} roles={[]} {...h} />)
   expect(screen.getByRole('img', { name: 'watching: every call asks you' })).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'See the difference' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeEnabled()
+  expect(screen.queryByRole('button', { name: 'See the difference: rea' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeEnabled()
 })
 
 test('a watched server’s Trust waits while its tools are being read: no tool not seen yet is trusted', async () => {
@@ -574,12 +597,91 @@ test('a watched server’s Trust waits while its tools are being read: no tool n
   let done: (read: unknown) => void = () => {}
   h.onRead.mockReturnValueOnce(new Promise(resolve => (done = resolve)))
   render(<ToolsPage servers={[server({ trusted: false })]} roles={[]} {...h} />)
-  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeEnabled()
   await userEvent.click(screen.getByRole('button', { name: 'Read its tools' }))
-  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeDisabled()
   done({ server: server({ trusted: false }), new: [], changed: [], gone: [] })
   expect(await screen.findByRole('status')).toHaveTextContent('4 tools read.')
-  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeEnabled()
+  // and while a change of it is saved from its editor (a mark, another command)
+  let saved: (value?: unknown) => void = () => {}
+  h.onSave.mockReturnValueOnce(new Promise(resolve => (saved = resolve)))
+  await userEvent.click(within(marks('scan')).getByRole('button', { name: 'Off' }))
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeDisabled()
+  saved()
+  await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeEnabled())
+  // on a server not trusted, "Runs without asking" is not green: every call asks there
+  expect(within(marks('patch')).getByRole('button', { name: 'Runs without asking' })).not.toHaveClass('tools-mark-free')
+})
+
+test('two servers read at once: each one’s Trust waits for its own reading (the review’s probes 2, 2b)', async () => {
+  const h = handlers()
+  const a = server({ id: 'a', name: 'aaa', trusted: false })
+  const b = server({ id: 'b', name: 'bbb', trusted: false })
+  let doneA: (read: unknown) => void = () => {}
+  h.onRead.mockReturnValueOnce(new Promise(resolve => (doneA = resolve)))
+  h.onRead.mockReturnValueOnce(new Promise(() => {}))
+  render(<ToolsPage servers={[a, b]} roles={[]} {...h} />)
+  const trustOf = (name: string) => screen.getByRole('button', { name: `Trust this server: ${name}` })
+  await userEvent.click(screen.getByRole('button', { name: 'Read its tools' })) // a's, open first
+  await userEvent.click(screen.getByRole('button', { name: /^bbb/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Read its tools' })) // b's
+  // b's reading starting does not free a's Trust
+  expect(trustOf('aaa')).toBeDisabled()
+  expect(trustOf('bbb')).toBeDisabled()
+  // a's ending frees a's, not b's
+  doneA({ server: a, new: [], changed: [], gone: [] })
+  await vi.waitFor(() => expect(trustOf('aaa')).toBeEnabled())
+  expect(trustOf('bbb')).toBeDisabled()
+})
+
+test('trust taken back stays said through a later clean reading, which adds what it found (the review’s probe 1)', async () => {
+  const h = handlers()
+  const after1 = server({ trusted: false })
+  const after2 = server({ trusted: false })
+  h.onRead.mockResolvedValueOnce({ server: after1, new: ['x1'], changed: ['patch'], gone: [] })
+  h.onRead.mockResolvedValueOnce({ server: after2, new: ['y2'], changed: [], gone: ['old'] })
+  h.onRead.mockResolvedValueOnce({ server: after2, new: [], changed: [], gone: [] })
+  const { rerender } = render(<ToolsPage servers={[server()]} roles={[]} {...h} />)
+  const readIt = () => userEvent.click(screen.getByRole('button', { name: 'Read its tools' }))
+  await readIt()
+  rerender(<ToolsPage servers={[after1]} roles={[]} {...h} />)
+  await readIt()
+  rerender(<ToolsPage servers={[after2]} roles={[]} {...h} />)
+  await readIt() // (clean: nothing new since the one before)
+  const see = screen.getByRole('button', { name: 'See the difference: rea' })
+  expect(screen.getByRole('img', { name: /^trust taken back/ })).toHaveClass('cell-warn')
+  await userEvent.click(see)
+  expect(document.getElementById(see.getAttribute('aria-controls')!)).toHaveTextContent(
+    'New: x1, y2. Changed: patch - one that ran without asking is asked about again. Gone: old.',
+  )
+})
+
+test('trust taken back, then another command saved: watched for itself, not red-orange (the review’s T3)', async () => {
+  const h = handlers()
+  const after = server({ trusted: false })
+  h.onRead.mockResolvedValueOnce({ server: after, new: ['scan'], changed: [], gone: [] })
+  const { rerender } = render(<ToolsPage servers={[server()]} roles={[]} {...h} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Read its tools' }))
+  rerender(<ToolsPage servers={[after]} roles={[]} {...h} />)
+  expect(screen.getByRole('button', { name: 'See the difference: rea' })).toBeInTheDocument()
+  const stale = 'its server’s command or variables changed since it was read: read its tools again'
+  const edited = server({ trusted: false, command: ['other-program'], tools: [tool('scan', { unusable: stale })] })
+  rerender(<ToolsPage servers={[edited]} roles={[]} {...h} />)
+  expect(screen.queryByRole('button', { name: 'See the difference: rea' })).toBeNull()
+  expect(screen.queryByRole('img', { name: /trust taken back/ })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeInTheDocument()
+})
+
+test('a server whose tools cannot be shown: its cell says what kept ones may do, not that none is on', () => {
+  const unshown = { tools: [], read_error: 'What was kept of its tools cannot be shown: read its tools again.' }
+  const { unmount } = render(<ToolsPage servers={[server(unshown)]} roles={[]} {...handlers()} />)
+  expect(
+    screen.getByRole('img', { name: 'trusted: its tools cannot be shown - one may run without asking' }),
+  ).toHaveClass('cell-ok')
+  unmount()
+  render(<ToolsPage servers={[server({ ...unshown, trusted: false })]} roles={[]} {...handlers()} />)
+  expect(screen.getByRole('img', { name: 'watching: every call asks you' })).toBeInTheDocument()
 })
 
 test('a server only watched - never trusted on this page - is honey, not red-orange', async () => {
@@ -590,18 +692,18 @@ test('a server only watched - never trusted on this page - is honey, not red-ora
   await userEvent.click(screen.getByRole('button', { name: 'Read its tools' }))
   expect(await screen.findByRole('status')).toHaveTextContent('4 tools read. New: scan.')
   expect(screen.queryByRole('img', { name: /trust taken back/ })).toBeNull()
-  expect(screen.queryByRole('button', { name: 'See the difference' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'See the difference: rea' })).toBeNull()
 })
 
 test('slice 92: there is nothing to trust before its tools are read, and a package that updates itself says so', () => {
   const { unmount } = render(
     <ToolsPage servers={[server({ trusted: false, tools: [], read_at: null })]} roles={[]} {...handlers()} />,
   )
-  expect(screen.getByRole('button', { name: 'Trust this server' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toBeDisabled()
   unmount()
   const latest = server({ trusted: false, command: ['npx', '-y', '@scope/srv'] })
   const { unmount: gone } = render(<ToolsPage servers={[latest]} roles={[]} {...handlers()} />)
-  expect(screen.getByRole('button', { name: 'Trust this server' })).toHaveAccessibleDescription(
+  expect(screen.getByRole('button', { name: 'Trust this server: rea' })).toHaveAccessibleDescription(
     '@scope/srv updates itself: trust covers future versions',
   )
   gone()
@@ -902,10 +1004,13 @@ test('KOLONİ’s tools: grouped as a role’s Tools tab, each with its cell; th
   const row = (name: string) => group.getByText(name, { selector: 'label, span' }).closest('.tools-tool')!
   // each tool's cell says how it runs: asks first (by the permission level), without asking, or off
   expect(within(row('Search the web') as HTMLElement).getByRole('img')).toHaveAccessibleName(
-    'asks you first, as the permission level says',
+    'asks you first, on a card',
   )
   expect(within(row('Web requests') as HTMLElement).getByRole('img')).toHaveAccessibleName('off: given to no agent')
   expect(within(row('Read files') as HTMLElement).getByRole('img')).toHaveAccessibleName('runs without asking')
+  // a new skill and a folder outside the project always go to a card; a page off the browser's list below Full auto
+  for (const name of ['New skills', 'Ask for a folder', 'Open a page'])
+    expect(within(row(name) as HTMLElement).getByRole('img')).toHaveAccessibleName('asks you first, on a card')
   expect(row('Read attached files').closest('.tools-group')).toHaveTextContent(/^FFiles/)
   // one given by a role, not switched here: no switch, said so
   expect(within(row('Run commands') as HTMLElement).queryByRole('switch')).toBeNull()

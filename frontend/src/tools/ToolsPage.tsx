@@ -21,6 +21,7 @@ import { AddMenu, AddServer, type Way } from './AddServer'
 import { BuiltIn } from './BuiltIn'
 import { ServerCard } from './ServerCard'
 import { ServerEditor } from './ServerEditor'
+import { useTrust } from './useTrust'
 
 export interface Props {
   servers: McpServer[]
@@ -113,36 +114,13 @@ export function ToolsPage({
     servers: watched ? `${watched} watching` : '',
     skills: proposals.length ? `${proposals.length} proposed` : '',
   }
-  // shortcut: a reading that took a server's trust back is known only from its answer, kept while the page is open
-  // (no field says it): opened anew, such a server shows as watched. Keep it on the server if that is seen to matter.
-  const [reads, setReads] = useState<Record<string, McpRead>>({})
-  // The server whose tools are being read: its Trust waits, so that no tool not seen yet is trusted.
-  const [reading, setReading] = useState<string | null>(null)
-  const onRead: Props['onRead'] = async (serverId, osv, inProject) => {
-    const was = servers.find(server => server.id === serverId)?.trusted
-    setReading(serverId)
-    try {
-      const got = await (inProject ? rest.onRead(serverId, osv, inProject) : rest.onRead(serverId, osv))
-      if (was && !got.server.trusted) setReads(kept => ({ ...kept, [serverId]: got }))
-      return got
-    } finally {
-      setReading(null)
-    }
-  }
-  /** Trusted again: the reading kept is spent - trust taken back later (another command, say) is not its. */
-  const trust = (server: McpServer) => {
-    setError(null)
-    return rest.onSave(server.id, { trusted: true }).then(
-      () => setReads(kept => Object.fromEntries(Object.entries(kept).filter(([id]) => id !== server.id))),
-      err => setError(errorText(err)),
-    )
-  }
   // The server open under its row (picked, or else the first); '' none; 'new' while one is being added.
   const [selected, setSelected] = useState<string | null>(toSkills ? null : (picked ?? null))
   const [addingSkill, setAddingSkill] = useState(false)
   // The way a server is added; what "by hand" is filled from, and how many times it was filled anew.
   const [adding, setAdding] = useState<{ way: Way; start?: Pasted; n: number }>({ way: 'ready', n: 0 })
   const [error, setError] = useState<string | null>(null)
+  const work = useTrust(servers, rest, setError)
   const open = openOf(servers, selected)
   function start(way: Way, from?: Pasted) {
     // (Filled anew only from a card or a paste: another way and back keeps what was typed.)
@@ -284,18 +262,19 @@ export function ToolsPage({
                   server={server}
                   shown={shown}
                   given={rest.roles.filter(role => role.mcp.includes(server.name))}
-                  read={reads[server.id]}
+                  read={work.reads[server.id]}
                   onOpen={() => setSelected(shown ? '' : server.id)}
                   onSwitch={() => void saveServer(server, { enabled: !server.enabled })}
-                  reading={reading === server.id}
-                  onTrust={() => trust(server)}
+                  busy={work.busy(server.id)}
+                  onTrust={() => work.trust(server)}
                 >
                   {/* Keyed by the server and what was saved of it, so a save or a switch reloads the form. */}
                   <ServerEditor
                     key={`${server.id}:${JSON.stringify([server.command, server.env_names])}`}
                     server={server}
                     {...rest}
-                    onRead={onRead}
+                    onRead={work.read}
+                    onSave={work.save}
                     onDone={() => {
                       // Deleted (nothing else ends the form): the next row is open and has the focus, not the
                       // page; with none left, the Add button has it.

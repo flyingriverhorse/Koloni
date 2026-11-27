@@ -62,7 +62,7 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   const echo = page.getByRole('row', { name: /^echo/ })
   await expect(echo).toContainText('“Says back what it is given.”')
   await expect(echo).toContainText(/about [\d,]+ characters/)
-  await expect(echo.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
+  await expect(echo.getByRole('button', { name: 'Ask', exact: true })).toHaveAttribute('aria-pressed', 'true')
   // its inputs are the server's words too, and can be read before a mark is given
   await echo.getByText('Its inputs, as an agent is given them').click()
   await expect(echo.locator('pre')).toContainText('"required"')
@@ -82,9 +82,9 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   await expect(page.getByRole('switch', { name: 'fake on' })).toBeChecked()
   await expect(page.getByRole('button', { name: /^fake/ })).not.toContainText('off: given to no agent')
   // One the user does not want offered is switched off, and the sum counts one fewer.
-  const hang = page.getByRole('radiogroup', { name: 'When an agent calls hang' })
-  await hang.getByText('Off', { exact: true }).click()
-  await expect(hang.getByRole('radio', { name: 'Off', exact: true })).toBeChecked()
+  const hang = page.getByRole('group', { name: 'When an agent calls hang' })
+  await hang.getByRole('button', { name: 'Off', exact: true }).click()
+  await expect(hang.getByRole('button', { name: 'Off', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText(/7 tools on: /)).toBeVisible()
 
   // The Lead may use it; the role's own page names it. (The box is ticked once the role is saved.)

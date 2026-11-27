@@ -13,7 +13,7 @@ heading, once for the three tabs:
 | Cell | Meaning |
 |---|---|
 | Green, filled | **runs without asking** |
-| Honey rim, lightly filled | **asks you first** - on a card, as the permission level says (a server's tool: at every level) |
+| Honey rim, lightly filled | **asks you first** - on a card: most as the permission level says; a server's tool, a new skill and a folder outside the project at every level |
 | Empty | **off: given to no agent** |
 | Red-orange, filled | **changed: trust taken back** - a server whose new reading found new or changed tools ([Trust](mcp.md#trust)) |
 
@@ -27,7 +27,7 @@ and **Skills** how many skills agents proposed.
 
 "KOLONİ's own tools, grouped as a role's Tools tab has them: one "by role" is given there; one with a
 switch, switched off here, is given to no agent." Each tool has its cell: green where it runs without
-asking, a honey rim where it waits for your yes as the permission level says ([the groups
+asking, a honey rim where it waits for your yes on a card ("asks you first, on a card"; [the groups
 below](#every-tool-by-group) mark those "asks"), empty where it is switched off here. Five of them can be
 switched off for every agent at once:
 
@@ -54,15 +54,16 @@ switch here. "Asks" means it waits for your card, as the chat's permission level
 
 | Group | Tools |
 |---|---|
-| **Files** | List folders · Read files · Search · Look at images · Write files (asks) · Edit files (asks) · Show you a file · Diagram pictures · Ask for a folder |
+| **Files** | List folders · Read files · Search · Look at images · Write files (asks) · Edit files (asks) · Show you a file · Diagram pictures · Ask for a folder (asks) |
 | **Commands** | Run commands (asks) |
 | **Web** | Search the web (asks) · Web requests (asks) |
-| **Browser** | Open a page · Screenshots · Click · Type · Press keys · Scroll · Read the page · Console |
-| **Team** | Notify you · Open sub-agents · New roles (asks) · New skills · Ask you · Message agents · Discussions · Leave notes · Read notes |
+| **Browser** | Open a page (asks) · Screenshots · Click · Type · Press keys · Scroll · Read the page · Console |
+| **Team** | Notify you · Open sub-agents · New roles (asks) · New skills (asks) · Ask you · Message agents · Discussions · Leave notes · Read notes |
 | **To-do** | Read the To-do list · Add tasks (asks) · Change tasks (asks) |
 | **Memory** | Remember · Recall |
 
-New skills and Ask for a folder always go to a card too.
+New skills and Ask for a folder always go to a card. Open a page asks for a site off the browser's list below
+Full auto, and for a site marked **Ask first** at every level.
 
 **Recall** is an agent's one tool to look things up: the project's memory and earlier messages, and,
 for a role that uses knowledge, that knowledge's pages too

@@ -17,7 +17,7 @@ it. Click its name to open it under its head; one is open at a time.
 
 | Cell | The server |
 |---|---|
-| Green | Trusted, and at least one of its tools runs without asking. |
+| Green | Trusted, and at least one of its tools runs without asking - or, its tools not shown after a failed reading, may. |
 | Honey rim | Watched: every call asks. Or trusted, with every tool on Ask. |
 | Empty | Off, not read yet, or none of its tools on. |
 | Red-orange | A reading on this page took its trust back. |
@@ -68,25 +68,30 @@ asks until you trust it". Every call of its tools asks you on a card, at every l
 card shows the server's own description of the tool.
 
 After its tools are read, **Trust this server** on its card's head trusts it - the card can be closed.
-Before the first reading there is nothing to trust and the button waits. If the package has no fixed
-version, the page warns that it updates itself and that trust covers future versions.
+What is trusted is the tools you read: before the first reading, or after another command or other
+variables until its tools are read again, there is nothing to trust - KOLONİ refuses it ("read its tools
+first, then trust it"). The button also waits while its tools are being read or a change of it is
+saved. If the package has no fixed version, the page warns that it updates itself and that trust covers
+future versions.
 
 Trust is taken back by itself when the command or its variables change, or when a new reading finds
 new or changed tools. When a reading you start on the page takes a trusted server's trust back, its cell
 turns red-orange and its state says **trust taken back**: **See the difference** lists what the reading
 found new, changed or gone - by name: a tool's words before are not kept - and **Trust it again** trusts
-it as it is now. The page knows this only while it is open: opened anew, such a server shows as
-watching.
+it as it is now. A later reading adds what it finds to the difference. It is shown only until you leave
+the page: opened anew, such a server shows as watching. Another command or other variables saved since
+make it watched for themselves, not for that reading.
 
 ## When a tool runs
 
 ![A trusted server open: its tools, each with its three marks side by side](../images/tools-server-open.png)
 
-Each tool has three choices side by side under **When an agent calls it**; the one it has is checked:
+Each tool has three buttons side by side under **When an agent calls it**; the one it has is pressed,
+with a ✓. A choice changes only when you press another: arrow keys move nowhere.
 
 | Choice | What it does |
 |---|---|
-| **Runs without asking** | For a trusted server, it runs at every level. A watched server's still asks. |
+| **Runs without asking** | For a trusted server, it runs at every level, where its tools are offered at all ([below](#giving-a-server-to-roles)). A watched server's still asks, and is not green. |
 | **Ask** | A card asks you first, at every level, Full auto too. |
 | **Off** | No agent is given it. |
 
@@ -99,8 +104,9 @@ Under **Roles that may use it**, tick the roles whose agents get its tools. Ever
 sent to the model at every step, so a server with many tools makes each step bigger: the page says by
 about how much.
 
-Servers are not offered to CLIs that work with their own tools, or to projects
-whose commands run in Docker.
+No server's tool - one that runs without asking neither - is offered to CLIs that work with their own
+tools, in projects whose commands run in Docker, in a ☾ Away job, in a side of a comparison, or in a turn
+taken only to answer another agent.
 
 ## Switching off and deleting
 

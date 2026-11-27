@@ -42,8 +42,8 @@ interface Props {
   given: Role[]
   /** The reading on this page that took its trust back, if one did (`ToolsPage`). */
   read?: McpRead
-  /** Its tools are being read now: its Trust waits for what is read. */
-  reading: boolean
+  /** At work: its tools being read, or a change of it saved - its Trust waits for what comes of it. */
+  busy: boolean
   onOpen: () => void
   onSwitch: () => void
   /** The page says a refusal; it never throws. */
@@ -56,7 +56,7 @@ interface Props {
  * A server's card (0.1.10): its head - its switch, its cell, its name, command and state, the roles that list it - and,
  * while it is not trusted, its trust in sight; open, its editor under it.
  */
-export function ServerCard({ server, shown, given, read, reading, onOpen, onSwitch, onTrust, children }: Props) {
+export function ServerCard({ server, shown, given, read, busy, onOpen, onSwitch, onTrust, children }: Props) {
   const taken = takenBack(server, read)
   const [tag, tone] = tagOf(server, taken)
   const command = commandShown(server.command).join(' ')
@@ -104,7 +104,7 @@ export function ServerCard({ server, shown, given, read, reading, onOpen, onSwit
         </button>
       </div>
       {/* Slice 92: a server added is watched until you trust it (one added before is trusted) - said on its card. */}
-      {!server.trusted && <Trust server={server} read={taken ? read : undefined} reading={reading} onTrust={onTrust} />}
+      {!server.trusted && <Trust server={server} read={taken ? read : undefined} working={busy} onTrust={onTrust} />}
       <div id={`tools-server-${server.id}`} hidden={!shown}>
         {shown && children}
       </div>
@@ -116,20 +116,21 @@ export function ServerCard({ server, shown, given, read, reading, onOpen, onSwit
 function Trust({
   server,
   read,
-  reading,
+  working,
   onTrust,
 }: {
   server: McpServer
   read?: McpRead
-  reading: boolean
+  working: boolean
   onTrust: () => Promise<void>
 }) {
-  const [busy, setBusy] = useState(false)
+  const [trusting, setTrusting] = useState(false)
   const [seeing, setSeeing] = useState(false)
   const unpinned = unpinnedOf(server.command)
+  const said = read ? 'Trust it again' : 'Trust this server'
   const trust = () => {
-    setBusy(true)
-    onTrust().finally(() => setBusy(false))
+    setTrusting(true)
+    onTrust().finally(() => setTrusting(false))
   }
   return (
     <>
@@ -138,6 +139,7 @@ function Trust({
           <button
             type="button"
             className="btn btn-small btn-primary"
+            aria-label={`See the difference: ${server.name}`}
             aria-expanded={seeing}
             aria-controls={`tools-found-${server.id}`}
             onClick={() => setSeeing(!seeing)}
@@ -145,15 +147,16 @@ function Trust({
             See the difference
           </button>
         )}
-        {/* Trust is in the tools read: none before the first reading, nor while one runs. */}
+        {/* Trust is in the tools read: none before the first reading, nor while one runs or a change is saved. */}
         <button
           type="button"
           className={`btn btn-small${read ? '' : ' btn-primary'}`}
-          disabled={busy || reading || server.read_at === null}
+          aria-label={`${said}: ${server.name}`}
+          disabled={trusting || working || server.read_at === null}
           aria-describedby={unpinned ? `mcp-trust-note-${server.id}` : undefined}
           onClick={trust}
         >
-          {read ? 'Trust it again' : 'Trust this server'}
+          {said}
         </button>
         {unpinned && (
           <span id={`mcp-trust-note-${server.id}`} className="muted provider-note">

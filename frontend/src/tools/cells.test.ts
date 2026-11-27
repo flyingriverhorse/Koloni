@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { McpRead, McpServer, McpTool } from '../api/types'
-import { builtinRuns, serverRuns, takenBack, toolRuns } from './cells'
+import { builtinRuns, mergedRead, serverRuns, takenBack, toolRuns } from './cells'
 
 const tool = (mark: McpTool['mark'], over: Partial<McpTool> = {}): McpTool => ({
   name: mark,
@@ -50,6 +50,14 @@ test('a server by the most its tools may do without you; a reading that took its
   // trusted again since, or never read here: not taken back - an untrusted server alone is only watched
   expect(takenBack(server(), read({ changed: ['scan'] }))).toBe(false)
   expect(takenBack(server({ trusted: false }), undefined)).toBe(false)
+  // another command or other variables since: watched for themselves, not for what that reading found
+  expect(takenBack(server({ trusted: false, command: ['other'] }), read({ changed: ['scan'] }))).toBe(false)
+  expect(takenBack(server({ trusted: false, env_names: ['TOKEN'] }), read({ changed: ['scan'] }))).toBe(false)
+  // a later reading merged in list by list, nothing named twice; a clean one keeps what was found
+  const merged = mergedRead(read({ new: ['a'], changed: ['b'] }), read({ new: ['a', 'c'], gone: ['d'] }))
+  expect([merged.new, merged.changed, merged.gone]).toEqual([['a', 'c'], ['b'], ['d']])
+  expect(mergedRead(merged, read()).new).toEqual(['a', 'c'])
+  expect(mergedRead(undefined, read({ new: ['z'] })).new).toEqual(['z'])
 })
 
 test('one of KOLONİ’s own tools: off where switched off, else as its role tile says', () => {
