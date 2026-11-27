@@ -126,11 +126,22 @@ messages.
   an agy Orchestrator reads it in one more run of the same turn. A CLI run as a session reads it at
   its next run too. That a CLI Orchestrator wakes for each of its agents' ends is not done: it reads
   their reports once all are back (each wake would be a run of its CLI).
+- What came of a word written into a CLI's turn - taken, not sent, unknown - is read from the CLI's
+  own signs, measured on 27 Nov 2026 with short turns and tested with stand-ins only, not yet in a
+  long live turn: Claude Code's echo of the line before its result (`--replay-user-messages`; the
+  echo names no id of KOLONİ's, so two words alike in one turn are matched oldest first), Codex's
+  answer to `turn/steer`, Copilot's `user.message` naming the id its send was answered with, before
+  its idle. Only Codex's "no active turn to steer" (-32600) is read as not sent; any other no of a
+  CLI's is unknown. An unknown word of Send now, Tell or an agent's message is never sent again: one
+  Claude Code takes in one more turn after its result is still said unknown (that turn is read to
+  its end), and one Copilot would take after its idle is not read (its run has ended); a Change of
+  a decision or an answer is given again from the agent's next step. Claude Code is asked for its
+  echo only from 2.1.332 on, the version it was measured on (`--version`, asked at each run), and
+  not for a prompt over 8 MB (pictures): a word steered into such a turn is unknown.
 - Talking while agents work: the Orchestrator's steps that answer your word are refused KOLONİ's
   Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and any MCP
-  server's tool; a CLI Orchestrator's own tools are only told so. A word Copilot takes after its last
-  words of a turn (its answer to the send is no reading of it) is answered in one more run of the turn,
-  in its next turn's way. While it answers your word the Orchestrator waits for no room among the
+  server's tool; a CLI Orchestrator's own tools are only told so. While it answers your word the
+  Orchestrator waits for no room among the
   agents at work: it is counted at work in the project and on its provider (who comes next waits for
   it), but a provider let work at one at once gets one more request beside its agents' then, and the
   turn may have one more at work than the chat's setting until its next wait. A chat open in a hidden

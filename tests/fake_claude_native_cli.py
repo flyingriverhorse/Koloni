@@ -42,8 +42,15 @@ use. "open" leaves a tool without its result for now (a sub-agent working in the
 The record: "hooks" the hook's answers, "asked" the answers to `can_use_tool`, "init" the
 `initialize` request, "stdin" the prompt, "interrupted" whether KOLONİ sent `interrupt`,
 "steered" the user lines after the prompt, "context_asked" each `get_context_usage` (answered
-with the plan's "context", or as not supported). With "second_turn_on_steer" a steer heard takes
-one more turn after its result; with "linger" it stays after its result, as the real CLI waits.
+with the plan's "context", or as not supported). With "linger" it stays after its result, as the
+real CLI waits.
+
+C2, measured on 2.1.332 (27 Nov 2026): with --replay-user-messages it echoes each user line it
+takes - the prompt as it reads it, a steered line where it takes it into its turn (here: an
+`await_steer` that heard one), `{"type": "user", "isReplay": true, "uuid": ...}` with the line's
+message; none without the flag. The plan's "echo": "after" leaves a steered line unechoed in its
+turn - with "second_turn_on_steer" it is echoed after its result, and one more turn taken on it,
+as measured; "none" never echoes it.
 
 89m: given a Stop hook at `initialize`, at the script's end it sends that hook (with
 `stop_hook_active` true once it was sent back, as measured on 2.1.311); each answer goes in the
@@ -125,8 +132,17 @@ lock = threading.Lock()
 
 
 def save() -> None:
+    # (Whole or not at all: KOLONİ may end it as it writes - its run ends at the result its echo
+    # came before, C2 - and a record cut off there cannot be read.)
     with lock:
-        Path(plan["record"]).write_text(json.dumps(record), encoding="utf-8")
+        kept = Path(plan["record"])
+        kept.with_suffix(".writing").write_text(json.dumps(record), encoding="utf-8")
+        for _ in range(100):
+            try:
+                os.replace(kept.with_suffix(".writing"), kept)
+                return
+            except PermissionError:  # (a test reading it just then, on Windows)
+                time.sleep(0.01)
 
 
 def emit(event: dict) -> None:
@@ -168,6 +184,31 @@ lines: "queue.Queue[dict | None]" = queue.Queue()
 
 
 steered = threading.Event()
+unechoed: list[dict] = []  # (C2: the steered lines it has not echoed yet)
+REPLAY = "--replay-user-messages" in argv
+
+
+def echo(message: dict) -> None:
+    """C2: its echo of a user line it took, with its own id - where it was started to give one."""
+    if REPLAY:
+        emit(
+            {
+                "type": "user",
+                "message": message["message"],
+                "parent_tool_use_id": None,
+                "session_id": "fake-session",
+                "uuid": f"echo-{time.monotonic_ns()}",
+                "isReplay": True,
+            }
+        )
+
+
+def echo_steered() -> None:
+    with lock:
+        taken = unechoed[:]
+        del unechoed[:]
+    for message in taken:
+        echo(message)
 
 
 def listen() -> None:
@@ -224,6 +265,7 @@ def listen() -> None:
         if message.get("type") == "user" and prompted:
             with lock:
                 record.setdefault("steered", []).append(message)
+                unechoed.append(message)
             save()
             steered.set()
             continue
@@ -304,6 +346,7 @@ emit(
     }
 )
 prompt = next_line()
+echo(prompt)
 content = prompt["message"]["content"]
 # With pictures, blocks: the prompt's text, then an image block for each.
 record["stdin"] = content if isinstance(content, str) else content[0]["text"]
@@ -620,7 +663,8 @@ for number, action in enumerate(actions()):
     elif "sleep" in action:
         time.sleep(action["sleep"])
     elif "await_steer" in action:
-        steered.wait(action["await_steer"])
+        if steered.wait(action["await_steer"]) and plan.get("echo", "in_turn") == "in_turn":
+            echo_steered()  # (taken into its turn)
     elif "emit" in action:
         emit(action["emit"])  # any other line of its stream, as given
     elif "fail" in action:
@@ -712,8 +756,10 @@ for number, given in enumerate(answers):
             **handed,
         }
     )
-if plan.get("second_turn_on_steer") and steered.is_set():
-    # (89d, not measured: a steer after its last word, taken as a turn of its own)
+if plan.get("second_turn_on_steer") and unechoed and plan.get("echo") != "none":
+    # (C2, measured: a line it did not take in its turn is echoed after its result, and taken
+    # as a turn of its own)
+    echo_steered()
     emit(
         {
             "type": "assistant",

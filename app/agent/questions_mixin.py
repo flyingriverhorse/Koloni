@@ -15,7 +15,15 @@ from sqlalchemy.orm import object_session
 from app import away, earlier, memory, parked, raw, signs, topics
 from app.agent.cards import _answer, lead_pick
 from app.agent.ctx import Ctx
-from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, KOLONIS, LEAD_TOLD_ABOUT, READY_FOR_YOU
+from app.agent.words import (
+    AGENT_TERMINAL,
+    ANSWER_PREFIX,
+    KOLONIS,
+    LEAD_TOLD_ABOUT,
+    READY_FOR_YOU,
+    WORD_MAYBE_UNREAD,
+    WORD_NOT_SENT,
+)
 from app.api.usage import over_month, past_its_limit
 from app.db.models import (
     Agent,
@@ -28,6 +36,7 @@ from app.db.models import (
     project_of,
     settings_of,
 )
+from app.delivery import NOT_SENT, TAKEN, UNKNOWN
 from app.providers import ask_once, mode_of
 from app.serialize import file_change_out, question_out
 from app.team import quoted
@@ -733,9 +742,12 @@ class QuestionsMixin:
             return None
         told = USER_TOLD.format(words=quoted(words))
         door = agent_id in self._doors
-        if why := await self.steer(ctx, told, kept=True):
-            return self._not_taken(ctx, why, door)
-        self._send(ctx, ctx, told, delivered=True, koloni=True)
+        sent = await self._steer_sent(ctx, told, kept=True)
+        if isinstance(sent, str):
+            return self._not_taken(ctx, sent, door)
+        note = self._send(ctx, ctx, told, delivered=True, koloni=True)
+        if sent is not None:  # (C2: into its CLI's turn - what came of it, once it shows it)
+            sent.then(lambda outcome: self._told_went(ctx, note, words, outcome))
         if ctx.depth and (lead := self._lead_of(ctx.run_id)) is not None:  # (B-302)
             self._send(
                 lead,
@@ -745,6 +757,19 @@ class QuestionsMixin:
                 koloni=True,
             )
         return None
+
+    def _told_went(self: "AgentRunner", ctx: Ctx, note: str, words: str, outcome: str) -> None:
+        """C2: the user's word steered into an agent's CLI turn from its window - unknown: the
+        user is told so in the chat, and it is never sent again; not sent (its CLI's no came
+        after STEER_SECONDS: its turn was over): put back (`_put_back`), and said in the chat
+        too - a CLI whose turn is over may take no step to be handed it in."""
+        if outcome == TAKEN:
+            return
+        if outcome == NOT_SENT:
+            self._put_back(ctx, note)
+        said = WORD_MAYBE_UNREAD if outcome == UNKNOWN else WORD_NOT_SENT
+        name = ctx.name or ctx.role
+        self._koloni_line(ctx.cid, ctx.run_id, said.format(name=name, words=quoted(words)))
 
     def _change_heard(self: "AgentRunner", ctx: Ctx, change_id: str) -> Callable[[str, bool], None]:
         """What goes on a change's record the moment the user has spoken, where its

@@ -42,6 +42,7 @@ from app.agent.words import (
     WHY_ENDING,
     WHY_NOT,
     WHY_TOPIC,
+    WORD_MAYBE_UNREAD,
     YOU_STOPPED,
 )
 from app.command_runner import DRAIN_GRACE_SECONDS, KILL_SECONDS, OUTPUT_AT_MOST
@@ -52,7 +53,6 @@ from app.db.models import (
     Conversation,
     ConversationTeam,
     Message,
-    Provider,
     Question,
     Role,
     Run,
@@ -61,6 +61,7 @@ from app.db.models import (
     now,
     settings_of,
 )
+from app.delivery import NOT_SENT, UNKNOWN, Delivery
 from app.model_client import OwnStop, ToolCallRequest
 from app.proof import PROOF_CALL
 from app.serialize import message_out, run_out
@@ -121,12 +122,9 @@ class AtWorkMixin:
         self._door_shut: set[str] = set()
         self._listening: set[str] = set()
         self._seen_by: dict[str, list[str]] = {}
-        # Words steered into its CLI's turn, not yet known read: (id, as sent, when taken),
-        # and those it read, by chat - what a session it goes on in has (`_steered_marks`).
-        self._steered_word: dict[str, list[tuple[str, str, int | None]]] = {}
+        # The user's words steered into its CLI's turn and taken there, or that may have been
+        # (C2: `_word_went`), by chat - what a session it goes on in has (`_steered_marks`).
         self._steered_ids: dict[str, set[str]] = {}
-        # How many pieces of words of its own a CLI wrote (`_Transcript.on_text`), by agent.
-        self._said: dict[str, int] = {}
         # The user's words to the Orchestrator about an agent that hears nothing (`to_lead`):
         # (its note's id, the agent's name, the words), by turn; and a word's spoken ask.
         self._told_lead: dict[str, list[tuple[str, str, str]]] = {}
@@ -520,37 +518,27 @@ class AtWorkMixin:
         """`word_came`'s word into the Orchestrator's CLI turn as it runs, as the user's own
         (`steer`) - measured 27 Nov 2026: Claude Code 2.1.332 (a second user line), Codex 0.172
         (`turn/steer`) and Copilot 1.0.114 (`session.send`, mode "immediate") take it into that
-        turn - heard once sent there; Copilot's answer to the send is no reading of it: its word
-        is heard where Copilot writes words after that answer (`_heard`), else one more run reads
-        it (a word taken after its last words). Unless its turn ends before it reads it
-        (`_word_unread`)."""
-        told = USER_TOLD.format(words=quoted(words))
-        if await self.steer(lead, told, kept=True) is not None:
-            return  # (its door is shut: it stays unheard)
-        with self._factory() as session:
-            copilot = (
-                session.get(Provider, lead.provider_id or "") or Provider()
-            ).kind == "copilot_cli"
-        # (Copilot's answer said "taken": heard where it writes words after that answer -
-        # Claude Code and Codex read it in the turn it was sent into, measured: heard now. Its
-        # own sub-agents' words are never its: `OwnAgents.apart`.)
-        at = self._said.get(lead.agent_id, 0) if copilot else None
-        self._steered_word.setdefault(lead.agent_id, []).append((message_id, told, at))
-        if at is None:
-            self._steered_ids.setdefault(lead.cid, set()).add(message_id)
-            self._drop_heard(lead.run_id, [message_id])
+        turn. What came of it, once its CLI shows it (C2: `_word_went`); its door shut, it stays
+        unheard."""
+        sent = await self._steer_sent(lead, USER_TOLD.format(words=quoted(words)), kept=True)
+        if isinstance(sent, Delivery):
+            sent.then(lambda outcome: self._word_went(lead, message_id, words, outcome))
 
-    def _word_unread(self: "AgentRunner", ctx: Ctx, words: str) -> None:
-        """`_observe_unread`: its CLI's turn ended before it read the word steered in: unheard
-        again - one more run reads it, and a session it goes on in is sent it."""
-        steered = self._steered_word.get(ctx.agent_id, [])
-        unread = next((one for one in steered if one[1] == words), None)  # (one: the oldest)
-        if unread is None:
+    def _word_went(
+        self: "AgentRunner", lead: Ctx, message_id: str, words: str, outcome: str
+    ) -> None:
+        """C2: a word of the user's steered into its Orchestrator's CLI turn - taken: heard;
+        unknown: heard all the same, as it may have been read (never sent again), the user told
+        so in the chat; not sent: unheard still - a step or run more reads it (`_door_closes`,
+        `_requeue`). Either heard one is marked for a session it goes on in (`_steered_marks`)."""
+        if outcome == NOT_SENT:
             return
-        self._steered_ids.get(ctx.cid, set()).discard(unread[0])
-        if unread[0] not in self._unheard.get(ctx.run_id, ()):
-            self._unheard.setdefault(ctx.run_id, []).append(unread[0])
-        steered.remove(unread)
+        self._steered_ids.setdefault(lead.cid, set()).add(message_id)
+        self._drop_heard(lead.run_id, [message_id])
+        if outcome == UNKNOWN:
+            name = lead.name or lead.role
+            told = WORD_MAYBE_UNREAD.format(name=name, words=quoted(words))
+            self._koloni_line(lead.cid, lead.run_id, told)
 
     def _steered_marks(self: "AgentRunner", ctx: Ctx, messages: list[dict]) -> None:
         """The words of the user's its CLI read steered into a turn of its (`_heard`), marked
@@ -593,14 +581,9 @@ class AtWorkMixin:
 
     def _heard(self: "AgentRunner", ctx: Ctx) -> None:
         """The Orchestrator's step came back: the words it was sent are heard (`_hearing`) -
-        and those steered into its CLI's turn where it wrote words after they were taken."""
-        if ctx.depth or ctx.answering or ctx.discussion:
-            return
-        said = self._said.get(ctx.agent_id, 0)
-        steered = self._steered_word.pop(ctx.agent_id, [])
-        read = [one[0] for one in steered if one[2] is not None and said > one[2]]
-        self._steered_ids.setdefault(ctx.cid, set()).update(read)
-        self._drop_heard(ctx.run_id, [*self._seen_by.pop(ctx.agent_id, []), *read])
+        those steered into its CLI's turn, as its CLI showed them taken (`_word_went`)."""
+        if not (ctx.depth or ctx.answering or ctx.discussion):
+            self._drop_heard(ctx.run_id, self._seen_by.pop(ctx.agent_id, []))
 
     def _drop_heard(self: "AgentRunner", run_id: str, ids: list[str]) -> None:
         left = [one for one in self._unheard.get(run_id, ()) if one not in ids]
@@ -661,7 +644,7 @@ class AtWorkMixin:
             mine = {one for one, known in self._ctxs.items() if known.run_id == run_id}
             self._listening -= mine
             for agent_id in mine:
-                for kept in (self._stopped_one, self._steered_word, self._said, self._seen_by):
+                for kept in (self._stopped_one, self._seen_by):
                     kept.pop(agent_id, None)
             if cid:
                 for _note, name, words in unread:
@@ -1002,26 +985,36 @@ class AtWorkMixin:
         self._nudges.setdefault(ctx.agent_id, []).append((last, words))
 
     async def steer(self: "AgentRunner", ctx: Ctx, words: str, kept: bool = False) -> str | None:
-        """89d: `words` to an agent while it works - into Claude Code's or Codex's own turn at
-        once (`STEERED`), with a CLI session's next KOLONİ tool result, or at its next step of
-        KOLONİ's own; and from its next step or run on (`_nudge`, B-83) - not where they are
-        `kept` in its conversation already (`_send`), which its later steps read. None once
-        sent; why it cannot hear them where it cannot (Copilot's and agy's own sessions:
-        B-164). One at a time to an agent (`_changing`).
+        """89d: `words` to an agent while it works - into its CLI's own turn at once
+        (`STEERED`: Claude Code's, Codex's, Copilot's), with a CLI session's next KOLONİ tool
+        result, or at its next step of KOLONİ's own; and from its next step or run on (`_nudge`,
+        B-83) - not where they are `kept` in its conversation already (`_send`), which its later
+        steps read. None once sent; why it cannot hear them where it cannot (agy's, a session's
+        that hears nothing: B-164). One at a time to an agent (`_changing`).
         Only KOLONİ's own words around what the user decided, anything an agent wrote (a
         question, its options) `quoted()` inside them - never an agent's words as they are: a
         CLI's user line carries the user's authority."""
+        sent = await self._steer_sent(ctx, words, kept)
+        return sent if isinstance(sent, str) else None
+
+    async def _steer_sent(
+        self: "AgentRunner", ctx: Ctx, words: str, kept: bool = False
+    ) -> "str | Delivery | None":
+        """`steer`, with what was written into its CLI's turn where it was: what comes of it,
+        once its CLI shows it (C2: `Delivery`) - one it refused is why it cannot hear them.
+        shortcut: what waits on it (`then`) is added once the door returns - one settled before
+        that is told at once, after its door's own record; hand `then` to the door if a waiter
+        must ever be told before the run's next line is read."""
         name = ctx.name or ctx.role
-        # shortcut: one at a time while it is sent, not until it is read - a second sent before
-        # Claude Code reads the first takes its place for `steer_unread`; hold them until read
-        # if two land in one turn live.
-        if ctx.agent_id in self._changing:
+        if ctx.agent_id in self._changing:  # (one at a time while it is written: each is settled)
             return f"can't be sent now: another message to {name} is on its way"
         self._changing.add(ctx.agent_id)
+        sent: Delivery | None = None
         try:
             door = self._doors.get(ctx.agent_id)
             if door is not None:
-                if not await door(f"{STEERED}\n\n{words}"):
+                sent = await door(f"{STEERED}\n\n{words}")
+                if sent.outcome == NOT_SENT:
                     return NOT_HEARD.format(name=name)
             elif getattr(ctx.model, "native", False):
                 return NOT_HEARD.format(name=name)
@@ -1033,7 +1026,7 @@ class AtWorkMixin:
             self._changing.discard(ctx.agent_id)
         if not kept:
             self._nudge(ctx, words)
-        return None
+        return sent
 
     def _lead_of(self: "AgentRunner", run_id: str) -> Ctx | None:
         """The turn's Lead, while it is at work."""

@@ -36,7 +36,8 @@ says why under it - **Queued:** and one of:
 
 A message is in exactly one place: in the turn at work, or in a turn of its own. If the turn ends
 before the Orchestrator read it - you pressed Stop, or the turn failed - your message goes on in a
-turn of its own, queued, so it is never lost.
+turn of its own, queued, so it is never lost. One already written into a CLI Orchestrator's turn
+is not sent again: what came of it is said instead ([below](#what-came-of-a-word-sent-into-a-clis-turn)).
 
 When it answers your message, the Orchestrator changes nothing itself: its steps until that answer
 are refused Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and
@@ -58,6 +59,32 @@ word, as any message of yours is - Full auto's judge reads it as yours.
 
 A word to the Orchestrator about an agy agent (its window's box) wakes the Orchestrator as your own
 word does, while it waits for its agents.
+
+### What came of a word sent into a CLI's turn
+
+A word written into a CLI's running turn - Send now to a CLI Orchestrator, an agent's Tell box, or
+another agent's message to it - comes to one of three ends, by what the CLI itself shows:
+
+| End | What the CLI shows | What you see |
+|---|---|---|
+| **taken** | Claude Code echoes it before its turn's result; Codex answers with its turn; Copilot names it as taken into its work before it goes idle | nothing more: it reads it in that turn |
+| **not sent** | its turn was over (Codex: "no active turn to steer"), or it could not be written | Send now: the Orchestrator reads it at its next step, or in one more run of the turn; Tell: the box says the turn is ending - try again once it has finished. Where Codex's no came only after 5 seconds, Tell's word waits for the agent's next step and a line in the chat says so: *Coder's turn was over before your word reached it: "use blue" - it is handed to Coder at its next step, if it takes one; say it once more if it still matters* |
+| **unknown** | it was written, but by the end of its turn the CLI showed no sign it took it - or the CLI said no in a way not measured | a line in the chat: *Lead may not have read your word before its turn ended: "use blue" - it is not sent again; say it once more if it still matters* |
+
+A word of Send now, Tell or an agent's message that is unknown is never sent again: the CLI may have
+read it. A Claude Code that echoes your word only after its result takes one more turn on it;
+KOLONİ reads that turn to its end in the same run, and your word is still said unknown - it was not
+taken in the turn it was sent into. The agent's own record says the same: *Lead may not have read
+this before its turn ended; it is not sent again*. A **Change** of a decision or of an answer is
+different: it stands whatever came of it, and the agent is given it again from its next step or
+run on - as is KOLONİ's own word to an Orchestrator that changed files with a command.
+
+An agent that messages a CLI agent at work is told what came of it the same way - in the message's
+answer where it is known at once (Codex), else by KOLONİ once it is: *Coder took your message ("use
+blue") into its turn: it is read in its turn* (from its next step on - it takes no step of its own
+for it); *your message ("use blue") did not reach Coder's turn: it is handed to Coder at its next
+step, if it takes one* or *Coder's turn ended before it showed it took your message ("use blue"): it
+may not have read it; it is not sent again* (a note, read at once).
 
 ## Agents in the background
 

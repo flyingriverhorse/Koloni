@@ -184,11 +184,12 @@ def test_a_lead_its_cli_does_not_hear_is_told_with_its_next_tool_result(
     wait_run,
     project_dir,  # noqa: F811
 ):
-    # (Codex refuses the steer here, as when its turn is over: KOLONİ's note waits for it)
+    # (Codex refuses the steer here, as when its turn is over - in its turn, C2: not sent - and
+    # KOLONİ's note waits for it)
     client, provider, _ = native_app(
         [
             {"run": "Set-Content hello.py x", "output": "", "touches": {"hello.py": "x\n"}},
-            {"pause": 0.5},
+            {"await_steer": True},  # (its no is read before its turn ends)
             {"say": "Handed it on."},
         ],
         timeout=10,

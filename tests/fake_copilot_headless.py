@@ -626,6 +626,7 @@ def flat(script: list) -> list:
 
 
 skipped = None  # (a task refused: its steps, to its end, never run)
+after_idle: list[dict] = []  # (C2: the user.message of a send it takes after its idle)
 for number, action in enumerate(flat(plan.get("script", []))):
     call = f"call_{number}"
     if skipped is not None:
@@ -639,11 +640,19 @@ for number, action in enumerate(flat(plan.get("script", []))):
         )
     elif "await_send" in action:
         # A session.send while its turn runs (1.0.114, 27 Nov 2026: with mode "immediate" it is
-        # taken into the running work): answered with its message's id; "sent" on record.
+        # taken into the running work): answered with its message's id; "sent" on record. C2,
+        # measured: then a user.message naming that id, before its idle - "taken": "after_idle"
+        # after it (a turn of its own), false never.
         told = expect("session.send")
         record.setdefault("sent", []).append(told.get("params"))
         save()
         send({"id": told["id"], "result": {"messageId": f"sent{number}"}})
+        said = {"content": told["params"].get("prompt"), "messageId": f"sent{number}"}
+        taken = action.get("taken", True)
+        if taken is True:
+            event("user.message", said)
+        elif taken == "after_idle":
+            after_idle.append(said)
     elif "shell" in action:
 
         def run(action=action) -> None:
@@ -912,4 +921,6 @@ for info in plan.get("usage_info", []):
 for checkpoint in plan.get("usage", []):
     event("session.usage_checkpoint", checkpoint)
 event("session.idle", {"aborted": True} if plan.get("aborted") else {})
+for said in after_idle:
+    event("user.message", said)
 expect("never")  # a headless server stays until it is ended

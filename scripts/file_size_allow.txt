@@ -4,7 +4,7 @@
 # list only gets shorter: never add a file to it - split the file.
 
 # app/, frontend/src/, scripts/
-9799 app/agent/__init__.py
+9796 app/agent/__init__.py
 2242 app/agent/context_mixin.py
 1602 app/agent/merge.py
 3129 app/agent/spawn_mixin.py
@@ -14,7 +14,7 @@
 4112 app/git.py
 2950 app/knowledge.py
 2013 app/memory.py
-5732 app/model_native.py
+5710 app/model_native.py
 1984 app/proof_kinds.py
 4646 app/schemas.py
 1656 app/tools.py

@@ -10,6 +10,7 @@ import json
 
 import pytest
 
+from app.agent.words import WORD_MAYBE_UNREAD
 from app.copilot_own_agents import APPROVE_ONCE, OwnAgents, copilot_tools
 from tests.test_agent_writes import wait_status
 from tests.test_codex_app_server_scenarios import card_for
@@ -443,29 +444,33 @@ def test_a_sub_agents_usage_model_and_idle_are_not_its_leads(
 
 
 @pytest.mark.parametrize("ghost", [False, True])
-def test_a_sub_agents_words_never_count_a_word_sent_now_as_read(
+def test_a_sub_agents_events_never_count_a_word_sent_now_as_taken(
     copilot_native,
     wait_run,
     project_dir,
     ghost,  # noqa: F811
 ):
-    # (Its Lead's words after the send would: only a sub-agent of its own spoke - one KOLONİ let
-    # open, or one never seen starting.)
+    # C2: only its Lead's user.message naming the send says it took it - not one of a sub-agent
+    # of its own (one KOLONİ let open, or one never seen starting), even naming that send: then
+    # unknown, said in the chat and never sent again.
+    named = {"content": "LATE WORD", "messageId": "sent1"}  # (the id the send was answered with)
     said = (
-        {"event": "assistant.message", "data": {"content": "sub words"}, "agent": "ghost"}
+        {"event": "user.message", "data": named, "agent": "ghost"}
         if ghost
-        else {**SYNC, "steps": [{"say": "sub words"}]}
+        else {**SYNC, "steps": [{"event": "user.message", "data": named}, {"say": "sub words"}]}
     )
-    client, provider = p4(copilot_native, [{"say": "working"}, {"await_send": True}, said], CHECKER)
+    client, provider = p4(
+        copilot_native, [{"say": "working"}, {"await_send": True, "taken": False}, said], CHECKER
+    )
     cid, run_id = started(client, project_dir, provider)
     at_work(client, cid, name="Lead")
-    copilot_native.rescript([{"say": "read it"}])  # (its next run's: this one read its plan)
+    copilot_native.rescript([{"say": "read it"}])  # (a run more's, were there one)
     assert now(client, cid, "LATE WORD").json()["run"]["id"] == run_id
     snap = wait_run(client, cid, run_id, timeout=30)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert "LATE WORD" in copilot_native.record()["prompt"]  # one more run reads it
-    words = [m["content"] for m in snap["messages"] if m["role"] == "assistant"]
-    assert words[-1] == "read it" and "sub words" not in words, words
+    assert "LATE WORD" not in copilot_native.record()["prompt"]  # never sent again
+    said = [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+    assert WORD_MAYBE_UNREAD.format(name="Lead", words='"LATE WORD"') in said, said
 
 
 # --- the gate itself, past what the stand-in sends --------------------------------------------

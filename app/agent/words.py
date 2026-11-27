@@ -409,3 +409,16 @@ COMMANDS_FULL = (
 )
 # A word about an agent that hears nothing (its window's box), its note unread at the turn's end.
 TOLD_UNREAD = "The Orchestrator did not read your word about {name} before this turn ended: {words}"
+# C2: a word of the user's written into a CLI's turn (Send now, its window's box) that its CLI
+# showed no sign of taking before its turn ended - it may have read it, so it is not sent again.
+# ...and on the record of the agent it was written to, of any words written into its turn.
+STEER_UNKNOWN = "{name} may not have read this before its turn ended; it is not sent again: {words}"
+WORD_MAYBE_UNREAD = (
+    "{name} may not have read your word before its turn ended: {words} - it is not sent again; "
+    "say it once more if it still matters"
+)
+# ...and one its CLI said no to once its turn was over: kept for its next step, if it takes one.
+WORD_NOT_SENT = (
+    "{name}'s turn was over before your word reached it: {words} - it is handed to {name} at "
+    "its next step, if it takes one; say it once more if it still matters"
+)
