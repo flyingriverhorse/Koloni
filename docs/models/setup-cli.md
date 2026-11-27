@@ -44,8 +44,8 @@ Models page is left as it is.
 - **One session per agent** and **One run per model step** use KOLONİ's tools and cards, with the CLI's
   own tools off.
 - **Native** uses the CLI's own tools in your folder; it is [experimental](#experimental-clis) since 0.1.10. Claude Code and agy ask KOLONİ before every tool
-  they use; Codex before each command and patch, except the commands its own rules count as safe, which
-  it runs without asking; Copilot before every tool it uses (on its newer protocol, 1.0.114 on, through
+  they use; Codex before each command and patch, but not those its own allow rules cover, which it runs
+  without asking; Copilot before every tool it uses (on its newer protocol, 1.0.114 on, through
   KOLONİ's own hook; on the older one, before each command, write and read).
   KOLONİ's own team tools reach a Native CLI over its tool bridge: opening sub-agents, asking you, the
   To-do list, notes and memory, and **Notify you** (only where the project has its desktop notifications

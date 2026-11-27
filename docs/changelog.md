@@ -9,7 +9,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Fixed
 
 - **Chat**: a command kept off its **Always run** rule by an agent's write of a file it may read - an `.npmrc` or `x.npmrc`, a `package.json`, a lock, a `tsconfig.json`, a `pyproject.toml` - says so on its card: "an agent wrote a file this line may read or load (evil096.npmrc)"; it said "an agent wrote its program" of a file the line does not run. Where an agent wrote the program too, the card names the program, whichever was written first. The rule still stops there, and no rule is offered ([docs](use/permissions.md#what-a-rule-never-covers)).
-- **Docs**: Codex run **Native** asks KOLONİ before its commands, a read of `.env` too - measured with Codex 0.172.0 on 27 Nov 2026; the guide said it ran its own safe commands (a `.env` read among them) unasked; older versions were not measured again. A command an allow rule of Codex's own covers still runs unasked and is recorded after it ran ([docs](reference/known-limits.md#secrets)).
+- **Docs**: Codex run **Native** asks KOLONİ before its commands, a read of `.env` too - measured with Codex 0.172.0 on 27 Nov 2026; the guide said it ran its own safe commands (a `.env` read among them) unasked; older versions were not measured again. A command an allow rule of Codex's own covers still runs unasked and is recorded after it ran; the Models page and a Codex agent's window now say just that, no longer that its reads of secret files or of files outside the project run unasked ([docs](reference/known-limits.md#secrets)).
 
 ### Security
 
