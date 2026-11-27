@@ -11,9 +11,9 @@ test.use({ viewport: { width: 1440, height: 900 } })
 const sideways = (root: Element) =>
   root.scrollWidth > root.clientWidth || document.documentElement.scrollWidth > window.innerWidth
 
-async function readable(page: Page, root: Locator) {
+async function readable(page: Page, root: Locator, least = 15) {
   const all = await root.evaluate(contrasts)
-  expect(all.length).toBeGreaterThan(15)
+  expect(all.length).toBeGreaterThan(least)
   expect(all.filter(piece => piece.ratio < 4.5)).toEqual([])
   await page.setViewportSize({ width: 1024, height: 900 })
   expect(await root.evaluate(sideways)).toBe(false)
@@ -70,7 +70,7 @@ for (const theme of ['light', 'dark'] as const) {
     await readable(page, page.locator('.tools-page'))
   })
 
-  test(`the Memory page: one search on top, what waits on one line, then four tabs with their counts (${theme})`, async ({
+  test(`the Memory page as cells: the search and the three ways on top, the two parts' tabs, what waits in one box, the core and the journal beside your words (${theme})`, async ({
     page,
     request,
   }) => {
@@ -98,42 +98,49 @@ for (const theme of ['light', 'dark'] as const) {
       ).toBeVisible({ timeout: 15_000 })
 
       await rail(page, 'Memory').click()
-      // Each tab with its count (History holds what the specs before put away too); Facts is open.
+      // The first part is open, its tab saying what waits in it; History holds what the specs before put away too.
       // (The note would take the place of the fact on the port: it waits, and is not in the journal.)
       const memory = await (await request.get(`/api/projects/${project.id}/memory`)).json()
       expect(memory.past.length).toBeGreaterThan(0)
-      const tabs = page.getByRole('tablist', { name: 'Memory' }).getByRole('tab')
-      await expect(tabs).toHaveText([
-        'Told 1',
-        'Facts 2',
-        'Notes 0',
+      const tabs = page.getByRole('tablist', { name: 'Memory’s parts' }).getByRole('tab')
+      await expect(tabs.first()).toHaveText('What the project knows 1 waits for your word')
+      await expect(tabs.first()).toHaveAttribute('aria-selected', 'true')
+      await expect(page.locator('.memory-history > summary')).toHaveText(
         `History ${memory.decisions.length + memory.past.length}`,
-      ])
-      await expect(page.getByRole('tab', { name: /^Facts/ })).toHaveAttribute('aria-selected', 'true')
-      // The search over everything first, then what waits on one line, then the tabs.
-      const line = page.getByRole('button', { name: '● 1 fact waits for your word' })
-      const search = (await page.getByRole('region', { name: 'Search', exact: true }).boundingBox())!
-      const waits = (await line.boundingBox())!
-      const tablist = (await page.getByRole('tablist', { name: 'Memory' }).boundingBox())!
-      expect(search.y).toBeLessThan(waits.y)
-      expect(waits.y).toBeLessThan(tablist.y)
-      // Unfolded in place: what waits, with its Approve and Reject.
-      await line.click()
+      )
+      await expect(page.getByRole('region', { name: 'Facts', exact: true }).getByRole('article')).toHaveCount(2)
+      // The search over everything first, then the three ways, the tabs, what waits in its box; the core at the left
+      // of your words.
+      const box = (name: string) => page.getByRole('region', { name, exact: true }).boundingBox()
+      const search = (await box('Search'))!
+      const ways = (await page.getByRole('list', { name: 'How memory reaches an agent' }).boundingBox())!
+      const tablist = (await page.getByRole('tablist', { name: 'Memory’s parts' }).boundingBox())!
+      const waits = (await box('Waits for you'))!
+      const facts = (await box('Facts'))!
+      const words = (await box('Your words'))!
+      expect(search.y).toBeLessThan(ways.y)
+      expect(ways.y).toBeLessThan(tablist.y)
+      expect(tablist.y).toBeLessThan(waits.y)
+      expect(waits.y).toBeLessThan(facts.y)
+      expect(facts.x + facts.width).toBeLessThanOrEqual(words.x)
+      // In sight at once: what waits, with its Approve and Reject.
       await expect(
         page.getByRole('region', { name: 'Waits for you' }).getByRole('button', { name: 'Approve', exact: true }),
       ).toBeVisible()
       await shot(page, `60c-memory-${theme}`)
       await page.getByRole('button', { name: '＋ Add a fact' }).click()
       await page.getByRole('region', { name: 'Add a fact' }).getByText('Subject, file and lines').click()
-      await readable(page, page.locator('.memory-page'))
-      // The other tabs read as well, in both widths.
-      await page.getByRole('tab', { name: /^Told/ }).click()
       await expect(page.getByRole('region', { name: 'This project’s rules' }).getByLabel('Rules')).toHaveValue(
         'Sign every commit.',
       )
       await readable(page, page.locator('.memory-page'))
-      await page.getByRole('tab', { name: /^History/ }).click()
+      // History unfolded, and the sources part, read as well, in both widths.
+      await page.locator('.memory-history > summary').click()
       await readable(page, page.locator('.memory-page'))
+      await tabs.last().click()
+      await expect(page.locator('.knowledge-page')).toBeVisible()
+      // (this project's sources may be only the two offered: fewer pieces of text)
+      await readable(page, page.locator('.memory-page'), 8)
     } finally {
       await clearMemory(request)
     }

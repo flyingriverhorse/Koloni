@@ -64,9 +64,8 @@ test('a refused approval says why beside the note: its source changed (409), or 
   await noteThePort(page)
   await rail(page, 'Memory').click()
   const waiting = page.getByRole('region', { name: 'Waits for you' })
-  const core = page.getByRole('tabpanel', { name: /^Facts/ })
+  const core = page.getByRole('region', { name: 'Facts', exact: true })
   const proposal = waiting.getByRole('article')
-  await page.getByRole('button', { name: '● 1 fact waits for your word' }).click()
   await expect(proposal).toContainText(FACT)
   await expect(proposal).toContainText('source unchanged since noted')
 
@@ -140,7 +139,6 @@ test('in the dark theme every text of the Memory page stands out from what it is
     await noteThePort(page)
     await rail(page, 'Memory').click()
     const memory = page.locator('.memory-page')
-    await page.getByRole('button', { name: '● 1 fact waits for your word' }).click()
     await expect(
       page.getByRole('region', { name: 'Waits for you' }).getByRole('group', { name: 'Would replace' }),
     ).toBeVisible()
@@ -151,12 +149,14 @@ test('in the dark theme every text of the Memory page stands out from what it is
     await memory.screenshot({ path: shot })
     await testInfo.attach('the Memory page in the dark theme', { path: shot, contentType: 'image/png' })
 
-    // Each tab in turn, so that what is in every one is measured.
-    const all: ReturnType<typeof contrasts> = []
-    for (const name of ['Facts', 'Told', 'Notes', 'History']) {
-      await page.getByRole('tab', { name: new RegExp(`^${name}`) }).click()
-      all.push(...(await memory.evaluate(contrasts)))
-    }
+    // (0.1.10: every area is in sight but History, unfolded here, so that what is in every one is measured; then the
+    // sources part, the other tab.)
+    await page.locator('.memory-history > summary').click()
+    const all: ReturnType<typeof contrasts> = await memory.evaluate(contrasts)
+    await page.getByRole('tab', { name: /^Sources to look things up in/ }).click()
+    await expect(page.locator('.knowledge-page')).toBeVisible()
+    all.push(...(await memory.evaluate(contrasts)))
+    await page.getByRole('tab', { name: /^What the project knows/ }).click()
     await expect(page.getByRole('region', { name: 'Removed / replaced' }).getByRole('article')).not.toHaveCount(0)
     await expect(page.getByRole('region', { name: 'Recent decisions' }).getByRole('listitem')).not.toHaveCount(0)
     const of = (cls: RegExp) => all.filter(piece => cls.test(piece.cls))
@@ -180,12 +180,11 @@ test('what an agent was given says how its source stands now, read again when it
   await openFreshConversation(page)
   await noteThePort(page)
   await rail(page, 'Memory').click()
-  await page.getByRole('button', { name: '● 1 fact waits for your word' }).click()
   await page
     .getByRole('region', { name: 'Waits for you' })
     .getByRole('button', { name: 'Approve', exact: true })
     .click()
-  await expect(page.getByRole('tabpanel', { name: /^Facts/ }).getByRole('article')).toContainText(FACT)
+  await expect(page.getByRole('region', { name: 'Facts', exact: true }).getByRole('article')).toContainText(FACT)
 
   await rail(page, 'Canvas').click()
   // The request and the Reviewer's task name the fact's subject, so the Reviewer is given it.

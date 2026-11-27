@@ -62,7 +62,7 @@ for (const theme of ['light', 'dark'] as const) {
 
     // What it read and its guide: on the Knowledge page.
     await panel.getByRole('button', { name: 'on Knowledge →' }).click()
-    const row = page.locator('.knowledge-card').filter({ hasText: 'Pay expert · full' })
+    const row = page.locator('.knowledge-card').filter({ hasText: 'Pay expert full' })
     await row.getByRole('button', { name: /Pay/ }).click()
     await row.getByRole('tab', { name: 'Settings' }).click()
     const knowledge = page.locator('.knowledge-page')
