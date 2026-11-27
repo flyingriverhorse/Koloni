@@ -50,6 +50,7 @@ from app.tools_at_work import (
     SUGGEST_PREFERENCE_SCHEMA,
     SUGGESTED,
     SUGGESTED_FULL,
+    SUGGESTED_INSTEAD,
     SUGGESTED_MOST,
     UPDATE_PLAN_SCHEMA,
 )
@@ -349,11 +350,15 @@ class LeadToolsMixin:
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             if project is None or not session.get_one(Run, ctx.run_id).by_user:
                 raise ToolError(NOT_THEIRS)
-            sentence = preference_words.sentence_of(words_of_the_turn(session, ctx.run_id), quote)
-            if sentence is None:
+            found = preference_words.sentence_of(words_of_the_turn(session, ctx.run_id), quote)
+            if found is None:
                 raise ToolError(NOT_SAID)
+            message, sentence = found
             adds = preference_words.mode(session) == "add"
-            line = sentence if adds else args.get("line")
+            # (no plain rule of theirs - a question, a condition, a push...: the card, their words)
+            instead = preference_words.adds_alone(message, sentence) if adds else None
+            adds = adds and instead is None
+            line = sentence if adds or instead else args.get("line")
             if not isinstance(line, str) or not line.strip():
                 raise ToolError("missing required argument: line")
             said = preference_words.kept_line(line)
@@ -405,6 +410,8 @@ class LeadToolsMixin:
         if line_said is not None:
             self.bus.emit(ctx.cid, ctx.run_id, "message.completed", line_said)
         self.bus.emit(ctx.cid, ctx.run_id, "memory.changed", {"project_id": project_id})
+        if instead:
+            return SUGGESTED_INSTEAD.format(why=instead, line=quoted(said))
         return (ADDED_TOLD if adds else SUGGESTED).format(line=quoted(said))
 
 

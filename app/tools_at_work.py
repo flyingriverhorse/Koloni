@@ -169,6 +169,9 @@ ADDED_TOLD = (
     "Added to the user's preferences, in their own words: {line}. The chat says so, and they can "
     "undo it."
 )
+SUGGESTED_INSTEAD = (
+    "Not added at once - {why}: their sentence {line} waits on a card in the chat for their Add."
+)
 SUGGESTED_FULL = (
     f"suggest_preference was used {SUGGESTED_MOST} times in this turn: say the rest in your answer"
 )

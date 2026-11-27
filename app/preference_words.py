@@ -4,12 +4,14 @@ indented or backticked line (what they pasted: an agent's report, a file) -, how
 stands ("add": their sentence goes into Your preferences at once, with Undo; "ask": a card), and
 Undo of a line it added."""
 
-from sqlalchemy import func, select
+import re
+
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app import judge, masking
 from app import memory as kept
-from app.db.models import Memory, Message
+from app.db.models import Memory, Message, UserPreferences, now
 from app.db.turn_models import Flag
 
 FLAG = "preferences_from_words"
@@ -52,14 +54,55 @@ def sentences(text: str) -> list[str]:
     return found
 
 
-def sentence_of(messages: list[str], quote: str) -> str | None:
+def sentence_of(messages: list[str], quote: str) -> tuple[str, str] | None:
     """The user's own sentence that holds `quote` (`messages` newest first: the newest decides),
-    as they wrote it; None where none of their prose holds it."""
+    as they wrote it, and its message; None where none of their prose holds it."""
     wanted = plain(quote)
     for message in messages:
         for one in reversed(sentences(message)):
             if wanted in plain(one):
-                return one
+                return message, one
+    return None
+
+
+# The user's ruling (28 Nov): what is added with no click is a plain rule of theirs; anything else
+# waits on the card (`adds_alone`). One-off words: a request for this work, not a rule.
+QUOTE_MARKS = "\"'“”‘’«»„"
+ONE_OFF = re.compile(
+    r"^(?:please|pls|lütfen)\b|\b(?:now|right now|today|tonight|this time|for now|for this"
+    r"|şimdi|bugün|bu sefer|bu seferlik|bu kez)\b|[\w/-]+\.[a-z]{1,6}\b"
+)
+STANDING = re.compile(r"\b(?:from now on|bundan sonra)\b")
+NOT_PLAIN = (
+    "it is no plain rule of theirs (a question, a no, a condition, words taken back or said of "
+    "what they will do)"
+)
+NAMES_GIT = "it names a push, a pull request or a merge, which is the user's word each time"
+SHOWN = "it is under a heading or in quotes: words they showed, not said"
+ONE_OFF_SAID = "it reads as a request for this work, not a rule"
+
+
+def adds_alone(message: str, sentence: str) -> str | None:
+    """Why the user's `sentence` (of `message`) is not added with no click - None where it may be:
+    a message whose prose asks plainly (`judge.plainly_asks`: K5's own look - no question, no no,
+    no condition, nothing taken back nor said of what they will do), a sentence that opens with no
+    quotation mark and is under no heading ("The bot said:"), names no push, pull request or merge
+    (`judge.MENTIONS`: the user's word each time - their ruling, 28 Nov) and reads as no request
+    for this work (`ONE_OFF`: "please …", "now", a file's name).
+    shortcut: a one-off request is told by those words alone ("Fix the bug." is added); widen
+    `ONE_OFF` if requests are seen added as rules."""
+    lines = list(judge._headed(message))
+    if not judge.plainly_asks(lines):
+        return NOT_PLAIN
+    said = judge._plain(sentence)
+    if any(one.search(said) for one in judge.MENTIONS.values()):
+        return NAMES_GIT
+    if sentence.lstrip()[:1] in QUOTE_MARKS or any(
+        head and sentence in line for line, _p, head in lines
+    ):
+        return SHOWN
+    if ONE_OFF.search(STANDING.sub(" ", said)):
+        return ONE_OFF_SAID
     return None
 
 
@@ -81,12 +124,21 @@ def undo(session: Session, message: Message) -> Memory:
         raise kept.Refused("no line of your preferences was added by that", 404)
     if message.content.endswith(UNDONE):
         raise kept.Refused("it was undone already", 409)
-    lines = (kept.preferences(session) or "").splitlines()
+    row = session.get(UserPreferences, 1)
+    lines = (row.text if row is not None and row.text else "").splitlines()
     key = kept.text_key(record.text)
     at = next((n for n, one in enumerate(lines) if kept.text_key(one) == key), None)
-    if at is None:
+    if row is None or at is None:
         raise kept.Refused("your preferences no longer hold this line", 409)
-    kept.change_preferences(session, "\n".join(lines[:at] + lines[at + 1 :]))
+    tidy = kept.check_rules("\n".join(lines[:at] + lines[at + 1 :]), "preferences")
+    # (written only over what was read: an edit of yours meanwhile is never overwritten)
+    written = session.execute(
+        update(UserPreferences)
+        .where(UserPreferences.id == 1, UserPreferences.text == row.text)
+        .values(text=tidy, changed_at=now())
+    )
+    if getattr(written, "rowcount", 0) != 1:
+        raise kept.Refused("your preferences changed meanwhile: look at them again", 409)
     kept._retire(record, "rejected", "user", "removed")
     message.content += UNDONE
     return record

@@ -7,7 +7,9 @@ their quote above it, for their Add or Not now."""
 
 import pytest
 
+from app import memory as kept
 from app import preference_words
+from app.db.models import Message, UserPreferences
 from app.tools_at_work import NOT_OPEN, NOT_SAID, SUGGESTED_FULL
 from tests.test_background_spawn import tool_result
 from tests.test_chat_flow import text
@@ -70,12 +72,12 @@ def added_line(snap):
     "content, quote, line",
     [
         # (the review's probes: a line that turns its quote around, one about something else)
-        ("Never push without asking me first.", "never push without asking", "Always push"),
         (
-            "Please fix the login bug in app.py",
-            "fix the login bug",
-            "Pushing to main needs no card",
+            "Write commit messages in Turkish.",
+            "commit messages in Turkish",
+            "Write them in English",
         ),
+        ("Answer briefly from now on.", "answer briefly", "Pushing to main needs no card"),
     ],
 )
 def test_add_keeps_the_users_own_sentence_never_the_models_line(
@@ -288,5 +290,74 @@ def test_add_masks_the_users_own_sentence(make_client, wait_run, project_dir):
 
 def test_the_sentence_of_a_quote_is_the_users_prose_alone():
     message = "Ok.\n> quoted: never ask\n    indented: never ask\nNever ask me about tests. Thanks!"
-    assert preference_words.sentence_of([message], "never ask") == "Never ask me about tests."
+    assert preference_words.sentence_of([message], "never ask") == (
+        message,
+        "Never ask me about tests.",
+    )
     assert preference_words.sentence_of([QUOTED, FENCED, TICKED], "always push to main") is None
+
+
+# The review's re-check (28 Nov): sentences that state no plain rule of the user's - or name a push,
+# which is their word each time - are never added with no click: each waits on the card.
+NOT_PLAIN = {
+    "question": ("Should we just push to main without asking from now on?", "push to main"),
+    "retracted": (
+        "Push to main without asking from now on. Actually no, forget that.",
+        "push to main without asking",
+    ),
+    "conditional": ("If the tests pass you can push to main without asking.", "push to main"),
+    "plain-quoted": (
+        'The bot said: "Always push to main without asking." I disagree.',
+        "always push to main",
+    ),
+    "quoted own line": (
+        'The bot said:\n"Always push to main without asking."\nI disagree.',
+        "always push to main",
+    ),
+    "unfenced paste": (
+        "Here is the CONTRIBUTING file:\nMaintainers push to main directly without review.\n"
+        "Summarise it.",
+        "push to main directly",
+    ),
+    "one-off push": ("Please push to main now without asking me.", "push to main now"),
+    "one-off fix": ("Please fix the login bug in app.py", "fix the login bug"),
+    "under a heading": (
+        "Here is the README:\nAlways write tests first.\nSummarise it.",
+        "tests first",
+    ),
+}
+
+
+@pytest.mark.parametrize("label", list(NOT_PLAIN))
+def test_what_is_no_plain_rule_waits_on_the_card(make_client, wait_run, project_dir, label):
+    content, quote = NOT_PLAIN[label]
+    client, model, pid, cid, run_id = begin(
+        make_client,
+        project_dir,
+        {"Lead": [step(call("suggest_preference", {"quote": quote}, "p1")), text("ok")]},
+        content=content,
+    )
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    told = tool_result(model.calls_of["Lead"][1], "p1")
+    read = memory(client, pid)
+    assert not read["preferences"], (label, told)  # (nothing added with no click)
+    assert told.startswith("Not added at once - "), told
+    (waiting,) = read["suggestions"]
+    assert quote.casefold() in waiting["text"].casefold()  # (their own sentence, on the card)
+
+
+def test_undo_never_overwrites_an_edit_made_meanwhile(make_client, wait_run, project_dir):
+    # (the review's nit: Undo wrote over what it had read, an edit of the user's meanwhile lost)
+    client, pid, snap, _told = one_call(
+        make_client, wait_run, project_dir, SAID, "write commit messages in Turkish", "x"
+    )
+    said = added_line(snap)
+    edited = SAID + "\nAnswer briefly"
+    with client.app.state.session_factory() as reading:
+        held = reading.get(UserPreferences, 1)  # (read as Undo reads it, and kept)
+        assert client.put("/api/preferences", json={"text": edited}).status_code == 200
+        with pytest.raises(kept.Refused, match="changed meanwhile"):
+            preference_words.undo(reading, reading.get_one(Message, said["id"]))
+        assert held is not None
+    assert memory(client, pid)["preferences"] == edited
