@@ -83,7 +83,7 @@ works in a copy of the project of its own.
 - **Its notebook:** a job writes in its task's [notebook](todo.md#the-storys-notebook) (its story's, where
   the task is of one): how each turn ended, the files it changed, the Orchestrator's `Task note:` lines
   and what its agents noted for the whole turn. The next night that works the task, or your own turn in
-  its chat, goes on from it. **📓** beside the task on To-do opens it.
+  its chat, goes on from it. **📓** on the task's row in its story's panel on To-do opens it.
 
 ### In a git repository: each job on its own branch
 
@@ -135,7 +135,7 @@ every job:
   does not undo it: it may be yours.
 
 The top bar shows "☾ Away · To-do 2 of 4" with **I'm back** and **Stop all**, and "· until 07:00"
-after it when you set a stop time. The To-do page shows the jobs too: since when, what they spent against the limit,
+after it when you set a stop time. Ready for you's report shows the jobs too: since when, what they spent against the limit,
 and each job as it stands, with what its agents are doing right now. A job's chat says at the top when
 its jobs started, with a link back to their report.
 
@@ -276,7 +276,7 @@ of 5.00 USD").
   where its push went, that GitHub's checks on it were not waited for (KOLONİ does not wait for them
   yet). A job with no **Checked** section of the night says "not known", never "nothing".
 - **The whole report** opens the night's report on the canvas.
-- **Copy as Markdown** copies the whole night - named by its day, its jobs, what waits for you, what
+- **Copy report as Markdown** copies the whole night - named by its day, its jobs, what waits for you, what
   was decided for you on its jobs, what was not checked and what it spent - for a pull request's
   description. Every job's, agent's and model's word goes in a code span, masked as the screen shows
   it: a parked command too, as the list shows it.
@@ -293,7 +293,7 @@ shape - a `Bearer` token, a password in an address - shows as `***`, and what ru
 as recorded), or the question; why, in KOLONİ's words (the
 card's reason, the judge's sentence, the Orchestrator's reason in quotes); and a warning where it reads
 like orders to a model. It is in [Ready for you](../use/ready.md)'s waiting list (first, the push first
-of all), on the summary, on the To-do page and on the report.
+of all), on the summary and on the report.
 
 - **Run** or **Reject** a command; a question takes one of its options, or a line and **Answer**.
 - **Stop this task**, on the task's line: what waits of it is closed, the task is stopped, and nothing
@@ -381,7 +381,7 @@ file another job changed too. A job that changed nothing is "Done, nothing chang
   level says.
 - **See the changes** or **Open its chat**.
 
-The To-do page shows the same jobs, open by itself while a job needs a decision of yours.
+Ready for you's report shows the same jobs, with a row per job and what waits for you.
 
 See [A job while you're away](../examples/overnight-job.md) for the steps from going away to taking
 the work in.

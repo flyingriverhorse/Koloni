@@ -68,7 +68,7 @@ KOLONİ's own words, as they appear on screen.
 
 **Hive keeper**
 : The built-in role that keeps the To-do list: it turns a goal into stories and tasks, each with what
-  makes it done, and puts them in order. **Write it with the Hive keeper** on the To-do page asks for its
+  makes it done, and puts them in order. The rough note's **Split into tasks** on To-do asks the Hive keeper for its
   way of writing a note as stories and their tasks. See [To-do](../automation/todo.md).
 
 **Journal**
@@ -184,7 +184,7 @@ KOLONİ's own words, as they appear on screen.
   [Chat and canvas](../use/chat-and-canvas.md#writing-a-message).
 
 **Story**
-: On the To-do page, tasks and bugs that go on together. Its state comes from its tasks; it is done
+: On To-do (Ready for you's right half), tasks and bugs that go on together. Its state comes from its tasks; it is done
   only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
   on in one topic of a chat. A **bug** is a task about something that works wrong. See
   [Stories](../automation/todo.md#goals-and-stories) and
