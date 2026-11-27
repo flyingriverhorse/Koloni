@@ -299,7 +299,9 @@ function Rules({
   }
   return (
     <>
-      <div className="set-row">
+      {/* (No cell: a list of its own, each removed at once - the empty place keeps it in line with the rows.) */}
+      <div className="set-row set-row-marked">
+        <span aria-hidden="true" />
         <span className="set-name">Runs without asking</span>
         <span className="set-value">
           <button

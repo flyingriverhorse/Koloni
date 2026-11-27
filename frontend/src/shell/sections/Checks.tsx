@@ -17,8 +17,8 @@ const COMMIT_REST =
 
 /**
  * This project › When the work is done (Checks and git before 0.1.10): what KOLONİ checks after a turn that changed
- * code, and how the work reaches git; under More, the checks by kind of work, the test command KOLONİ found, and what
- * is run on a sub-agent's work before it is added.
+ * code, what runs on a sub-agent's work before it is added (in sight: it runs by itself in Full auto), and how the work
+ * reaches git; under More, the checks by kind of work, the test command KOLONİ found, and the measure command.
  */
 export function useChecks(project: Project, shown: boolean) {
   const [measureCommand, setMeasureCommand] = useState(project.measure_command ?? '')
@@ -44,6 +44,8 @@ export function useChecks(project: Project, shown: boolean) {
   }
   const now = { ...after.now, git_commit: gitCommit, finish_way: finishWay }
   const measured = measureCommand.trim() !== (project.measure_command ?? '')
+  // (What KOLONİ found is listed under More only once it found something.)
+  const found = Object.keys(project.tests_found ?? {}).length > 0
   return part(
     patch,
     true,
@@ -51,6 +53,16 @@ export function useChecks(project: Project, shown: boolean) {
       <Said title="When the work is done">{doneSaid(now)}</Said>
       <h3>After a turn that changed code</h3>
       {after.view}
+      <h3>When a sub-agent’s work is added</h3>
+      {/* (0.1.7: no field - the test files the sub-agent wrote run, each part's runner narrowed to them) */}
+      <p className="choice-note" id="own-tests-note">
+        Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those, with
+        each part’s test command from the project map narrowed to them; none written: no test before adding, and the
+        card says so. KOLONİ’s check at the turn’s end still runs every test. Those tests are the sub-agent’s own code:
+        they run by themselves in Full auto, or where the part’s test command is yours (set on the map, or a saved one
+        under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are away a guess
+        never runs them.
+      </p>
       <h3>How the work reaches git</h3>
       <Marked from={fromOf(gitCommit, project.git_commit, USUAL.git_commit)}>
         <label className="choice">
@@ -70,19 +82,9 @@ export function useChecks(project: Project, shown: boolean) {
         </label>
       </Marked>
       <FinishWay finishWay={finishWay} setFinishWay={setFinishWay} prOff={prOff} saved={project.finish_way ?? null} />
-      <More count={3} set={Number(kinds.set) + Number(!!project.measure_command)}>
+      <More count={found ? 3 : 2} set={Number(kinds.set) + Number(!!project.measure_command)}>
         {kinds.view}
         {after.found}
-        <h3>When a sub-agent’s work is added</h3>
-        {/* (0.1.7: no field - the test files the sub-agent wrote run, each part's runner narrowed to them) */}
-        <p className="choice-note" id="own-tests-note">
-          Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those, with
-          each part’s test command from the project map narrowed to them; none written: no test before adding, and the
-          card says so. KOLONİ’s check at the turn’s end still runs every test. Those tests are the sub-agent’s own
-          code: they run by themselves in Full auto, or where the part’s test command is yours (set on the map, or a
-          saved one under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are
-          away a guess never runs them.
-        </p>
         <Row
           label="Measure command"
           htmlFor="measure-command"

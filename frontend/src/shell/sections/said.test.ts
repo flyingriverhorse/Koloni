@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Budget, JudgeOut } from '../../api/types'
+import type { Budget, JudgeOut, Storage } from '../../api/types'
 import {
   agentsSaid,
   appSaid,
@@ -90,6 +90,7 @@ const spend = (over: Partial<Budget> = {}): Budget => ({
   currency: 'USD',
   spent: 23.4,
   at_least: false,
+  unpriced_runs: 0,
   share: 0.468,
   warn: false,
   over: false,
@@ -111,7 +112,7 @@ test('Limits and money: the month’s budget - not enforced where prices are in 
 })
 
 test('Memory and web, Notifications and This folder', () => {
-  const memory = { auto_notes: false, search_url: null, search_order: 'builtin', memory_links: [] } as const
+  const memory = { auto_notes: false, search_url: null, search_order: 'builtin' as const, memory_links: [] }
   expect(memorySaid(memory)).toBe('Nothing is noted by itself. A web search asks the built-in search, then a CLI.')
   expect(
     memorySaid({ ...memory, auto_notes: true, search_url: 'http://x', search_order: 'cli', memory_links: ['o'] }),
@@ -163,11 +164,11 @@ test('The app: each clause once its value is read - none guessed while it is not
     'Auto-read is on; it reads a short summary when the work ends. Dictation listens for tr-TR; reading aloud is Gemini’s voice.',
   )
   expect(dataSaid(null, null)).toBe('')
-  expect(dataSaid({ db_mb: 1, backups_mb: 2, copies_mb: 3, logs_mb: 4 }, 2)).toBe(
+  expect(dataSaid({ db_mb: 1, backups_mb: 2, copies_mb: 3, logs_mb: 4, kept: [] }, 2)).toBe(
     'KOLONİ’s data takes 10 MB on this machine. 2 places no agent opens, in any project.',
   )
   // (a size not counted in time: no total)
-  expect(dataSaid({ db_mb: 1, backups_mb: null, copies_mb: 3, logs_mb: 4 }, 0)).toBe(
+  expect(dataSaid({ db_mb: 1, backups_mb: null, copies_mb: 3, logs_mb: 4, kept: [] } as unknown as Storage, 0)).toBe(
     '0 places no agent opens, in any project.',
   )
 })
