@@ -96,9 +96,18 @@ def test_send_now_to_copilot_in_its_running_work(copilot_native, wait_run, proje
     client, provider = copilot_native([{"say": "working"}, {"await_send": True}, {"say": "done"}])
     cid, run_id = started(client, project_dir, provider)
     at_work(client, cid, name="Lead")
+    # (A run more, where its words after the answer were read before the answer: it says them.)
+    copilot_native.rescript([{"say": "again"}])
     assert now(client, cid, WORD).json()["run"]["id"] == run_id
+    (sent,) = until_sent(copilot_native)
+    assert (sent["prompt"], sent["mode"]) == (TOLD, "immediate")
     snap = wait_run(client, cid, run_id, timeout=30)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    (sent,) = copilot_native.record()["sent"]
-    assert (sent["prompt"], sent["mode"]) == (TOLD, "immediate")
-    assert client.app.state.runner._unheard.get(run_id) is None
+    assert client.app.state.runner._unheard.get(run_id) is None  # heard, in this turn
+
+
+def until_sent(copilot):
+    """What the stand-in Copilot was sent while its turn ran, once it is on its record."""
+    from tests.test_backlog_auto import until as until_true
+
+    return until_true(lambda: copilot.record().get("sent"))

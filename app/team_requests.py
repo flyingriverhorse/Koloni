@@ -767,12 +767,11 @@ async def _each_back(runner: "AgentRunner", ctx: "Ctx", out: list, late: list, e
                         ctx.agent_id,
                         one.exception(),
                     )
+        if runner._word_in(ctx):  # (before its wait ends: answering, it waits for no place)
+            runner._listening.add(ctx.agent_id)
     runner._answers_out.setdefault(ctx.agent_id, []).extend(one for one in out if not one.done())
     runner._asks_late.setdefault(ctx.run_id, []).extend(one for one in late if not one.done())
-    if runner._word_in(ctx):
-        runner._listening.add(ctx.agent_id)
-        return True
-    return _notes_for(runner, ctx)
+    return ctx.agent_id in runner._listening or _notes_for(runner, ctx)
 
 
 def _notes_for(runner: "AgentRunner", ctx: "Ctx") -> bool:

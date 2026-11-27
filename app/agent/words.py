@@ -407,3 +407,5 @@ COMMANDS_FULL = (
     "{n} of your commands run in the background already ({ids}), as many as this chat lets "
     "work at once: wait for one to end, or stop one with stop_command"
 )
+# A word about an agent that hears nothing (its window's box), its note unread at the turn's end.
+TOLD_UNREAD = "The Orchestrator did not read your word about {name} before this turn ended: {words}"

@@ -451,6 +451,11 @@ class SlotsMixin:
             return
         if self._held_up.get(ctx.agent_id):
             return  # it still waits for a file: `_claim` takes its place when that is its own
+        if ctx.agent_id in self._listening:
+            # D2: the Orchestrator answers a word of the user's and writes nothing: it waits for
+            # no place - its agents keep theirs - and takes one again at its next wait's end.
+            self._set_agent(ctx.cid, ctx.agent_id, status="running")
+            return
         # (One the user still owes a word stays "waiting": `_users_word` says "running" after.)
         if await self._settle(ctx, queued=False):
             self._set_agent(ctx.cid, ctx.agent_id, status="running")

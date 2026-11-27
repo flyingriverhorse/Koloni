@@ -125,9 +125,11 @@ class JudgeMixin:
         project's root, in a turn the user started from the app's own page (`Run.by_user`: not a
         To-do task's, a trigger's, Fix it's nor a job's while they are away) and not a side of a
         comparison, which no measured judge model let run: the record that its card quotes the
-        sentence of the user's message that started this turn - an earlier turn's never: a
-        later push is not its - that asked for it (`judge.asked_for`; one over MOST_CHARS is not
-        read, never cut: its condition may stand past the cut) - `kind` "said", an ask: a card
+        sentence of the user's own messages of this turn - the one that started it and the words
+        they sent into it (Send now, from the app's own page), the newest deciding - an earlier
+        turn's never: a later push is not its - that asked for it (`judge.asked_for`; over
+        MOST_CHARS together none is read, never cut: a condition may stand past the cut) - `kind`
+        "said", an ask: a card
         all the same, one click, with its `action`. None where none asks for it, the project's
         repository cannot be read (`_refs`), or a push sends by name what is no branch of the
         repository's own (nor HEAD): a tag, another remote's, a name git would read otherwise."""
@@ -150,12 +152,14 @@ class JudgeMixin:
                 return None
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             texts = self._users_words(session, ctx.cid, project.rules if project else None)
-            started = session.scalars(
-                select(Message.content).where(
+            started = session.scalars(  # (newest first, as `judge.asked_for` reads them)
+                select(Message.content)
+                .where(
                     Message.run_id == ctx.run_id,
                     Message.role == "user",
                     Message.agent_id.is_(None),
                 )
+                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
             ).all()
         if sum(map(len, started)) > judge.MOST_CHARS:
             return None
