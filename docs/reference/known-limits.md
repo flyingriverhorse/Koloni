@@ -152,8 +152,9 @@ messages.
   Orchestrator waits for no room among the
   agents at work: it is counted at work in the project and on its provider (who comes next waits for
   it), but a provider let work at one at once gets one more request beside its agents' then, and the
-  turn may have one more at work than the chat's setting until its next wait. A chat open in a hidden
-  browser tab counts as watched: no desktop notice comes when a background agent ends.
+  turn may have one more at work than the chat's setting until its next wait. Whether you look at a
+  chat is what its page says (its view on screen, its tab seen, its window focused): a page that has
+  not said yet - one of an older build - counts as looking, and no desktop notice comes then.
 - The line over the chat says the Orchestrator's step from the plan it shows (`update_plan`, or a
   Codex Orchestrator's own); Claude Code's own to-do list is not read, so a Claude Code Orchestrator
   shows no step. `ask_advisor` and `note_decision` have not been tried with a live model yet; what

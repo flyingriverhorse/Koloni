@@ -298,8 +298,8 @@ class TiersMixin:
             for who, question, asked in self._users_awaited.pop(cid, [])
             if not asked.done() and asked not in self._lead_taking
         ]
-        if not still or not self._toasts.take(cid):
-            return
+        if not still or self.bus.looking(cid) or not self._toasts.take(cid):
+            return  # (herdr's rule: told only where nobody looks at the chat)
         (who, question), *more = still
         said = (
             f"{len(still)} cards wait for you"

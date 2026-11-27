@@ -358,13 +358,11 @@ class AtWorkMixin:
     def _tell_done(self: "AgentRunner", ctx: Ctx, child_id: str) -> None:
         """An agent its opener did not wait for (a background one, a CLI's) is over: KOLONİ's own
         desktop notice - its name, how it ended, how many findings it reported; never a word of
-        its own - where the project has notices on and nobody has its chat open
-        (`bus.watching`), within `_toasts`. One waited for is said by its opener's next answer.
-        Never fails the turn.
-        shortcut: a hidden tab still counts as watching (its events stream); tell then too if
-        a notice is missed there."""
+        its own - where the project has notices on and nobody looks at its chat (`bus.looking`:
+        on screen, its tab seen, its window not elsewhere), within `_toasts`. One waited for is
+        said by its opener's next answer. Never fails the turn."""
         with contextlib.suppress(Exception):
-            if self.bus.watching(ctx.cid):
+            if self.bus.looking(ctx.cid):
                 return
             with self._factory() as session:
                 project = self._project(session, ctx.cid)

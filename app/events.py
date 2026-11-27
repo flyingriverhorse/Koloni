@@ -10,10 +10,14 @@ Item = tuple[int | None, str, dict]
 
 
 class Subscription:
-    def __init__(self, bus: "EventBus", conversation_id: str):
+    def __init__(
+        self, bus: "EventBus", conversation_id: str, client: str | None = None, looking=True
+    ):
         self._bus = bus
         self._conversation_id = conversation_id
         self.queue: asyncio.Queue[Item] = asyncio.Queue()
+        # The page it is (its own id), and whether it has the chat on screen now (`look`).
+        self.client, self.looking = client, looking
 
     async def __aenter__(self) -> "Subscription":
         self._bus._subs[self._conversation_id].add(self)
@@ -61,8 +65,25 @@ class EventBus:
         """Whether the chat is open somewhere: a transient event reaches somebody."""
         return bool(self._subs.get(conversation_id))
 
-    def subscribe(self, conversation_id: str) -> Subscription:
-        return Subscription(self, conversation_id)
+    def looking(self, conversation_id: str) -> bool:
+        """herdr's rule (28 Nov 2026): whether somebody looks at the chat now - a page that has it
+        on screen, its tab seen and its window not known to be elsewhere (`look`). A page that
+        never said counts as looking, as before; a hidden tab, or another page of KOLONİ's open
+        over it, does not."""
+        return any(getattr(sub, "looking", True) for sub in self._subs.get(conversation_id, ()))
+
+    def look(self, conversation_id: str, client: str, looking: bool) -> bool:
+        """What the page `client` says now of the chat: on screen or not. Whether a page of that
+        id has the chat open - one that has not is not kept (it says it again as it opens)."""
+        mine = [s for s in self._subs.get(conversation_id, ()) if getattr(s, "client", 0) == client]
+        for sub in mine:
+            sub.looking = looking
+        return bool(mine)
+
+    def subscribe(
+        self, conversation_id: str, client: str | None = None, looking: bool = True
+    ) -> Subscription:
+        return Subscription(self, conversation_id, client, looking)
 
     def replay(self, conversation_id: str, after: int) -> list[tuple[int, str, dict]]:
         with self._factory() as session:

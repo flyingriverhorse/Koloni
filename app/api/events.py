@@ -2,8 +2,11 @@ import asyncio
 import contextlib
 import json
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+from app.api.deps import require_own_origin
 
 router = APIRouter(prefix="/api/conversations", tags=["events"])
 
@@ -45,14 +48,36 @@ async def _until_closed(sub, closing: asyncio.Event, cursor: int):
             item.cancel()
 
 
+class LookingIn(BaseModel):
+    """What a page says of a chat it has open (`EventBus.look`)."""
+
+    client: str = Field(min_length=1, max_length=64)  # the page's own id, as its stream gave it
+    looking: bool  # on screen now: the chat's view shown, its tab seen, its window not elsewhere
+
+
+@router.post(
+    "/{conversation_id}/looking", status_code=204, dependencies=[Depends(require_own_origin)]
+)
+async def looking(conversation_id: str, body: LookingIn, request: Request) -> None:
+    """herdr's rule (28 Nov 2026): whether the page `client` has the chat on screen now - a notice
+    that something waits, or that a background agent ended, is shown only where nobody does."""
+    request.app.state.bus.look(conversation_id, body.client, body.looking)
+
+
 @router.get("/{conversation_id}/events")
 async def stream_events(
-    conversation_id: str, request: Request, after: int | None = None, once: bool = False
+    conversation_id: str,
+    request: Request,
+    after: int | None = None,
+    once: bool = False,
+    client: str | None = None,
+    looking: bool = True,
 ):
     """Server-sent events for one conversation.
 
     Replays persisted events after the cursor, then stays open. `once` closes the
-    stream after the replay (for tests and debugging).
+    stream after the replay (for tests and debugging). `client`: the page's own id, and whether
+    it has the chat on screen as it opens (`looking`; later by POST .../looking).
     """
     bus = request.app.state.bus
     runner = request.app.state.runner
@@ -60,7 +85,8 @@ async def stream_events(
 
     async def generate():
         nonlocal cursor
-        async with bus.subscribe(conversation_id) as sub:
+        page = client[:64] if client else None
+        async with bus.subscribe(conversation_id, page, looking) as sub:
             # Deltas are not persisted, so a reconnecting client is sent the full text
             # of anything still streaming. It is captured at subscribe time (deltas from
             # here on arrive through the subscription) and sent after the replay, once
