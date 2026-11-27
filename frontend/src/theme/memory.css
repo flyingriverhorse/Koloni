@@ -1252,52 +1252,8 @@ a.btn {
   padding: 0;
 }
 
-/* Work (0.1.10): Ready for you and To-do, two tabs under the page's heading - the tab shown fills the page and scrolls by
-   itself, its tabs staying in sight. (Over board.css's two halves side by side: `.work-page` wins by its two classes.) */
-.ready-page.work-page {
-  display: flex;
-  flex-direction: column;
-}
-
-.work-top {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 20px 28px 0;
-}
-
-.work-top > h2 {
-  margin: 0;
-  font-size: var(--text-title);
-}
-
-.work-tabs {
-  padding: 0;
-}
-
-.work-page .ready-left {
-  flex: 1;
-  border-right: 0;
-}
-
-.work-page .ready-right {
-  flex: 1;
-}
-
-.work-page > [hidden] {
-  display: none;
-}
-
-/* On a narrow screen the page scrolls as one, and a story's panel takes the window. */
+/* On a narrow screen a story's panel takes the window. */
 @media (max-width: 980px) {
-  .ready-page.work-page {
-    display: block;
-  }
-
-  .work-page .ready-left {
-    border-bottom: 0;
-  }
-
   .todo-panel {
     position: fixed;
     inset: 0;

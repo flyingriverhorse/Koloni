@@ -33,7 +33,7 @@
 
 /* --- what waits for you, seen from anywhere (slice 38f-2) --------------------------- */
 
-/* The count on the rail's Ready button: a warning tag, so its ground and text are the tags' own. */
+/* The count on the rail's Work button: a warning tag, so its ground and text are the tags' own. */
 .rail-badge {
   position: absolute;
   top: 0;
@@ -230,9 +230,9 @@
 }
 
 /* Now: what is at work and what waits for your word, in every folder - one strip across the top, in sight while the
-   list scrolls under it: its heading, its cells, its sentence and Go to Ready, what the cells mean; wrapped where
-   narrow. It sticks to the page's very top (its padding is 28 px) in a band of the page's ground, so the rows that
-   go under it are not seen above it or by its corners. */
+   list scrolls under it: its heading, its cells, its sentence and Go to Ready for you, what the cells mean; wrapped
+   where narrow. It sticks to the page's very top (its padding is 28 px) in a band of the page's ground, so the rows
+   that go under it are not seen above it or by its corners. */
 .conv-now {
   position: sticky;
   top: -28px;
@@ -501,20 +501,41 @@
   overflow-wrap: anywhere;
 }
 
-/* Ready for you (0.1.10): one page. On the left what was done - the night's report -, what waits for your word and what
-   was decided for you; on the right To-do. Side by side on a wide screen (about 1.35 to 1), each scrolling by itself;
-   one under the other on a narrow one, the page scrolling. */
+/* Work (0.1.10): Ready for you and To-do, two tabs under the page's heading - the tab shown fills the page and scrolls
+   by itself, its tabs staying in sight; on a narrow window the page scrolls as one. */
 .ready-page {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+
+.work-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 28px 0;
+}
+
+.work-top > h2 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+
+.work-tabs {
+  padding: 0;
+}
+
+/* (Both tabs stay drawn: the one not shown is hidden, whatever its own display.) */
+.ready-page > [hidden] {
+  display: none;
 }
 
 .ready-left,
 .todo-half {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
@@ -523,25 +544,18 @@
   overflow-y: auto;
 }
 
-.ready-left {
-  border-right: 1px solid var(--border);
-}
-
-/* (The story's panel lies over the right half, not over what it scrolls: the half is its frame.) */
+/* (A story's panel lies over the To-do tab, not over what it scrolls: the tab is its frame.) */
 .ready-right {
   position: relative;
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
 
-.todo-half {
-  flex: 1;
-}
-
-/* An empty To-do's long line: its faint hive reaches 32px past it, which the half's padding (28px) does not hold - the
-   half would scroll sideways. */
+/* An empty To-do's long line: its faint hive reaches 32px past it, which the tab's padding (28px) does not hold - the
+   tab would scroll sideways. */
 .todo-half p.hive-empty {
   max-width: calc(100% - 32px);
 }
@@ -664,11 +678,6 @@
   .ready-left,
   .todo-half {
     overflow: visible;
-  }
-
-  .ready-left {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
   }
 }
 

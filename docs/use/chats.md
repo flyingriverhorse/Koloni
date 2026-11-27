@@ -3,7 +3,7 @@
 **Chats** on the left rail opens the list of your chats: on top **Now**, what is at work and what waits
 for your word in every folder, and under it each chat with how it stands.
 
-![The Chats page: the heading Chats with one row of tools beside it - Search by name, All states, Last activity, New chat, From a GitHub issue…; under it the Now strip across the page with its cells, "Nothing at work; 1 thing waits for your word. Today 1 done. What waits is on Ready for you.", Go to Ready, and what the cells mean; under it the project folder with three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"](../images/chats.png)
+![The Chats page: the heading Chats with one row of tools beside it - Search by name, All states, Last activity, New chat, From a GitHub issue…; under it the Now strip across the page with its cells, "Nothing at work; 1 thing waits for your word. Today 1 done. What waits is on Ready for you.", Go to Ready for you, and what the cells mean; under it the project folder with three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"](../images/chats.png)
 
 ## The list
 
@@ -49,7 +49,7 @@ scroll the list:
   cell, or let a screen reader say it, for its chat and its state;
 - one sentence that counts them - "2 chats at work; 2 things wait for your word. Today 1 stuck." The
   number that waits is the top bar's pill's;
-- **Go to Ready**, where what waits is answered;
+- **Go to Ready for you**, Work's tab where what waits is answered;
 - what the cells mean.
 
 On a narrow window (980 px or less) Now wraps onto a few lines; it is still on top of the list but

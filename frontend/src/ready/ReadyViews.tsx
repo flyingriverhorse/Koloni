@@ -478,7 +478,7 @@ export function ReadyPage({
     hidden: of !== tab,
   })
   return (
-    <div className="ready-page work-page">
+    <div className="ready-page">
       <div className="work-top">
         <h2>Work</h2>
         <WorkTabs tab={tab} waiting={items.length} open={todoOpen} />

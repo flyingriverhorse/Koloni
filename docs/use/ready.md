@@ -58,8 +58,8 @@ Work opens on the tab you showed last while KOLONİ is open (a reload starts on 
 Some ways in open a tab of their own:
 
 - **Ready for you**: KOLONİ opened the morning after a night, the top bar's ☾ Away line, **Open in
-  Ready for you** (a chat's line, Usage's Today), **Open all as a page →** on the panel, **Go to Ready**
-  on Chats, **Open on Ready for you** on Tools, and the top bar's pill while you are on Work.
+  Ready for you** (a chat's line, Usage's Today), **Open all as a page →** on the panel, **Go to Ready
+  for you** on Chats, **Open on Ready for you** on Tools, and the top bar's pill while you are on Work.
 - **To-do**: Ctrl+K's **Work › To-do**, a chat's **Open it in To-do**, **The task** on a decision, and
   the canvas's **To-do →** and its Scout's node.
 

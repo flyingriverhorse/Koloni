@@ -520,7 +520,7 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Work', 'ready-page work-page', 'Work'],
+    ['Work', 'ready-page', 'Work'],
     ['Usage', 'memory-page', 'Usage'],
     // (0.1.10: its heading, the three ways and its tabs stand while its memory is read)
     ['Memory', 'memory-page', 'Memory'],
@@ -537,14 +537,14 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Work', 'ready-page work-page', 'Work'],
+    ['Work', 'ready-page', 'Work'],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
     ['Chats', 'conv-page', 'Chats'],
     ['Canvas', 'stage', 'First steps'],
   ])
   // (Work's Ready for you; its To-do, a tab since 0.1.10, asks for one there.)
-  await visit([['Work', 'ready-page work-page', 'Work']])
+  await visit([['Work', 'ready-page', 'Work']])
   expect(screen.getByRole('heading', { name: `Ready for you ${greeting()}` })).toBeVisible()
   await userEvent.click(screen.getByRole('tab', { name: 'To-do' }))
   expect(screen.getByRole('region', { name: 'To-do' })).toHaveTextContent(noFolder('To-do'))

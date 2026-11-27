@@ -804,7 +804,7 @@ test('a chat’s row says what waits for your word in it - Ready for you’s own
   expect(within(now).getByLabelText('What the cells say')).toHaveTextContent(
     'done at work waits for your word stuck idle',
   )
-  await userEvent.click(within(now).getByRole('button', { name: 'Go to Ready' }))
+  await userEvent.click(within(now).getByRole('button', { name: 'Go to Ready for you' }))
   expect(onReady).toHaveBeenCalledOnce()
 })
 
@@ -820,7 +820,7 @@ test('Now before the Board is read: what waits is counted, how the chats stand i
   )
   const now = screen.getByRole('complementary', { name: 'Now every folder' })
   expect(now).toHaveTextContent('How the chats stand is not read yet; nothing waits for your word.')
-  expect(within(now).queryByRole('button', { name: 'Go to Ready' })).toBeNull()
+  expect(within(now).queryByRole('button', { name: 'Go to Ready for you' })).toBeNull()
   // Its row has no cell to say what is not known.
   expect(within(screen.getByRole('button', { name: /^Docs/ }).closest('li')!).queryByRole('img')).toBeNull()
 })

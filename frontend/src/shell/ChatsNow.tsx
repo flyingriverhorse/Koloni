@@ -79,7 +79,7 @@ export function ChatsNow({
           </p>
           {onReady && (
             <button type="button" className="btn btn-small btn-primary" onClick={onReady}>
-              Go to Ready
+              Go to Ready for you
             </button>
           )}
         </div>
