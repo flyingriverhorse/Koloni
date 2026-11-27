@@ -184,7 +184,7 @@ On the Agents page, open a role and its **Knowledge** tab. Switch a knowledge on
 A role with knowledge can look things up in it while it works.
 
 The same is on the knowledge's card, under **Used by:**: untick a role and it no longer uses the
-knowledge; **+ Role…** gives it to another role, as **Map**. A role that is **Full** in it (an expert)
+knowledge; choose another role in **+ Role…** and press **Give** to give it the knowledge, as **Map**. A role that is **Full** in it (an expert)
 has its tick marked "full" and greyed: change that on the role's **Knowledge** tab. A refusal is said
 on the card.
 

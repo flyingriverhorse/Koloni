@@ -167,9 +167,18 @@ test('0.1.10: a role is given a source on its card, or no longer uses it, as on 
       .getAllByRole('option')
       .map(one => one.textContent),
   ).toEqual(['+ Role…', 'Reviewer'])
-  onUse.mockRejectedValueOnce(new ApiError(409, 'that role cannot use it'))
+  // choosing gives nothing yet (the keyboard's arrows go through the list): Give does
+  const button = within(used).getByRole('button', { name: 'Give' })
+  expect(button).toBeDisabled()
+  onUse.mockClear()
+  give.focus()
+  await userEvent.keyboard('{ArrowDown}')
   await userEvent.selectOptions(give, 'r3')
+  expect(onUse).not.toHaveBeenCalled()
+  onUse.mockRejectedValueOnce(new ApiError(409, 'that role cannot use it'))
+  await userEvent.click(button)
   expect(onUse).toHaveBeenLastCalledWith('k1', 'r3', 'map')
+  expect(give).toHaveValue('')
   expect(await within(used).findByRole('alert')).toHaveTextContent('that role cannot use it')
   // no role uses it yet: said so, and one can be given it
   expect(within(card('tomli')).getByRole('group', { name: 'Roles that use tomli' })).toHaveTextContent('no role yet')

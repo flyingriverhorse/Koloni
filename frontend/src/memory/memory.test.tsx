@@ -147,6 +147,50 @@ test('0.1.10: two parts as tabs, each saying what waits in it; arrows go between
   ])
 })
 
+test('0.1.10: a hit clicked while the sources are shown shows this part, then goes to its row - once', async () => {
+  const onPart = vi.fn()
+  const props = { ...handlers(), memory: projectMemory({ core: [fact] }), onPart, sourcesPart: <p>the sources</p> }
+  const { rerender } = render(<MemoryPage {...props} sources />)
+  await userEvent.type(screen.getByLabelText('Search everything this project remembers'), 'merhaba')
+  await userEvent.click(within(screen.getByRole('group', { name: 'In Facts' })).getByRole('button'))
+  expect(onPart).toHaveBeenLastCalledWith(false)
+  rerender(<MemoryPage {...props} sources={false} />)
+  const row = within(panel('Facts')).getByRole('article')
+  expect(row).toHaveFocus()
+  // the parts switched again later, the focus is not taken back to it
+  const tab = screen.getByRole('tab', { name: /^What the project knows/ })
+  tab.focus()
+  rerender(<MemoryPage {...props} sources />)
+  rerender(<MemoryPage {...props} sources={false} />)
+  expect(tab).toHaveFocus()
+})
+
+test('0.1.10: your words end with the projects Search deeper also looks in, and the way to change them', async () => {
+  const onLinked = vi.fn()
+  const { rerender } = render(
+    <MemoryPage memory={projectMemory()} {...handlers()} linked={['skyulf-site', 'docs']} onLinked={onLinked} />,
+  )
+  expect(panel('Told')).toHaveTextContent(
+    'Search deeper and Recall also look in the memory of skyulf-site, docs. Change',
+  )
+  await userEvent.click(within(panel('Told')).getByRole('button', { name: 'Change' }))
+  expect(onLinked).toHaveBeenCalled()
+  rerender(<MemoryPage memory={projectMemory()} {...handlers()} linked={[]} onLinked={onLinked} />)
+  expect(panel('Told')).toHaveTextContent('Search deeper and Recall look in no other project’s memory.')
+})
+
+test('the core’s ten cells fill down: the tenth only when it is full', () => {
+  const cells = (chars: number) => {
+    const { unmount } = render(
+      <MemoryPage memory={projectMemory({ core_chars: chars, core_limit: 4000 })} {...handlers()} />,
+    )
+    const filled = panel('Facts').querySelectorAll('.memory-room .cell-full').length
+    unmount()
+    return filled
+  }
+  expect([0, 399, 400, 3990, 4000].map(cells)).toEqual([0, 0, 1, 9, 10])
+})
+
 test('a fact’s cell says how it stands for agents - given, given to none until you look again, or only found by looking it up - never that it is right', () => {
   expect([fact, stale, own].map(factStands)).toEqual(['given', 'stale', 'asked'])
   expect(factStands({ source_state: 'moved', given_unasked: true })).toBe('stale')

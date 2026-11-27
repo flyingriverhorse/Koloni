@@ -130,17 +130,21 @@ for (const theme of ['light', 'dark'] as const) {
       await shot(page, `60c-memory-${theme}`)
       await page.getByRole('button', { name: '＋ Add a fact' }).click()
       await page.getByRole('region', { name: 'Add a fact' }).getByText('Subject, file and lines').click()
-      await expect(page.getByRole('region', { name: 'This project’s rules' }).getByLabel('Rules')).toHaveValue(
-        'Sign every commit.',
-      )
+      const rules = page.getByRole('region', { name: 'This project’s rules' }).getByLabel('Rules')
+      await expect(rules).toHaveValue('Sign every commit.')
       await readable(page, page.locator('.memory-page'))
       // History unfolded, and the sources part, read as well, in both widths.
       await page.locator('.memory-history > summary').click()
       await readable(page, page.locator('.memory-page'))
+      // (a draft typed in one part is there when you come back from the other: the page is not made anew)
+      await rules.fill('Sign every commit. Not saved yet.')
       await tabs.last().click()
       await expect(page.locator('.knowledge-page')).toBeVisible()
       // (this project's sources may be only the two offered: fewer pieces of text)
       await readable(page, page.locator('.memory-page'), 8)
+      await tabs.first().click()
+      await expect(rules).toHaveValue('Sign every commit. Not saved yet.')
+      await expect(page.locator('.memory-history')).toHaveAttribute('open', '')
     } finally {
       await clearMemory(request)
     }

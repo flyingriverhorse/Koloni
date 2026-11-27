@@ -48,7 +48,8 @@ export function Offer({
 
 /**
  * 0.1.10: which roles look things up in it, a tick each - unticked, that role no longer does; and another role given it
- * from the list (Map, as a role's Knowledge tab's switch). An expert's own (Full) is changed on the role's Knowledge tab.
+ * from the list (Map, as a role's Knowledge tab's switch) with Give - not on choosing, so the keyboard's arrows through
+ * the list give nothing. An expert's own (Full) is changed on the role's Knowledge tab.
  */
 export function RoleTicks({
   item,
@@ -61,6 +62,7 @@ export function RoleTicks({
 }) {
   const [busy, setBusy] = useState(false)
   const [said, setSaid] = useState<string | null>(null)
+  const [chosen, setChosen] = useState('')
   const topic = item.knowledge.topic
   const use = (roleId: string, mode: KnowsMode | null) => {
     if (!onUse) return
@@ -97,20 +99,33 @@ export function RoleTicks({
         </label>
       ))}
       {onUse && others.length > 0 && (
-        <select
-          className="input knowledge-give"
-          aria-label={`Give ${topic} to a role`}
-          value=""
-          disabled={busy}
-          onChange={e => e.target.value && use(e.target.value, 'map')}
-        >
-          <option value="">+ Role…</option>
-          {others.map(role => (
-            <option key={role.id} value={role.id}>
-              {role.name}
-            </option>
-          ))}
-        </select>
+        <>
+          <select
+            className="input knowledge-give"
+            aria-label={`Give ${topic} to a role`}
+            value={chosen}
+            disabled={busy}
+            onChange={e => setChosen(e.target.value)}
+          >
+            <option value="">+ Role…</option>
+            {others.map(role => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy || !others.some(role => role.id === chosen)}
+            onClick={() => {
+              use(chosen, 'map')
+              setChosen('')
+            }}
+          >
+            Give
+          </button>
+        </>
       )}
       {said && (
         <span role="alert" className="alert">

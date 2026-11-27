@@ -36,7 +36,17 @@ for (const theme of ['light', 'dark'] as const) {
     await shot(page, `k-bilgi-add-${theme}`)
     expect(await lowContrast(page, '.knowledge-add')).toEqual([])
     await added.getByRole('button', { name: 'Add without learning' }).click()
-    await expect(page.getByRole('article', { name: 'Tomli' })).toContainText('not learned')
+    const tomli = page.getByRole('article', { name: 'Tomli' })
+    await expect(tomli).toContainText('not learned')
+    // 0.1.10: a role is given it on its card - chosen, then Give - and no longer uses it, unticked.
+    const roles = tomli.getByRole('group', { name: 'Roles that use Tomli' })
+    await expect(roles).toContainText('no role yet')
+    await roles.getByRole('combobox', { name: 'Give Tomli to a role' }).selectOption({ label: 'Coder' })
+    await roles.getByRole('button', { name: 'Give' }).click()
+    await expect(roles.getByRole('checkbox', { name: 'Coder' })).toBeChecked()
+    // (a click, not uncheck(): the tick is the server's, and goes once it is read again)
+    await roles.getByRole('checkbox', { name: 'Coder' }).click()
+    await expect(roles).toContainText('no role yet')
     // This project's, not every project's.
     const pid = await e2eProject(page)
     const listed = (await (await page.request.get(`/api/projects/${pid}/knowledge`, { headers: OWN })).json()) as {

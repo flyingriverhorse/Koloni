@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
 import type { MemoryRecord, MemorySearch, ProjectMemory } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
@@ -127,7 +127,8 @@ const ofTopic = (records: MemoryRecord[], topic: string) =>
 /** The core's room: ten cells, filled as its facts take room, with the count beside them (a full core refuses more). */
 function Room({ chars, limit }: { chars: number; limit: number }) {
   const said = meter(chars, limit)
-  const used = Math.min(10, Math.round((10 * chars) / Math.max(limit, 1)))
+  // (Down: the tenth cell fills only when the core is full.)
+  const used = Math.min(10, Math.floor((10 * chars) / Math.max(limit, 1)))
   return (
     <span className="memory-room">
       {Array.from({ length: 10 }, (_, at) => (
@@ -223,13 +224,16 @@ export function MemoryPage({
   // A row to go to once it is shown: a search hit, or the fact box.
   const [goTo, setGoTo] = useState<{ id: string; n: number } | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  // The last row gone to: a hit clicked on the sources part is gone to once this part is shown, and only then.
+  const reached = useRef(0)
   useEffect(() => {
-    if (!goTo) return
+    if (!goTo || sources || reached.current === goTo.n) return
+    reached.current = goTo.n
     const row = document.getElementById(goTo.id)
     row?.scrollIntoView?.({ block: 'center' })
     // (Not from a question that took the focus: "Replace what you typed?")
     if (!document.activeElement?.closest('[role="alertdialog"]')) row?.focus()
-  }, [goTo])
+  }, [goTo, sources])
   // (Once, as it is shown: the page is drawn again while it stands - a source learning on the other part.)
   const focusOnce = useCallback((said: HTMLElement | null) => said?.focus(), [])
   const conv = useApp(s => s.conv)
