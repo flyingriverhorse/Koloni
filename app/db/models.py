@@ -1639,15 +1639,6 @@ class LimitReading(Base):
     read_at: Mapped[datetime] = mapped_column()
 
 
-class Flag(Base):
-    """A switch of the whole app that outlives a restart, or one of its
-    settings (Gemini's voice: its key, which no answer carries, model and voice; app.api.voice)."""
-
-    __tablename__ = "flags"
-    name: Mapped[str] = mapped_column(String(40), primary_key=True)
-    value: Mapped[str] = mapped_column(String(200))
-
-
 class Event(Base):
     __tablename__ = "events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -1783,3 +1774,6 @@ class AwayRun(Base):
     # What its chat had spent at Go away: not counted to its money (`app.away.spent`).
     spent_before: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
+
+
+from app.db.turn_models import Flag  # noqa: E402,F401

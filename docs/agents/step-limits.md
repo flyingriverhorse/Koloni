@@ -13,6 +13,11 @@ a command, open a sub-agent. The tools run, and the next step reads what they ga
 - A CLI run **One session per agent** counts one step for each message it writes.
 - A CLI working with its own tools (**Native**) takes no steps KOLONİ can count: no step limit holds
   it. See [Set up a CLI](../models/setup-cli.md#how-it-runs).
+- The Orchestrator's step that reads a background agent's report, or answers a word you sent now,
+  is a step like any other: it counts to its role's limit. At that limit it waits for the agents
+  still at work and takes no step more. Agents opened in the background are held to the chat's
+  limits as any agent - how many at once, how many a turn opens, how deep. See
+  [Talking while agents work](../use/talk-while-agents-work.md#agents-in-the-background).
 
 When an agent has two steps left, KOLONİ tells it to start nothing new, finish what it is on, and
 write its report: what it did and what is left.

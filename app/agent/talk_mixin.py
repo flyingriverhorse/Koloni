@@ -192,6 +192,8 @@ class TalkMixin:
         command_id = args.get("id")
         if not isinstance(command_id, str) or not command_id.strip():
             raise ToolError("missing required argument: id")
+        if (later := self._command_later_of(ctx, command_id.strip())) is not None:  # (Task 8)
+            return await self._command_later_call(ctx, name, later, args.get("since"))
         command = self.commands.server(ctx.cid, command_id.strip())
         if name == "stop_command":
             return await self.commands.stop_own(command, ctx.agent_id)
@@ -351,6 +353,7 @@ class TalkMixin:
             # K-dal-takim: only where it can be had - offered as it was elsewhere.
             for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
                 spawn["parameters"]["properties"]["on_branch"] = ON_BRANCH_PROPERTY
+        self._at_work_offered(ctx, schemas)  # (0.1.11: background, stop_agent)
         if (
             getattr(ctx.model, "collaborates", True)
             and not ctx.answering
@@ -744,7 +747,10 @@ class TalkMixin:
 
     def _deliver(self: "AgentRunner", ctx: Ctx) -> list[str]:
         """Hand an agent the notes left for it and what is new to it on the turn's notebook;
-        returns them as it will read them."""
+        returns them as it will read them.
+        shortcut: an answer turn of the Orchestrator's (to an agent's message) is handed its notes
+        too - a word of the user's about an agent (`to_lead`) is then read there, and no step of
+        its own answers the user; keep that note for its own step if that is seen."""
         with self._factory() as session:
             # Not in a turn taken to answer or to speak: the notebook waits for its own work.
             handed = [] if ctx.answering else self._hand_notes(session, ctx)

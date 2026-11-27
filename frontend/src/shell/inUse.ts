@@ -1,8 +1,10 @@
 import { titleOf } from '../agents/agentStatus'
+import { api } from '../api/client'
 import { canSwitch } from '../agents/chart'
 import {
   TIERS,
   type Conversation,
+  type Health,
   type Provider,
   type Role,
   type RoleModel,
@@ -10,6 +12,8 @@ import {
   type Tier,
   type Tiers,
 } from '../api/types'
+import type { AppStore } from '../state/store'
+import type { Cannot } from './ModelBanner'
 
 /** What the store knows besides the rows: the roles, teams and providers, the tiers' models. */
 export interface Known {
@@ -63,5 +67,36 @@ export function inUseBy(chat: Conversation | null, rows: RoleModel[], { roles, t
   return {
     ids: [...new Set([...(chat?.provider_id ? [chat.provider_id] : []), ...ids])],
     cannot: used.flatMap(({ row }) => (row.cannot_run ? [{ who: titleOf(row.role, teams), why: row.cannot_run }] : [])),
+  }
+}
+
+export const readHealth = (id: string | null) =>
+  api.get<Health>(id ? `/health?provider_id=${encodeURIComponent(id)}` : '/health')
+
+/** The top bar's: what /health says of each provider the open chat would run on, and the roles of it that cannot run (`inUseBy`). */
+export async function inUseNow(
+  get: () => AppStore,
+  health: Health | null,
+): Promise<{ readings: Health[]; cannot: Cannot[] }> {
+  const chat = get().conv?.conversation ?? null
+  try {
+    // (Read with the page's first reading, they may not be here yet.)
+    if (get().roles.length === 0) await get().loadRoles()
+    if (get().providers.length === 0) await get().loadProviders()
+    const [rows, tiers] = await Promise.all([
+      get().roleModels(chat?.id ?? null),
+      get()
+        .tiers()
+        .catch(() => null),
+    ])
+    const { ids, cannot } = inUseBy(chat, rows, { ...get(), tiers })
+    // A reading that fails keeps the last one: one glitch neither quiets the bar nor shows it again after a dismissal.
+    // (A provider never read before is left out until it is.)
+    const last = (id: string) => get().inUse?.readings.find(one => one.provider_id === id) ?? null
+    const read = (id: string) => (id === health?.provider_id ? health : readHealth(id).catch(() => last(id)))
+    return { readings: (await Promise.all(ids.map(read))).filter(one => one !== null), cannot }
+  } catch {
+    // (No provider at all, or the roles not read: the one reading there is, as before.)
+    return { readings: health ? [health] : [], cannot: [] }
   }
 }

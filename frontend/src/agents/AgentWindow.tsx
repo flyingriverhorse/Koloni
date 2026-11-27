@@ -26,6 +26,7 @@ import { stepsOf } from './AgentSteps'
 import { EarlierWork } from './EarlierWork'
 import { STEP_MARK } from './livePlan'
 import { SpawnRow } from './SpawnRow'
+import { StopAndMessage } from '../canvas/agentStop'
 import { Story } from './Story'
 
 export type { AgentAsks } from './agentParts'
@@ -244,6 +245,7 @@ export function AgentWindow({ state, agentId, onClose, ...rest }: Props) {
           </span>
         )}
         <StatusLabel color={color}>{label}</StatusLabel>
+        <StopAndMessage agentId={agent.id} name={titleOf(agent.name || agent.role_name)} />
         <button type="button" className="icon-btn" aria-label="Close agent window" onClick={onClose}>
           <X size={14} />
         </button>
@@ -280,26 +282,37 @@ export function TellAtWork({ agent }: { agent: Agent }) {
   const { busy, error, ask } = useAsk()
   const [words, setWords] = useState('')
   const [said, setSaid] = useState<string | null>(null)
-  if (!AT_WORK.has(agent.status) || agent.status === 'proposed' || hearsNothing(agent.provider_mode, kind)) return null
+  if (!AT_WORK.has(agent.status) || agent.status === 'proposed') return null
+  // B-164 (the user's answer 2, 25 Nov): a CLI that hears nothing while it works - the word goes to the Orchestrator.
+  const toLead = hearsNothing(agent.provider_mode, kind)
+  if (toLead && !agent.parent_agent_id) return null
   const name = titleOf(agent.name || agent.role_name)
+  const label = toLead ? `Tell the Orchestrator about ${name}` : `Tell ${name}`
   return (
     <form
       className="agent-tell"
+      data-agent={agent.id}
       onSubmit={e => {
         e.preventDefault()
         if (words.trim() && !busy)
           void ask(async () => {
             setSaid(null)
-            await api.post(`/agents/${agent.id}/tell`, { words })
+            await api.post(`/agents/${agent.id}/tell`, toLead ? { words, to_lead: true } : { words })
             setWords('')
-            setSaid(`Sent to ${name} while it works`)
+            setSaid(toLead ? 'Sent to the Orchestrator' : `Sent to ${name} while it works`)
           })
       }}
     >
+      {toLead && (
+        <span className="muted changes-summary">
+          {name} can't hear messages while it works ({agent.provider_name ?? 'its CLI'}). Tell the Orchestrator instead
+          - it can stop it and start it again.
+        </span>
+      )}
       <input
         className="input"
-        aria-label={`Tell ${name}`}
-        placeholder={`Tell ${name}…`}
+        aria-label={label}
+        placeholder={`${label}…`}
         maxLength={4000}
         value={words}
         onChange={e => setWords(e.target.value)}

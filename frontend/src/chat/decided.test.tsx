@@ -168,7 +168,7 @@ test('OK takes it off; Change sends your choice while the agent is at work; else
   expect(ok).toHaveBeenCalledWith('slow')
 })
 
-test('Change is offered where a CLI at work hears it, and sent while it works; not into Copilot’s or agy’s own (89d, B-164)', async () => {
+test('Change is offered where a CLI at work hears it, and sent while it works; not into agy’s own (89d, B-164)', async () => {
   const providers = [
     { name: 'Claude', kind: 'claude_cli' },
     { name: 'Copilot', kind: 'copilot_cli' },
@@ -197,7 +197,6 @@ test('Change is offered where a CLI at work hears it, and sent while it works; n
   const at = (provider_name: string, provider_mode: string) =>
     render(<WaitingList state={cli(provider_name, provider_mode)} on={on} onDecidePlan={vi.fn()} known={known} />)
   for (const [name, mode] of [
-    ['Copilot', 'native'],
     ['agy', 'reads'],
     ['agy', 'native'],
   ]) {
@@ -208,6 +207,7 @@ test('Change is offered where a CLI at work hears it, and sent while it works; n
   }
   for (const [name, mode] of [
     ['Copilot', 'session'],
+    ['Copilot', 'native'], // (0.1.11: its word goes into its running turn, measured on 1.0.114)
     ['Claude', 'native'],
   ]) {
     const { rerender, unmount } = at(name, mode)

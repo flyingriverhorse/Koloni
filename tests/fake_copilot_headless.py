@@ -590,6 +590,13 @@ for number, action in enumerate(plan.get("script", [])):
             "assistant.message",
             {"messageId": f"m{number}", "content": action["say"], "toolRequests": []},
         )
+    elif "await_send" in action:
+        # A session.send while its turn runs (1.0.114, 27 Nov 2026: with mode "immediate" it is
+        # taken into the running work): answered with its message's id; "sent" on record.
+        told = expect("session.send")
+        record.setdefault("sent", []).append(told.get("params"))
+        save()
+        send({"id": told["id"], "result": {"messageId": f"sent{number}"}})
     elif "shell" in action:
 
         def run(action=action) -> None:

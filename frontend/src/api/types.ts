@@ -249,3 +249,12 @@ export type Price = Schemas['PriceOut']
 export type Restored = Schemas['RestoreOut']
 /** The restore staged for the next start, and where the newest a start could not apply is kept. */
 export type Staged = Schemas['StagedOut']
+
+/** K-dal-takim D2: what else Merge says on a branch's card - keep the branch after it, and which way finished work goes. */
+export interface BranchSaid {
+  keep_branch?: boolean
+  way?: 'merge' | 'pull_request'
+}
+
+/** What a message sent comes back with: its record, its turn, and why one sent now waits in the queue (D2). */
+export type PostMessageOut = Schemas['PostMessageOut']

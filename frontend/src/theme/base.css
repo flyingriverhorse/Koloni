@@ -2886,6 +2886,17 @@ button.turn-name:hover {
   margin-left: auto;
 }
 
+/* D2 (0.1.11): while a turn runs, After this turn beside Send now; under the box, why a word sent now was queued. */
+.composer-later {
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.composer-queued {
+  padding: 2px 10px 6px;
+  font-size: var(--text-meta);
+}
+
 /* The level: three comb cells and its name. Ask is the calm blue, Auto-edit the honey, Full auto the warning; an empty
    cell is a faint outline. */
 .composer-level {

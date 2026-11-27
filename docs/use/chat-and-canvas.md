@@ -29,8 +29,10 @@ unread and how many things wait for you.
 
 ### Writing a message
 
-- While agents work, **Send** becomes **Queue**: your message waits and runs after the current work.
-  A queued message can be removed. **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
+- While agents work, **Send** becomes **Send now** (Enter): your message goes into the turn at work and
+  the Orchestrator answers it in that turn. **After this turn**, beside it, queues it as before: it waits
+  and runs after the current work. A queued message can be removed. See
+  [Talking while agents work](talk-while-agents-work.md). **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
   runs, it stays in the chat as "Not sent: KOLONİ restarted", with **Send** to send it now.
 - **Stop everything**, in the top bar on every page, stops every turn in every chat and holds what
   starts by itself: the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
@@ -146,7 +148,9 @@ as this folder's default** keep the list.
 ## The canvas
 
 Every agent is a small box of at most three lines: its name and model, its state, and what it did,
-counted. The window icon at the right of its name opens its window. An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
+counted. The window icon at the right of its name opens its window. An agent at work that an agent opened has
+**Stop** (it alone stops, its work kept for **Take in**) and **Message** (its window, at its Tell box) beside it
+([Talking while agents work](talk-while-agents-work.md#stop-and-message-on-one-agent)). An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
 (where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Where the box is
 narrow, the tier goes first, then the tokens, then the time; what it does is cut last. Its tools, commands and files are in the Inspector and its window (below). Lines show work
 handed to a sub-agent, agents that talked, findings handed on, and an agent waiting for a file another

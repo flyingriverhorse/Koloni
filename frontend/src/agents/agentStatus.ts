@@ -42,8 +42,8 @@ export const AGENT_STATUS: Record<Agent['status'] | 'waiting_approval', [label: 
 
 export const AT_WORK: ReadonlySet<Agent['status']> = new Set(['proposed', 'queued', 'running', 'waiting', 'blocked'])
 
-// 89d: words go into Claude Code's and Codex's own turn while they work; Copilot's and agy's own hear none (B-164).
-const STEERED = new Set(['claude_cli', 'codex_cli'])
+// 89d: words go into Claude Code's, Codex's and (0.1.11, measured 1.0.114) Copilot's own turn while they work; agy's hears none.
+const STEERED = new Set(['claude_cli', 'codex_cli', 'copilot_cli'])
 /** Whether an agent's CLI hears nothing more while it works (`mode`: how its provider ran; `kind`: the provider's). */
 export const hearsNothing = (mode: string | null | undefined, kind: string | undefined) =>
   mode === 'reads' || (mode === 'native' && !STEERED.has(kind ?? ''))

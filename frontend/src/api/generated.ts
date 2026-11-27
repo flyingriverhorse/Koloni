@@ -147,6 +147,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agents/{agent_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Agent
+         * @description D3 (0.1.11): the user's Stop on one agent at work, from its box on the app's own page:
+         *     it alone stops, its work so far kept for Take in; 409 with why it is not one to stop so
+         *     (async: its task is cancelled on the event loop).
+         */
+        post: operations["stop_agent_api_agents__agent_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agents/{agent_id}/summary": {
         parameters: {
             query?: never;
@@ -8398,6 +8420,11 @@ export interface components {
              */
             new_topic: boolean;
             /**
+             * Now
+             * @default false
+             */
+            now: boolean;
+            /**
              * Over Budget
              * @default false
              */
@@ -8952,6 +8979,8 @@ export interface components {
         /** PostMessageOut */
         PostMessageOut: {
             message: components["schemas"]["MessageOut"];
+            /** Queued Why */
+            queued_why?: string | null;
             run: components["schemas"]["RunOut"];
         };
         /** PreferencesIn */
@@ -11096,6 +11125,11 @@ export interface components {
          * @description The user's own word to an agent while it works (89d C).
          */
         TellIn: {
+            /**
+             * To Lead
+             * @default false
+             */
+            to_lead: boolean;
             /** Words */
             words: string;
         };
@@ -11855,6 +11889,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AgentOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_agent_api_agents__agent_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

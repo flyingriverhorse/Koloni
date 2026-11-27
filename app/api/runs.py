@@ -19,9 +19,9 @@ from app.schemas import (
     HeldFixIn,
     PlanApproveIn,
     PlanRejectIn,
-    PostMessageOut,
     SendIn,
 )
+from app.schemas_at_work import PostMessageOut
 from app.serialize import conversation_out, message_out, run_out
 from app.tools import ToolError
 
@@ -148,7 +148,10 @@ async def send_again(
     if run is None:
         raise HTTPException(404, "run not found")
     message = session.scalar(
-        select(Message).where(Message.run_id == run.id, Message.role == "user").limit(1)
+        select(Message)
+        .where(Message.run_id == run.id, Message.role == "user")
+        .order_by(Message.created_at, literal_column("messages.rowid"))
+        .limit(1)
     )
     if (
         message is None

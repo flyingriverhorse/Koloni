@@ -414,6 +414,25 @@ class SlotsMixin:
                 self._set_agent(ctx.cid, ctx.agent_id, status="running")
         return word
 
+    async def _back_to_listen(self: "AgentRunner", ctx: Ctx) -> None:
+        """D2: the Orchestrator answers a word of the user's and writes nothing: it waits for no
+        place among the turn's - its agents keep theirs - but for its turn, as `_settle` does
+        (one turn of an agent at a time: an answer it gives an agent meanwhile ends first). It
+        is counted at work in its project and on its provider (`_placed`, lent as `_lend_slot`
+        lends: none of the turn's places is taken), so who comes next waits for it there.
+        shortcut: it does not wait for room in its project or on its provider - a provider let
+        work at one at once gets one request more while it answers; it may then go on with its
+        own work so too until its next wait, one over the chat's setting as `_lend_slot` says.
+        Make it wait there if a local server is seen refusing it."""
+        turn = contextlib.nullcontext() if ctx.in_turn else self._turn_of(ctx.agent_id)
+        settling = self._settling.setdefault(ctx.agent_id, asyncio.Lock())
+        async with turn, settling:
+            if ctx.agent_id not in self._placed:
+                self._placed.add(ctx.agent_id)
+                self._slot_lent.add(ctx.agent_id)  # (no place of the turn's to give back)
+            self._away.discard(ctx.agent_id)
+            self._set_agent(ctx.cid, ctx.agent_id, status="running")
+
     def _turn_of(self: "AgentRunner", agent_id: str) -> asyncio.Lock:
         return self._turns.setdefault(agent_id, asyncio.Lock())
 
@@ -451,6 +470,9 @@ class SlotsMixin:
             return
         if self._held_up.get(ctx.agent_id):
             return  # it still waits for a file: `_claim` takes its place when that is its own
+        if ctx.agent_id in self._listening:
+            await self._back_to_listen(ctx)
+            return
         # (One the user still owes a word stays "waiting": `_users_word` says "running" after.)
         if await self._settle(ctx, queued=False):
             self._set_agent(ctx.cid, ctx.agent_id, status="running")

@@ -709,7 +709,10 @@ class LoopMixin:
         stopped = False  # (a Stop: `CancelledError` - not a failure, which `woken` sees)
         try:
             with raw.of(ctx.agent_id):  # what its CLI writes meanwhile is its raw stream
-                return await self._loop_steps(ctx, info)
+                ended = await self._loop_steps(ctx, info)
+                while not self._door_closes(ctx, ended[0]):  # (D2: a word it did not read yet)
+                    ended = await self._listen_steps(ctx, info)
+                return ended
         except asyncio.CancelledError:
             stopped = True
             raise
@@ -720,12 +723,17 @@ class LoopMixin:
         finally:
             await self._loop_end(ctx, counts, stopped)
 
-    async def _loop_steps(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> tuple[str, str | None]:
+    async def _loop_steps(
+        self: "AgentRunner", ctx: Ctx, info: ModelInfo, taken: tuple | None = None
+    ) -> tuple[str, str | None]:
         """`_loop`: its steps until the turn may end - not while an answer it did not wait for
-        comes, its teams work, or a step is left to do."""
+        comes, its teams work, or a step is left to do. `taken`: its first steps' end, where they
+        were taken already (D2: `_listen_steps`)."""
         calls = None
         while True:
-            status, error = await self._steps_held(ctx, info)
+            status, error = taken or await self._steps_held(ctx, info)
+            taken = None
+            self._listening.discard(ctx.agent_id)  # (D2: its answer to the word is given)
             # B-413: its loop guard ended it - the turn's end: no team, answer or step
             # left is waited for or told.
             if ctx.agent_id in self._guard_ended:
@@ -742,7 +750,8 @@ class LoopMixin:
                 and await team_requests.woken(self, ctx, status)
                 and status == "completed"
             ):
-                self._answer_again.add(ctx.agent_id)  # (B-381)
+                if ctx.agent_id not in self._listening:  # (D2: woken to answer a word)
+                    self._answer_again.add(ctx.agent_id)  # (B-381)
                 continue
             # B-376: nor is the Lead's answer the turn's end while any agent of it is
             # at work - whatever opened it, and whether anyone waits for it. (`calls` is
@@ -774,7 +783,7 @@ class LoopMixin:
                 and not (ctx.answering or ctx.discussion)
                 and _at_a_step_limit(error)
             ):
-                await self._held_for_work(ctx)
+                await self._held_for_work(ctx, False)
             # B-83, B-90: its answer is no end while a recipe's step or a picked
             # team is left: it is told which, and goes on (a CLI's session anew),
             # within the steps it had. Told, an answer with no call is its why: it stands -
@@ -794,28 +803,6 @@ class LoopMixin:
                 return status, error
             self._nudge(ctx, left)
             calls = self._calls_of(ctx)
-
-    async def _ready_at_end(self: "AgentRunner", ctx: Ctx) -> str:
-        """B-415 (live): Ready for you is asked as the Lead hears back from an agent - with
-        another still in the copy then (a lead's agent outliving it, one answering a message)
-        it was asked never: it is, before the Lead's answer ends the turn. In the call of the
-        last lead it opened, else of the last agent it opened - a card is always in a call;
-        with none, no recipe ran."""
-        mine = [one for one in self._ctxs.values() if one.run_id == ctx.run_id and one.depth == 1]
-        with self._factory() as session:
-            called = set(
-                session.scalars(
-                    select(Agent.id).where(
-                        Agent.id.in_([one.agent_id for one in mine]),
-                        Agent.tool_call_id.is_not(None),
-                    )
-                )
-            )
-        opened = [one for one in reversed(mine) if one.agent_id in called]
-        under = next(
-            (one for one in opened if one.agent_id in self._leads), opened[0] if opened else None
-        )
-        return "" if under is None else await self._ready_for_you(ctx, under)
 
     async def _loop_end(self: "AgentRunner", ctx: Ctx, counts, stopped: bool) -> None:
         """`_loop`, however it ended: its counts kept, its MCP servers and the sub-agents it
@@ -913,6 +900,7 @@ class LoopMixin:
             self._hold_to_role(ctx, taken)
             self._steps_left[ctx.agent_id] = None if most is None else most - taken
             result, message_id = await self._model_step(ctx, info, sent)
+            self._heard(ctx)  # (D2)
             if _goes_on(ctx):  # (once it came back: a refused step or a 429 is none it took)
                 self._steps_used[ctx.agent_id] = taken + 1
             sent = result.input_tokens
@@ -1080,6 +1068,7 @@ class LoopMixin:
                 on_live=lambda item: self._show_live(ctx, item),
             )
             self._slow_off(ctx)
+            self._heard(ctx)  # (D2)
             ended = True
             self._count_tokens(
                 ctx,
@@ -1504,7 +1493,7 @@ class LoopMixin:
                     _role_asked(request) for _id, request in group
                 )
             if len(group) == 1:
-                await self._run_call(ctx, *group[0])
+                await self._call_or_later(ctx, *group[0])
             else:
                 # K-rol-cogul: none starts work before all are opened or refused - one done at
                 # once would end its recipe step with the others still to come. Nothing before
@@ -1519,44 +1508,3 @@ class LoopMixin:
                     for one in group:
                         self._at_once.pop(one[0], None)
             at += len(group)
-
-    async def _opened_with(
-        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
-    ) -> tuple[str, str]:
-        try:
-            return await self._run_call(ctx, call_id, request)
-        finally:
-            self._arrive(call_id)  # (refused before it opened: the others go on)
-
-    def _arrive(self: "AgentRunner", call_id: str) -> asyncio.Event | None:
-        """A spawn call of a reply's several is opened (or refused): the event its siblings'
-        agents start on once all are (`_run_tools`); None where it is asked for alone, or
-        has arrived.
-        shortcut: a CLI's spawn_agent calls come over MCP one at a time, not held so; hold them
-        if a CLI Lead is seen ending a recipe step before its other agents opened."""
-        held = self._at_once.pop(call_id, None)
-        if held is None:
-            return None
-        held[0].discard(call_id)
-        if not held[0]:
-            held[1].set()
-        return held[1]
-
-    async def _start_with_others(self: "AgentRunner", call_id: str) -> None:
-        """An agent just opened starts once its reply's others are opened too (`_arrive`).
-        The last one yields once, so that those already waiting go before it: one place free,
-        the first that waited takes it - not always the first asked for."""
-        if (together := self._arrive(call_id)) is not None:
-            await (asyncio.sleep(0) if together.is_set() else together.wait())
-
-    @staticmethod
-    async def _together(work: list) -> None:
-        """Run several things at once; if one breaks, the rest are stopped with it."""
-        tasks = [asyncio.ensure_future(one) for one in work]
-        try:
-            await asyncio.gather(*tasks)
-        except BaseException:
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-            raise

@@ -94,6 +94,7 @@ from app.agent.approvals_mixin import NO_COMMANDS as NO_COMMANDS
 from app.agent.approvals_mixin import ONLY_READS as ONLY_READS
 from app.agent.approvals_mixin import READ_ONLY_WRITE as READ_ONLY_WRITE
 from app.agent.approvals_mixin import ApprovalsMixin
+from app.agent.at_work_mixin import AtWorkMixin
 from app.agent.attachments_mixin import AttachmentsMixin
 from app.agent.away_mixin import AwayMixin
 from app.agent.away_mixin import branch_held as branch_held
@@ -161,6 +162,7 @@ from app.agent.discussions_mixin import DiscussionsMixin
 from app.agent.found_mixin import FoundMixin
 from app.agent.judge_mixin import JudgeMixin
 from app.agent.kinds_mixin import KindsMixin
+from app.agent.lead_tools_mixin import LeadToolsMixin
 from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
@@ -313,7 +315,6 @@ from app.agent.words import (
     MAX_PATHS_TOLD,
     MAX_SENT_BACK,
     NO_TRIGGER_ALLOWS,
-    NOT_HEARD,
     NOT_IN_A_COPY,
     NOT_IN_THE_PART,
     NOT_ITS_TEST,
@@ -332,15 +333,15 @@ from app.agent.words import (
     SECRET_IN_COPY,
     SHARED_WITH_PROJECT,
     SOME_NOT_HERE,
-    STEERED,
-    TEAM_STOPPED,
     TESTS_TAIL_LINES,
     UNCHECKED,
 )
 from app.agent.words import CONTINUE_WORDS as CONTINUE_WORDS
 from app.agent.words import MAX_FINDINGS as MAX_FINDINGS
 from app.agent.words import MAX_WHAT as MAX_WHAT
+from app.agent.words import NOT_HEARD as NOT_HEARD
 from app.agent.words import READY_FOR_YOU as READY_FOR_YOU
+from app.agent.words import STEERED as STEERED
 from app.agent.words import WEB_REJECTED as WEB_REJECTED
 from app.changes import DELETED_SHA, apply_change
 from app.claims import Claims, place
@@ -389,7 +390,7 @@ from app.db.models import (
 from app.executors import executor_for
 from app.executors.base import Executor
 from app.limits import at_limit
-from app.model_client import ModelClient, OwnStop, ToolCallRequest
+from app.model_client import ModelClient, ToolCallRequest
 from app.model_native import Steer
 from app.project_view import standing as standing_files
 from app.providers import Providers
@@ -438,6 +439,7 @@ from app.tools import (
     run_read_tool,
 )
 from app.tools import who_line as who_line
+from app.tools_at_work import AT_WORK_TOOLS
 from app.workspace import (
     Workspace,
     WorkspaceError,
@@ -456,15 +458,6 @@ log = logging.getLogger(__name__)
 # (`_disposable`'s shell where the command is KOLONİ's own: `_own_shell` says which.)
 OWN_SHELL = "own"
 
-# B-376 (live): a Copilot Lead gave its last answer while a team's "All at once" group had just
-# opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
-# is held till every agent of the turn is back, then it is told so (`_held_for_work`).
-AT_WORK = ("proposed", "queued", "running", "waiting")
-HELD_FOR_WORK = (
-    "Not the end yet: teams were still at work as you answered ({what}). KOLONİ "
-    "waited for them: read what came back, then answer."
-)
-HOLD_LOOK = 0.5  # seconds between looks at whether they are back
 # B-376: a step's agent the turn's end cut, said beside why its team stopped (`_end_runs`).
 CUT_BY_END = "{name} {how}: the turn ended at {at}"
 # Slice 84b-2: how an agent of a stopped team ends (the card where recipes meet: READY_FOR_YOU).
@@ -1158,6 +1151,8 @@ class AgentRunner(
     TryMixin,
     StoryBranchMixin,
     ChecksToolMixin,
+    AtWorkMixin,
+    LeadToolsMixin,
 ):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
@@ -1518,6 +1513,7 @@ class AgentRunner(
         self._recipe_copy: dict[str, str] = {}
         # The agents opened for a step of a recipe, or to run one (a team's lead): in that copy.
         self._in_recipe: set[str] = set()
+        self._at_work_init()
         # S3: the spawn calls of KOLONİ's end-of-turn Reviewers - read tools only, no recipe
         # started by them (`ReviewMixin._look`).
         self._read_only_calls: set[str] = set()
@@ -1877,6 +1873,7 @@ class AgentRunner(
             if t.cid:
                 self.start_next(t.cid)
         finally:
+            self._shut_door(run_id, t.cid)  # (D2: a word no step read goes on in its own turn)
             ended_later = [*t.later, *self._forget_turn(run_id, t.cid)]
             if t.idle is not None:
                 t.idle.set()
@@ -5827,6 +5824,8 @@ class AgentRunner(
         self, ctx: Ctx, call_id: str, ws: Workspace, request: ToolCallRequest, args: dict
     ) -> tuple[str, str]:
         """run_command and run_skill_script, for `_run_call`."""
+        if self._command_offered_later(ctx, request, args):  # (Task 8: in the background)
+            return await self._command_later(ctx, call_id, request, args)
         run_id, cid = ctx.run_id, ctx.cid
         # A skill's script is a command, with the leave the user gave the skill.
         unasked = False
@@ -6078,6 +6077,8 @@ class AgentRunner(
             status, output = "succeeded", await self._own_tool(ctx, call_id, request.name)
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
+        elif request.name in AT_WORK_TOOLS:  # (0.1.11: beside the turn's agents)
+            status, output = "succeeded", await self._at_work_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:
             status, output = "succeeded", await self._browser(ctx, ws, call_id, request.name, args)
         elif request.name in WEB_SCHEMAS:
@@ -6156,6 +6157,8 @@ class AgentRunner(
             raise ToolError(f"{request.name} is not available")
         if request.name in HANDED and self._hands_code(ctx):
             raise ToolError(HANDS_CODE_REFUSED.format(tool=request.name))
+        if refused := self._listen_refuses(ctx, request.name):  # (D2)
+            raise ToolError(refused)
         return args
 
     async def _call_where(
@@ -6664,83 +6667,6 @@ class AgentRunner(
                     told["no team"] += 1
         return f"Not the end yet: {'; '.join(said)}." if said else None
 
-    async def _held_for_work(self, ctx: Ctx) -> str | None:
-        """B-376: the Lead answered with agents of its turn still at work (a team's group just
-        opened, one opened by a CLI that did not wait): it waits for them as for its own
-        sub-agents, its place free, and what it is told then is returned. None: none was.
-        shortcut: looked at every HOLD_LOOK seconds, not woken by their ends; an agent left
-        at work on record by a bug holds the turn till Stop."""
-        said = self._still_at_work(ctx)
-        if said is None:
-            return None
-        async with self._handing_over(ctx):
-            while self._still_at_work(ctx) is not None:
-                await asyncio.sleep(HOLD_LOOK)
-        return HELD_FOR_WORK.format(what=said)
-
-    def _still_at_work(self, ctx: Ctx) -> str | None:
-        """The turn's agents at work but its Lead, by team and where its recipe is - "Web app
-        at All at once: Tester running" - and the rest by name. None: none is. One blocked on a
-        file counts only where its holder lets go before the turn's end: one of another turn, or
-        one still at work - not the Lead, nor one done, which hold theirs till then."""
-        with self._factory() as session:
-            busy = {
-                one.id: one
-                for one in session.scalars(
-                    select(Agent)
-                    .where(
-                        Agent.run_id == ctx.run_id,
-                        Agent.depth > 0,
-                        Agent.status.in_((*AT_WORK, "blocked")),
-                    )
-                    .order_by(Agent.created_at)
-                )
-            }
-
-            def lets_go(holder: str) -> bool:
-                known = self._ctxs.get(holder)
-                return (
-                    known is None
-                    or known.run_id != ctx.run_id
-                    or (holder in busy and busy[holder].status != "blocked")
-                )
-
-            # (Nor one whose waits lead back to the Lead - a file it holds: that ends with it.)
-            busy = {
-                key: one
-                for key, one in busy.items()
-                if one.status != "blocked"
-                or (
-                    self.claims.cycle(ctx.agent_id, key) is None
-                    and any(lets_go(wait.holder) for wait in self.claims.waiting(key))
-                )
-            }
-            # B-415: and one a CLI opener did not wait for, ended on record but its call not
-            # over yet - its step's row is moved on (`_after_step`) only then.
-            closing = [
-                self._ctxs[one[1]].name
-                for one in self._later_work.get(ctx.run_id, ())
-                if not one[3].done() and one[1] not in busy and one[1] in self._ctxs
-            ]
-            if not busy and not closing:
-                return None
-            said = [f"{name} finishing" for name in closing]
-            for row, team, _lead in self._rows(session, ctx.cid):
-                state = self._live_state(row, ctx.run_id) or self._apart_state(row, ctx.run_id)
-                theirs = [busy.pop(one) for one in (state or {}).get("agents", []) if one in busy]
-                if theirs:
-                    at = ""
-                    with contextlib.suppress(Exception):  # (a label: never the turn's failure)
-                        if state and state.get("graph"):
-                            graph = recipe_run.graph_of(state)
-                            at = f" at {recipe_run.name_of(graph, state['at'])}"
-                    said.append(
-                        f"{team.name}{at}: "
-                        + ", ".join(f"{one.name} {one.status}" for one in theirs)
-                    )
-            said += [f"{one.name} {one.status}" for one in busy.values()]
-        return "; ".join(said)
-
     def _holds_teams(self, session, ctx: Ctx) -> bool:
         """Whether this agent's turn is held to the chat's teams' work (B-83, B-90): not an
         answer, a discussion, a plan, nor a side of a comparison."""
@@ -6797,21 +6723,6 @@ class AgentRunner(
             )
             is not None
         )
-
-    def _nudge(self, ctx: Ctx, words: str) -> None:
-        """`words` follow the agent's last message in what it sees from its next step on."""
-        with self._factory() as session:
-            last = session.scalar(
-                select(Message.id)
-                .where(
-                    Message.run_id == ctx.run_id,
-                    Message.agent_id == ctx.agent_id,
-                    Message.role == "assistant",
-                )
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-                .limit(1)
-            )
-        self._nudges.setdefault(ctx.agent_id, []).append((last, words))
 
     def _mark_not_run(self, ctx: Ctx) -> None:
         """B-90: the Lead's turn ended with a picked team that did not run, told twice: its row
@@ -8691,46 +8602,6 @@ class AgentRunner(
         if ctx.depth and (lead := self._lead_of(ctx.run_id)) is not None:
             self._nudge(lead, words)
 
-    async def steer(self, ctx: Ctx, words: str, kept: bool = False) -> str | None:
-        """89d: `words` to an agent while it works - into Claude Code's or Codex's own turn at
-        once (`STEERED`), with a CLI session's next KOLONİ tool result, or at its next step of
-        KOLONİ's own; and from its next step or run on (`_nudge`, B-83) - not where they are
-        `kept` in its conversation already (`_send`), which its later steps read. None once
-        sent; why it cannot hear them where it cannot (Copilot's and agy's own sessions:
-        B-164). One at a time to an agent (`_changing`).
-        Only KOLONİ's own words around what the user decided, anything an agent wrote (a
-        question, its options) `quoted()` inside them - never an agent's words as they are: a
-        CLI's user line carries the user's authority."""
-        name = ctx.name or ctx.role
-        # shortcut: one at a time while it is sent, not until it is read - a second sent before
-        # Claude Code reads the first takes its place for `steer_unread`; hold them until read
-        # if two land in one turn live.
-        if ctx.agent_id in self._changing:
-            return f"can't be sent now: another message to {name} is on its way"
-        self._changing.add(ctx.agent_id)
-        try:
-            door = self._doors.get(ctx.agent_id)
-            if door is not None:
-                if not await door(f"{STEERED}\n\n{words}"):
-                    return NOT_HEARD.format(name=name)
-            elif getattr(ctx.model, "native", False):
-                return NOT_HEARD.format(name=name)
-            elif getattr(ctx.model, "session", False):
-                # shortcut: a session that calls no KOLONİ tool again hears it only on a re-run;
-                # steer its CLI live too once a session's input is measured mid-turn.
-                self._heard_later.setdefault(ctx.agent_id, []).append(words)
-        finally:
-            self._changing.discard(ctx.agent_id)
-        if not kept:
-            self._nudge(ctx, words)
-        return None
-
-    def _lead_of(self, run_id: str) -> Ctx | None:
-        """The turn's Lead, while it is at work."""
-        return next(
-            (one for one in self._ctxs.values() if one.run_id == run_id and not one.depth), None
-        )
-
     async def _go_on_again(
         self, ctx: Ctx, child: Ctx, resets: datetime | None
     ) -> tuple[bool, str] | None:
@@ -9437,102 +9308,6 @@ class AgentRunner(
             said += await self._ready_for_you(ctx, child)
         return said
 
-    def stop_cli(self, agent_id: str) -> bool:
-        """B-357: Stop on a command a CLI runs with its own tool - whose process KOLONİ does not
-        hold - ends that CLI's turn; the command is closed with the rest of it (also one still
-        waiting for its place after the yes). False: the agent's CLI is not at work."""
-        for watch in [w for watches in self._watches.values() for w in watches]:
-            if watch.end and watch.ctx and watch.ctx.agent_id == agent_id:
-                watch.end(OwnStop("you stopped its command"))
-                return True
-        return False
-
-    def stop_team(self, cid: str, team_id: str, finish: bool = False) -> str | None:
-        """The user's Stop on a team of the chat: its row stops, and so does each of its
-        agents at its next step (`_hold_to_role`); the other teams go on. Not once its work
-        waits at Ready for you. A card its step waits on is answered "Stop" for the user: the
-        spawn call it is put in goes on; and a wait for a limit's reset ends (`_go_on_again`).
-        Returns why it is not stopped; None: it is. `finish`: the user's Finish now on a
-        recipe's row - its loop goes round no more: the row is at Ready for you with what was
-        found so far, its agents stopped as for Stop.
-        shortcut: an agent stops at its next model step - a long command, a card it waits on,
-        or a CLI between its messages runs on till then; and what the team changed stays in
-        the turn's one copy, taken in with the other teams' at Take in. Cancel its calls and
-        give each team a copy if felt. Finish now with no agent at work asks Ready for you
-        only as the Lead hears back - else the turn ends with its work kept for Take in."""
-        run_id = next((c.run_id for c in self._ctxs.values() if c.cid == cid), None)
-        why: list[str | None] = ["this team is at work in no turn now"]
-
-        def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
-            if row.team_id != team_id:
-                return False
-            if state["status"] == recipe_run.READY:
-                why[0] = "its work waits for your Take in or Ask for changes"
-                return False
-            if state["status"] != recipe_run.RUNNING:
-                return False
-            at = recipe_run.name_of(recipe_run.graph_of(state), state["at"]) if finish else ""
-            state["status"], state["why"] = (
-                (
-                    recipe_run.READY,
-                    (f"finished by you at its {at} step: what was found so far is left to you"),
-                )
-                if finish
-                else (recipe_run.STOPPED, "Stopped by you")
-            )
-            stopping.extend(state["agents"])
-            why[0] = None
-            return True
-
-        def apart(row: ConversationTeam, team: Team, lead: Role, state: dict | None) -> dict | None:
-            return state if state and how(row, team, lead, state) else None
-
-        stopping: list[str] = []
-        if run_id is not None:
-            self._change_rows(cid, run_id, how)
-            if not finish:  # (B-101: a team with no recipe beside one)
-                self._apart(cid, run_id, apart)
-            self._halt(run_id, stopping, TEAM_STOPPED)
-        return why[0]
-
-    def _halt(self, run_id: str, agents: list[str], why: str, word: str = "Stop") -> None:
-        """Agents of a turn - and the helpers they opened, at any depth - stop at their next
-        step (`_hold_to_role`), saying `why`: a wait for a limit's reset ends (`_go_on_again`),
-        and a card they wait on is answered `word`."""
-        line = set(agents)
-        while more := {
-            a for a, known in self._ctxs.items() if known.parent_id in line and a not in line
-        }:
-            line |= more
-        if not line:
-            return
-        self._halted.update(line)
-        self._halt_why.update(dict.fromkeys(line, why))
-        for agent_id in line:
-            if woken := self._at_reset.get(agent_id):
-                woken.set()
-        self._close_cards(run_id, list(line), word)
-
-    def _close_cards(self, run_id: str, agents: list[str], word: str) -> None:
-        """The recipe cards these agents' calls wait on, answered `word` by KOLONİ - not the
-        user's answer (`_who_answered`)."""
-        if not agents:
-            return
-        with self._factory() as session:
-            asked = session.scalars(
-                select(Question.id)
-                .join(Agent, Agent.tool_call_id == Question.tool_call_id)
-                .where(
-                    Question.status == "pending",
-                    Question.leave,
-                    Agent.id.in_(agents),
-                    Agent.run_id == run_id,
-                )
-            ).all()
-        for question_id in asked:
-            if self.answer_question(question_id, word):  # (not one the user answered first)
-                self._closed_cards.add((run_id, question_id))
-
     async def _ask_folder(self, ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """An agent asks, with why, for a folder outside the project to read in or to read
         and write in: the user decides on the card - "Add to this chat" puts it on the
@@ -9693,26 +9468,6 @@ class AgentRunner(
         return spellings_of(
             [*(value for given in turns for value in given.values()), *filter(None, planted)]
         )
-
-    def _unread_messages(self, ctx: Ctx) -> list[str]:
-        """K-fikir-okunmamis: the user's messages queued behind this turn (their own turns
-        start after it) that this agent was not handed yet - handed here, once, in place of
-        a new question card.
-        shortcut: their turns still run after this one; fold them into it if they are seen
-        to answer the same thing twice."""
-        with self._factory() as session:
-            rows = session.execute(
-                select(Message.id, Message.content)
-                .join(Run, Run.id == Message.run_id)
-                .where(
-                    Run.conversation_id == ctx.cid, Run.status == "queued", Message.role == "user"
-                )
-                .order_by(Message.created_at, literal_column("messages.rowid"))
-            ).all()
-        told = self._read_first.setdefault(ctx.agent_id, set())
-        unread = [(id_, content) for id_, content in rows if id_ not in told]
-        told.update(id_ for id_, _ in unread)
-        return [content for _, content in unread]
 
     def _card_decides(self, ctx: Ctx, args: dict) -> bool:
         """B-359: whether an ask_user offers a Take in card's own words (Take in, Discard,

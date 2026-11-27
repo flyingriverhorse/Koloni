@@ -722,6 +722,8 @@ async def woken(runner: "AgentRunner", ctx: "Ctx", status: str) -> bool:
     late = runner._asks_late.pop(ctx.run_id, []) if ctx.depth == 0 else []
     if not out and not late:
         return False
+    if ctx.depth == 0:  # (D1: the API Orchestrator, at each one's end; D2: a word too)
+        return await _each_back(runner, ctx, out, late, runner._background_offered(ctx))
     async with runner._handing_over(ctx):
         came = await asyncio.gather(*out, *late, return_exceptions=True)
     for one in came:
@@ -731,21 +733,63 @@ async def woken(runner: "AgentRunner", ctx: "Ctx", status: str) -> bool:
         runner, [one for one in came[: len(out)] if isinstance(one, tuple)]
     )
     if late:  # (the Lead: what came to it meanwhile is read now)
-        with runner._factory() as session:
-            return (
-                session.scalar(
-                    select(Message.id)
-                    .where(
-                        Message.agent_id == ctx.agent_id,
-                        Message.run_id == ctx.run_id,
-                        Message.role == "agent",
-                        Message.delivered_at.is_(None),
-                    )
-                    .limit(1)
-                )
-                is not None
-            )
+        return _notes_for(runner, ctx)
     return bool(runner._answers_read[ctx.agent_id])
+
+
+async def _each_back(runner: "AgentRunner", ctx: "Ctx", out: list, late: list, each: bool) -> bool:
+    """`woken` for the Orchestrator. An API model's (`each`, D1) wakes as each of them is
+    back, with a note for it - one step for what came, then it waits for the rest again (they
+    are put back); a CLI's once all are: each wake is a run of its CLI (the user's call,
+    question 3). D2: either wakes for a word of the user's into the turn, to answer it.
+    shortcut: a CLI Orchestrator wakes once for all; per child if a live turn shows it waiting
+    too long."""
+    waiting = [*out, *late]
+    async with runner._handing_over(ctx):
+        while waiting and not (each and _notes_for(runner, ctx)) and not runner._word_in(ctx):
+            word = runner._word_comes(ctx)
+            try:
+                done, pending = await asyncio.wait(
+                    [*waiting, word], return_when=asyncio.FIRST_COMPLETED
+                )
+            except asyncio.CancelledError:  # (Stop: as `gather` did, they stop with it)
+                for one in waiting:
+                    one.cancel()
+                raise
+            finally:
+                word.cancel()
+            done.discard(word)
+            waiting = [one for one in pending if one is not word]
+            for one in done:  # (a stopped one is cancelled: its stop said so - `stop_agent`)
+                if not one.cancelled() and one.exception() is not None:
+                    log.warning(
+                        "agent %s: an answer it did not wait for failed: %r",
+                        ctx.agent_id,
+                        one.exception(),
+                    )
+        if runner._word_in(ctx):  # (before its wait ends: answering, it waits for no place)
+            runner._listening.add(ctx.agent_id)
+    runner._answers_out.setdefault(ctx.agent_id, []).extend(one for one in out if not one.done())
+    runner._asks_late.setdefault(ctx.run_id, []).extend(one for one in late if not one.done())
+    return ctx.agent_id in runner._listening or _notes_for(runner, ctx)
+
+
+def _notes_for(runner: "AgentRunner", ctx: "Ctx") -> bool:
+    """Whether a note waits for this agent, unread, in its turn."""
+    with runner._factory() as session:
+        return (
+            session.scalar(
+                select(Message.id)
+                .where(
+                    Message.agent_id == ctx.agent_id,
+                    Message.run_id == ctx.run_id,
+                    Message.role == "agent",
+                    Message.delivered_at.is_(None),
+                )
+                .limit(1)
+            )
+            is not None
+        )
 
 
 def drop(runner: "AgentRunner", ctx: "Ctx") -> None:

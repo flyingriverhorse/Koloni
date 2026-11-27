@@ -70,6 +70,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   ones, Web app, Quality and Docs, and the Orchestrator opens any built-in role the work needs beside
   them -, recipes (draw, copy, or describe in a sentence), discussions, Compare (one message to two
   models, each in its own copy). [Roles](docs/agents/roles.md) · [Teams](docs/agents/teams.md) · [Recipes](docs/agents/recipes.md)
+- **Talk while agents work**: **Send now** puts your message into the turn at work and the
+  Orchestrator answers it there; it can open agents in the background and stop one; **Stop** on one
+  agent stops it alone, its work kept for Take in. [Talking while agents work](docs/use/talk-while-agents-work.md)
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
   [Chat and canvas](docs/use/chat-and-canvas.md) · [Working copies](docs/use/workspace.md)
