@@ -152,8 +152,11 @@ def test_check_what_i_said_cases_hold_each_trap():
 def test_a_words_case_reaches_the_check_and_its_quote_is_the_users(case):
     said, line = _said(case), case["command"]["command"]
     # (the check is asked only of a command the list stops softly - a delete, a push, a send -
-    # in its folder, at a watched Full auto turn: `JudgeMixin._judging`)
-    assert harm_class(with_cwd(line, case["command"]["where"]), False) == "soft", line
+    # in its folder, at a watched Full auto turn: `JudgeMixin._judging`; one marked "stopped" is
+    # asked at every level - since 0.1.10 a git remote's branches overwritten, `push --force` -
+    # and the measurement leaves it out)
+    reached = "always" if case.get("stopped") == ["list"] else "soft"
+    assert harm_class(with_cwd(line, case["command"]["where"]), False) == reached, line
     # A run or a refuse rests on a whole line of the user's, as the check's code finds one.
     assert ("quote" in case) == (case["want"] != "ask")
     if "quote" in case:

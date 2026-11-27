@@ -6032,9 +6032,9 @@ def _reasons(command: str, instructions: bool) -> Iterator[str]:
 
 HarmClass = Literal["", "soft", "always"]
 # K-yargic: what a check of the user's own words may let run - any other sentence (one added
-# later too) is asked as before.
+# later too, and since 0.1.10 a git remote's branches overwritten or deleted) is asked as before.
 _SOFT = re.compile(
-    r"(?:Deletes|Empties|Overwrites or deletes|Throws away|Stops programs by their"
+    r"(?:Deletes|Empties|Throws away|Stops programs by their"
     r" name|It reaches beyond this machine|It sends work off this machine)\b"
 )
 
@@ -6043,10 +6043,10 @@ def harm_class(command: str, instructions: bool = True) -> HarmClass:
     """K-yargic: whether a harm (`harms`) is one a check of the user's own words may let run
     ("soft": each part only deletes, throws away, stops programs by name or sends off, `_SOFT`;
     from a copy stopping by name is asked at every level, `copy_reason`) or one asked at every
-    level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
-    path out of the folder, a line handed to another program); "" for no harm. Every part is
-    looked at, not the first sentence `harms` gives: `rm -rf build && cat .env` deletes first,
-    and opens a secret too. A continued line is read joined too (`_readings`): the higher."""
+    level ("always": any other sentence - `push --force` too -, a secret, `.koloni`, a file that
+    steers later turns, a path out of the folder, a line handed to another program); "" for none.
+    Every part is looked at, not the first sentence `harms` gives: `rm -rf build && cat .env`
+    deletes first, and opens a secret too. A continued line is read joined too: the higher."""
     classes = [_harm_class(line, instructions) for line in _readings(command)]
     return "always" if "always" in classes else "soft" if "soft" in classes else ""
 

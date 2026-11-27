@@ -103,11 +103,14 @@ def test_what_is_asked_at_every_level_stays_the_lists(line):
     assert not judges(line)
 
 
-def test_the_check_of_your_words_reads_harm_as_before():
-    # (K3 leaves the check's own classes - `harm_class` - as they were)
+def test_the_check_of_your_words_reads_harm_as_before_and_never_a_force_push():
+    # (K3 leaves the check's own classes - `harm_class` - as they were, but for a git remote's
+    # branches overwritten or deleted: asked at every level since 0.1.10, whatever was said)
     assert harm_class('bash -c "rm -rf build"', False) == "always"
     assert harm_class("git checkout -- .", False) == "always"
     assert harm_class("rm -rf src", False) == "soft"
+    for line in ("git push --force origin main", "git push origin +main", "git push -d o x"):
+        assert harm_class(line, False) == "always", line
     assert harm_class("git push origin main", False) == "soft"
 
 
@@ -223,6 +226,19 @@ def test_what_is_asked_at_every_level_is_never_put_to_the_judge(
     assert asked["judged"] is None and judge.calls == [] and executor.started == []
 
 
+def test_a_force_push_your_words_allow_is_still_a_card(judging, wait_run, project_dir):
+    # (0.1.10: a git remote's branches overwritten are never let by the check of your words)
+    rule = "You may force-push to main."
+    client, _lead, judge, executor = judging(
+        [cmd("git push --force origin main"), text("left")], [verdict_line("run", rule)], []
+    )
+    _, cid, run_id = begin(client, project_dir, "ship it", rules=rule)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    assert asked["danger"] == "Overwrites or deletes branches on the git remote."
+    assert asked["judged"] is None and judge.calls == [] and executor.started == []
+
+
 # --- where the judge does not decide: the list's card, as before -------------------------------
 
 
@@ -250,7 +266,7 @@ def test_with_no_judge_to_decide_it_is_the_lists_card(
         assert said_once.startswith("Full auto's judge could not be asked this turn")
 
 
-@pytest.mark.parametrize("line", MOVED)
+@pytest.mark.parametrize("line", [*MOVED, "git push --force origin main"])
 @pytest.mark.parametrize("mode", ["ask", "auto_edit"])
 def test_ask_and_auto_edit_keep_the_lists_card(judging, wait_run, project_dir, line, mode):
     client, _lead, judge, executor = judging([cmd(line), text("left")], [said("fine")], [])
