@@ -1,6 +1,7 @@
 import { CaretDown } from '@phosphor-icons/react'
 import { type ReactNode, useState } from 'react'
 import type { McpRead, McpServer, Role } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
 import { since } from '../board/columns'
 import { Cell } from '../shell/Cell'
 import { GUIDE } from '../shell/guide'
@@ -95,7 +96,7 @@ export function ServerCard({ server, shown, given, read, busy, onOpen, onSwitch,
             ) : (
               given.map(role => (
                 <span key={role.id} className="chip">
-                  {role.name}
+                  {titleOf(role.name)}
                 </span>
               ))
             )}

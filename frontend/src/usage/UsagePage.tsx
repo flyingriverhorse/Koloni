@@ -14,7 +14,7 @@ import { type Period, PERIODS, since, stripFrom } from './period'
 import { PlanLimits } from './PlanLimits'
 import { Prices } from './Prices'
 import { TopChats, WhoStarted } from './Spenders'
-import { count, fullestPlan, summarySentence } from './usageText'
+import { count, fullestPlan, started, summarySentence } from './usageText'
 import { type Numbers, UsageTable } from './UsageTable'
 
 interface Props {
@@ -87,10 +87,11 @@ function Totals({ usage, prices, onPrices }: { usage: Usage; prices: Price[]; on
   ] as const
   const cost = totalCost(rows, prices)
   const turns = usage.by_start.reduce((n, row) => n + row.runs, 0)
-  // (KOLONİ's own requests are no agents: said in their row of "Who started it".)
+  // (KOLONİ's own requests are no agents: said apart, as in their row of "Who started it".)
   const agents = usage.by_start.reduce((n, row) => n + (row.started_by === 'koloni' ? 0 : row.agents), 0)
+  const itself = usage.by_start.find(row => row.started_by === 'koloni')
   const boxes: [string, string, ...ReactNode[]][] = [
-    ['Messages', count(turns), agents === 1 ? '1 agent' : `${count(agents)} agents`],
+    ['Messages', count(turns), agents === 1 ? '1 agent' : `${count(agents)} agents`, itself && started(itself)],
     [
       'Tokens sent',
       sent.value,
@@ -324,6 +325,9 @@ export function UsagePage({
   const tables = () => {
     if (!usage || !ran) return null
     const costed = usage.by_model.some(row => row.cost)
+    // shortcut: a model's row counts KOLONİ's own requests among its agents and `by_model` does not say how many; give
+    // its rows their own count if two models' requests are to be told apart.
+    const itself = usage.by_start.find(row => row.started_by === 'koloni')
     return (
       <div className="usage-grid">
         <section className="memory-section" aria-label="By provider and model">
@@ -347,6 +351,7 @@ export function UsagePage({
             }))}
           />
           <div className="muted memory-hint">
+            {itself && `Agents here include ${started(itself)}, in no message. `}
             {costed
               ? 'Cost: from the prices you entered. Cache reads and writes are counted at the cache prices you gave, and not at all without them. Where you entered no price, models.dev’s is used, and the model’s row says so.'
               : 'Cost shows for a model with a price: yours, or else models.dev’s, where it has one.'}{' '}

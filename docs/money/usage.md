@@ -15,7 +15,8 @@ The page reads from the top:
   used. Claude Code has used 62% of the week." The budget's part shows with **This project** where the project
   has a monthly budget; the plan's part is the plan window used most, as the CLIs last said it. With nothing
   priced it says "no money was counted". Under it: **Messages**, **Tokens sent**, **Tokens written** and
-  **Cost**, with **set prices**.
+  **Cost**, with **set prices**. **Messages** says how many agents worked in them and, apart, KOLONİ's own
+  requests outside a message: "12 agents", "1 request by KOLONİ itself".
 - **This month's budget** as ten cells, each a tenth of the budget: honey as it fills, a red-orange rim on what
   is left from 80%, all red-orange once it is over, with the amount, the share used and the days left in words beside them. Once all are full, new work waits
   for your word (see [A project's monthly budget](#a-projects-monthly-budget)).
@@ -27,7 +28,8 @@ The page reads from the top:
   Under it: the first day, the day that spent most, and today.
 - **By provider and model**: messages, agents, tokens and cost for each model. A CLI on a subscription, or an API
   key marked as a plan, says **plan** instead of a cost; Copilot's AI credits stand beside it, such as "plan · 41
-  AI credits".
+  AI credits". A model's **Agents** count KOLONİ's own requests to it outside a message too, and the line under
+  the table says how many there were: 12 agents and 1 request are 13 there.
 - **Chats that spent most**: the top three, each opening its chat. **All N chats, in numbers** unfolds the full
   table, which every column sorts.
 - **Who started it**: a bar each for **You**, **KOLONİ itself** (requests KOLONİ makes outside a message, such as

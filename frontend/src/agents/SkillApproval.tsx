@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { PendingSkill, SkillFound, SkillPreview } from '../api/types'
 import { Seen } from '../tools/PackageLook'
+import { titleOf } from './agentStatus'
 import { DecisionCard, type SpawnDecision } from './SpawnApproval'
 
 /** A size in bytes the way a person reads it. */
@@ -193,9 +194,11 @@ export function SkillApproval({ skill, onDecide }: Props) {
         onChange={setUnasked}
       />
       <div className="muted cmd-approval-note">
-        {skill.roles.length > 0 ? `Given to: ${skill.roles.join(', ')}.` : 'Given to no role yet.'} Its text is what
-        their agents are told: a skill from elsewhere can steer them. A copy is kept; nothing is copied, nor downloaded
-        beyond what is shown here, before you say yes.
+        {skill.roles.length > 0
+          ? `Given to: ${skill.roles.map(name => titleOf(name)).join(', ')}.`
+          : 'Given to no role yet.'}{' '}
+        Its text is what their agents are told: a skill from elsewhere can steer them. A copy is kept; nothing is
+        copied, nor downloaded beyond what is shown here, before you say yes.
       </div>
     </DecisionCard>
   )

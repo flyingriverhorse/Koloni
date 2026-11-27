@@ -184,7 +184,7 @@ test('what KOLONİ asked a model with no message is a row of its own, KOLONİ it
     />,
   )
   const starts = within(await screen.findByRole('table', { name: 'Usage by who sent the message' }))
-  // Its requests are no agents: said under its name, not in the Agents column, nor in the box on top.
+  // Its requests are no agents: said under its name, not in the Agents column, nor among the box's agents.
   const row = starts.getByRole('row', { name: /^KOLONİ itself/ })
   expect(cells(row)).toEqual(['0', '—', '900', '40', '≈ 0.01 USD'])
   expect(within(row).getByText('2 requests of its own, in no message')).toBeInTheDocument()
@@ -193,6 +193,38 @@ test('what KOLONİ asked a model with no message is a row of its own, KOLONİ it
   expect(
     screen.getByText('3 messages by you · 1 message by a trigger · 2 requests by KOLONİ itself'),
   ).toBeInTheDocument()
+})
+
+test('a model’s row counts KOLONİ’s own requests among its agents: the box and the table say so, and add up', async () => {
+  // As the API adds them: every agent and request is under one model and one starter (the guide's picture had 12 + 1).
+  const numbers = { cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 0 }
+  const asRead: Usage = {
+    by_model: [
+      {
+        provider_name: 'Local',
+        model_id: 'fake-qwen',
+        runs: 10,
+        agents: 13,
+        input_tokens: 2400,
+        output_tokens: 360,
+        ...numbers,
+        cost: null,
+      },
+    ],
+    by_conversation: [],
+    by_start: [
+      { started_by: 'user', runs: 10, agents: 12, input_tokens: 2300, output_tokens: 350, ...numbers, cost: null },
+      { started_by: 'koloni', runs: 0, agents: 1, input_tokens: 100, output_tokens: 10, ...numbers, cost: null },
+    ],
+    by_day: [],
+  }
+  render(
+    <UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(asRead)} onOpen={vi.fn()} />,
+  )
+  const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
+  expect(cells(models.getByRole('row', { name: /Local · fake-qwen/ }))[1]).toBe('13')
+  expect(box('Messages')).toEqual(['10', '12 agents', '1 request by KOLONİ itself'])
+  expect(screen.getByText(/^Agents here include 1 request by KOLONİ itself, in no message\./)).toBeInTheDocument()
 })
 
 test('it starts on this project and Today, and reads again when either is changed', async () => {

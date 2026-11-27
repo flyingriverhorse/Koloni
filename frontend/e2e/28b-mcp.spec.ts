@@ -87,9 +87,10 @@ test('an MCP server is added on the Tools page, read, given to the Lead, and a c
   await expect(hang.getByRole('button', { name: 'Off', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText(/7 tools on: /)).toBeVisible()
 
-  // The Lead may use it; the role's own page names it. (The box is ticked once the role is saved.)
-  await page.getByLabel('Lead', { exact: true }).click()
-  await expect(page.getByLabel('Lead', { exact: true })).toBeChecked()
+  // The Lead may use it - its box says Orchestrator, as everywhere; the role's own page names it. (The box is ticked
+  // once the role is saved.)
+  await page.getByLabel('Orchestrator', { exact: true }).click()
+  await expect(page.getByLabel('Orchestrator', { exact: true })).toBeChecked()
   await page.getByRole('table', { name: 'Tools of fake' }).scrollIntoViewIfNeeded()
   await shot(page, '28b-tools-page')
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
