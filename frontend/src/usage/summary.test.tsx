@@ -111,14 +111,16 @@ const dayRow = (on: string, over: Partial<Usage['by_day'][number]> = {}): Usage[
 test('the strip has the last 30 days by money: a bar a day said in words, the most and today under it', () => {
   render(
     <Days
-      now={NOW}
-      rows={[
-        dayRow(back(29), { cost: { amount: 1, currency: 'USD' } }),
-        dayRow(back(2), { cost: { amount: 3.1, currency: 'USD' } }),
-        // ran on a plan: no money - a stub, not a zero
-        dayRow(back(1)),
-        dayRow(back(0), { cost: { amount: 1.62, currency: 'USD', at_least: true } }),
-      ]}
+      read={{
+        at: NOW,
+        rows: [
+          dayRow(back(29), { cost: { amount: 1, currency: 'USD' } }),
+          dayRow(back(2), { cost: { amount: 3.1, currency: 'USD' } }),
+          // ran on a plan: no money - a stub, not a zero
+          dayRow(back(1)),
+          dayRow(back(0), { cost: { amount: 1.62, currency: 'USD', at_least: true } }),
+        ],
+      }}
     />,
   )
   const strip = screen.getByRole('list', { name: 'Each day' })
@@ -126,7 +128,8 @@ test('the strip has the last 30 days by money: a bar a day said in words, the mo
   expect(days).toHaveLength(30)
   expect(days[0]).toHaveTextContent('29 Oct: ≈ 1.00 USD')
   expect(days[1]).toHaveTextContent('30 Oct: nothing ran')
-  expect(days[28]).toHaveTextContent('26 Nov: no money counted')
+  // (no cost: on a plan, unpriced, or its models' costs in two currencies)
+  expect(days[28]).toHaveTextContent('26 Nov: no cost in one currency')
   expect(days[28].querySelector('i')).toHaveClass('usage-strip-unknown')
   expect(days[27].querySelector('i')).toHaveStyle({ height: '100%' })
   expect(days[1].querySelector('i')).toBeNull()
@@ -135,21 +138,29 @@ test('the strip has the last 30 days by money: a bar a day said in words, the mo
   expect(screen.getByText('Today, 27 Nov: ≥ 1.62 USD')).toBeInTheDocument()
 })
 
-test('with nothing priced, or prices in two currencies, the strip is the tokens reported; with nothing, it says so', () => {
+test('with costs in two currencies the strip is the tokens reported, and says why; a part is "≥"; with nothing, it says so', () => {
   const { rerender } = render(
     <Days
-      now={NOW}
-      rows={[
-        dayRow(back(3), { cost: { amount: 1, currency: 'USD' } }),
-        dayRow(back(1), { cost: { amount: 1, currency: 'EUR' } }),
-        dayRow(back(0), { input_tokens: null, output_tokens: null }),
-      ]}
+      read={{
+        at: NOW,
+        rows: [
+          dayRow(back(3), { cost: { amount: 1, currency: 'USD' } }),
+          dayRow(back(1), { cost: { amount: 1, currency: 'EUR' } }),
+          dayRow(back(0), { input_tokens: null, output_tokens: null }),
+          // an agent of it reported nothing: what is said is only the least
+          dayRow(back(5), { input_tokens: 2000, output_tokens: 100, unknown_agents: 1 }),
+        ],
+      }}
     />,
   )
-  expect(screen.getByText('the tokens the models reported, the last 30 days: nothing in them has a cost')).toBeVisible()
-  expect(screen.getByText('Most: 24 Nov: 1,100 tokens')).toBeInTheDocument()
+  expect(screen.getByText('the tokens reported, the last 30 days: costs are in more than one currency')).toBeVisible()
+  expect(screen.getByText('Most: 22 Nov: ≥ 2,100 tokens')).toBeInTheDocument()
+  expect(screen.getByRole('list', { name: 'Each day' })).toHaveTextContent('24 Nov: 1,100 tokens')
   expect(screen.getByText('Today, 27 Nov: nothing reported')).toBeInTheDocument()
-  rerender(<Days now={NOW} rows={[]} />)
+  // with no cost at all: said so
+  rerender(<Days read={{ at: NOW, rows: [dayRow(back(0))] }} />)
+  expect(screen.getByText('the tokens the models reported, the last 30 days: nothing in them has a cost')).toBeVisible()
+  rerender(<Days read={{ at: NOW, rows: [] }} />)
   expect(screen.getByText('Nothing ran in the last 30 days.')).toBeInTheDocument()
   expect(screen.queryByRole('list')).toBeNull()
 })
@@ -217,7 +228,13 @@ test('a subscription’s model costs "plan", not a dash; Copilot’s AI credits 
   const keyAPlan = { id: 'k', name: 'Key', kind: 'anthropic', plan: true } as Provider
   const read = usage([
     row({ provider_name: 'Claude Code', provider_id: 'cc', model_id: 'sonnet' }),
-    row({ provider_name: 'Copilot', provider_id: 'gh', model_id: 'auto', nano_aiu: 41_000_000_000 }),
+    row({
+      provider_name: 'Copilot',
+      provider_id: 'gh',
+      model_id: 'auto',
+      nano_aiu: 41_000_000_000,
+      premium_requests: 2,
+    }),
     row({ provider_name: 'Key', provider_id: 'k', model_id: 'opus' }),
     row({ provider_name: 'Gone', provider_id: null, model_id: 'x' }),
   ])
@@ -233,7 +250,7 @@ test('a subscription’s model costs "plan", not a dash; Copilot’s AI credits 
   const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
   const cost = (name: RegExp) => within(models.getByRole('row', { name })).getAllByRole('cell').at(-1)!.textContent
   expect(cost(/^Claude Code/)).toBe('plan')
-  expect(cost(/^Copilot/)).toBe('plan · 41 AI credits')
+  expect(cost(/^Copilot/)).toBe('plan · 41 AI credits · 2 premium requests')
   expect(cost(/^Key/)).toBe('plan')
   // a provider deleted since, or one with no price: not known
   expect(cost(/^Gone/)).toBe('–')
@@ -256,10 +273,14 @@ test('the decisions line follows the period: this month’s from its first day, 
   rerender(<DecidedToday onLoad={onLoad} period="all" />)
   expect(await screen.findByText('1 decision was made for you so far.')).toBeVisible()
   expect(onLoad).toHaveBeenLastCalledWith(new Date(0).toISOString())
-  // (read once for a period: "7 days" back is another moment each render)
+  // (read once for a period: "7 days" back is another moment each render); the last period's line is gone meanwhile
   onLoad.mockClear()
+  let answer: (log: DecisionLog) => void = () => {}
+  onLoad.mockReturnValue(new Promise<DecisionLog>(resolve => (answer = resolve)))
   rerender(<DecidedToday onLoad={onLoad} period="7" />)
+  expect(screen.queryByText('1 decision was made for you so far.')).toBeNull()
   rerender(<DecidedToday onLoad={onLoad} period="7" />)
+  answer(log(1, 0))
   await screen.findByText('1 decision was made for you in the last 7 days.')
   expect(onLoad).toHaveBeenCalledTimes(1)
 })

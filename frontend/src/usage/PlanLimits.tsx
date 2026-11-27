@@ -46,11 +46,21 @@ function StepNote({ step, used }: { step: number | null; used: number[] }) {
  * it in a line, and its notes. The line on a bar of a window its step down reads is where its picks go a tier lower
  * (`step_down_at`); a bar is orange past it or near its limit, and its row says which in words.
  */
-function PlanCell({ provider, limits }: { provider: Provider; limits: Limits | string | undefined }) {
+function PlanCell({
+  provider,
+  limits,
+  came,
+}: {
+  provider: Provider
+  limits: Limits | string | undefined
+  came: number
+}) {
   const read = typeof limits === 'object' ? limits : null
   const known = read?.windows.filter(w => w.used_percent !== null && !w.stale) ?? []
   const step = provider.step_down_at
-  const mark = (w: Window) => (step != null && stepsDown(w) ? step : null)
+  // As app/limits.py `plan_used`: a reading older than its window (a day where that is not known) says nothing of now.
+  const fresh = (w: Window) => read?.read_at != null && came - Date.parse(read.read_at) < (w.minutes ?? 1440) * 60000
+  const mark = (w: Window) => (step != null && stepsDown(w) && fresh(w) ? step : null)
   return (
     <td>
       {known.map((w, at) => (
@@ -59,6 +69,7 @@ function PlanCell({ provider, limits }: { provider: Provider; limits: Limits | s
           label={`${provider.name}: ${windowName(w)} used`}
           value={w.used_percent!}
           mark={mark(w)}
+          // (Orange from NEAR_AT, where its row says it is near its limit - the old meter's 80 had no words - or past its line.)
           hot={w.used_percent! >= NEAR_AT || (mark(w) !== null && w.used_percent! >= step!)}
         />
       ))}
@@ -101,7 +112,12 @@ export function PlanLimits({ providers, onLimits, onModels, onRead }: Props) {
     .join(' ')
   // Which reading is wanted, and the last one that came: provider id -> what it said, or why it could not be read.
   const [round, setRound] = useState(0)
-  const [read, setRead] = useState<{ round: number; told: Record<string, Limits | string> }>({ round: -1, told: {} })
+  // (`at`: when it came - how old each reading is then, not a clock read as the page draws.)
+  const [read, setRead] = useState<{ round: number; told: Record<string, Limits | string>; at: number }>({
+    round: -1,
+    told: {},
+    at: 0,
+  })
 
   useEffect(() => {
     let latest = true
@@ -115,7 +131,7 @@ export function PlanLimits({ providers, onLimits, onModels, onRead }: Props) {
     ).then(told => {
       if (!latest) return
       const found = Object.fromEntries(told)
-      setRead({ round, told: found })
+      setRead({ round, told: found, at: Date.now() })
       onRead?.(found)
     })
     return () => {
@@ -158,7 +174,7 @@ export function PlanLimits({ providers, onLimits, onModels, onRead }: Props) {
                   </span>
                 )}
               </th>
-              <PlanCell provider={provider} limits={read.told[provider.id]} />
+              <PlanCell provider={provider} limits={read.told[provider.id]} came={read.at} />
             </tr>
           ))}
         </tbody>

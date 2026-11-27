@@ -16,8 +16,8 @@ The page reads from the top:
   has a monthly budget; the plan's part is the plan window used most, as the CLIs last said it. With nothing
   priced it says "no money was counted". Under it: **Messages**, **Tokens sent**, **Tokens written** and
   **Cost**, with **set prices**.
-- **This month's budget** as ten cells, each a tenth of the budget: honey as it fills, red-orange once it is
-  over, with the amount, the share used and the days left in words beside them. Once all are full, new work waits
+- **This month's budget** as ten cells, each a tenth of the budget: honey as it fills, a red-orange rim on what
+  is left from 80%, all red-orange once it is over, with the amount, the share used and the days left in words beside them. Once all are full, new work waits
   for your word (see [A project's monthly budget](#a-projects-monthly-budget)).
 - **Plan limits** beside it: a bar for each window of a plan, with **Check now** (see [Plan meters](#plan-meters)).
 - With **This project** and **Today**, the day's own numbers: **Failed** and **Files changed**, and **Say it in
@@ -38,7 +38,8 @@ The page reads from the top:
   [Decisions](../use/decisions.md).
 
 A chat's or a day's cost is its models' costs added up, as the budget adds them. Where none of them has a price,
-the chats, the starters and the strip are compared by their tokens instead.
+or the costs are in more than one currency, the chats, the starters and the strip are compared by their tokens
+instead, and a sum of only part of them says "≥".
 
 "Nothing is estimated": tokens are only what the models reported, and what was not reported shows as
 "–".

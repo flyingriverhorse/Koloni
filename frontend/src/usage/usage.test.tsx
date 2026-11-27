@@ -301,6 +301,20 @@ test('Plan limits are beside the boxes where a plan can be read, and the budget 
   expect(screen.getByRole('region', { name: 'Plan limits' })).toBeInTheDocument()
 })
 
+test('the summary is worded by the period its reading is of: another period chosen says nothing of its own until read', async () => {
+  // (the strip's reading and Today's; then 7 days', which does not come)
+  const onLoad = vi
+    .fn()
+    .mockResolvedValueOnce(usage)
+    .mockResolvedValueOnce(usage)
+    .mockReturnValue(new Promise<Usage>(() => {}))
+  render(<UsagePage project={project} projects={[project]} onLoad={onLoad} onOpen={vi.fn()} />)
+  expect(await screen.findByText('Today about 1.2346 USD was spent.')).toBeInTheDocument()
+  await choose('7 days')
+  expect(screen.getByText('Today about 1.2346 USD was spent.')).toBeInTheDocument()
+  expect(screen.queryByText(/^In the last 7 days/)).toBeNull()
+})
+
 test('a period starts at a moment: today at this day’s midnight here, this month at its first, the others so many days back', () => {
   const now = new Date(2026, 9, 11, 15, 30)
   expect(since('today', now)).toBe(new Date(2026, 9, 11).toISOString())
@@ -377,7 +391,7 @@ test('what was read again from a cache and written to it is told on a row where 
     <UsagePage
       project={project}
       projects={[project]}
-      onLoad={vi.fn().mockResolvedValue({ by_model, by_conversation, by_start })}
+      onLoad={vi.fn().mockResolvedValue({ by_model, by_conversation, by_start, by_day: [] })}
       onOpen={vi.fn()}
     />,
   )

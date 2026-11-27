@@ -338,6 +338,8 @@ def test_a_day_and_a_chat_cost_what_their_models_did_and_copilots_own_units_add_
     earlier = datetime.now(UTC) - timedelta(days=10)
     with client.app.state.session_factory() as session:
         session.get_one(Run, first["id"]).created_at = earlier
+        # (kept in UTC with no zone: the turn's own moment, not the test's clock)
+        second_at = session.get_one(Run, second["id"]).created_at.replace(tzinfo=UTC)
         for nano in (1_500_000_000, 500_000_000):
             session.add(
                 Agent(
@@ -363,7 +365,7 @@ def test_a_day_and_a_chat_cost_what_their_models_did_and_copilots_own_units_add_
     # each day by this machine's clock, the first first; Copilot's agents have no price: the least
     assert [(row["day"], row["runs"], row["cost"]) for row in told["by_day"]] == [
         (day(earlier), 1, {"amount": 1.0, "currency": "USD"}),
-        (day(datetime.now(UTC)), 1, {"amount": 2.0, "currency": "USD", "at_least": True}),
+        (day(second_at), 1, {"amount": 2.0, "currency": "USD", "at_least": True}),
     ]
     (talk,) = told["by_conversation"]
     assert talk["cost"] == {"amount": 3.0, "currency": "USD", "at_least": True}
@@ -377,7 +379,7 @@ def test_a_day_and_a_chat_cost_what_their_models_did_and_copilots_own_units_add_
     # a period has only its own days
     since = (datetime.now(UTC) - timedelta(days=1)).isoformat()
     assert [row["day"] for row in usage(client, project_id=pid, since=since)["by_day"]] == [
-        day(datetime.now(UTC))
+        day(second_at)
     ]
 
 

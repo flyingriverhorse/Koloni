@@ -138,7 +138,14 @@ function Totals({ usage, prices, onPrices }: { usage: Usage; prices: Price[]; on
 function costWords(row: Usage['by_model'][number], providers: Provider[]): string | undefined {
   const provider = providers.find(p => p.id === row.provider_id)
   const plan = provider && (paidOf(provider) === 'subscription' || provider.plan)
-  const units = spent({ nano_aiu: row.nano_aiu ?? null, premium_requests: row.premium_requests ?? null })
+  // shortcut: a sum some of whose agents said no unit is shown as is, not "≥"; say how many said none if Copilot's
+  // units are compared on the page.
+  const units = [
+    spent({ nano_aiu: row.nano_aiu ?? null, premium_requests: null }),
+    spent({ nano_aiu: null, premium_requests: row.premium_requests ?? null }),
+  ]
+    .filter(Boolean)
+    .join(' · ')
   if (!units && (row.cost || !plan)) return undefined
   return [row.cost ? money(row.cost) : plan ? 'plan' : '–', units].filter(Boolean).join(' · ')
 }
@@ -199,6 +206,24 @@ function Head({
   )
 }
 
+/** The strip's 30 days of a project or of all, whatever the period, and the moment they were asked as of; read again
+ *  when `again` changes (a price). Null until read, or where they cannot be: the period's reading says why. */
+function useDays(onLoad: Props['onLoad'], scope: string | null, again: number) {
+  const [days, setDays] = useState<{ rows: Usage['by_day']; at: Date } | null>(null)
+  useEffect(() => {
+    let latest = true
+    const at = new Date()
+    onLoad(scope, stripFrom(at)).then(
+      read => latest && setDays({ rows: read.by_day, at }),
+      () => latest && setDays(null),
+    )
+    return () => {
+      latest = false
+    }
+  }, [onLoad, scope, again])
+  return days
+}
+
 /**
  * What was spent and where: the tokens the agents' models reported, added up. Only what a
  * model reported is counted; what none reported is "unknown", and money is shown only from
@@ -227,24 +252,16 @@ export function UsagePage({
   const [period, setPeriod] = useState<Period>('today')
   // Counted up when a price changes: the usage is then read again, with its cost.
   const [priced, setPriced] = useState(0)
-  const [usage, setUsage] = useState<Usage | null>(null)
-  const [days, setDays] = useState<Usage['by_day'] | null>(null)
+  // A reading, and the period it is of: the sentence is worded by that until the next one comes.
+  const [reading, setReading] = useState<{ usage: Usage; period: Period } | null>(null)
+  const usage = reading?.usage
   const [error, setError] = useState<string | null>(null)
   // What the plans last said (Plan limits reads them): the summary's plan used most.
   const [plans, setPlans] = useState<Record<string, Limits | string>>({})
   const scope = everywhere ? null : project.id
 
-  useEffect(() => {
-    // The strip's 30 days, whatever the period (read first: the period's own reading is the last asked).
-    let latest = true
-    onLoad(scope, stripFrom()).then(
-      read => latest && setDays(read.by_day),
-      () => latest && setDays(null),
-    )
-    return () => {
-      latest = false
-    }
-  }, [onLoad, scope, priced])
+  // (Read first: the period's own reading is the last asked.)
+  const days = useDays(onLoad, scope, priced)
 
   useEffect(() => {
     // Only the latest reading counts: an earlier one that answers late is not shown.
@@ -252,13 +269,13 @@ export function UsagePage({
     onLoad(scope, since(period)).then(
       read => {
         if (!latest) return
-        setUsage(read)
+        setReading({ usage: read, period })
         setError(null)
       },
       err => {
         if (!latest) return
         // What was read before is of another project or period: it is not left under this one.
-        setUsage(null)
+        setReading(null)
         setError(errorText(err))
       },
     )
@@ -283,7 +300,7 @@ export function UsagePage({
         <>
           <p className="usage-big">
             {summarySentence({
-              period,
+              period: reading!.period,
               usage,
               cost: totalCost(usage.by_model, prices),
               budget: ours,
@@ -372,7 +389,7 @@ export function UsagePage({
       {lede()}
       {period === 'today' && !everywhere && today}
       {!ran && decided}
-      <Days rows={days} />
+      <Days read={days} />
       {tables()}
       {onPrice && onRemovePrice && (
         <Prices

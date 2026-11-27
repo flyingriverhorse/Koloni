@@ -146,6 +146,16 @@ test('a subscription’s bar has a line where its picks go a tier lower: past it
   expect(again).not.toHaveTextContent('Past 80%')
 })
 
+test('a reading older than its window draws no tier line: it says nothing of now, as the server’s step down reads it', async () => {
+  const stepped = { ...provider('c', 'Codex', 'codex_cli'), step_down_at: 80 }
+  const week = { name: null, minutes: 10080, used_percent: 90, resets_at: SOON, stale: false }
+  const old = { ...codex, read_at: new Date(Date.now() - 8 * 86400000).toISOString(), windows: [week] }
+  render(<PlanLimits providers={[stepped]} onLimits={vi.fn().mockResolvedValue(old)} />)
+  const row = await screen.findByRole('row', { name: /^Codex/ })
+  expect(within(row).getByRole('meter', { name: 'Codex: the week used' }).querySelector('.usage-bar-mark')).toBeNull()
+  expect(row).not.toHaveTextContent(/tier lower/)
+})
+
 test('opening the page reads nothing afresh; "Check now" does, and a reading that fails says why in its row', async () => {
   const onLimits = vi
     .fn()

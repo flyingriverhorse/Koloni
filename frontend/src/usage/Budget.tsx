@@ -44,8 +44,8 @@ function Comb({ budget, spent, of }: { budget: Budget; spent: number; of: number
       aria-label="Monthly budget used"
       aria-valuemin={0}
       aria-valuemax={of}
-      aria-valuenow={spent}
-      aria-valuetext={`${usedPercent(budget)}% used`}
+      aria-valuenow={Math.min(spent, of)}
+      aria-valuetext={`${budget.at_least ? 'at least ' : ''}${usedPercent(budget)}% used`}
       className="budget-comb"
     >
       {Array.from({ length: TENTHS }, (_, at) => {
@@ -55,7 +55,8 @@ function Comb({ budget, spent, of }: { budget: Budget; spent: number; of: number
             key={at}
             big
             hidden
-            tone={budget.over ? 'warn' : part > 0 ? 'honey' : 'plain'}
+            // (From 80% what is left has a red-orange rim, as the top bar's pill shows; over, every cell is red-orange.)
+            tone={budget.over ? 'warn' : part > 0 ? 'honey' : budget.warn ? 'warn' : 'plain'}
             fill={part >= 1 ? 'full' : part > 0 ? 'soft' : 'none'}
             label={`A tenth of the budget, ${tenth}: ${part >= 1 ? 'spent' : part > 0 ? 'partly spent' : 'not spent'}`}
           />

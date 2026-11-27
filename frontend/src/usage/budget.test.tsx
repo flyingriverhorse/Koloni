@@ -69,7 +69,8 @@ test('Usage shows this month’s spend against the budget, a bar and its numbers
         .map(name => name.slice('cell-'.length))
         .join(' '),
     )
-  expect(cells()).toEqual([...Array(8).fill('honey full'), 'honey soft', 'plain none'])
+  // (at 80% and more, what is left has a red-orange rim)
+  expect(cells()).toEqual([...Array(8).fill('honey full'), 'honey soft', 'warn none'])
   expect(bar.querySelector('.cell')).toHaveAttribute('title', 'A tenth of the budget, 1.2 USD: spent')
   expect(
     screen.getByText(/Each cell is a tenth of it\. Once all are full, new work waits for your word/),
@@ -81,13 +82,18 @@ test('Usage shows this month’s spend against the budget, a bar and its numbers
   // Over it, what that means is in sight here, where the top bar's pill leads.
   rerender(<BudgetSection budget={spend({ spent: 13, share: 13 / 12, over: true })} />)
   expect(screen.getByText(/used 108% of its monthly budget: a new message asks before its work starts/)).toBeVisible()
-  // Over it, every cell is full and red-orange.
+  // Over it, every cell is full and red-orange; the meter says its most, the words the rest.
   expect(cells()).toEqual(Array(10).fill('warn full'))
+  expect(bar).toHaveAttribute('aria-valuenow', '12')
   rerender(<BudgetSection budget={spend({ currency: null, spent: null, share: null, warn: false })} />)
   expect(screen.queryByRole('meter')).toBeNull()
   expect(screen.getByText(/This budget is not enforced: prices are in more than one currency/)).toBeInTheDocument()
   rerender(<BudgetSection budget={spend({ at_least: true })} />)
   expect(screen.getByText(/≥ 10\.50 USD of 12 USD/)).toBeInTheDocument()
+  expect(screen.getByRole('meter', { name: 'Monthly budget used' })).toHaveAttribute(
+    'aria-valuetext',
+    'at least 87% used',
+  )
   // Read here, set in the project's settings.
   const onSettings = vi.fn()
   rerender(<BudgetSection budget={spend()} onSettings={onSettings} />)

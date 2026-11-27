@@ -14,8 +14,10 @@ const named = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month
  * reported. A day that ran with nothing known has a stub, not a zero; each bar's day and amount are in words, and the
  * first day, the most and today under the strip.
  */
-export function Days({ rows, now = new Date() }: { rows: Day[] | null; now?: Date }) {
-  if (!rows) return null
+export function Days({ read }: { read: { rows: Day[]; at: Date } | null }) {
+  if (!read) return null
+  // (As of the reading's moment: the days it was asked for, not a clock read as the page draws.)
+  const { rows, at: now } = read
   const measure = measureOf(rows)
   const byDay = new Map(rows.map(row => [row.day, row]))
   const dates = Array.from(
@@ -39,7 +41,9 @@ export function Days({ rows, now = new Date() }: { rows: Day[] | null; now?: Dat
         <span className="muted memory-hint">
           {measure.inMoney
             ? 'the money spent, the last 30 days'
-            : 'the tokens the models reported, the last 30 days: nothing in them has a cost'}
+            : measure.mixed
+              ? 'the tokens reported, the last 30 days: costs are in more than one currency'
+              : 'the tokens the models reported, the last 30 days: nothing in them has a cost'}
         </span>
       </h3>
       {rows.length === 0 ? (

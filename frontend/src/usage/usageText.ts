@@ -27,22 +27,33 @@ export const started = (row: Start) =>
 export const tokensOf = (row: { input_tokens: number | null; output_tokens: number | null }) =>
   row.input_tokens === null && row.output_tokens === null ? null : (row.input_tokens ?? 0) + (row.output_tokens ?? 0)
 
-type Measured = { cost?: Cost; input_tokens: number | null; output_tokens: number | null }
+type Measured = {
+  cost?: Cost
+  input_tokens: number | null
+  output_tokens: number | null
+  unknown_agents: number
+}
 
 /**
  * What rows are compared by - a day's bar, a chat's place, a starter's: their money where any has a cost, all in one
- * currency; else the tokens their models reported. What is not known is null, and says so - never a zero.
+ * currency; else the tokens their models reported (`mixed`: costs in two currencies, never added nor compared). What
+ * is not known is null, and says so - never a zero; a sum of only part of it is "≥".
  */
 export function measureOf<T extends Measured>(rows: T[]) {
-  const priced = rows.filter(row => typeof row.cost?.amount === 'number')
-  const inMoney = priced.length > 0 && new Set(priced.map(row => row.cost!.currency.toUpperCase())).size === 1
+  const currencies = new Set(
+    rows.flatMap(row => (typeof row.cost?.amount === 'number' ? [row.cost.currency.toUpperCase()] : [])),
+  )
+  const inMoney = currencies.size === 1
   const value = (row: T) => (inMoney ? (row.cost?.amount ?? null) : tokensOf(row))
   const said = (row: T) => {
-    if (inMoney) return row.cost ? money(row.cost) : 'no money counted'
+    // (A row with no cost may be one whose models' costs are in two currencies: not "no money".)
+    if (inMoney) return row.cost ? money(row.cost) : 'no cost in one currency'
     const tokens = tokensOf(row)
-    return tokens === null ? 'nothing reported' : `${count(tokens)} tokens`
+    if (tokens === null) return 'nothing reported'
+    const part = row.unknown_agents > 0 || row.input_tokens === null || row.output_tokens === null
+    return `${part ? '≥ ' : ''}${count(tokens)} tokens`
   }
-  return { inMoney, value, said }
+  return { inMoney, mixed: currencies.size > 1, value, said }
 }
 
 /** The plan window used most, of what the subscriptions last said, as the page's summary says it; null: none known. */

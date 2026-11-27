@@ -19,7 +19,7 @@ export function Bar({
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={value}
+      aria-valuenow={Math.min(Math.max(value, 0), 100)}
       aria-valuetext={`${Math.round(value)}%`}
       className={hot ? 'usage-bar usage-bar-hot' : 'usage-bar'}
     >
