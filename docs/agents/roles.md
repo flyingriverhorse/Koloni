@@ -128,8 +128,9 @@ Click a role to open its panel. It has four tabs:
   it. It has its role's own tools only, each asked about as its agent's are (a card where your level
   says so): none of KOLONİ's tools, which are its agent's, and no sub-agent of its own. In Copilot it
   runs on the agent's own model; Copilot is given only these roles, none of its built-in sub-agents, and
-  opens one only while it waits for it - one it asks to open in the background, or by another name, is
-  refused.
+  opens one only while it waits for it - one it asks to open in the background, by another name, or
+  with a model, level or anything else of its own choosing, is refused. At **Ask**, a role that can
+  change things is a card before it opens, as opening an agent is.
 - **It may**: **Read and search**, **Write code**, **Run commands**, **Use the web**, or
   **Pick tools one by one**.
 - **This role will** sums up what the role will do, as you change the form.
