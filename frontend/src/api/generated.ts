@@ -1411,6 +1411,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/decisions/{decision_id}/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Noted Change
+         * @description The user's Change on a noted decision, in their own words: into its turn while that one is
+         *     at work and takes a word - Send now's own way (`post_message`); else in a turn of KOLONİ's of
+         *     its chat, queued behind one at work. Seen either way.
+         */
+        post: operations["noted_change_api_decisions__decision_id__change_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/decisions/{decision_id}/ok": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Noted Ok
+         * @description The user's OK on a noted decision: it stays in the log, seen.
+         */
+        post: operations["noted_ok_api_decisions__decision_id__ok_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/discussions/{discussion_id}/end": {
         parameters: {
             query?: never;
@@ -6640,7 +6682,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "answer" | "command" | "task" | "spawn";
+            kind: "answer" | "command" | "task" | "spawn" | "noted";
             link: components["schemas"]["DecisionLink"];
             /** Options */
             options?: string[] | null;
@@ -6680,7 +6722,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "question" | "command" | "task" | "agent";
+            kind: "question" | "command" | "task" | "agent" | "noted";
         };
         /** DecisionLog */
         DecisionLog: {
@@ -8657,6 +8699,11 @@ export interface components {
             title: string | null;
             /** Why */
             why: string;
+        };
+        /** NotedChangeIn */
+        NotedChangeIn: {
+            /** Words */
+            words: string;
         };
         /**
          * NotesAnswerIn
@@ -14179,6 +14226,70 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WarningOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    noted_change_api_decisions__decision_id__change_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotedChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostMessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    noted_ok_api_decisions__decision_id__ok_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

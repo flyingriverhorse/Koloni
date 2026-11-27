@@ -531,6 +531,7 @@ def create_app(
     app.include_router(providers.catalogue_router)
     app.include_router(providers.session_router)
     app.include_router(judge.advisor_router)  # (0.1.11: the Advisor model)
+    app.include_router(decisions.noted_router)  # (0.1.11: OK and Change on a noted decision)
     app.include_router(opening)
     # Python reads these from Windows' registry, which some installers set to text/plain:
     # the page's modules were refused and it stayed blank (`views.TYPES` says the same).

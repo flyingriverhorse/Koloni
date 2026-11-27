@@ -26,6 +26,7 @@ const LINK: Record<Decision['link']['kind'], string> = {
   command: 'The command',
   task: 'The task',
   agent: 'The agent',
+  noted: 'The chat',
 }
 
 interface Props {
@@ -278,6 +279,7 @@ async function okOnly(row: Decision): Promise<void> {
   const s = useApp.getState()
   const id = recordOf(row)
   if (row.kind === 'task') return s.seenTask(id)
+  if (row.kind === 'noted') return void (await api.post(`/decisions/${id}/ok`))
   if (row.kind === 'command') return here(row) ? s.commandSeen(id) : void (await api.post(`/commands/${id}/seen`))
   return here(row) ? s.decidedOk(id) : void (await api.post(`/questions/${id}/ok`))
 }
@@ -355,7 +357,11 @@ function RowActions({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (
           OK
         </button>
       )}
-      <Changes row={row} busy={busy} act={act} />
+      {row.kind === 'noted' ? (
+        <NotedChange row={row} busy={busy} act={act} />
+      ) : (
+        <Changes row={row} busy={busy} act={act} />
+      )}
       {row.undo === 'none' && row.undo_reason && (
         <span className="muted decided-note">can't be undone: {row.undo_reason}</span>
       )}
@@ -365,6 +371,44 @@ function RowActions({ row, onOpenChat, onDone }: { row: Decision; onOpenChat?: (
         </div>
       )}
     </div>
+  )
+}
+
+/** Change on a decision the Orchestrator noted (0.1.11): what you decide instead, in your own words - into its turn while
+ *  it works, else a turn of its chat. */
+function NotedChange({ row, busy, act }: { row: Decision; busy: boolean; act: Act }) {
+  const [open, setOpen] = useState(false)
+  const [words, setWords] = useState('')
+  if (!open)
+    return (
+      <button type="button" className="btn btn-small" disabled={busy} onClick={() => setOpen(true)}>
+        Change
+      </button>
+    )
+  return (
+    <form
+      className="decision-change"
+      onSubmit={event => {
+        event.preventDefault()
+        if (words.trim())
+          act(
+            () => api.post(`/decisions/${recordOf(row)}/change`, { words }).then(() => setOpen(false)),
+            'Sent to the Orchestrator',
+          )
+      }}
+    >
+      <input
+        className="input"
+        aria-label="What you decide instead"
+        placeholder="What you decide instead…"
+        maxLength={1000}
+        value={words}
+        onChange={event => setWords(event.target.value)}
+      />
+      <button type="submit" className="btn btn-small" disabled={busy || !words.trim()}>
+        Send
+      </button>
+    </form>
   )
 }
 

@@ -1,11 +1,12 @@
 """The decision log (karar defteri, Part A): what was decided for the user in one project, by whom
 and why - by the Orchestrator (the cards it answered, the sub-agents it opened or not, the Scout's
 To-do proposals it took or turned down), by KOLONİ's judge (a command it refused, the agent going
-on) and by the user's own words (Check what I said first). Read from the records that keep each of
-them: no table of its own, no model asked, and nothing writes here - no row is added, changed or
-hidden by an agent. The judge's "fine" is counted, not listed. Agents' and models' words are
-masked, cut and marked where they read like orders (`said`); they are shown, never given to an
-agent as orders.
+on) and by the user's own words (Check what I said first) - and the decisions the Orchestrator
+noted itself (note_decision, 0.1.11: `NotedDecision`, the one table of the log's own, which that
+tool only adds to). Read from the records that keep each of them: no model asked, and nothing
+writes here - no row is changed or hidden by an agent. The judge's "fine" is counted, not listed.
+Agents' and models' words are masked, cut and marked where they read like orders (`said`); they
+are shown, never given to an agent as orders.
 shortcut: read from the records, a row leaves the log where its record changes - the user's own
 Change, and Change and redo, clear the Orchestrator's why (`api.questions.change`, `app.redo`),
 and a task you turned down - one it added, by its row's Change; one it turned down, rejected on
@@ -27,6 +28,7 @@ from app.agent.words import AGENT_TERMINAL
 from app.commands import OutputMask
 from app.db.away_models import Parked
 from app.db.models import Agent, BacklogTask, Command, Conversation, Merge, Question, Run
+from app.db.turn_models import NotedDecision
 from app.judge import whole
 from app.schemas_decisions import Decision, DecisionLink, DecisionLog
 from app.stories import BLANK_LOOKING
@@ -514,7 +516,8 @@ def of(
 
     commands, fine = _commands(session, project_id, window)
     cards = _cards(session, project_id, window, undo)
-    rows = [*cards, *commands, *_tasks(session, project_id, window)]
+    noted = _noted(session, project_id, window)
+    rows = [*cards, *commands, *_tasks(session, project_id, window), *noted]
     if unseen:  # (only what waits for your OK - before the cut: one of any age is found)
         rows = [row for row in rows if row[1] is False]
     rows.sort(key=lambda row: row[0], reverse=True)
@@ -524,4 +527,38 @@ def of(
         # (Not seen has no period: the judge's "fine" of all time is no count of it - nor waits.)
         judge_fine=0 if unseen else fine,
         more=len(shown) < len(rows),
+    )
+
+
+def _noted(session: Session, project_id: str, window: Window) -> list[Later]:
+    """Task 10 (0.1.11): the decisions the Orchestrator noted for the user (note_decision): its
+    words, masked and cut as every row's; your OK on them, and Change - your own words to it
+    (`api.decisions`)."""
+    found = session.execute(
+        select(NotedDecision, Run.conversation_id, Conversation.title)
+        .join(Run, Run.id == NotedDecision.run_id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(Conversation.project_id == project_id, *window(NotedDecision.created_at))
+    ).all()
+    return [
+        (utc(one.created_at), one.seen_at is not None, partial(_noted_row, one, cid, title))
+        for one, cid, title in found
+    ]
+
+
+def _noted_row(one: NotedDecision, cid: str, title: str) -> Decision:
+    return Decision(
+        id=f"noted:{one.id}",
+        at=utc(one.created_at),
+        kind="noted",
+        who="orchestrator",
+        what="Decided",
+        quote=said(one.what),
+        why=said(one.why),
+        conversation_id=cid,
+        chat=said(title),
+        link=DecisionLink(kind="noted", id=one.id),
+        undo="change",
+        undo_reason=None,
+        seen=one.seen_at is not None,
     )

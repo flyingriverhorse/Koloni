@@ -103,7 +103,28 @@ ASK_ADVISOR_SCHEMA = _fn(
     ["summary", "question"],
 )
 
+# Task 10: a decision the Orchestrator noted for the user (`LeadToolsMixin._note_decision`).
+NOTE_DECISION_SCHEMA = _fn(
+    "note_decision",
+    "Note a decision you took for the user without asking them - a library, an approach, a "
+    "trade-off - so that they see it under Decided for you (the Work page's Ready for you) with "
+    "your reason, and can say OK or change it. It changes nothing by itself: do the work as you "
+    "decided. What and why one line each, at most 200 characters; at most 10 a turn.",
+    {
+        "what": {"type": "string", "description": "What you decided, in one line."},
+        "why": {"type": "string", "description": "Why, in one line."},
+    },
+    ["what", "why"],
+)
+NOTED_MOST = 10  # a turn's
+LINE_MOST = 200  # characters of what and of why
+NOTED = (
+    "Noted as decision {id} under Decided for you: {what}. The user may say OK or change it; "
+    "this changes nothing by itself."
+)
+NOTED_FULL = f"note_decision was used {NOTED_MOST} times in this turn: say the rest in your answer"
+
 # The Orchestrator's own tools beside its agents (`LeadToolsMixin._lead_tool`).
-LEAD_TOOLS = frozenset({"update_plan", "ask_advisor"})
+LEAD_TOOLS = frozenset({"update_plan", "ask_advisor", "note_decision"})
 # The tools above, by name, for `_tool_call_4`'s dispatch (`AtWorkMixin._at_work_call`).
 AT_WORK_TOOLS = frozenset({"stop_agent", "agents_at_work"}) | LEAD_TOOLS

@@ -7,19 +7,29 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import func, literal_column, select
 
-from app import advisor, injection, model_native
+from app import advisor, injection, masking, model_native
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
 from app.commands import OutputMask
 from app.db.models import Conversation, Project, ToolCall
+from app.db.turn_models import NotedDecision
 from app.model_client import OwnStop
 from app.providers import ask_once
 from app.roles import LEAD, find_role
 from app.team import quoted, would_run
 from app.tools import ToolError
-from app.tools_at_work import ASK_ADVISOR_SCHEMA, PLAN_SHOWN, UPDATE_PLAN_SCHEMA
+from app.tools_at_work import (
+    ASK_ADVISOR_SCHEMA,
+    LINE_MOST,
+    NOTE_DECISION_SCHEMA,
+    NOTED,
+    NOTED_FULL,
+    NOTED_MOST,
+    PLAN_SHOWN,
+    UPDATE_PLAN_SCHEMA,
+)
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -49,6 +59,7 @@ class LeadToolsMixin:
         if self._background_offered(ctx):  # (an API model's: a CLI's own plan is its own)
             schemas.append(UPDATE_PLAN_SCHEMA)
         schemas.append(ASK_ADVISOR_SCHEMA)
+        schemas.append(NOTE_DECISION_SCHEMA)
 
     async def _lead_tool(self: "AgentRunner", ctx: Ctx, call_id: str, name: str, args: dict) -> str:
         """`_at_work_call`'s part for the Orchestrator's own tools, held to where they are offered
@@ -57,6 +68,8 @@ class LeadToolsMixin:
             return self._update_plan(ctx, args)
         if name == "ask_advisor":
             return await self._ask_advisor(ctx, args)
+        if name == "note_decision":
+            return self._note_decision(ctx, call_id, args)
         raise ToolError(f"unknown tool: {name}")
 
     def _update_plan(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
@@ -188,3 +201,43 @@ class LeadToolsMixin:
             log.warning("run %s: the advisor was not answered", ctx.run_id, exc_info=True)
             return None
         return _answer(said)
+
+    # --- Task 10: note_decision --------------------------------------------------------------
+
+    def _note_decision(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> str:
+        """note_decision: a row of Decided for you (`app.decisions`) - who and when KOLONİ's, what
+        and why the Orchestrator's words, masked, on one line, cut at LINE_MOST. It only adds:
+        nothing here changes or deletes a row, and the row changes nothing by itself; its OK and
+        Change are the user's, from the app's own page (`api.decisions`). At most NOTED_MOST a
+        turn, counted on record (nothing awaited between the count and the row).
+        shortcut: Ready for you reads the row when it reads its log again (its chips, a focus, the
+        board's count every 5 s); send an event if a row is seen to come late."""
+        what, why = args.get("what"), args.get("why")
+        if not isinstance(what, str) or not what.strip():
+            raise ToolError("missing required argument: what")
+        if not isinstance(why, str) or not why.strip():
+            raise ToolError("missing required argument: why")
+        with self._factory() as session:
+            count = session.scalar(
+                select(func.count())
+                .select_from(NotedDecision)
+                .where(NotedDecision.run_id == ctx.run_id)
+            )
+            if (count or 0) >= NOTED_MOST:
+                raise ToolError(NOTED_FULL)
+            row = NotedDecision(
+                run_id=ctx.run_id,
+                agent_id=ctx.agent_id,
+                tool_call_id=call_id,
+                what=_line(what),
+                why=_line(why),
+            )
+            session.add(row)
+            session.commit()
+            return NOTED.format(id=row.id, what=quoted(row.what))
+
+
+def _line(text: str) -> str:
+    """An agent's words as a noted decision keeps them: masked, on one line, cut."""
+    shown = masking.masked(text)
+    return shown if len(shown) <= LINE_MOST else shown[: LINE_MOST - 1] + "…"

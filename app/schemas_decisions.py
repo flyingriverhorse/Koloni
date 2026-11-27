@@ -1,6 +1,7 @@
 """The decision log (`app.decisions`) as the API gives it - beside `app.schemas`, which is at its
 size limit, and imports nothing of it: a night's job carries its rows (`AwayJobOut.decisions`).
-Read only: nothing adds, changes or deletes a row of it."""
+Read only: nothing here adds, changes or deletes a row of it (the Orchestrator's note_decision only
+adds one of its own; the user's OK and Change are `api.decisions`')."""
 
 from datetime import datetime
 from typing import Literal
@@ -11,7 +12,7 @@ from pydantic import BaseModel
 class DecisionLink(BaseModel):
     """What a row is of: the card, the command, the To-do task or the agent opened."""
 
-    kind: Literal["question", "command", "task", "agent"]
+    kind: Literal["question", "command", "task", "agent", "noted"]
     id: str
 
 
@@ -23,7 +24,7 @@ class Decision(BaseModel):
 
     id: str  # "<kind>:<record id>"
     at: datetime
-    kind: Literal["answer", "command", "task", "spawn"]
+    kind: Literal["answer", "command", "task", "spawn", "noted"]
     who: Literal["orchestrator", "judge", "your_words"]
     what: str
     # The question, the command or the task's title.
