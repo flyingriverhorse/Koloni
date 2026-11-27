@@ -7,7 +7,7 @@ writes it from its own records, not from the model's words, and no model is aske
 
 It works the same for every model and CLI.
 
-![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (3 lines, 2 files); No new test: the Orchestrator said "Updated the greeting in hello.py."](../images/checked-section.png)
+![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (1 lines, 1 files); Not checked: a test for the change switched off for this project](../images/checked-section.png)
 
 [![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides, config files and scripts, the project's own code style and type checks and pages (console, width, accessibility), a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; apart from them, a sub-agent's own tests before its work is taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
 
@@ -720,7 +720,7 @@ Lines a test could run but none did go to the Reviewer, as data: "New lines no t
 
 ## The review
 
-![The Checked section of a reviewed change: Tests passed: python check.py - 2 passed; Review: Reviewer (Local · fake-qwen) - MERGE, no findings](../images/checked-review.png)
+![The Checked section of a reviewed change: Tests passed: python check.py - 2 passed; Review: Reviewer (Local · fake-qwen) - MERGE, no findings; Not checked: a test for the change switched off for this project](../images/checked-review.png)
 
 Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
 config or screens - or one that touches security - is looked over by the **Reviewer**, an agent
