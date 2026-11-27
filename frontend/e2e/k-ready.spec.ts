@@ -84,14 +84,13 @@ for (const theme of ['light', 'dark'] as const) {
     await list.getByRole('tab', { name: /^To-do/ }).click()
     await expect(list.getByRole('region', { name: /^To-do/ })).toBeVisible()
     expect((await list.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
-    await list.getByRole('tab', { name: /^Ready for you/ }).click()
-    // A narrow window: nothing wider than the window.
+    // A narrow window: nothing wider than the window, on either tab.
     await page.setViewportSize({ width: 800, height: 900 })
-    expect(
-      await list.evaluate(
-        p => p.scrollWidth <= p.clientWidth && document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true)
+    const fits = () =>
+      list.evaluate(p => p.scrollWidth <= p.clientWidth && document.documentElement.scrollWidth <= window.innerWidth)
+    expect(await fits()).toBe(true)
+    await list.getByRole('tab', { name: /^Ready for you/ }).click()
+    expect(await fits()).toBe(true)
     await page.setViewportSize({ width: 1440, height: 900 })
     // Open chat on the first chat's row: that chat on the canvas, and the panel at its card - This chat now.
     const firstRow = list.getByRole('group', { name: new RegExp(first) })

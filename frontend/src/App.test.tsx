@@ -680,6 +680,8 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   expect(await screen.findByText("1 decision was made for you today, 1 of them you haven't seen.")).toBeInTheDocument()
   // (Usage keeps no list of them any more)
   expect(screen.queryByRole('region', { name: /Decisions|Decided for you/ })).toBeNull()
+  // (Work's To-do shown last: the ask opens its Ready for you tab all the same.)
+  act(() => useApp.setState({ readyTab: 'todo' }))
   await userEvent.click(screen.getByRole('button', { name: 'Open in Ready for you' }))
   const decided = await screen.findByRole('region', { name: /^Decided for you/ })
   await vi.waitFor(() => expect(decided).toHaveFocus())

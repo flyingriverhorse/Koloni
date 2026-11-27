@@ -146,10 +146,6 @@ KOLONİ's own words, as they appear on screen.
 : Where a model runs: an OpenAI-compatible server, the Anthropic API, or a CLI you are signed in to
   (Claude Code, Codex, GitHub Copilot CLI, agy). You add providers on the Models page.
 
-**Work**
-: A page on the rail (0.1.10; once **Ready**), with the count of what waits for your word: two tabs,
-  **Ready for you** and **To-do**. It opens on the tab shown last.
-
 **Ready for you**
 : The panel and page that list everything waiting for your word. The panel lists the open chat's in two
   parts, **Needs your answer** and **Ready to take in**, then what waits elsewhere. The page holds the last
@@ -241,6 +237,11 @@ KOLONİ's own words, as they appear on screen.
 : The panel the git button in the top bar opens ("⑂ main · 4 changed"): your branch, the agents' copies
   in this chat, and other branches, each saying how the work stands. See
   [Branches](../use/workspace.md#branches).
+
+**Work**
+: A page on the rail (0.1.10; once **Ready**), with the count of what waits for your word: two tabs,
+  **Ready for you** and **To-do**. It opens on the tab shown last. See
+  [Ready and approval cards](../use/ready.md#the-page).
 
 **Workspace**
 : The side window with the project's files, what agents changed, wrote or showed, and what waits
