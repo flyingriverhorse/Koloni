@@ -33,6 +33,8 @@ test('a skill is uploaded from a folder chosen in the browser, shown on the card
   await skills.getByRole('button', { name: 'Add skill' }).click()
   const card = skills.getByRole('listitem').filter({ hasText: 'Say less.' })
   await expect(card.getByRole('switch', { name: 'brief on' })).toBeChecked()
+  // its card says where it came from (0.1.10); unfolded, with its licence
+  await expect(card.getByRole('button', { name: /^brief/ })).toContainText(/from uploaded \(brief\) · \d+ files?/)
   await card.getByRole('button', { name: /^brief/ }).click()
-  await expect(card.getByText(/from uploaded \(brief\)/)).toBeVisible()
+  await expect(card.locator('.tools-card-note')).toContainText(/from uploaded \(brief\)/)
 })

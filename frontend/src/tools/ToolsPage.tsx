@@ -1,15 +1,27 @@
-import { CaretDown, Warning } from '@phosphor-icons/react'
+import { Warning } from '@phosphor-icons/react'
 import { type KeyboardEvent, useLayoutEffect, useState } from 'react'
 import { errorText } from '../api/client'
-import type { BuiltinTool, McpRead, McpServer, McpServerChange, NewMcpServer, Role, Skill } from '../api/types'
-import { since } from '../board/columns'
+import type {
+  BuiltinTool,
+  McpRead,
+  McpServer,
+  McpServerChange,
+  NewMcpServer,
+  PendingSkill,
+  Role,
+  Skill,
+} from '../api/types'
+import { Cell } from '../shell/Cell'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
-import { count, type Pasted } from './paste'
+import { RUNS_CELL, RUNS_WORD, type Runs } from './cells'
+import type { Pasted } from './paste'
 import { type SkillActions, SkillsSection } from './Skills'
 import { AddMenu, AddServer, type Way } from './AddServer'
 import { BuiltIn } from './BuiltIn'
+import { ServerCard } from './ServerCard'
 import { ServerEditor } from './ServerEditor'
+import { useTrust } from './useTrust'
 
 export interface Props {
   servers: McpServer[]
@@ -30,6 +42,9 @@ export interface Props {
   /** KOLONİ's store of skills (K-skill-uyum), its third part; `picked` "skills" or "skill:<name>" opens there. */
   skills?: Skill[]
   skillActions?: SkillActions
+  /** The skills agents proposed, waiting for your word on Ready for you; `onReady` goes there. */
+  proposals?: PendingSkill[]
+  onReady?: () => void
 }
 
 /** What a server is not held to, and where none of its tools is to be had (app/agent.py, `_mcp`). */
@@ -44,28 +59,23 @@ const NOTES = [
 ]
 
 const KINDS = [
-  ['builtin', 'Built-in'],
+  ['builtin', 'KOLONİ’s tools'],
   ['servers', 'Servers'],
   ['skills', 'Skills'],
 ] as const
 type Kind = (typeof KINDS)[number][0]
 
-/** A server's state on its row: one that could not be read, one watched, one trusted. */
-const tagOf = (server: McpServer) =>
-  server.read_error
-    ? ['could not be read', 'tag-del']
-    : server.trusted
-      ? ['trusted', 'tag-ok']
-      : ['watching', 'tag-warn']
-
-/** Its row's second line: how many tools and how they run, or why there are none. */
-function subOf(server: McpServer) {
-  const off = server.enabled ? '' : 'off: given to no agent · '
-  if (server.read_error) return off + server.read_error
-  if (server.read_at === null) return `${off}not read yet: no agent is offered any`
-  const asks = server.tools.filter(tool => tool.mark === 'ask' && !tool.unusable).length
-  const how = server.trusted ? `${asks} ${asks === 1 ? 'asks' : 'ask'} first` : 'every call asks until you trust it'
-  return `${off}${count(server.tools.length, 'tool')} · ${how} · read ${since(server.read_at)} ago`
+/** What the cells say, once, under the heading: each cell with its word - the word is what a screen reader says. */
+function ToolsKey() {
+  return (
+    <div className="cell-legend tools-key" role="group" aria-label="What the cells say">
+      {(Object.keys(RUNS_WORD) as Runs[]).map(runs => (
+        <span key={runs}>
+          <Cell {...RUNS_CELL[runs]} label={RUNS_WORD[runs]} hidden /> {RUNS_WORD[runs]}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 /** The tab a page opened anew is on: Skills or Built-in where `picked` says so and that tab is there, else Servers. */
@@ -81,19 +91,36 @@ const openOf = (servers: McpServer[], selected: string | null) =>
   selected === 'new' || selected === '' ? null : (servers.find(s => s.id === selected) ?? servers[0] ?? null)
 
 /** KOLONİ's tools in three tabs (0.1.0-ui, layout A): its own, the MCP servers the user added, and its skills. */
-export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills = [], skillActions, ...rest }: Props) {
+export function ToolsPage({
+  servers,
+  picked,
+  builtin = [],
+  onSwitchTool,
+  skills = [],
+  skillActions,
+  proposals = [],
+  onReady,
+  ...rest
+}: Props) {
   const toSkills = picked?.startsWith('skill') ? picked : undefined
   // shortcut: the tab chosen is kept while the page is open, not in the address; a page opened anew is on Servers
   // (or where `picked` says). Keep it in the address if the user is seen coming back to another tab.
   const kinds = KINDS.filter(([id]) => (id !== 'builtin' || onSwitchTool) && (id !== 'skills' || skillActions))
   const [kind, setKind] = useState<Kind>(firstKind(toSkills, skillActions, picked, onSwitchTool))
-  const counts: Record<Kind, number> = { builtin: builtin.length, servers: servers.length, skills: skills.length }
+  // What waits on a tab, beside its name: the servers watched, the skills proposed.
+  const watched = servers.filter(server => !server.trusted).length
+  const badges: Record<Kind, string> = {
+    builtin: '',
+    servers: watched ? `${watched} watching` : '',
+    skills: proposals.length ? `${proposals.length} proposed` : '',
+  }
   // The server open under its row (picked, or else the first); '' none; 'new' while one is being added.
   const [selected, setSelected] = useState<string | null>(toSkills ? null : (picked ?? null))
   const [addingSkill, setAddingSkill] = useState(false)
   // The way a server is added; what "by hand" is filled from, and how many times it was filled anew.
   const [adding, setAdding] = useState<{ way: Way; start?: Pasted; n: number }>({ way: 'ready', n: 0 })
   const [error, setError] = useState<string | null>(null)
+  const work = useTrust(servers, rest, setError)
   const open = openOf(servers, selected)
   function start(way: Way, from?: Pasted) {
     // (Filled anew only from a card or a paste: another way and back keeps what was typed.)
@@ -118,9 +145,10 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
     setKind(next)
     document.getElementById(`tools-tab-${next}`)?.focus()
   }
-  const switchServer = (server: McpServer) => {
+  /** A change made from a server's card head - its switch, its trust: a refusal says why under the list. */
+  const saveServer = (server: McpServer, change: McpServerChange) => {
     setError(null)
-    rest.onSave(server.id, { enabled: !server.enabled }).catch(err => setError(errorText(err)))
+    return rest.onSave(server.id, change).catch(err => setError(errorText(err)))
   }
   /** The form that adds a server: while one is being added, and as the page while there is none. */
   const addServer = () =>
@@ -157,6 +185,10 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
           }
         />
       </div>
+      <p className="muted tools-sub">
+        What agents can do. Which role has which is on that role’s Tools tab; here, the tool itself.
+      </p>
+      <ToolsKey />
       <div className="tabs tools-tabs" role="tablist" aria-label="Kinds of tools" onKeyDown={onTabKey}>
         {kinds.map(([id, label]) => (
           <button
@@ -170,7 +202,7 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
             tabIndex={kind === id ? 0 : -1}
             onClick={() => setKind(id)}
           >
-            {label} <span className="muted tools-count">{counts[id]}</span>
+            {label} {badges[id] && <span className="tools-badge">{badges[id]}</span>}
           </button>
         ))}
       </div>
@@ -183,7 +215,8 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
           hidden={kind !== 'builtin'}
         >
           <p className="muted provider-note tools-lead">
-            KOLONİ’s own tools; one switched off is given to no agent.{' '}
+            KOLONİ’s own tools, grouped as a role’s Tools tab has them: one “by role” is given there; one with a switch,
+            switched off here, is given to no agent.{' '}
             <Hint doc={GUIDE.builtInTools}>
               One you switch off is given to no agent, whatever its role lists. Claude Code’s and Codex’s own web tools,
               and Codex’s apps, switch off with them. While Search the web or Web requests is off, a command that
@@ -223,65 +256,34 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
           <ul className="tools-servers" aria-label="Servers">
             {servers.map((server, at) => {
               const shown = open?.id === server.id
-              const [tag, tone] = tagOf(server)
-              const given = rest.roles.filter(role => role.mcp.includes(server.name))
               return (
-                <li key={server.id}>
-                  <div className="tools-row">
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      className="switch"
-                      aria-label={`${server.name} on`}
-                      checked={server.enabled}
-                      onChange={() => switchServer(server)}
-                    />
-                    <button
-                      id={`tools-row-${server.id}`}
-                      type="button"
-                      className="tools-row-open"
-                      aria-expanded={shown}
-                      aria-controls={`tools-server-${server.id}`}
-                      onClick={() => setSelected(shown ? '' : server.id)}
-                    >
-                      <span className="tools-row-text">
-                        <span className="tools-row-name">
-                          {server.name} <span className={`tag ${tone}`}>{tag}</span>
-                        </span>
-                        <span className="muted tools-row-sub">{subOf(server)}</span>
-                      </span>
-                      <span className="chips">
-                        {given.length === 0 ? (
-                          <span className="muted">no role: no agent uses it</span>
-                        ) : (
-                          given.map(role => (
-                            <span key={role.id} className="chip">
-                              {role.name}
-                            </span>
-                          ))
-                        )}
-                      </span>
-                      <CaretDown size={13} aria-hidden className="tools-row-caret" />
-                    </button>
-                  </div>
-                  <div id={`tools-server-${server.id}`} hidden={!shown}>
-                    {shown && (
-                      // Keyed by the server and what was saved of it, so a save or a switch reloads the form.
-                      <ServerEditor
-                        key={`${server.id}:${JSON.stringify([server.command, server.env_names])}`}
-                        server={server}
-                        {...rest}
-                        onDone={() => {
-                          // Deleted (nothing else ends the form): the next row is open and has the focus, not the
-                          // page; with none left, the Add button has it.
-                          const next = servers[at + 1] ?? servers[at - 1]
-                          document.getElementById(next ? `tools-row-${next.id}` : 'tools-add')?.focus()
-                          setSelected(next?.id ?? null)
-                        }}
-                      />
-                    )}
-                  </div>
-                </li>
+                <ServerCard
+                  key={server.id}
+                  server={server}
+                  shown={shown}
+                  given={rest.roles.filter(role => role.mcp.includes(server.name))}
+                  read={work.reads[server.id]}
+                  onOpen={() => setSelected(shown ? '' : server.id)}
+                  onSwitch={() => void saveServer(server, { enabled: !server.enabled })}
+                  busy={work.busy(server.id)}
+                  onTrust={() => work.trust(server)}
+                >
+                  {/* Keyed by the server and what was saved of it, so a save or a switch reloads the form. */}
+                  <ServerEditor
+                    key={`${server.id}:${JSON.stringify([server.command, server.env_names])}`}
+                    server={server}
+                    {...rest}
+                    onRead={work.read}
+                    onSave={work.save}
+                    onDone={() => {
+                      // Deleted (nothing else ends the form): the next row is open and has the focus, not the
+                      // page; with none left, the Add button has it.
+                      const next = servers[at + 1] ?? servers[at - 1]
+                      document.getElementById(next ? `tools-row-${next.id}` : 'tools-add')?.focus()
+                      setSelected(next?.id ?? null)
+                    }}
+                  />
+                </ServerCard>
               )
             })}
           </ul>
@@ -308,6 +310,8 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
             picked={toSkills}
             adding={addingSkill}
             onAdding={setAddingSkill}
+            proposals={proposals}
+            onReady={onReady}
             {...skillActions}
           />
         </div>

@@ -452,6 +452,137 @@ test('the Chats page: each chat’s cell and line, and Now', async ({ page, requ
   await expect(page.getByText('Okay, I left hello.py unchanged.')).toBeVisible({ timeout: 20_000 })
 })
 
+test('the Tools page: its cells, a server watched, one trusted and one whose trust a reading took back; KOLONİ’s tools; skills', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000)
+  // The stand-in MCP server, started as `python -m` with its folder in a variable: no folder of this machine is on a
+  // card. Each server its own plan: its own tools, in place of the stand-in's.
+  const plans = path.join(os.tmpdir(), `koloni-guide-mcp-${process.env.KOLONI_E2E_PORT ?? 'e2e'}`)
+  mkdirSync(plans, { recursive: true })
+  const tool = (name: string, description: string) => ({
+    name,
+    description,
+    inputSchema: { type: 'object', properties: {} },
+  })
+  const OWN_TOOLS = ['echo', 'where', 'boom', 'picture', 'big', 'hang', 'die', 'sample']
+  const plan = (name: string, tools: ReturnType<typeof tool>[]) => {
+    const file = path.join(plans, `${name}.json`)
+    writeFileSync(file, JSON.stringify({ record: path.join(plans, 'record.jsonl'), without: OWN_TOOLS, more: tools }))
+    return file
+  }
+  const serve = async (name: string, tools: ReturnType<typeof tool>[]) => {
+    const added = await request.post('/api/mcp-servers', {
+      headers: OWN,
+      data: {
+        name,
+        command: ['python', '-m', 'tests.fake_mcp_server'],
+        env: { PYTHONPATH: REPO_ROOT, FAKE_MCP_PLAN: plan(name, tools) },
+      },
+    })
+    expect(added.status()).toBe(201)
+    const { id } = await added.json()
+    const read = await request.post(`/api/mcp-servers/${id}/read`, { headers: OWN, data: { osv: false } })
+    expect((await read.json()).server.read_error).toBeNull()
+    return id as string
+  }
+  const trust = (id: string, marks?: Record<string, string>) =>
+    request.patch(`/api/mcp-servers/${id}`, { headers: OWN, data: { trusted: true, ...(marks && { marks }) } })
+  const browserTools = [
+    tool('take_screenshot', 'Takes a picture of the page'),
+    tool('read_console', 'Reads the console'),
+  ]
+  const ids = [
+    await serve('browser-tools', browserTools),
+    await serve('github', [
+      tool('list_issues', 'Lists the issues of a repository'),
+      tool('create_issue', 'Opens an issue'),
+    ]),
+    await serve('postgres', [
+      tool('query', 'Runs a read-only SQL query'),
+      tool('list_tables', 'Lists the tables'),
+      tool('describe', 'Shows a table’s columns'),
+      tool('vacuum', 'Reclaims storage'),
+    ]),
+  ]
+  const [browserId, , postgresId] = ids
+  expect((await trust(browserId)).ok()).toBe(true)
+  expect((await trust(postgresId, { query: 'free', list_tables: 'free', describe: 'ask', vacuum: 'off' })).ok()).toBe(
+    true,
+  )
+  // Two skills, uploaded (a folder's path would name this machine's folders).
+  const upload = (name: string, line: string, text: string) =>
+    request.post('/api/skills', {
+      headers: OWN,
+      data: {
+        upload: {
+          files: [
+            {
+              path: `${name}/SKILL.md`,
+              data: Buffer.from(`---\nname: ${name}\ndescription: ${line}\n---\n${text}\n`).toString('base64'),
+            },
+          ],
+        },
+      },
+    })
+  const skills = [
+    await upload('release-notes', 'Writes a CHANGELOG entry in the user’s words.', 'Added, Changed, Fixed.'),
+    await upload('systematic-debugging', 'Finds the root cause before a fix.', 'Read, repeat, find what changed.'),
+  ]
+  const skillIds = await Promise.all(skills.map(async added => ((await added.json()) as { id: string }).id))
+  // The Coder is given postgres and release-notes: their cards name it.
+  type Given = { id: string; name: string; mcp: string[]; skills: string[] }
+  const coder = ((await (await request.get('/api/roles')).json()) as Given[]).find(role => role.name === 'Coder')!
+  const give = (mcp: string[], skills: string[]) =>
+    request.patch(`/api/roles/${coder.id}`, { headers: OWN, data: { mcp, skills } })
+  expect((await give([...coder.mcp, 'postgres'], [...coder.skills, 'release-notes'])).ok()).toBe(true)
+  try {
+    await openFreshConversation(page)
+    // (A server's trust taken back is known from a reading on the page: the plan grows a tool, then it is read there.)
+    writeFileSync(
+      path.join(plans, 'browser-tools.json'),
+      JSON.stringify({
+        record: path.join(plans, 'record.jsonl'),
+        without: OWN_TOOLS,
+        more: [...browserTools, tool('evaluate', 'Runs a script in the page')],
+      }),
+    )
+    await rail(page, 'Tools').click()
+    const head = (name: string) => page.getByRole('button', { name: new RegExp(`^${name}`) })
+    await expect(head('browser-tools')).toHaveAttribute('aria-expanded', 'true')
+    await page.getByRole('button', { name: 'Read its tools' }).click()
+    await expect(head('browser-tools')).toContainText('trust taken back')
+    // every card closed: their heads, their cells and their trust
+    await head('browser-tools').click()
+    await page.getByRole('button', { name: 'See the difference' }).click()
+    await expect(page.getByText(/^New: evaluate\./)).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Servers 2 watching' })).toBeVisible()
+    await picture(page, 'tools-servers')
+    // the trusted one open: its tools, each with its three marks
+    await head('postgres').click()
+    const postgres = page.getByRole('listitem').filter({ has: head('postgres') })
+    await expect(postgres.getByRole('table', { name: 'Tools of postgres' })).toBeVisible()
+    // (Taller than the window: a window it fits in, so that the page's own scroll box does not cut it.)
+    await page.setViewportSize({ width: 1280, height: 1400 })
+    await picture(postgres, 'tools-server-open')
+    await page.setViewportSize({ width: 1280, height: 800 })
+
+    await page.getByRole('tab', { name: /^KOLONİ’s tools/ }).click()
+    await expect(page.getByRole('region', { name: 'KOLONİ’s tools' })).toBeVisible()
+    await picture(page, 'tools-koloni')
+
+    await page.getByRole('tab', { name: /^Skills/ }).click()
+    await expect(page.getByRole('button', { name: /^systematic-debugging/ })).toBeVisible()
+    await picture(page, 'tools-skills')
+  } finally {
+    for (const id of ids) await request.delete(`/api/mcp-servers/${id}`, { headers: OWN })
+    await give(coder.mcp, coder.skills)
+    for (const id of skillIds) await request.delete(`/api/skills/${id}`, { headers: OWN })
+    rmSync(plans, { recursive: true, force: true })
+  }
+})
+
 test.describe('the guide’s videos', () => {
   test.use({ viewport: FRAME })
 

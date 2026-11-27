@@ -1,14 +1,12 @@
-import { CaretDown } from '@phosphor-icons/react'
 import { type ChangeEvent, type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
-import type { Role, Skill, SkillPreview, SkillRecordRow, SkillSource, SkillUpload } from '../api/types'
-import { Licence, ScriptsLeave, SkillShown, SkillText } from '../agents/SkillApproval'
+import type { PendingSkill, Role, Skill, SkillPreview, SkillRecordRow, SkillSource, SkillUpload } from '../api/types'
+import { ScriptsLeave, SkillShown } from '../agents/SkillApproval'
 import type { RoleChange } from '../agents/RolePanel'
-import { cannotRun, SkillWindow } from '../agents/SkillWindow'
 import { useConfirm } from '../shell/Confirm'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
-import { count } from './paste'
+import { Proposals, SkillCard } from './SkillCard'
 
 /** What a skill may hold (app.skills.MAX_BYTES): a larger pick is refused here, before it is sent. */
 const MAX_SKILL_BYTES = 5 * 1024 * 1024
@@ -258,9 +256,12 @@ interface Props extends SkillActions {
   picked?: string
   adding: boolean
   onAdding: (open: boolean) => void
+  /** The skills agents proposed, waiting for your word on Ready for you (`onReady` goes there). */
+  proposals?: PendingSkill[]
+  onReady?: () => void
 }
 
-/** K-skill-uyum: KOLONİ's own store of skills, a row each - on or off for every role, unfolded: what it asks, the roles it is given to, its SKILL.md, its scripts' leave, how it did. */
+/** K-skill-uyum: KOLONİ's own store of skills, a card each (0.1.10) - on or off for every role, unfolded: what it asks, the roles it is given to, its SKILL.md, its scripts' leave, how it did; and above them the ones agents proposed. */
 export function SkillsSection({
   skills,
   roles,
@@ -270,10 +271,13 @@ export function SkillsSection({
   adding,
   onAdding,
   onPatchRole,
+  proposals = [],
+  onReady,
   ...actions
 }: Props) {
   const [open, setOpen] = useState<string | null>(picked?.startsWith('skill:') ? picked.slice(6) : null)
-  const [rows, setRows] = useState<SkillRecordRow[]>([])
+  // The record's rows: null until read (and where it cannot be - an unfolded card's window says why).
+  const [rows, setRows] = useState<SkillRecordRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   // The skill whose delete is asked about: its row holds the question.
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -323,103 +327,44 @@ export function SkillsSection({
           {error}
         </div>
       )}
+      <Proposals proposals={proposals} onReady={onReady} />
       {skills.length === 0 ? (
         <p className="muted hive-empty">
           No skill yet. A skill is a folder of instructions (a SKILL.md) that a role’s agents read when they need it:
           add one with Add › A skill, at the top.
         </p>
       ) : (
-        <ul className="tools-servers" aria-label="Skills">
+        <ul className="tools-skills" aria-label="Skills">
           {skills.map(skill => {
             const shown = open === skill.name
-            const given = roles.filter(role => role.skills.includes(skill.name))
-            const agents = rows.filter(row => row.skill === skill.name).reduce((sum, row) => sum + row.agents, 0)
             return (
-              <li key={skill.id}>
-                <div className="tools-row">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    className="switch"
-                    aria-label={`${skill.name} on`}
-                    checked={skill.enabled}
-                    onChange={() => act(actions.onSkillOn(skill.id, !skill.enabled))}
-                  />
-                  <button
-                    id={`tools-skill-${skill.id}`}
-                    type="button"
-                    className="tools-row-open"
-                    aria-expanded={shown}
-                    aria-controls={`tools-skill-box-${skill.id}`}
-                    onClick={() => setOpen(shown ? null : skill.name)}
-                  >
-                    <span className="tools-row-text">
-                      <span className="tools-row-name">{skill.name}</span>
-                      <span className="muted tools-row-sub">{skill.description || 'It says nothing of itself.'}</span>
-                    </span>
-                    {/* As the mockup: where it is given, and where it cannot run there. */}
-                    <span className="chips">
-                      {given.length === 0 ? (
-                        <span className="muted">no role</span>
-                      ) : (
-                        given.map(role => (
-                          <span key={role.id} className="chip">
-                            {cannotRun(skill, role, off, serversOff) && <span className="no">✗ </span>}
-                            {role.name}
-                          </span>
-                        ))
-                      )}
-                    </span>
-                    <span className="muted mono tools-row-use">{agents > 0 && `${count(agents, 'agent')} · 30 d`}</span>
-                    <CaretDown size={13} aria-hidden className="tools-row-caret" />
-                  </button>
-                </div>
-                <div id={`tools-skill-box-${skill.id}`} className="tools-skill-box" hidden={!shown}>
-                  {shown && (
-                    <>
-                      <span className="muted mono tools-card-note">
-                        {skill.version && `v${skill.version} · `}from {skill.source} · <Licence skill={skill} />
-                      </span>
-                      <SkillWindow
-                        skill={skill}
-                        roles={roles}
-                        off={off}
-                        serversOff={serversOff}
-                        onRecord={onSkillRecord}
-                        onPatchRole={onPatchRole}
-                      />
-                      <SkillText skill={skill} />
-                      <ScriptsLeave
-                        id={`skill-leave-${skill.id}`}
-                        skill={skill}
-                        checked={skill.scripts_run_unasked}
-                        onChange={on => act(actions.onSkillLeave(skill.id, on))}
-                      />
-                      <div>
-                        <button
-                          type="button"
-                          className="btn btn-small btn-danger"
-                          onClick={() => {
-                            setDeleting(skill.id)
-                            confirm.ask(
-                              `Delete the skill ${skill.name}? Every role that has it loses it, and KOLONİ’s copy of it is removed.`,
-                              'Delete skill',
-                              () => {
-                                setOpen(was => (was === skill.name ? null : was))
-                                act(actions.onDeleteSkill(skill.id))
-                              },
-                              'Cancel',
-                            )
-                          }}
-                        >
-                          Delete skill {skill.name}
-                        </button>
-                      </div>
-                      {deleting === skill.id && confirm.shown()}
-                    </>
-                  )}
-                </div>
-              </li>
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                roles={roles}
+                off={off}
+                serversOff={serversOff}
+                rows={rows}
+                shown={shown}
+                onOpen={() => setOpen(shown ? null : skill.name)}
+                onSwitch={() => act(actions.onSkillOn(skill.id, !skill.enabled))}
+                onLeave={on => act(actions.onSkillLeave(skill.id, on))}
+                onDelete={() => {
+                  setDeleting(skill.id)
+                  confirm.ask(
+                    `Delete the skill ${skill.name}? Every role that has it loses it, and KOLONİ’s copy of it is removed.`,
+                    'Delete skill',
+                    () => {
+                      setOpen(was => (was === skill.name ? null : was))
+                      act(actions.onDeleteSkill(skill.id))
+                    },
+                    'Cancel',
+                  )
+                }}
+                question={deleting === skill.id && confirm.shown()}
+                onRecord={onSkillRecord}
+                onPatchRole={onPatchRole}
+              />
             )
           })}
         </ul>

@@ -17,7 +17,7 @@ your cards.
    itself, pin a version in its command; otherwise your trust covers future versions too.
 6. **Choose per tool.** Under **When an agent calls it**, keep **Ask** for anything that changes things,
    choose **Runs without asking** only for tools that just read, and **Off** for what you do not need.
-   (At Full auto, **Ask** runs without asking.)
+   (**Ask** asks at every level, Full auto too.)
 7. **Give it only to the roles that need it**, under **Roles that may use it**. Every tool's description
    is sent at every model step.
 

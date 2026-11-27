@@ -309,7 +309,8 @@ export function RolePanel({
           {skills.length > 0 ? `${givenSkills.length} of ${skills.length} skills` : plural(role.skills.length, 'skill')}
         </span>{' '}
         <Hint doc={GUIDE.rolePanel}>
-          “asks”: it waits for your yes first, as the conversation’s permission level says.
+          “asks”: it waits for your yes on a card first, as the conversation’s permission level says - a new skill and a
+          folder outside the project always.
         </Hint>
       </p>
       {TOOL_GROUPS.map(group => {

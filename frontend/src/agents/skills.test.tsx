@@ -179,11 +179,21 @@ test("a skill's row on the Tools page: its switch, line and roles; unfolded, its
     false,
   )
   const open = () => screen.getByRole('button', { name: /^tidy/ })
-  // a row: its line, the role it is given to with ✗ where it cannot run, how many agents had it
+  // a card: its line, where it came from, the role it is given to with ✗ where it cannot run
   expect(open()).toHaveAttribute('aria-expanded', 'false')
   expect(open()).toHaveTextContent('Keep changes small and plain.')
+  expect(open()).toHaveTextContent(/from C:\\skills\\tidy · \d+ files?/)
   expect(open()).toHaveTextContent('✗ Coder')
-  expect(await within(open()).findByText('11 agents · 30 d')).toBeInTheDocument()
+  // and how it was read in the last 30 days: each model and role, a bar from five jobs, the words always
+  const reads = await screen.findByRole('group', { name: 'tidy in the last 30 days' })
+  expect(within(reads).getByText('big-model · Coder')).toBeInTheDocument()
+  expect(within(reads).getAllByRole('meter')).toHaveLength(1)
+  expect(within(reads).getByRole('meter', { name: 'big-model · Coder: read' })).toHaveAttribute('value', '3')
+  expect(within(reads).getByText('read in 3 of 6')).toBeInTheDocument()
+  expect(within(reads).getByText('given, not read')).toBeInTheDocument()
+  expect(within(reads).getByText('given in full in its brief in 3 of 3')).toBeInTheDocument()
+  // its own rows only: notes has one of its own
+  expect(screen.getByRole('group', { name: 'notes in the last 30 days' })).toHaveTextContent('big-model · Coder')
   expect(screen.getByRole('switch', { name: 'tidy on' })).toBeChecked()
   await userEvent.click(screen.getByRole('switch', { name: 'tidy on' }))
   expect(a.onSkillOn).toHaveBeenCalledWith('s1', false)

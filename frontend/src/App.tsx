@@ -785,6 +785,9 @@ export function App() {
         onSkillRecord: useApp.getState().skillRecord,
         onPatchRole: useApp.getState().patchRole,
       }}
+      // (The skills agents proposed: Ready for you's rows of them; their yes is on their card there.)
+      proposals={waiting.flatMap(item => (item.what === 'card' && item.row.what === 'skill' ? [item.row.item] : []))}
+      onReady={() => show('ready')}
     />
   )
   const readyPage = () => (
