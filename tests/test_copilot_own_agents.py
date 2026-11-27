@@ -122,19 +122,26 @@ def test_no_role_and_no_task_tool_where_none_may_be_offered(
     assert "agents" not in made and "task" not in available, made
 
 
+@pytest.mark.parametrize("start_at", ["before", "after"])
 def test_a_role_inside_copilot_works_under_its_task_call_held_to_its_tools(
     copilot_native,
     wait_run,
-    project_dir,  # noqa: F811
+    project_dir,
+    start_at,  # noqa: F811
 ):
+    # (Measured both ways: its tool's start before its request (c4), and after it (c12).)
     client, provider = p4(
         copilot_native,
         [
             {
                 **SYNC,
                 "steps": [
-                    {"read": "hello.py", "result": "print('hi')"},
-                    {"shell": "Set-Content ran.txt x", "touches": {"ran.txt": "x"}},
+                    {"read": "hello.py", "result": "print('hi')", "start": start_at},
+                    {
+                        "shell": "Set-Content ran.txt x",
+                        "touches": {"ran.txt": "x"},
+                        "start": start_at,
+                    },
                     {"say": "It prints hi."},
                 ],
                 "result": "hello.py prints hi",
@@ -494,3 +501,37 @@ def test_a_roles_tools_as_copilots_own_and_as_approve_is_asked_of_them():
     assert copilot_tools(["read_file", "run_command"], ("run",)) == (["view"], ["Read"])
     assert copilot_tools(["read_file"], ("agents",)) == ([], [])
     assert copilot_tools(["spawn_agent", "ask_user", "search"]) == ([], [])  # (none: not offered)
+    # (its view reads a file as it lists a folder: a role that may only list is given none)
+    assert copilot_tools(["list_dir"]) == ([], [])
+
+
+def test_its_task_call_asked_again_is_refused_and_a_sub_agent_past_its_task_may_use_nothing():
+    own = opened({"koloni-x": ["view"]})
+    hook = {
+        "kind": "hook",
+        "toolName": "task",
+        "toolArgs": {"agent_type": "koloni-x", "mode": "sync"},
+    }
+    answer, _told = gate(own, {}, hook, "t1")
+    assert answer["kind"] == "reject" and "asked again" in answer["feedback"]
+    view = {"kind": "hook", "toolName": "view", "toolArgs": {"path": "a.py"}}
+    assert gate(own, {"agentId": "a1"}, view)[0] is None
+    ended = {"type": "tool.execution_complete", "data": {"toolCallId": "t1", "success": True}}
+    (done,) = own.translator(lambda _event: [], {})(ended)
+    assert done["item"] == {"type": "sub_agent", "id": "t1", "status": "completed", "text": ""}
+    answer, _told = gate(own, {"agentId": "a1"}, view, "u2")
+    assert answer["kind"] == "reject" and "did not open this sub-agent" in answer["feedback"]
+
+
+def test_a_refused_call_said_to_have_run_all_the_same_stays_on_record():
+    own = opened({"koloni-x": ["view"]})
+    shell = {"kind": "hook", "toolName": "powershell", "toolArgs": {"command": "x"}}
+    assert gate(own, {"agentId": "a1"}, shell, "u3")[0]["kind"] == "reject"
+    ran = [
+        {"type": "busy", "id": "u3", "on": False},
+        {"type": "item.completed", "item": {"id": "u3"}},
+    ]
+    translate = own.translator(lambda _event: list(ran), {})
+    said = {"type": "tool.execution_complete", "agentId": "a1", "data": {"toolCallId": "u3"}}
+    assert translate({**said, "data": {**said["data"], "success": True}}) == ran
+    assert translate({**said, "data": {**said["data"], "success": False}}) == ran[:1]

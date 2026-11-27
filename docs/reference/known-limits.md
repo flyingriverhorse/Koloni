@@ -108,7 +108,8 @@ messages.
   not yet seen live: where they differ, no role opens, and Copilot's task is refused. The role runs
   on the Orchestrator's model (a model of the role's own is not given), a turn that goes on in its
   kept session is given the roles anew (not measured that Copilot takes them so), and a Copilot on
-  its older protocol is offered no role, with nothing said of it.
+  its older protocol is offered no role, with nothing said of it. A role that may list folders but not
+  read files is not run inside Copilot (its one tool for both reads files too).
 - An agy model whose name ends in its level takes no other level. Only a name ending in `-low` was seen
   to refuse one; the other endings are read the same way, not measured.
 - A word sent while a CLI works (**Send now**, an agent's Tell box) goes into its running turn on

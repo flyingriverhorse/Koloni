@@ -36,10 +36,11 @@ OnItem = Callable[[str, dict], Awaitable[None]]
 # A role's tools (KOLONİ's names) as Copilot's own: only those its Lead is given (`COPILOT_TOOLS`),
 # never its task nor KOLONİ's tools. apply_patch, the one file tool of models other than Claude
 # (B-393), goes with either file tool: each file of a patch is asked as its Write or Edit, held to
-# the role there (`_approve`). Not its grep or glob (as its Lead: a search reads secrets uncarded).
+# the role there (`_approve`). Not its grep or glob (as its Lead: a search reads secrets uncarded);
+# nor list_dir's: its view reads a file's lines as it lists a folder - a role that may list but not
+# read would be let read.
 COPILOT_OF = {
     "read_file": ("view",),
-    "list_dir": ("view",),
     "write_file": ("create", "apply_patch"),
     "edit_file": ("edit", "apply_patch"),
     "run_command": ("powershell", "read_powershell", "stop_powershell", "list_powershell"),
@@ -48,7 +49,6 @@ COPILOT_OF = {
 # holds a sub-agent to (`_Watch.roles`).
 ASKED_AS = {
     "read_file": "Read",
-    "list_dir": "Read",
     "write_file": "Write",
     "edit_file": "Edit",
     "run_command": "Bash",
@@ -149,7 +149,7 @@ class OwnAgents:
                 ours.pop(call, None)
             if kind != "tool.execution_complete":
                 return said
-            if call in self.refused:  # (on record as refused, with why: `gate`)
+            if call in self.refused and data.get("success") is False:  # (on record so: `gate`)
                 return [one for one in said if one["type"] == "busy"]
             return self._task_ended(call, data, said)
 
@@ -190,11 +190,13 @@ class OwnAgents:
 
     def _task_ended(self, call: str, data: dict, said: list[dict]) -> list[dict]:
         """Its Lead's task call ended: where its sub-agent started, the end of that sub-agent -
-        its report what the call returned, else why it failed, else its last words. One that
+        its report what the call returned, else why it failed, else its last words; from now on
+        it may use nothing (one still at work past its task call is followed by nobody). One that
         never started is a call like any other."""
         task = self.tasks.get(call)
         if not task or task["agent"] is None:
             return said
+        self.agents.pop(task["agent"], None)
         failed = data.get("success") is False or task.get("ended") == "failed"
         text = (
             str(_dict(data.get("result")).get("content") or "")
@@ -226,7 +228,11 @@ class OwnAgents:
         if parent:
             await on_item("announced", {"id": use_id, "parent": parent})
         given = request.get("toolArgs") if kind == "hook" else None
-        why = self._why(agent, parent, kind, name, given)
+        why = (
+            "KOLONİ declined this request: it asked again for a task call that was answered"
+            if not agent and use_id in self.tasks
+            else self._why(agent, parent, kind, name, given)
+        )
         self.asked.add(use_id)  # (refused too: it was asked about, it did not run unasked)
         if why is None and agent:
             return None
