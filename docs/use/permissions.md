@@ -32,7 +32,7 @@ level says "· no checks"). Each chat has its own level.
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
 | A command that deletes or empties files in the project, or throws away git work, written as a plain line (`rm -rf src`, `Remove-Item`, `git reset --hard`, `git clean -fd`, `git checkout -- .`, `git stash drop`, `git branch -D`) | Card | Card | Runs, unless [Full auto's judge](#full-autos-judge) finds it risky - a card with the judge off or no judge model to answer ([which](#what-the-judge-decides-in-place-of-the-list)) |
 | A command that sends data off the machine (`git push`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
-| A plain push of the branch you have checked out to its own `origin` (`git push`, `git push -u origin feature/x`) - never `main`, `master` or origin's default branch | Card | Card | Runs, unless [Full auto's judge](#a-push-of-your-feature-branch) finds it risky - a card with the judge off, no judge model to answer, or anything [it does not know as plain](#a-push-of-your-feature-branch) |
+| A plain push of the branch you have checked out to its own `origin` (`git push`, `git push -u origin feature/x`) - never `main`, `master` or origin's default branch | Card | Card | Runs, unless [Full auto's judge](#a-push-of-your-feature-branch) finds it risky - then its card, never a refusal; a card too with the judge off, no judge model to answer, or anything [it does not know as plain](#a-push-of-your-feature-branch) |
 | A delete out of the project or of all of it (`rm -rf ../x`, `rm -rf .`, `find . -delete`, `git clean -fdx`), one not written as a plain line (`bash -c "rm -rf build"`, `… \| xargs rm`, `rm -rf .gi\t`), a worktree removed, git's recovery pruned (`git gc --prune=now`, `git reflog expire`), a Docker delete, or a git remote's branches overwritten or deleted (`git push --force`, `git push origin :x`) | Card | Card | Card |
 | A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed [such deletes](#disposable-deletes) | Card | Runs | Runs |
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless Full auto's judge finds it risky; a card where what it runs deletes, sends or is asked at every level |
@@ -691,9 +691,12 @@ Sonnet called none.
 
 Since 0.1.11, as Claude Code's auto mode: in a chat you watch at **Full auto**, with the judge's switch
 on and a judge model to answer, a plain push of the branch you have checked out to its own `origin`
-goes to the judge instead of a card. **fine** pushes it; **risky** is refused or waits on its card, as
-above. `main` is never pushed so: a push to `main`, `master` or origin's default branch stays a card at
-every level - quoted, where you asked for it ([below](#a-push-a-pull-request-or-a-merge-you-asked-for)).
+goes to the judge instead of a card. **fine** pushes it; **risky** gives the push card the list gave
+before, saying why ("KOLONİ's judge: " and its sentence, a secret in it masked) - never a refusal,
+whatever the project does with a risky command, so a push is never lost without a word, and it is not
+counted among the judge's refusals (three in a row ask you). Run once on it pushes. `main` is never
+pushed so: a push to `main`, `master` or origin's default branch stays a card at every level - quoted,
+where you asked for it ([below](#a-push-a-pull-request-or-a-merge-you-asked-for)).
 
 Which lines - one line, nothing else on it: `git push`, `git push origin`, `git push origin <branch>`,
 `git push -u origin <branch>` (or `--set-upstream`) and `git push origin HEAD`, where `<branch>` is the

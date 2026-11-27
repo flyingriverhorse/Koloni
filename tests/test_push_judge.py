@@ -17,6 +17,7 @@ import pytest
 from app import push_judge
 from app.commands import harm_class, harms, standing_asked
 from app.push_judge import at_start, refused, shape
+from app.risk_judge import REFUSED
 from tests.conftest import scaled
 from tests.fakes import Script
 from tests.keyed import OWN
@@ -488,14 +489,77 @@ def test_fine_pushes_the_feature_branch_unasked(judging, wait_run, pushed, line)
     assert len(judge.calls) == 1 and JUDGE_ASKED in judge.calls[0][0]["content"]
 
 
-def test_risky_is_refused_and_the_agent_goes_on(judging, wait_run, pushed):
-    client, _lead, judge, executor = judging(
-        [cmd("git push"), text("left it")], [said("risky", "Not asked for.")], []
+@pytest.mark.parametrize("word", ["approve", "reject"])
+def test_risky_is_the_lists_push_card_never_a_refusal(judging, wait_run, pushed, word):
+    # (the coordinator's 27 Nov: a push is never lost without a word - the plain push card the list
+    # gave before the judge took pushes; no refusal, so none counted towards its limits)
+    client, lead, judge, executor = judging(
+        [cmd("git push"), text("left it")],
+        [said("risky", "Not asked for.")],
+        [Script([])] if word == "approve" else [],
     )
     _, cid, run_id = go(client, pushed)
-    (refused_one,) = wait_run(client, cid, run_id)["commands"]
-    assert refused_one["status"] == "refused" and refused_one["judged"]["verdict"] == "refuse"
-    assert executor.started == [] and len(judge.calls) == 1
+
+    def proposed():
+        snap = client.get(f"/api/conversations/{cid}").json()
+        return [one for one in snap["commands"] if one["status"] == "proposed"]
+
+    (asked,) = until(proposed, 30)
+    # (it says why, as the judge's own card did: its sentence, masked, beside the list's)
+    assert asked["danger"] == harms("git push", False), asked
+    assert card_says(client, cid, asked) == "KOLONİ's judge: Not asked for."
+    judged = (asked["judged"]["kind"], asked["judged"]["verdict"], asked["judged"]["why"])
+    assert judged == ("risk", "risky", "Not asked for."), asked
+    path = f"/api/commands/{asked['id']}/{word}"
+    assert client.post(path, json={}, headers=OWN).status_code == 200
+    (ran,) = wait_run(client, cid, run_id)["commands"]
+    want = ("exited", ["git push"]) if word == "approve" else ("rejected", [])
+    assert (ran["status"], [one[0] for one in executor.started]) == want, ran
+    assert ran["judged"]["verdict"] == "risky" and len(judge.calls) == 1
+    assert REFUSED not in str(lead.calls[-1])
+
+
+def card_says(client, cid, asked):
+    """What a card says beside its list's sentence: its tool call's `why_asked` (the card's `why`)."""
+    calls = client.get(f"/api/conversations/{cid}").json()["tool_calls"]
+    return next(one["why_asked"] for one in calls if one["id"] == asked["tool_call_id"])
+
+
+def test_the_judges_reason_on_the_push_card_is_masked(judging, wait_run, pushed, monkeypatch):
+    token = "ghp_" + "a1B2c3D4e5" * 4
+    monkeypatch.setenv("PUSH_REASON_TOKEN", token)
+    client, _lead, _judge, _executor = judging(
+        [cmd("git push"), text("left it")], [said("risky", f"It sends {token} off.")], []
+    )
+    _, cid, run_id = go(client, pushed)
+    asked = card(client, cid)
+    wait_run(client, cid, run_id)
+    shown = card_says(client, cid, asked)
+    assert shown.startswith("KOLONİ's judge: It sends ") and token not in shown, shown
+    assert token not in asked["judged"]["why"], asked
+
+
+def test_another_risky_command_is_still_refused_beside_a_risky_push(judging, wait_run, pushed):
+    # (K3's delete the judge calls risky: refused, as before - the push after it: its card)
+    client, lead, judge, executor = judging(
+        [cmd("rm -rf src", id="k1"), cmd("git push", id="k2"), text("left it")],
+        [said("risky", "Not asked for."), said("risky", "Not asked for.")],
+        [],
+    )
+    _, cid, run_id = go(client, pushed)
+
+    def proposed():
+        snap = client.get(f"/api/conversations/{cid}").json()
+        return [one for one in snap["commands"] if one["status"] == "proposed"]
+
+    (asked,) = until(proposed, 30)
+    assert asked["command"] == "git push" and asked["judged"]["verdict"] == "risky", asked
+    assert client.post(f"/api/commands/{asked['id']}/reject", headers=OWN).status_code == 200
+    refused_one, pushed_one = wait_run(client, cid, run_id)["commands"]
+    assert (refused_one["status"], refused_one["judged"]["verdict"]) == ("refused", "refuse")
+    assert (pushed_one["status"], pushed_one["judged"]["verdict"]) == ("rejected", "risky")
+    assert lead.calls[1][-1]["content"] == REFUSED and executor.started == []
+    assert len(judge.calls) == 2
 
 
 def card(client, cid):
@@ -643,6 +707,7 @@ def test_your_push_it_the_judge_does_not_call_fine_is_k5s_quoted_card(judging, w
     asked = card(client, cid)
     wait_run(client, cid, run_id)
     assert (asked["judged"]["kind"], asked["judged"]["quote"]) == ("said", "Push it."), asked
+    assert card_says(client, cid, asked) == "KOLONİ's judge: Not sure it was asked."
     assert len(judge.calls) == 1 and executor.started == []
 
 

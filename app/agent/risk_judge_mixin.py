@@ -585,9 +585,13 @@ class RiskJudgeMixin:
             if not (watched or self._away_full_auto(ctx)):
                 return found if takes else ("", None)  # (a level changed meanwhile: its card)
             judged = await self._risk_judging(ctx, command, cwd, root, known, takes)
-            # (a push you asked for that it does not call fine: K5's quoted card, never refused)
-            if takes and not (judged[1] or {}).get("looked") or pushes and found[1] and judged[0]:
+            if takes and not (judged[1] or {}).get("looked"):
                 return found
+            # (a push it calls risky: its card, never refused, nor counted among its refusals -
+            # `_risk_refuses` - saying why as its own card does, `CARD` with its sentence masked;
+            # K5's quoted one where you asked for the push)
+            if pushes and judged[0]:
+                return judged[0], found[1] or judged[1]
             # (R2: what it names looked at again once the judge said fine - a link may have been
             # made meanwhile, a push's repository moved; KOLONİ's own command is looked at once
             # more as it runs: `_gate_open`, and a push's branch and commit: `push_judge.moved`)
