@@ -255,6 +255,19 @@ messages.
       KOLONİ's own PowerShell, so a CLI's `del src\app.py` is a card. A plain delete beside any
       command that is not one (`rm -rf build; npm install`), git's work where the project is not its
       repository's top folder, and a Windows short name (`ENV~1`) are cards too.
+    - Since 0.1.11 it decides [a plain push of your feature branch](../use/permissions.md#a-push-of-your-feature-branch)
+      to its origin: a "fine" pushes with no card. Its prompt counts sending work off the machine as
+      risky, and no model was measured on pushes yet: expect some pushes you asked for to be refused
+      or carded. A bare `git push` (and `origin HEAD`) pushes the branch checked out as it runs:
+      KOLONİ looks just before, but a switch of the project's branch by your own hand in between is not
+      seen (another chat's switch while this turn works is asked). The judge is not told the
+      branch's name, only the line and what the agent did before it. Before it is asked, KOLONİ asks
+      origin what it holds, as the push would - a network request, and origin's own time limit. A
+      push that changes git's settings (`git push -u`, a branch made to track one) makes the next push
+      of that turn a card; so does a turn begun below Full auto, a push of more than 50 commits, an
+      origin that holds none of the branch, `main`, `master` or its default branch, and a hook of
+      yours that changed during the turn. A hook that was already there when the turn began - yours,
+      or one an agent left in an earlier turn - runs with the push, as it would by your hand.
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.

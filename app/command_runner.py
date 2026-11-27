@@ -27,6 +27,7 @@ from app.commands import (
     applies_patch,
     danger,
     for_model,
+    harms,
     held_back,
     is_allowed,
     names_secret,
@@ -151,13 +152,12 @@ def refused_by_rule(judgement: dict) -> str:
 
 
 def _gate_open(mode: str, check: bool, judgement: dict | None, judge: bool, line: str) -> bool:
-    """Whether what the check of the user's words said still holds: while the chat is at Full auto
-    and the project's check is on (`check`, §8) - else its card (the security review of K-yargic).
-    Full auto's judge's "risk" and K5's quote ("said", an ask) have none - but a risk "fine" on a
-    line the list asks of (`line`, K3): it holds while the chat is at Full auto and `judge` (the
-    project's judge on, what it names still where it is written: `risk_judge.on_disk`)."""
+    """Whether what the check of the user's words said still holds: at Full auto with the project's
+    check on (`check`, §8) - else its card (the security review of K-yargic). Full auto's judge's
+    "risk" and K5's "said" have none - but a risk "fine" on a line the list asks of (`line`: K3's,
+    a push's): only at Full auto and `judge` (its switch on, `risk_judge.on_disk` as written)."""
     kind = judgement.get("kind") if judgement is not None else None
-    if kind == "risk" and danger(line, False):
+    if kind == "risk" and harms(line, False):
         return mode == "full_auto" and judge
     return kind in ("risk", "said") or mode == "full_auto" and check
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from app import judge, risk_judge
+from app import judge, push_judge, risk_judge
 from app.commands import (
     POWERSHELL,
     harm_class,
@@ -61,7 +61,8 @@ def test_each_of_them_reaches_the_judge_but_those_marked_stopped(tmp_path):
     # (`risk_judge.judges`: a plain line's in-project delete, git's throw-away, a stop by name), as
     # KOLONİ's own command in PowerShell has it (a `\` a path's separator); what stays stopped is
     # what is asked at every level (`git clean -fdx`, `find . -delete`, cmd's `/s`) or no plain line
-    # (a delete handed to a shell).
+    # (a delete handed to a shell). Since 0.1.11 a plain push of a feature branch reaches it too
+    # (`push_judge.shape`; its repository is the gate's to look at): main or a force stays stopped.
     stopped = {}
     for case in RISK:
         line, program = case["command"]["command"], _program(case)
@@ -70,6 +71,7 @@ def test_each_of_them_reaches_the_judge_but_those_marked_stopped(tmp_path):
         listed = (
             bool(harms(command, False))
             and not risk_judge.judges(command, POWERSHELL)
+            and push_judge.shape(command) is None
             and not scratch_delete_only(command, str(tmp_path))
         )
         why = [
