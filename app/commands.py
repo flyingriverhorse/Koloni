@@ -6062,13 +6062,14 @@ def _harm_class(command: str, instructions: bool) -> HarmClass:
     return "always" if _asked_anyway(command, instructions) else "soft"
 
 
-def _asked_anyway(command: str, instructions: bool) -> bool:
+def _asked_anyway(command: str, instructions: bool, judged: bool = False) -> bool:
     """`harm_class`: what makes a harm one asked at every level - a secret (named after an `@`
     too: `-F f=@id_rsa`), `.koloni`, a file that steers later turns, a line handed to another
     program (`runs_another`: a variable set before it, `xargs`, `sudo`, a shell), a path out of
     the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
     dot-name (`.k*`, `.[k]oloni`, `.env*`), a harm over all of the folder (`_sweeps`), or a stop
-    of what may be KOLONİ itself (`_stops_koloni`)."""
+    of what may be KOLONİ itself (`_stops_koloni`). `judged` (K3, `risk_judge.judges`): not a
+    line handed to another program, nor git's revert of all of the folder: the judge reads them."""
     words = re.split(
         r"[\s;&|(){}]+", _TASKKILL.sub(lambda part: _SWITCH.sub(" ", part[0]), command)
     )
@@ -6077,11 +6078,11 @@ def _asked_anyway(command: str, instructions: bool) -> bool:
         or names_secret(_as_read(command).replace("@", " "))
         or names_koloni(command)
         or standing_asked(command, instructions)
-        or runs_another(command)
+        or (not judged and runs_another(command))
         or _stops_koloni(command)
         or any(map(_leads_out, words))
         or any(_DOT_GLOB.search(_as_read(word)) for word in words)
-        or _sweeps(command)
+        or _sweeps(command, reverts=not judged)
     )
 
 
@@ -6095,13 +6096,14 @@ _TASKKILL = re.compile(
 _SWITCH = re.compile(r"(?<!\S)/{1,2}[A-Za-z]+(?::\S*)?(?!\S)")  # (`/IM:x.exe` too)
 
 
-def _sweeps(command: str) -> bool:
+def _sweeps(command: str, reverts: bool = True) -> bool:
     """`_asked_anyway`: a part of a harmful line that reaches all of the folder - `.git` and
-    `.koloni` with it: a delete or a revert of the folder itself or all in it (`.`, `*`,
-    `sub/..`; `git checkout .` takes back a change to `.koloni/rules.md` too), or of a
+    `.koloni` with it: a delete or (`reverts`) a revert of the folder itself or all in it (`.`,
+    `*`, `sub/..`; `git checkout .` takes back a change to `.koloni/rules.md` too), or of a
     line that sends, any part but git's (`git add .` is no send of the folder) that takes it
     (`scp -r .`, `zip -r x.zip . && curl ...`); git told what to run (`-c`, `--config-env`), or
     `git clean` of the ignored files too (`-x`, `-X`)."""
+    lost = ("Deletes", "Throws away") if reverts else ("Deletes",)
     parts = [words for words in _commands_in(command, at=_BLOCKS) if words]
     sends = any(_sends(words) for words in parts)
     for words in parts:
@@ -6115,7 +6117,7 @@ def _sweeps(command: str) -> bool:
         ):
             return True
         if any(map(_whole, words[1:])) and (
-            _danger_of(words).startswith(("Deletes", "Throws away")) or sends and not git
+            _danger_of(words).startswith(lost) or sends and not git
         ):
             return True
     return False

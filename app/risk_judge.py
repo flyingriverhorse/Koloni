@@ -3,7 +3,8 @@ model is asked once whether it is risky - "fine" runs it unasked, "risky" is ref
 goes on, or (the project's Ask me, an Away job) put on a card. This is its pure part: the prompt
 (`prompt`), the reading of its answer (`verdict`), the ordinary lines it is never asked of
 (`ordinary`), what is risky before it is asked (`risky_unasked`) and what an agent is told of a
-refusal (`REFUSED`). The gate is `app.agent.risk_judge_mixin.RiskJudgeMixin`."""
+refusal (`REFUSED`) - and since 0.1.10 (K3) which of the list's own cards it decides in a watched
+turn (`judges`). The gate is `app.agent.risk_judge_mixin.RiskJudgeMixin`."""
 
 import json
 import re
@@ -11,7 +12,18 @@ from collections.abc import Iterable, Sequence
 from typing import TypeGuard
 
 from app import injection, judge
-from app.commands import _in_a_shell, _offer, _program, _words, is_plain, is_wrapped
+from app.commands import (
+    _SCRATCH,
+    _asked_anyway,
+    _in_a_shell,
+    _offer,
+    _program,
+    _readings,
+    _reasons,
+    _words,
+    is_plain,
+    is_wrapped,
+)
 from app.masking import masked
 
 # A command longer than this is a card unasked: what the judge reads is cut nowhere.
@@ -246,6 +258,34 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
         if word.startswith("-")
         else not _OUT.search(word)
         for word in rest[verbs is not None :]
+    )
+
+
+# K3 (0.1.10, as Claude Code's auto mode): the list's harms the judge decides in a turn the user
+# watches, in place of their card - work of the folder lost and a stop by name. Any other sentence
+# (a send, a git remote's, Docker's - the machine's, or another's: `-H` -, a link, a worktree out,
+# an unread line, one added later) stays the list's card.
+_JUDGES = re.compile(r"(?:Deletes|Empties|Throws away|Stops programs by their name)\b(?!.*Docker)")
+
+
+def judges(command: str) -> bool:
+    """K3: whether the judge decides a harmful line in place of the list's card (`commands.harms`
+    of a watched Full auto turn: no instruction file alone) - each harm one of `_JUDGES`', nothing
+    of it asked at every level (`commands._asked_anyway`: a secret, `.koloni`, out of the folder,
+    all of it, KOLONİ itself) but a line handed to a shell or a wrapper and git's revert of all
+    of the folder, which the judge reads. Never one in KOLONİ's free folders (`.koloni/tmp`,
+    `worktrees`, `copies`): what is on the disk there - a link, a job's worktree - is the list's to
+    look at (`scratch_delete_only`). False for no harm.
+    shortcut: the judge does not see the disk - a link the user made in the project, in what a
+    delete it calls fine takes, is not looked at (no shell's delete on this machine follows one:
+    `disposable`'s note); look as the disposable delete does if an older PowerShell is met."""
+    lines = _readings(command)
+    said = [one for line in lines for one in _reasons(line, False) if one]
+    return (
+        bool(said)
+        and all(map(_JUDGES.match, said))
+        and not _SCRATCH.search(command)
+        and not any(_asked_anyway(line, False, judged=True) for line in lines)
     )
 
 

@@ -16,10 +16,10 @@ from app.commands import (
     harms,
     names_secret,
     only_reads,
-    scratch_delete_only,
     standing_asked,
     with_cwd,
 )
+from app.scratch_delete import scratch_delete_only
 
 DATA = Path(__file__).parent / "data"
 RISK = json.loads((DATA / "full_auto_judge_cases.json").read_text(encoding="utf-8"))["cases"]
@@ -54,17 +54,21 @@ def test_full_auto_judges_cases_are_each_of_a_kind_with_enough_of_each():
 def test_each_of_them_reaches_the_judge_but_those_marked_stopped(tmp_path):
     # One a gate stops before the judge - the list, a read, the ordinary lines' short way, a
     # secret, what is asked at every level, or what is a card unasked - measures nothing: it is
-    # marked "stopped" and the measurement leaves it out. (K4, 26 Nov: in-project destructive
-    # lines the list stops today - `git reset --hard`, `rm` - kept for when K3 sends them to the
-    # judge; then this fails on each, and its mark goes.) The list as a watched Full auto turn
+    # marked "stopped" and the measurement leaves it out. The list as a watched Full auto turn
     # reads it (`AgentRunner._night_asks`): no instruction file alone, no delete only in the
-    # agents' scratch (B-336).
+    # agents' scratch (B-336) - and since K3 (0.1.10) no harm the judge decides there
+    # (`risk_judge.judges`: an in-project delete, git's throw-away, a stop by name); what stays
+    # stopped is what is asked at every level (`git clean -fdx`, `find . -delete`, cmd's `/s`).
     stopped = {}
     for case in RISK:
         line, program = case["command"]["command"], _program(case)
         unasked = risk_judge.risky_unasked(line, program and program[1], case["earlier"])
         command = with_cwd(line, case["command"]["where"])
-        listed = bool(harms(command, False)) and not scratch_delete_only(command, str(tmp_path))
+        listed = (
+            bool(harms(command, False))
+            and not risk_judge.judges(command)
+            and not scratch_delete_only(command, str(tmp_path))
+        )
         why = [
             name
             for name, stops in (

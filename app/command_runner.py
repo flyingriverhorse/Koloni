@@ -151,14 +151,17 @@ def refused_by_rule(judgement: dict) -> str:
     return REFUSED_BY_A_MESSAGE
 
 
-def _gate_open(mode: str, check: bool, judgement: dict | None) -> bool:
+def _gate_open(mode: str, check: bool, judgement: dict | None, judge: bool, line: str) -> bool:
     """Whether what the check of the user's words said of a command still holds: only while the
     chat is at Full auto and the project's check is on (`check`: its judge and the judge's box,
     §8) - a run or a refusal that comes back after either changed is its card, as if never checked
-    (the security review of K-yargic's slice 2). Full auto's judge's own (`kind` "risk") has no
-    gate: it never lets a command run - its "risky" a card (`always`, its call's `why_asked`) or a
-    refusal ("refuse")."""
+    (the security review of K-yargic's slice 2). Full auto's judge's own (`kind` "risk") has none
+    where its "fine" lifts no card - its "risky" a card (`always`, its call's `why_asked`) or a
+    refusal -; on a line the list asks of (`line` with its folder, K3) the check's own: the judge on
+    (`judge`), the chat at Full auto."""
     risk = judgement is not None and judgement.get("kind") == "risk"
+    if risk and danger(line, False):
+        return mode == "full_auto" and judge
     return risk or mode == "full_auto" and check
 
 
@@ -715,8 +718,10 @@ class CommandRunner:
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            check = project.full_auto_judge and project.judge_words
-            gate = _gate_open(conversation.permission_mode, check, judgement)
+            check, judge = project.full_auto_judge and project.judge_words, project.full_auto_judge
+            # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
+            judged = with_cwd(planned.command, planned.cwd_rel)
+            gate = _gate_open(conversation.permission_mode, check, judgement, judge, judged)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
                 self._may_serve(
@@ -751,8 +756,6 @@ class CommandRunner:
             # that holds (`_gate_open`).
             own = project_map.own_test(project.test_commands, planned.command, planned.cwd_rel)
             # (K-fullauto-sorma: at Full auto an instruction file alone is not asked.)
-            # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
-            judged = with_cwd(planned.command, planned.cwd_rel)
             free = _free(ask, disposable, conversation.permission_mode, project.disposable_deletes)
             covered = (
                 is_allowed(planned.command, prefixes)
@@ -1220,12 +1223,12 @@ class CommandRunner:
                     Project.disposable_deletes,
                 ).where(Project.id == conversation.project_id)
             ).one()
-            gate = _gate_open(mode, judge and words, judgement)
+            # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
+            judged = with_cwd(command, cwd)
+            gate = _gate_open(mode, judge and words, judgement, judge, judged)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)
-            # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
-            judged = with_cwd(command, cwd)
             free = _free(ask, disposable, mode, allows)
             asks = ask and (
                 always

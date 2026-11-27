@@ -1,5 +1,6 @@
 """Full auto's judge (0.1.9), its gate: at Full auto, before a command the list does not stop runs,
-a small model is asked once whether it is risky (`app.risk_judge`) - `RiskJudgeMixin`."""
+a small model is asked once whether it is risky (`app.risk_judge`) - since 0.1.10 (K3) before a
+delete or a stop by name in the folder the list asked of too - `RiskJudgeMixin`."""
 
 import asyncio
 import hashlib
@@ -541,20 +542,58 @@ class RiskJudgeMixin:
         runs (`_named_file`), or it runs none of the folder's code (`_no_local_code`): what it
         runs may change unseen, the same words in another folder be another line.
         In a watched turn its own "risky" may be refused instead (`_risk_refuses`).
-        Whatever goes wrong in it but a Stop is its card, never a run nor a refusal."""
-        if exempt or found != ("", None):
+        Whatever goes wrong in it but a Stop is its card, never a run nor a refusal.
+        K3 (0.1.10, as Claude Code's auto mode): the list's own card that is the judge's to decide
+        (`_risk_takes`: a delete or a stop by name in the folder, a watched turn) is put to it too
+        - with no key kept for its line -, and runs only on the model's own "fine"; any other
+        answer but its "risky" (no verdict, not asked, the switch off) gives the card back."""
+        if exempt:
             return found
         try:
+            # (the list's own card stays one where the look at it fails: below)
+            if found != ("", None) and not self._risk_takes(ctx, command, cwd, found, known):
+                return found
+            takes = found != ("", None)
             watched = self._full_auto(ctx)
             if not (watched or self._away_full_auto(ctx)):
-                return "", None
-            judged = await self._risk_judging(ctx, command, cwd, root, known)
+                return found if takes else ("", None)  # (a level changed meanwhile: its card)
+            judged = await self._risk_judging(ctx, command, cwd, root, known, takes)
+            if takes and not (judged[1] or {}).get("looked"):
+                return found
             return self._risk_refuses(ctx, *judged) if watched else judged
         except asyncio.CancelledError:
             raise
         except Exception:
             log.warning("run %s: Full auto's judge failed", ctx.run_id, exc_info=True)
-            return CARD.format(why=NOT_LOOKED), None
+            return found if found != ("", None) else (CARD.format(why=NOT_LOOKED), None)
+
+    def _risk_takes(
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str | None,
+        found: tuple[str, dict | None],
+        known: bool,
+    ) -> bool:
+        """K3: whether the list's own card (`found`: its reason - of the check of the user's words
+        no record, or only its "ask") is Full auto's judge's to decide: each harm of the line one it
+        takes (`risk_judge.judges`), where it runs a fact (`known`), in a turn the user watches at
+        Full auto - not a job while they are away, a To-do task's, a side of a comparison, nor a
+        turn of the chat they went away from (`away.gone_from`). Ask, Auto-edit and every turn
+        nobody watches keep the list as it is."""
+        reason, record = found
+        if not (
+            reason
+            and known
+            and (record is None or record.get("verdict") == "ask")
+            and ctx.run_id not in self._todo_turns
+            and ctx.run_id not in self._sides
+            and risk_judge.judges(with_cwd(command, cwd))
+            and self._full_auto(ctx)
+        ):
+            return False
+        with self._factory() as session:
+            return away.gone_from(session, ctx.cid) is None
 
     def _risk_line(
         self: "AgentRunner",
@@ -600,9 +639,17 @@ class RiskJudgeMixin:
         return False, path, shown if written else (shown[0], None, 0), digest, exact
 
     async def _risk_judging(
-        self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, root: Path, known: bool
+        self: "AgentRunner",
+        ctx: Ctx,
+        command: str,
+        cwd: str | None,
+        root: Path,
+        known: bool,
+        takes: bool = False,
     ) -> tuple[str, dict | None]:
-        """`_risk_judged`'s work, which may raise."""
+        """`_risk_judged`'s work, which may raise. `takes`: the list's card put to the judge (K3) -
+        no key for its line: no Run on its card nor "don't ask again" lets a delete by, and each is
+        asked anew (what the turn did before it changes)."""
         line = with_cwd(command, cwd)
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
@@ -653,7 +700,7 @@ class RiskJudgeMixin:
         # x.py` is; a shell's code never is: `_named_file`'s exact)
         one = is_plain(command) and not is_wrapped(command)
         hashed = bool(digest) and exact and one
-        kept = known and (hashed or _no_local_code(root, command, cwd or "."))
+        kept = not takes and known and (hashed or _no_local_code(root, command, cwd or "."))
         key = (command.strip(), cwd or "", digest if hashed else "", str(root)) if kept else None
         if key and (
             self._risk_cache.get(ctx.run_id, {}).get(key) == "approved"
