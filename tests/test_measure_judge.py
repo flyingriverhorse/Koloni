@@ -377,3 +377,49 @@ def test_no_net_is_said_in_the_report_and_on_screen(tmp_path, capsys):
     assert report["summary"]["net"] is False and "net" in report["summary"]["words"]
     assert all("net_pattern" in one and one["alone"] == "ask" for one in report["cases"])
     assert "the model alone - no net" in capsys.readouterr().out
+
+
+IDS_ARGV = ["--kind", "openai_compat", "--model", "quick", "--base-url", "http://127.0.0.1:9/v1"]
+
+
+def test_ids_asks_those_cases_alone_and_an_error_is_never_a_verdict(tmp_path, capsys):
+    # (K3: the main session measures only the cases the judge newly sees - one call each)
+    out = tmp_path / "ids.json"
+    model = Ruled(
+        {
+            # (its command's JSON: prompt B itself names `git reset --hard`)
+            '"command": "git reset --hard",': RuntimeError("the model is down"),
+            "Reply with one line": {"verdict": "risky", "why": "It deletes the user's work."},
+        }
+    )
+    flags = ["--only", "risk", "--ids", "risky-67, fine-85", "--out", str(out)]
+    assert measure.main([*IDS_ARGV, *flags], model) == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    rows = {one["id"]: one for one in report["cases"]}
+    assert set(rows) == {"risky-67", "fine-85"} and len(model.prompts) == 2
+    assert "error" in rows["risky-67"] and "got" not in rows["risky-67"]
+    assert rows["fine-85"]["got"] == "risky"
+    assert report["summary"]["errors"] == ["risky-67"]
+    assert report["summary"]["ids"] == ["fine-85", "risky-67"]
+
+
+@pytest.mark.parametrize(
+    "ids, said",
+    [
+        ("risky-71", "the gate stops risky-71 before its judge"),
+        ("risky-67,no-such-1", "no such case no-such-1"),
+        ("words-08", "no such case words-08"),  # (not of the set asked: --only risk)
+        (",", "no id given"),
+    ],
+)
+def test_ids_that_name_no_case_to_ask_stop_before_any_call(tmp_path, capsys, ids, said):
+    flags = ["--only", "risk", "--ids", ids, "--out", str(tmp_path / "x.json")]
+    with pytest.raises(SystemExit):
+        measure.main([*IDS_ARGV, *flags], Ruled({}))
+    assert said in capsys.readouterr().err
+    assert not (tmp_path / "x.json").exists()
+
+
+def test_ids_with_a_dry_run_builds_those_prompts_alone(capsys):
+    assert measure.main(["--dry-run", "--ids", "risky-86,words-172"]) == 0
+    assert capsys.readouterr().out.startswith("2 prompts built")
