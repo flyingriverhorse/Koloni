@@ -130,9 +130,9 @@ NOT_WATCHED: dict[tuple[str, str], tuple[str, ...]] = {
     ("agy_cli", "native"): (),
     ("codex_cli", "native"): (
         # At "untrusted" (`CodexNativeClient._converse`) a command its own allow rules cover runs
-        # unasked. shortcut: said of its reads as of the old versions, which ran their own safe
-        # commands unasked (a .env, the home folder); 0.172.0 asked before a read of `.env`
-        # (measured 27 Nov 2026) - narrow these lines once that is measured on more of them.
+        # unasked. shortcut: said of its reads as this guide said of its known-safe commands (a
+        # .env, the home folder); 0.172.0 asked before a read of `.env` (measured 27 Nov 2026),
+        # no other version was measured again - narrow these lines once more reads are measured.
         # shortcut: said also for a role that may not run commands (`_no_shell`), where it reads
         # with KOLONİ's tools - the safe side; leave it out there if that misleads.
         "reading secret files (.env, keys): its read-only commands run without asking",

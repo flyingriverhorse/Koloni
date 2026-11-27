@@ -37,6 +37,7 @@ GLOBS = [
     "cat \\-*",
     "head -n 5 ?.log",
     "ls [-a]*",
+    "rg x \\\n*",  # (a line continued: `rg x *`)
 ]
 # bash's /dev/tcp and /dev/udp: the internet, by a redirection (and as the shell joins the word)
 NET = [
@@ -123,6 +124,11 @@ def test_a_plain_search_stays_a_search(line):
 def test_bashs_dev_tcp_reaches_the_internet_and_asks_with_web_off(line):
     assert reaches_network(line).startswith(("/dev/tcp/", "/dev/udp/"))
     assert "/dev/" in web_off_reason(line, ["http_request"])
+
+
+@pytest.mark.parametrize("line", ["cat src/dev/tcp/a.py", "ls ./dev/udp", "cat mydev/tcp/x"])
+def test_a_project_path_with_dev_tcp_in_it_reaches_nothing(line):
+    assert reaches_network(line) == ""
 
 
 def test_git_below_the_root_is_neither_a_read_nor_ordinary_to_the_judge():

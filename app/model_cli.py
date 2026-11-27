@@ -1169,7 +1169,8 @@ class CodexCliClient(CliStepClient):
     # second thread, `collabAgentToolCall` items; with `agents.enabled=false` too it had no such
     # tool. Both are given: an older Codex reads the feature.
     # shortcut: the key on a Codex before 0.172.0 is not measured; one that refuses it says so as
-    # it starts - drop it there then.
+    # it starts - drop it there then. Nor is it measured with `codex exec`: step by step (where no
+    # tool of its own runs without its code-mode host anyway) and its search.
     NO_AGENTS = ("-c", "agents.enabled=false")
     # Measured 4 Nov 2026 (R182): one stderr line for each refused attempt. (Not stdout's
     # `error` item "Code Mode is unavailable because code-mode host is disabled", which every

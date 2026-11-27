@@ -262,8 +262,9 @@ What is not framed:
   written to steer a model can still sway one.
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
   about at every level. Exceptions: when it runs **Native**, Codex runs a command an allow rule of its
-  own covers without asking KOLONİ (0.172.0 asked before a read of `.env`, measured 27 Nov 2026; earlier
-  versions ran their own safe commands unasked); agy reading with its own tools reads without asking.
+  own covers without asking KOLONİ (0.172.0 asked before a read of `.env`, measured 27 Nov 2026; older
+  versions, said to run their own safe commands unasked, were not measured again); agy reading with its
+  own tools reads without asking.
   Copilot on
   its newer protocol (1.0.114 on) asks nothing of a command it counts as read-only, a read of a secret
   among them: KOLONİ's own hook makes it ask before every tool, and a tool that still ran without KOLONİ

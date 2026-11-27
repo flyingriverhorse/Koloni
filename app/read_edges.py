@@ -12,7 +12,7 @@ SEARCH_DOES = re.compile(
 )
 # A connection bash (and ksh) opens where a redirection names one of these - `cat <
 # /dev/tcp/host/80`, `exec 3<>/dev/udp/host/53`: the internet, with no program's name in the line.
-NET_PATH = re.compile(r"/dev/(?:tcp|udp)/[^\s;&|<>()]*", re.IGNORECASE)
+NET_PATH = re.compile(r"(?<![\w./~-])/dev/(?:tcp|udp)/[^\s;&|<>()]*", re.IGNORECASE)
 # What sh expands in a word: a wildcard, and a brace (`{a,-}*`).
 _EXPANDS = frozenset("*?[{")
 
@@ -37,7 +37,7 @@ def globs_an_option(line: str) -> bool:
         elif char.isspace() or char in ";&|<>()":
             before = ""  # (a word of its own starts)
         elif char == "\\":
-            before += next(chars, "")
+            before += next(chars, "").strip("\r\n")  # (before a line break: the line goes on)
         elif char in _EXPANDS and (not before or before[0] == "-" and "=" not in before):
             return True
         else:

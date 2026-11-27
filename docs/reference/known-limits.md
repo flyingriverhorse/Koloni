@@ -15,8 +15,9 @@ messages.
   without naming it (it builds the name, say) is not caught. Only Docker and Copilot's sandbox hide secret
   files from commands; KOLONİ's own commands on this machine, Claude Code, Codex and agy do not.
 - When it runs **Native**, Codex asks KOLONİ before its commands - a read of `.env` too (measured on 27 Nov
-  2026 with Codex 0.172.0: it asked before both `Get-Content readme.txt` and `Get-Content .env`; earlier
-  versions ran their own list of safe commands unasked). A command an allow rule of Codex's own covers
+  2026 with Codex 0.172.0: it asked before both `Get-Content readme.txt` and `Get-Content .env`; this guide
+  said it ran its own safe commands unasked, and older versions were not measured again). A command an
+  allow rule of Codex's own covers
   still runs without asking; KOLONİ records it after it ran, so no card stands in its way. agy reading with
   its own tools has no hook: its reads, of a secret file too, are not asked about at any level.
 - A command you approve can still print, encode or send a secret it was given.
