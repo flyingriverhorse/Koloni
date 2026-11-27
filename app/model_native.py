@@ -5329,7 +5329,7 @@ class CopilotNativeClient(CodexNativeClient):
             broke, server, unasked, failure, idle, complaint, process, reported, usage, picked_why
         )
         return replace(
-            own.counted(result),  # (its own sub-agents' spend: `OwnAgents.counted`)
+            own.with_calls(result),  # (its own sub-agents' spend: `OwnAgents.with_calls`)
             session={"id": session} if hooked and session else None,
             context_window=window,
             context_used=size["info"] if size["info"] is not None else size["call"],

@@ -15,6 +15,7 @@ from tests.test_agent_writes import wait_status
 from tests.test_codex_app_server_scenarios import card_for
 from tests.test_copilot_agent import copilot_native, start  # noqa: F401  (a fixture)
 from tests.test_copilot_headless_scenarios import APPROVE, REJECT, answers
+from tests.test_copilot_resume import copilot  # noqa: F401  (a fixture)
 from tests.test_send_now import now
 from tests.test_send_now_cli import started
 from tests.test_steer_at_work import at_work
@@ -659,22 +660,195 @@ def test_a_sub_agents_command_runs_where_its_folder_is_not_known_and_a_delete_ne
     assert asked[-1]["tool_name"] == "Edit"
 
 
-def test_a_sub_agents_own_usage_is_counted_in_its_run_never_twice():
-    from app.model_session import SessionResult
+def turn_counts(checkpoint, calls=(), spent=None):
+    """A Copilot turn's counts as its run reaches them: its root's checkpoint (`checkpoint`, the
+    session's input tokens so far) with its model calls' own usage (`calls`: (agentId or None,
+    input tokens)) carried out (`OwnAgents.with_calls`), its kept session's `spent` taken off
+    (`copilot_since`, in `_keep`), then its own sub-agents' spend (`with_own_calls`, in
+    `_native_work`); and what its session keeps as spent."""
+    from app.copilot_own_agents import with_own_calls
+    from app.model_session import SessionResult, copilot_since
 
     own = OwnAgents(set(), call_tool=None)
-    usage = {"inputTokens": 5000, "outputTokens": 50, "cacheReadTokens": 100}
-    own.apart({"type": "assistant.usage", "data": {"inputTokens": 10, "outputTokens": 5}})
-    lead_only = SessionResult(400, 40)
-    assert own.counted(lead_only) is lead_only  # (no sub-agent spent: the checkpoint, as ever)
-    assert own.apart({"type": "assistant.usage", "agentId": "a1", "data": usage}) is True
-    # its root's checkpoint without it: the calls' sum; with it (larger): the checkpoint alone
-    summed = own.counted(SessionResult(400, 40))
-    assert (summed.input_tokens, summed.output_tokens, summed.cache_read) == (5010, 55, 100)
-    held = own.counted(SessionResult(9000, 90, cache_read=100, nano_aiu=7))
-    assert (held.input_tokens, held.output_tokens, held.nano_aiu) == (9000, 90, 7)
+    for agent, tokens in calls:
+        event = {"type": "assistant.usage", "data": {"inputTokens": tokens}}
+        own.apart({**event, **({"agentId": agent} if agent else {})})
+    since, kept = copilot_since(own.with_calls(SessionResult(checkpoint, None)), spent)
+    return with_own_calls(since).input_tokens, kept
+
+
+def test_a_sub_agents_own_usage_is_counted_in_its_turn_never_twice_nor_kept_as_spent():
+    # (The review's Q4: the larger was taken before a kept session's spend came off, and kept.)
+    # its root's checkpoint without the sub-agent's spend: the calls' sum counts, the checkpoint
+    # alone is kept as spent
+    first, kept = turn_counts(100, [(None, 100), ("a1", 400)])
+    assert (first, kept["input_tokens"]) == (500, 100)
+    # the next turn, gone on in that session: no sub-agent, the Lead's 100 (and 600) more
+    assert turn_counts(200, [(None, 100)], kept)[0] == 100
+    assert turn_counts(700, [(None, 600)], kept)[0] == 600
+    # one whose checkpoint holds it: the checkpoint alone, never the two added
+    assert turn_counts(500, [(None, 100), ("a1", 400)])[0] == 500
+    # with no sub-agent, as before: the checkpoint less what was spent
+    assert turn_counts(300, [(None, 999)], {"input_tokens": 100})[0] == 200
+    own = OwnAgents(set(), call_tool=None)
     # its context is never its Lead's
     assert own.apart({"type": "session.usage_info", "agentId": "a1", "data": {}}) is True
+
+
+def asking(answers):
+    """A gate whose role is asked about (`asks`), each `approve` waiting for its turn in
+    `answers` (asyncio events, then the verdict); and the task calls `approve` was asked of."""
+    asked: list = []
+
+    async def call_tool(name, arguments):
+        asked.append(json.loads(arguments)["tool_use_id"])
+        release, verdict = answers[len(asked) - 1]
+        await release.wait()
+        return True, json.dumps({"behavior": verdict})
+
+    own = OwnAgents(set(), call_tool)
+    own.given(
+        {"tools": {}},
+        {"koloni-w": {"description": "", "prompt": "", "tools": ["view"], "asks": lambda: True}},
+    )
+    return own, asked
+
+
+TASK_HOOK = {
+    "kind": "hook",
+    "toolName": "task",
+    "toolArgs": {"agent_type": "koloni-w", "mode": "sync", "name": "w", "prompt": "p"},
+}
+
+
+def test_one_task_call_asked_twice_while_its_card_waits_is_one_card_one_yes():
+    # (The review's Q1 and Q1b: two cards, two yeses - the late one put the task back as not yet
+    # started, and its sub-agent worked on past its task's end.)
+    async def told(phase, item):
+        pass
+
+    async def twice():
+        first, second = asyncio.Event(), asyncio.Event()
+        own, asked = asking([(first, "allow"), (second, "allow")])
+        one = asyncio.ensure_future(own.gate({}, TASK_HOOK, "t1", told))
+        await asyncio.sleep(0)
+        again = await own.gate({}, TASK_HOOK, "t1", told)  # (while its card waits)
+        first.set()
+        second.set()
+        return own, asked, await one, again
+
+    own, asked, one, again = asyncio.run(twice())
+    assert asked == ["t1"] and one == APPROVE_ONCE, (asked, one)
+    assert again["kind"] == "reject" and "asked again" in again["feedback"]
+    start = {
+        "type": "subagent.started",
+        "agentId": "a1",
+        "data": {"toolCallId": "t1", "agentType": "koloni-w"},
+    }
+    translate = own.translator(lambda _event: [], {})
+    translate(start)
+    assert gate(own, {}, TASK_HOOK, "t1")[0]["kind"] == "reject"  # (and once it has started)
+    translate({"type": "tool.execution_complete", "data": {"toolCallId": "t1", "success": True}})
+    view = {"kind": "hook", "toolName": "view", "toolArgs": {"path": "a.py"}}
+    answer, _told = gate(own, {"agentId": "a1"}, view, "u9")
+    assert answer["kind"] == "reject" and own.agents == {}, (answer, own.agents)
+
+
+def test_whether_its_role_is_asked_about_is_read_as_its_task_comes():
+    # (The review: decided once at the turn's start, a level tightened to Ask mid-turn showed no
+    # card.)
+    level = {"asks": False}
+    asked: list = []
+
+    async def call_tool(name, arguments):
+        asked.append(json.loads(arguments)["tool_use_id"])
+        return True, json.dumps({"behavior": "allow"})
+
+    own = OwnAgents(set(), call_tool)
+    own.given(
+        {"tools": {}},
+        {
+            "koloni-w": {
+                "description": "",
+                "prompt": "",
+                "tools": ["view"],
+                "asks": lambda: level["asks"],
+            }
+        },
+    )
+    assert gate(own, {}, TASK_HOOK, "t1")[0] == APPROVE_ONCE and asked == []
+    level["asks"] = True
+    assert gate(own, {}, TASK_HOOK, "t2")[0] == APPROVE_ONCE and asked == ["t2"]
+
+
+def test_a_level_tightened_to_ask_mid_turn_makes_its_role_a_card(
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
+):
+    # (A read of .env is a card at every level: while it waits the user tightens to Ask.)
+    (project_dir / ".env").write_text("TOKEN=x\n", encoding="utf-8")
+    client, provider = p4(
+        copilot_native,
+        [
+            {"shell": "Get-Content .env", "quiet": True, "output": "TOKEN=x"},
+            {**RUNNER_TASK, "steps": [{"say": "built"}]},
+            {"say": "Done."},
+        ],
+        RUNNER,
+    )
+    cid, run_id = start(client, project_dir, provider)  # full_auto
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    tightened = client.patch(
+        f"/api/conversations/{cid}", json={"permission_mode": "ask"}, headers=ORIGIN
+    )
+    assert tightened.status_code == 200, tightened.text
+    client.post(f"/api/commands/{asked['id']}/approve", json={})
+    question = until_question(client, cid)
+    assert "koloni-runner" in question["question"]
+    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Allow"}, headers=ORIGIN)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+
+
+def test_at_ask_a_sub_agents_git_read_asks_where_its_leads_runs(
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
+):
+    # (Its Lead's command is put in the project by KOLONİ's prefix; a sub-agent's is not: C6.)
+    client, provider = p4(
+        copilot_native,
+        [
+            {"shell": "git status"},
+            {**RUNNER_TASK, "steps": [{"shell": "git status"}]},
+            {"say": "ok"},
+        ],
+        RUNNER,
+    )
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    question = until_question(client, cid)  # (its Lead's git read ran unasked before it)
+    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Allow"}, headers=ORIGIN)
+    from tests.test_parallel import until
+
+    snap = until(client, cid, lambda s: any(c["status"] == "proposed" for c in s["commands"]))
+    (lead,) = [c for c in snap["commands"] if c["status"] == "exited"]  # (unasked)
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert (lead["cwd"], asked["command"], asked["cwd"]) == (".", "git status", None), asked
+    client.post(f"/api/commands/{asked['id']}/approve", json={})
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+
+
+RUNNER_TASK = {"task": "koloni-runner", "mode": "sync"}
+
+
+def until_question(client, cid):
+    """The question waiting for the user, once it is shown."""
+    from tests.test_parallel import until
+
+    snap = until(client, cid, lambda s: bool(s["questions"]))
+    return snap["questions"][0]
 
 
 @pytest.mark.judge  # (Full auto's judge stands aside in tests unless marked: conftest)
@@ -707,3 +881,44 @@ def test_at_full_auto_a_sub_agents_git_line_is_judged_where_its_folder_is_not_kn
     assert ("git status", None, False) in judged, judged
     lead, sub = sorted(snap["commands"], key=lambda c: c["cwd"] is None)
     assert (lead["cwd"], sub["cwd"]) == (".", None), snap["commands"]
+
+
+def test_a_kept_session_keeps_its_checkpoint_as_spent_and_counts_its_sub_agent_in_its_turn(
+    copilot,
+    tmp_path,  # noqa: F811
+):
+    # (The review's Q4, through `run_native`'s own `_keep`: its spend is kept from the checkpoint,
+    # its sub-agent's counted only in its turn - `with_own_calls`, in `_native_work`.)
+    from app.copilot_own_agents import with_own_calls
+    from tests.test_copilot_resume import FIRST, checkpoint
+
+    inside = {"koloni-w": {"description": "d", "prompt": "p", "tools": ["view"]}}
+    usage = {"event": "assistant.usage", "data": {"inputTokens": 400}}
+    cli = copilot(
+        script=[{"task": "koloni-w", "mode": "sync", "steps": [usage]}, {"say": "Done."}],
+        usage=[checkpoint(100, 10, 1)],
+        call_usage={"inputTokens": 100},
+    )
+
+    async def call_tool(name, arguments):
+        return True, "{}"
+
+    async def nothing(*_args):
+        return None
+
+    result = asyncio.run(
+        cli.run_native(
+            "gpt-6-luna",
+            FIRST,
+            [],
+            str(tmp_path),
+            call_tool,
+            nothing,
+            nothing,
+            inside=inside,
+            level="full_auto",
+            keep=True,
+        )
+    )
+    assert result.session and result.session["spent"]["input_tokens"] == 100, result
+    assert with_own_calls(result).input_tokens == 500, result

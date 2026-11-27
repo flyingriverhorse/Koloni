@@ -108,15 +108,15 @@ messages.
   events for a sub-agent's tools and commands, KOLONİ's tool bridge shared with it). Its writes with
   Copilot's own file tools (create, edit, apply_patch) were not seen - it wrote with PowerShell - and
   are asked as the Orchestrator's are. Copilot does not run its commands where KOLONİ puts the
-  Orchestrator's, in the project folder: where they run is taken as not known, so at **Full auto**
-  its git lines go to the judge (and more of its commands may ask). The role runs on the
+  Orchestrator's, in the project folder: where they run is taken as not known, so its git reads ask
+  at **Ask** and its git lines go to the judge at **Full auto** (and more of its commands may ask). The role runs on the
   Orchestrator's model (a model of the role's own is not given), a turn that goes on in its kept
   session is given the roles anew (not measured that Copilot takes them so), and a Copilot on its
   older protocol is offered no role, with nothing said of it. A role that may list folders but not
   read files is not run inside Copilot (its one tool for both reads files too); one that does not
   run commands may not delete a file. Its tokens are counted in the turn - the larger of Copilot's
-  own count for the session and its model calls' sum, since whether the first holds the role's is
-  not measured - but its AI credits only as Copilot's session count says them.
+  own count for the turn and its model calls' sum, since whether the first holds the role's is not
+  measured - but its AI credits only as Copilot's session count says them.
 - An agy model whose name ends in its level takes no other level. Only a name ending in `-low` was seen
   to refuse one; the other endings are read the same way, not measured.
 - A word sent while a CLI works (**Send now**, an agent's Tell box) goes into its running turn on

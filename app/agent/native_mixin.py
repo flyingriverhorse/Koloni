@@ -33,7 +33,7 @@ from app.agent.words import (
     IN_THE_PROJECT,
     NATIVE_NEEDS_A_FOLDER,
 )
-from app.copilot_own_agents import copilot_tools
+from app.copilot_own_agents import copilot_tools, with_own_calls
 from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now, settings_of
 from app.limits import CLI_HOMES
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, ToolCallRequest
@@ -226,8 +226,8 @@ class NativeMixin:
         instructions, its tools (capped by this agent's) as the CLI's own, and on Claude Code its
         model where it runs on its Lead's provider. Nothing else of the role's or the user's goes.
         Each is put on `watch` with its tools as `approve` is asked of them, where `_approve` holds
-        it to those. Copilot's is said to be asked about before it opens where spawn_agent would be
-        (`asks`: a card at Ask for one that changes things, `OwnAgents.gate`).
+        it to those. Copilot's is given what says whether it is asked about before it opens, as
+        its task comes (`asks`: `_inside_asks`, `OwnAgents.gate`).
         shortcut: of two roles offered by one name (`inside_name`) only the first is; the other
         is opened as an agent of KOLONİ's only. None where a spawn_agent of this agent's would
         be asked about every time, or could not go a level deeper, nor in a job done while the
@@ -241,8 +241,7 @@ class NativeMixin:
             return {}
         given: dict[str, dict] = {}
         with self._factory() as session:
-            conversation = session.get_one(Conversation, ctx.cid)
-            own = settings_of(session, conversation)
+            own = settings_of(session, session.get_one(Conversation, ctx.cid))
             if own.spawn_approval == "always" or self._level(ctx) + 1 > own.spawn_max_depth:
                 return {}
             door, named = self._door(session, ctx), self._names_past(session, ctx)
@@ -279,18 +278,19 @@ class NativeMixin:
                     "prompt": role.instructions or role.description or role.name,
                     "tools": tools,
                     **({"model": model} if model else {}),
-                    **(
-                        {
-                            "asks": _asked_about(
-                                own.spawn_approval, conversation.permission_mode, capped
-                            )
-                        }
-                        if copilot
-                        else {}
-                    ),
+                    **({"asks": partial(self._inside_asks, ctx, capped)} if copilot else {}),
                 }
                 watch.roles[name] = (shown_name(role.name), held)
         return given
+
+    def _inside_asks(self: "AgentRunner", ctx: Ctx, tools: list[str]) -> bool:
+        """Whether a role with these tools, run inside Copilot (`_inside_roles`), is asked about
+        before it opens - as spawn_agent's is (`_asked_about`), at the chat's setting and level as
+        its task comes, not as the turn began: a card at Ask for one that changes things."""
+        with self._factory() as session:
+            conversation = session.get_one(Conversation, ctx.cid)
+            approval = settings_of(session, conversation).spawn_approval
+            return _asked_about(approval, conversation.permission_mode, tools)
 
     async def _native_work(
         self: "AgentRunner", ctx: Ctx, info: ModelInfo, hold: "_Hold"
@@ -470,6 +470,7 @@ class NativeMixin:
                 keep=keeps,
                 level=level,
             )
+            usage = with_own_calls(usage)  # (Copilot's own sub-agents' spend, its turn's)
             self._heard(ctx)  # (D2)
             self._slow_off(ctx)  # (what follows may wait for the user)
             left = usage.session

@@ -583,9 +583,11 @@ class ApprovalsMixin:
             # shortcut: a git read where its folder is not known (`unnamed` None) is judged at the
             # root below Full auto, as Copilot's ordinary commands often are such (bash, and any
             # its version was not read for); Full auto's judge takes it as below (`git_below`).
+            # Not a sub-agent's of the CLI's own (`under`): known not to start where its CLI does
+            # (Copilot's own, C6) - its git asks.
             reads=not given.get("not_read_only")
             and await asyncio.to_thread(
-                reads_here, command, root, where in ("", "."), where or "."
+                reads_here, command, root, where in ("", ".") and under is None, where or "."
             ),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
             # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project

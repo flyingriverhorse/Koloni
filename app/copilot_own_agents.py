@@ -26,6 +26,9 @@ one refused would stop the turn); it runs on its Lead's.
 shortcut: at protocol 3 no role is offered, and nothing says so (Claude Code's `inside_not_given`).
 shortcut: a kept session goes on (session.resume) given this turn's roles anew, as session.create
 is - not measured that it takes them so; the gate holds it to this turn's alone all the same.
+shortcut: a patch a sub-agent sends as a command (`_heredoc_patch`, `AgentRunner._runs_as_patch`)
+is read against the project's root, though where its command runs is not known (C6); read it as
+a command alone if a sub-agent is seen to send one.
 """
 
 import json
@@ -92,6 +95,32 @@ def copilot_tools(tools: list[str], withheld: tuple[str, ...] = ()) -> tuple[lis
     )
 
 
+def with_own_calls(result: SessionResult) -> SessionResult:
+    """A Copilot turn's counts with its own sub-agents' spend (`own_calls`): each the larger of its
+    turn's count by the checkpoint (a kept session's already less what it spent before:
+    `copilot_since`) and its model calls' own usage summed, its sub-agents' with them - never the
+    two added; as they are where no sub-agent spent.
+    shortcut: whether the checkpoint holds its sub-agents' spend is not measured (C6): where it
+    does, it stands; where not, the calls' sum does. Its AI credits (totalNanoAiu) are the
+    checkpoint's alone (a call's `cost` and `copilotUsage` are not read: their form is not seen)."""
+    if result.own_calls is None:
+        return result
+    calls: dict = result.own_calls
+
+    def larger(field: str) -> int | None:
+        known = [one for one in (getattr(result, field), calls.get(field)) if one is not None]
+        return max(known) if known else None
+
+    return replace(
+        result,
+        input_tokens=larger("input_tokens"),
+        output_tokens=larger("output_tokens"),
+        cache_read=larger("cache_read"),
+        cache_write=larger("cache_write"),
+        own_calls=None,
+    )
+
+
 class OwnAgents:
     """One Copilot turn's own sub-agents. `offered`: the roles given it, by name, with their
     Copilot tools (none at protocol 3, nor where none is given); `tasks`: its Lead's task calls
@@ -99,14 +128,15 @@ class OwnAgents:
     started, how it ended; `agents`: each sub-agent that started, by agentId, the task call it is
     on record under; `words`: each one's last; `refused`: the calls refused here (their failed end
     is not put on record again); `hooks`: whose each tool call is, by its preToolUse hook
-    (`hooked`); `calls`: every model call's own usage, summed (`counted`). `asked`: its turn's calls
-    asked about (`_converse`'s: one of them that ends did not run unasked); `call_tool`: its
-    run's."""
+    (`hooked`); `calls`: every model call's own usage, summed (`with_calls`); `pending`: its
+    task calls whose card waits (`gate`). `asked`: its turn's calls asked about (`_converse`'s:
+    one of them that ends did not run unasked); `call_tool`: its run's."""
 
     def __init__(self, asked: set[str], call_tool: CallTool) -> None:
         self.asked, self.call_tool = asked, call_tool
         self.offered: dict[str, list[str]] = {}
-        self.asks: dict[str, bool] = {}
+        self.asks: dict[str, Callable[[], bool] | None] = {}
+        self.pending: set[str] = set()
         self.hooks: dict[str, str] = {}
         self.calls: dict[str, int | None] = {}
         self.spent_inside = False
@@ -124,7 +154,7 @@ class OwnAgents:
         if not roles:
             return session
         self.offered = {name: list(role["tools"]) for name, role in roles.items()}
-        self.asks = {name: bool(role.get("asks")) for name, role in roles.items()}
+        self.asks = {name: role.get("asks") for name, role in roles.items()}
         tools = _dict(session.get("tools"))
         return {
             **session,
@@ -147,7 +177,7 @@ class OwnAgents:
         """Whether an event of its is a sub-agent's that is no business of its Lead's turn: its
         words (kept, as its report where none comes), model, context, compaction, idle or error.
         Its tools, requests, start and end are read on (`translator`, `gate`). Each model call's
-        own usage, its Lead's and its sub-agents', is summed (`counted`)."""
+        own usage, its Lead's and its sub-agents', is summed (`with_calls`)."""
         agent, kind = str(event.get("agentId") or ""), event.get("type")
         data = _dict(event.get("data"))
         if agent and kind == "assistant.message":
@@ -158,31 +188,11 @@ class OwnAgents:
             self.spent_inside |= bool(agent)
         return bool(agent) and kind not in SUB_KINDS
 
-    def counted(self, result: SessionResult) -> SessionResult:
-        """Its run's counts where a sub-agent of its own spent: each the larger of its root's last
-        checkpoint (the session's total, as ever: `copilot_counts`) and its model calls' own usage
-        summed, its sub-agents' with them - never the two added.
-        shortcut: whether the checkpoint holds its sub-agents' spend is not measured (C6): where it
-        does, it stands; where not, the calls' sum does. Its AI credits (totalNanoAiu) are the
-        checkpoint's alone (a call's `cost` and `copilotUsage` are not read: their form is not
-        seen); and a kept session's checkpoint is its whole (`copilot_since`), larger than one
-        turn's calls: there the sub-agents' spend is not added if the checkpoint lacks it."""
-        if not self.spent_inside:
-            return result
-
-        def larger(field: str) -> int | None:
-            known = [
-                one for one in (getattr(result, field), self.calls.get(field)) if one is not None
-            ]
-            return max(known) if known else None
-
-        return replace(
-            result,
-            input_tokens=larger("input_tokens"),
-            output_tokens=larger("output_tokens"),
-            cache_read=larger("cache_read"),
-            cache_write=larger("cache_write"),
-        )
+    def with_calls(self, result: SessionResult) -> SessionResult:
+        """Its run's result, its checkpoint's counts as they are (a kept session's `spent` is kept
+        from those: `copilot_since`), with its model calls' own usage summed where a sub-agent of
+        its own spent (`own_calls`): what `with_own_calls` counts once its turn's are known."""
+        return replace(result, own_calls=dict(self.calls)) if self.spent_inside else result
 
     def hooked(self, params: dict) -> dict:
         """A hook of its (`hooks.invoke`; `read` hands on every message's params, and only a hook's
@@ -288,8 +298,10 @@ class OwnAgents:
         """KOLONİ's own answer to a request of its Lead's task call, or of a sub-agent's (`_agent`);
         None: one `_permit` judges as its Lead's are (`held`). Each of a sub-agent KOLONİ let open
         hangs under its task call (announced so first). A role KOLONİ's own rules would ask before
-        opening (`asks`: as spawn_agent's, `cards._asked_about`) is asked of `approve` first, as
-        Claude Code's Agent is: a card at Ask, its call the sub-agent's record once let."""
+        opening now (`asks`: as spawn_agent's, `cards._asked_about`, at the level its chat is at as
+        the request comes) is asked of `approve` first, as Claude Code's Agent is: a card at Ask,
+        its call the sub-agent's record once let. One task call is answered once: asked again,
+        while its card waits too (`pending`), it is refused."""
         agent = self._agent(data)
         kind, name = request.get("kind"), request.get("toolName")
         if not agent and not (kind == "hook" and name == TASK):
@@ -300,7 +312,7 @@ class OwnAgents:
         given = request.get("toolArgs") if kind == "hook" else None
         why = (
             "KOLONİ declined this request: it asked again for a task call that was answered"
-            if not agent and use_id in self.tasks
+            if not agent and (use_id in self.tasks or use_id in self.pending)
             else self._why(agent, parent, kind, name, given)
         )
         self.asked.add(use_id)  # (refused too: it was asked about, it did not run unasked)
@@ -308,8 +320,14 @@ class OwnAgents:
             return None
         if why is None:
             role = _dict(given)["agent_type"]
-            if self.asks.get(role) and (refused := await self._asked(use_id, given, on_item)):
-                return refused
+            if (asks := self.asks.get(role)) and asks():
+                self.pending.add(use_id)
+                try:
+                    refused = await self._asked(use_id, given, on_item)
+                finally:
+                    self.pending.discard(use_id)
+                if refused or use_id in self.tasks:  # (answered meanwhile: never twice)
+                    return refused or {"kind": "reject", "feedback": "it was answered"}
             self.tasks[use_id] = {"type": role, "given": given, "agent": None}
             return APPROVE_ONCE
         self.refused.add(use_id)
