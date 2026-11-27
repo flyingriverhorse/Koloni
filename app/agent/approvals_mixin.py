@@ -215,8 +215,9 @@ class ApprovalsMixin:
             return {"behavior": "deny", "message": why, **({"koloni": True} if fixed else {})}
 
         # 89g: a role run inside the CLI has its role's tools only - none of KOLONİ's, which
-        # would be its Lead's; one not offered by KOLONİ (a project's own) has none.
-        kind = asked.get("agent_type")
+        # would be its Lead's; one not offered by KOLONİ (a project's own) has none. On record
+        # by its CLI's name: Claude Code's (claude__), or Copilot's (copilot__, `OwnAgents`).
+        kind, cli = asked.get("agent_type"), getattr(ctx.model, "command", "claude")
         if (
             isinstance(kind, str)
             and kind.startswith(INSIDE)
@@ -227,7 +228,7 @@ class ApprovalsMixin:
             self._note(
                 ctx,
                 transcript,
-                re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                re.sub(r"[^A-Za-z0-9_-]", "_", f"{cli}__{tool}")[:64],
                 given,
                 "denied",
                 why,
@@ -261,7 +262,7 @@ class ApprovalsMixin:
                 transcript,
                 "run_command"
                 if tool in CLAUDE_RUNS
-                else re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                else re.sub(r"[^A-Za-z0-9_-]", "_", f"{cli}__{tool}")[:64],
                 given,
                 "denied",
                 CANARY_REFUSED,
@@ -582,9 +583,11 @@ class ApprovalsMixin:
             # shortcut: a git read where its folder is not known (`unnamed` None) is judged at the
             # root below Full auto, as Copilot's ordinary commands often are such (bash, and any
             # its version was not read for); Full auto's judge takes it as below (`git_below`).
+            # Not a sub-agent's of the CLI's own (`under`): known not to start where its CLI does
+            # (Copilot's own, C6) - its git asks.
             reads=not given.get("not_read_only")
             and await asyncio.to_thread(
-                reads_here, command, root, where in ("", "."), where or "."
+                reads_here, command, root, where in ("", ".") and under is None, where or "."
             ),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
             # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project
@@ -956,7 +959,9 @@ class ApprovalsMixin:
             self._note(
                 ctx,
                 transcript,
-                re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                re.sub(
+                    r"[^A-Za-z0-9_-]", "_", f"{getattr(ctx.model, 'command', 'claude')}__{tool}"
+                )[:64],
                 given,
                 "denied",
                 f"the {ctx.role} role may only use tools that read",
@@ -996,7 +1001,9 @@ class ApprovalsMixin:
                 self._note(
                     ctx,
                     transcript,
-                    re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                    re.sub(
+                        r"[^A-Za-z0-9_-]", "_", f"{getattr(ctx.model, 'command', 'claude')}__{tool}"
+                    )[:64],
                     given,
                     "denied",
                     why,

@@ -1348,7 +1348,7 @@ class Role(Base):
     # (its whole guide at each step); "map": where its guide is. Replaced whole, not changed in
     # place (a JSON field changed in place is not seen).
     knows: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
-    # 89g: also offered to a Claude Code Lead as one of its own sub-agents (`--agents`): cheaper,
+    # 89g: also offered to a Claude Code or Copilot Lead as one of its own sub-agents: cheaper,
     # but no agent of KOLONİ's - it stops only with its Lead. Off unless the user turns it on.
     inside_cli: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(default=now)

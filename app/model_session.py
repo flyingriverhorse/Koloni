@@ -122,6 +122,10 @@ class SessionResult:
     # much its session holds at its end; None: not said.
     context_window: int | None = None
     context_used: int | None = None
+    # Copilot (`copilot_own_agents`): this turn's model calls' own usage, summed by the fields
+    # above, where a sub-agent of its own spent; None: none did. Its counts are the larger of each
+    # and that (`with_own_calls`), once its kept session's are its turn's (`copilot_since`).
+    own_calls: dict | None = None
 
 
 # What a session's counts are, of `SessionResult` (Copilot's kept "spent": `copilot_since`).

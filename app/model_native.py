@@ -27,6 +27,7 @@ from pathlib import Path, PureWindowsPath
 
 from app import mcp_bridge
 from app.commands import _CLIMBS, only_looks
+from app.copilot_own_agents import APPROVE_ONCE, OwnAgents
 from app.ledger import TESTS
 from app.model_cli import (
     CLAUDE_EXIT,
@@ -1028,8 +1029,8 @@ class CodexNativeClient(CliStepClient):
         `on_live`: given the run's `Steer` while its turn runs (Claude Code's and Codex's,
         89d), then None. `on_end`: given what ends its turn, with why (B-357: Stop on a command
         of its own, whose process KOLONİ does not hold).
-        `inside`: 89g, roles offered to Claude Code as sub-agents of its own, by the name each
-        is offered by (`inside_name`): what `--agents` takes of each.
+        `inside`: 89g, roles offered to Claude Code or Copilot as sub-agents of their own, by the
+        name each is offered by (`inside_name`): `--agents`, `OwnAgents.given`.
         `report_schema`: the shape its report is handed back in, for Claude Code (89p,
         `_control`); a CLI that is not told one reports in words.
         `skills`: its role's skills, by name, where KOLONİ keeps each - for a CLI that
@@ -1237,6 +1238,7 @@ class CodexNativeClient(CliStepClient):
                         no_shell=_no_shell(withheld),
                         resume=resumed,
                         keep=kept,
+                        **({"inside": inside} if inside else {}),
                     )
 
                 if isinstance(self, CopilotNativeClient) and under:
@@ -2571,7 +2573,7 @@ INSIDE_FROM = (2, 1, 311)
 # shortcut: the names are those of the constants above, not measured in an `--agents` tools
 # list (LS and NotebookRead may be gone from 2.1.311); and a role run so gets none of its skills,
 # MCP servers or expert's knowledge. Measure and give them once a live run shows the need.
-# Copilot's `customAgents`, agy's `--agent` and a Lead on an API model offer no role so (89g).
+# agy's `--agent` and a Lead on an API model offer no role so (89g); Copilot: `OwnAgents`.
 CLAUDE_OF = {
     "read_file": ("Read", "NotebookRead"),
     "list_dir": ("LS", "Glob"),
@@ -3934,8 +3936,6 @@ RECORD_SECONDS = 300.0
 NO_SANDBOX = (
     "Copilot cannot sandbox commands on this machine: secret files are not hidden from them"
 )
-# KOLONİ's answers to a permission request: this once, never for the session or for good.
-APPROVE_ONCE = {"kind": "approve-once"}
 # The most a kept Copilot session may hold before it is not gone on in (`session_cap`): the
 # price step of its models (models.list's maxPromptTokens, 100,000 for claude-haiku-5.5 whose
 # session window is 872,000) - one 553,000-token message cost 34.6 AI credits (23 Nov 2026).
@@ -4126,10 +4126,9 @@ HEADLESS = ["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
 # Its own tools a session is given (`availableTools`): its shell and what goes with it, and
 # its file tools (apply_patch: non-Claude models' only one, B-389/B-393; a name a model does
 # not have is no error, measured on 1.0.105), each asked about as a command, a write or a
-# read. Not grep or glob (a
-# search reads a secret's lines with no card for the file), web_fetch or web_search, sql,
-# skill, its workflow tools, nor task and its agent tools (sub-agents in sessions of their
-# own, whose events are not read here).
+# read. Not grep or glob (a search reads a secret's lines with no card for the file),
+# web_fetch or web_search, sql, skill, its workflow tools or its agent tools; task only where
+# roles are given it as agents of its own (`OwnAgents.given`).
 # shortcut: the tools Copilot 1.0.91 reports (measured 24 Oct 2026; no write_powershell
 # then); check the list again after an update of Copilot's (K-cli-surface).
 COPILOT_TOOLS = [
@@ -4819,6 +4818,7 @@ class CopilotNativeClient(CodexNativeClient):
         no_shell: bool = False,  # (read-only its shell is not among availableTools at all)
         resume: str | None = None,
         keep: bool = False,  # (Codex's: a session of Copilot's is kept by its home, `_kept_turn`)
+        inside: dict[str, dict] | None = None,  # (roles as agents of its own: `OwnAgents`)
     ) -> SessionResult:
         """Copilot headless for one turn, started and ended as Codex's app-server is
         (`CodexNativeClient._converse`): one session that asks before it acts
@@ -4842,9 +4842,10 @@ class CopilotNativeClient(CodexNativeClient):
         permits: set[int] = set()  # the ids of KOLONİ's answers to its permission requests
         numbers = iter(range(1, 10**9))
         asked: set[str] = set()  # the tool calls it asked about
+        own = OwnAgents(asked, call_tool)  # (its own sub-agents, KOLONİ's roles)
         answered: set[tuple[str, str]] = set()  # (tool call, kind) already answered
         heredocs = _ShellPatches()  # (B-389: its commands that were patches)
-        translate = self._translator(asked, heredocs)
+        translate = own.translator(self._translator(asked, heredocs), heredocs.ours)
         names: dict[str, str] = {}  # its tool calls' names, by id
         hooked = False  # protocol 4: every tool of its own asked through KOLONİ's hook
         session: str | None = None
@@ -4905,8 +4906,9 @@ class CopilotNativeClient(CodexNativeClient):
             busy.add(key)
             try:
                 await kept  # (what it did before it asked is on record first, as it was heard)
-                result = await self._permit(
-                    request, use_id, root, asked, answered, on_item, call_tool, heredocs, new_shell
+                told, asking = own.held(data, on_item, call_tool)  # (a sub-agent's: its task's)
+                result = await own.gate(data, request, use_id, on_item) or await self._permit(
+                    request, use_id, root, asked, answered, told, asking, heredocs, new_shell
                 )
                 if result["kind"] == "reject":
                     busy.discard(use_id)  # it may never say a rejected tool is done
@@ -4956,7 +4958,7 @@ class CopilotNativeClient(CodexNativeClient):
             try:
                 while (message := await _framed(stdout)) is not None:
                     heard = time.monotonic()
-                    method, params = message.get("method"), _dict(message.get("params"))
+                    method, params = message.get("method"), own.hooked(_dict(message.get("params")))
                     if method is None:  # an answer to a request of KOLONİ's
                         number = message.get("id")
                         future = replies.get(number) if isinstance(number, int) else None
@@ -5008,14 +5010,10 @@ class CopilotNativeClient(CodexNativeClient):
                                 }
                             )
                         continue
-                    # Only its session's events are kept (never an answer: session.create's
-                    # names where its home is).
-                    # shortcut: another session's events are dropped, unread; none is
-                    # expected while its task and agent tools are left out (COPILOT_TOOLS).
-                    # Read them if those tools are ever given.
-                    # shortcut: and a resumed one's only from its prompt on - whether
-                    # session.resume replays its earlier events is not measured; none of them is
-                    # this turn's.
+                    # Only its session's events are kept (never an answer: session.create's names
+                    # where its home is); its own sub-agents' come in it (`OwnAgents`).
+                    # shortcut: a resumed one's only from its prompt on - whether session.resume
+                    # replays its earlier events is not measured; none of them is this turn's.
                     if (
                         method != "session.event"
                         or (session and params.get("sessionId") != session)
@@ -5025,6 +5023,8 @@ class CopilotNativeClient(CodexNativeClient):
                     event = _dict(params.get("event"))
                     feed("stdout", json.dumps(event, ensure_ascii=False), (server.key,))
                     kind = event.get("type")
+                    if own.apart(event):  # (a sub-agent's words, usage, idle: not its Lead's)
+                        continue
                     if kind == "session.usage_checkpoint":
                         # Measured on 1.0.103 `-p` (5 Nov 2026) and headless on 1.0.114 (23 Nov):
                         # the session's total so far, a resumed one counted on - so the last one
@@ -5045,7 +5045,7 @@ class CopilotNativeClient(CodexNativeClient):
                         records.put_nowait(("item.completed", compacted))
                         continue
                     if kind == "permission.requested":
-                        data = _dict(event.get("data"))
+                        data = {**_dict(event.get("data")), "agentId": event.get("agentId")}
                         if data.get("resolvedByHook"):
                             # KOLONİ gives it no hooks: one of its own decided, unasked.
                             broke = broke or OwnStop(
@@ -5245,7 +5245,7 @@ class CopilotNativeClient(CodexNativeClient):
                         # Protocol 4: KOLONİ's preToolUse hook asks of every tool of its own.
                         **({"hooks": True} if hooked else {}),
                     }
-                    given = _grouped(flat) if hooked else flat
+                    given = own.given(_grouped(flat), inside) if hooked else flat
                     if resume is None:
                         made, no = await ask("session.create", given)
                     else:
@@ -5329,7 +5329,7 @@ class CopilotNativeClient(CodexNativeClient):
             broke, server, unasked, failure, idle, complaint, process, reported, usage, picked_why
         )
         return replace(
-            result,
+            own.with_calls(result),  # (its own sub-agents' spend: `OwnAgents.with_calls`)
             session={"id": session} if hooked and session else None,
             context_window=window,
             context_used=size["info"] if size["info"] is not None else size["call"],
