@@ -119,9 +119,17 @@ Click a role to open its panel. It has four tabs:
   **Who may move it**: **Any provider in the team guide**, **Only these**, or **No one**. An agent that
   moves a sub-agent to another provider must say why.
 
-  **Run inside the CLI**: only when the agent that opens it runs in Claude Code run **Native** ([experimental](../models/setup-cli.md#experimental-clis)). Cheaper, and counts toward
+  **Run inside the CLI**: only when the agent that opens it runs in Claude Code or GitHub Copilot CLI run
+  **Native** ([experimental](../models/setup-cli.md#experimental-clis)) - Copilot on its newer protocol
+  (1.0.114 on), where its provider is in the team guide. Cheaper, and counts toward
   no turn or role limit; it is not its own agent on the canvas, stops with the agent that opened it, and
-  is never used while you're away. Not for the Orchestrator or a team's lead.
+  is never used while you're away. Not for the Orchestrator or a team's lead. The agent's window and the
+  canvas show it as an **own sub-agent**, "Checker (inside GitHub Copilot CLI)", with what it did inside
+  it. It has its role's own tools only, each asked about as its agent's are (a card where your level
+  says so): none of KOLONİ's tools, which are its agent's, and no sub-agent of its own. In Copilot it
+  runs on the agent's own model; Copilot is given only these roles, none of its built-in sub-agents, and
+  opens one only while it waits for it - one it asks to open in the background, or by another name, is
+  refused.
 - **It may**: **Read and search**, **Write code**, **Run commands**, **Use the web**, or
   **Pick tools one by one**.
 - **This role will** sums up what the role will do, as you change the form.
