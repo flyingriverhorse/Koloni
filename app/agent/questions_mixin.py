@@ -729,7 +729,7 @@ class QuestionsMixin:
                 return "the Orchestrator is not at work"
             name = ctx.name or ctx.role
             said = LEAD_TOLD_ABOUT.format(name=name, words=quoted(words))
-            self._word_waits(lead.run_id, self._send(lead, lead, said, False, True))  # (as a word)
+            self._told_lead_word(lead, self._send(lead, lead, said, False, True), name, words)
             return None
         told = USER_TOLD.format(words=quoted(words))
         door = agent_id in self._doors

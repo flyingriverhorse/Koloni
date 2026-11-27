@@ -250,6 +250,7 @@ class _Transcript:
         message_id = self._open or self._begin()
         content = joined(runner._live[message_id][1], text)
         runner._live[message_id] = (ctx.cid, content)
+        runner._said[ctx.agent_id] = runner._said.get(ctx.agent_id, 0) + 1  # (D2: `_heard`)
         runner.bus.emit_transient(
             ctx.cid, "message.delta", {"message_id": message_id, "text": text}
         )

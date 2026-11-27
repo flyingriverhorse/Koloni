@@ -227,7 +227,9 @@ What is not framed:
 - **A word sent into a turn at work** (Send now) is taken only from the app's own page: from anywhere
   else it is refused, and an agent's message is never read as yours. It enters only the turn of the
   chat it was written in, never a job while you're away; it does not make a turn yours that was not.
-  The Orchestrator's step that answers it writes nothing. **Stop** on one agent is yours from the app's
+  The Orchestrator's steps that answer it are refused Write files, Edit files, Diagram pictures, Run
+  commands, a skill's script, Web requests and any MCP server's tool (Remember and the To-do's tools
+  stay: they wait for your OK). **Stop** on one agent is yours from the app's
   own page; the Orchestrator's `stop_agent` stops only an agent it opened itself in this turn, never
   KOLONİ's own checks. A background agent's desktop notice says only its name and how it ended
   ([Talking while agents work](../use/talk-while-agents-work.md)).

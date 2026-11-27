@@ -38,9 +38,13 @@ A message is in exactly one place: in the turn at work, or in a turn of its own.
 before the Orchestrator read it - you pressed Stop, or the turn failed - your message goes on in a
 turn of its own, queued, so it is never lost.
 
-When it answers your message, the Orchestrator writes no file and runs no command: it hands new work
-to an agent (opens one, or messages one) or says it in its answer. Its own work goes on as before
-once it has answered.
+When it answers your message, the Orchestrator changes nothing itself: its steps until that answer
+are refused Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and
+any MCP server's tool. It hands new work to an agent (opens one, messages one, stops one) or says it in
+its answer; it may still read, look things up, **Remember** and propose To-do tasks, which wait for your
+OK as ever. A CLI Orchestrator's own tools are only told so. Its own work goes on as before once it has
+answered. While it answers it waits for no place among the agents at work: its agents keep theirs, and
+it answers you at once (Settings › This project › Limits and money › More limits).
 
 Only you can send now: the message must come from KOLONİ's own page. What you write is your own
 word, as any message of yours is - Full auto's judge reads it as yours.

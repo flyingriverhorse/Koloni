@@ -966,18 +966,25 @@ def new_turn(
     return run, message
 
 
-def requeued(session: Session, turn: Run, words: list[Message]) -> list[Run]:
+def requeued(
+    session: Session, turn: Run, words: list[Message], spoken: list[dict | None]
+) -> list[Run]:
     """D2: words the user sent now into a turn none of whose steps read them (its Stop, its
     failure, a turn that never came to its loop: `AtWorkMixin._shut_door`), each into a turn of
-    its own - queued, as After this turn would have put it, in the turn's topic, the user's own
-    as the turn was (a word is sent now only from their own page). Not committed."""
+    its own - queued, as After this turn would have put it: in the turn's topic, planned first
+    where the chat plans first, with what it asked of a spoken answer (`spoken`, by word), the
+    user's own as the turn was (a word is sent now only from their own page). Not committed."""
+    conversation = session.get_one(Conversation, turn.conversation_id)
+    plans = conversation.plan_first and project_of(session, conversation) is not None
     runs = []
-    for word in words:
+    for word, asked in zip(words, spoken, strict=True):
         run = Run(
             conversation_id=turn.conversation_id,
             topic_id=turn.topic_id,
             by_user=turn.by_user,
             status="queued",
+            plan_turn=plans,
+            spoken=asked,
         )
         session.add(run)
         session.flush()
@@ -1191,7 +1198,8 @@ async def post_message(
         bus.emit(conversation_id, run.id, "attachment.updated", attachment_out(one))
     bus.emit(conversation_id, None, "conversation.updated", conversation_out(conversation))
     if into is not None:  # (D2: in the same block as its record - nothing awaited since)
-        request.app.state.runner.word_came(into, message.id, content)
+        spoken = body.spoken.model_dump(exclude_none=True) if body.spoken else None
+        request.app.state.runner.word_came(into, message.id, content, spoken)
     elif run.status == "running":
         request.app.state.runner.start(run.id)
     _queues_go_on(request, session, conversation.project_id, back)

@@ -337,6 +337,7 @@ class NativeMixin:
             # discussion, whose history is the shared place's).
             keeps = getattr(model, "resumes", False) and not ctx.discussion
             history = self._history(told, offered, skills=not claude)
+            self._steered_marks(ctx, history)  # (D2: not sent again to a session it goes on in)
             kept = self._cli_session(ctx) if keeps else None  # (after it: notes handed now)
             self._slow(ctx, arm=True)  # (K-yavas: its model is asked until its run ends)
             usage = await model.run_native(
