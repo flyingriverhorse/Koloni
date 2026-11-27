@@ -508,7 +508,8 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Tools', 'memory-page tools-page', 'Tools'],
     ['Ready', 'ready-page', `Ready for you ${greeting()}`],
     ['Usage', 'memory-page', 'Usage'],
-    ['Memory', 'memory-page', 'Reading the project’s memory…'],
+    // (0.1.10: its heading, the three ways and its tabs stand while its memory is read)
+    ['Memory', 'memory-page', 'Memory'],
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])

@@ -1,23 +1,25 @@
-import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useEffect, useId, useState } from 'react'
 import { errorText, overWhat } from '../api/client'
 import type {
   Knowledge,
   KnowledgeIn,
   KnowledgeItem,
   KnowledgeState,
+  KnowsMode,
   Project,
   ProjectFile,
   Provider,
+  Role,
 } from '../api/types'
 import { Markdown } from '../chat/Markdown'
+import { Cell } from '../shell/Cell'
 import { useConfirm } from '../shell/Confirm'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
-import { CopyGuide, Guide, Pages, type Sent, Sources } from './KnowledgeParts'
+import { freshCell } from './fresh'
+import { CopyGuide, Guide, Offer, Pages, RoleTicks, type Sent, Sources } from './KnowledgeParts'
 
 interface Props {
-  /** 0.1.10: the Memory page's two parts (`MemoryParts`): this is its sources. */
-  parts?: ReactNode
   /** The project's knowledge and every project's; null while it is read. */
   items: KnowledgeItem[] | null
   error: string | null
@@ -25,6 +27,9 @@ interface Props {
   providers: Provider[]
   /** The user's other projects: a guide is copied into one of them. */
   otherProjects: Project[]
+  /** 0.1.10: the roles a card gives its knowledge to, a tick each (as a role's Knowledge tab does); left out, only shown. */
+  roles?: Role[]
+  onUse?(knowledgeId: string, roleId: string, mode: KnowsMode | null): Promise<void>
   onReload(): Promise<void>
   onAdd(body: KnowledgeIn): Promise<KnowledgeItem>
   /** Each of these throws ApiError with the server's reason. */
@@ -108,7 +113,6 @@ function coverageLine(state: KnowledgeState): string | null {
   return said.join(' ') || null
 }
 
-/** K-bilgi: the project's Knowledge page - a card for each knowledge, opened to its tabs (layout A). */
 /** KOLONİ's own guide, offered until it is added. Added only: learning it costs model calls, so it waits for Learn on its card. */
 function AddOwnGuide({
   items,
@@ -127,18 +131,18 @@ function AddOwnGuide({
     )
   }
   return (
-    <p className="muted">
-      <strong>KOLONİ’s own guide</strong> — how KOLONİ works, for agents to look up when you ask about it. Only its
-      pages are read, not KOLONİ’s code. Learning it costs model calls: it learns when you press Learn on its card.{' '}
-      <button type="button" className="btn btn-small" onClick={add}>
-        Add KOLONİ’s own guide
-      </button>
-    </p>
+    <Offer
+      name="KOLONİ’s own guide"
+      button="Add KOLONİ’s own guide"
+      onClick={add}
+      line="How KOLONİ works, for agents to look up when you ask about it. Only its pages are read, not KOLONİ’s code. Learning it costs model calls: it learns when you press Learn on its card."
+    />
   )
 }
 
+/** K-bilgi, 0.1.10 as cells: Memory's sources - a card for each knowledge in a grid, opened to its tabs across the row. */
 export function KnowledgePage(props: Props) {
-  const { items, error, projectName, providers, onReload, onAdd, onLearn, parts } = props
+  const { items, error, projectName, providers, onReload, onAdd, onLearn } = props
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [said, setSaid] = useState<string | null>(null)
@@ -172,23 +176,21 @@ export function KnowledgePage(props: Props) {
       .finally(() => setScanning(false))
   }
   return (
-    <div className="triggers-page knowledge-page">
-      <div className="conv-head">
-        <h2>Memory</h2>
-        <span className="muted trigger-lede">
-          Sources: what agents can look things up in.{' '}
+    <div className="knowledge-page">
+      <div className="memory-area-head">
+        <h3>Sources to look things up in</h3>
+        <span className="muted memory-hint knowledge-lede">
+          KOLONİ reads each once into a short guide; a role looks only in those you give it.{' '}
           <Hint doc={GUIDE.knowledge}>
-            What the agents of {projectName} can look things up in. A role uses only what you give it, on its Knowledge
-            tab. Knowledge marked “every project” is in all of your projects; “+ Add knowledge” adds to this one.
+            What the agents of {projectName} can look things up in. A role uses only what you give it: tick it on the
+            card, or on the role’s Knowledge tab. Knowledge marked “every project” is in all of your projects; “+ Add
+            knowledge” adds to this one.
           </Hint>
         </span>
-        <div className="memory-actions">
-          <button type="button" className="btn btn-primary btn-small" onClick={() => setAdding(true)}>
-            + Add knowledge
-          </button>
-        </div>
+        <button type="button" className="btn btn-primary btn-small" onClick={() => setAdding(true)}>
+          + Add knowledge
+        </button>
       </div>
-      {parts}
       {(error || said) && (
         <div role="alert" className="alert">
           {error ?? said}
@@ -205,35 +207,38 @@ export function KnowledgePage(props: Props) {
           </button>
         </div>
       )}
-      {items === null ? (
-        !error && <p className="muted">Reading the project’s knowledge…</p>
-      ) : items.length === 0 ? (
-        <p className="muted hive-empty">
-          No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide agents
-          can look things up in: press + Add knowledge.
-        </p>
-      ) : (
-        items.map(item => (
-          <Card
-            key={item.id}
-            item={item}
-            open={open === item.id}
-            page={props}
-            onOpen={() => setOpen(open === item.id ? null : item.id)}
-            onLearn={() => learn(item.id)}
-          />
-        ))
+      {items === null
+        ? !error && <p className="muted">Reading the project’s knowledge…</p>
+        : items.length === 0 && (
+            <p className="muted hive-empty">
+              No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide
+              agents can look things up in: press + Add knowledge.
+            </p>
+          )}
+      {items !== null && (
+        <div className="knowledge-cards">
+          {items.map(item => (
+            <Card
+              key={item.id}
+              item={item}
+              open={open === item.id}
+              page={props}
+              onOpen={() => setOpen(open === item.id ? null : item.id)}
+              onLearn={() => learn(item.id)}
+            />
+          ))}
+          {!items.some(one => isCode(one.knowledge)) && (
+            <Offer
+              name="This project’s code"
+              button="Scan the code"
+              disabled={scanning}
+              onClick={scan}
+              line="What each file defines, who calls it and its tests, for agents to look up. Free: KOLONİ reads the files here, no model."
+            />
+          )}
+          <AddOwnGuide items={items} onAdd={onAdd} onSaid={setSaid} />
+        </div>
       )}
-      {items !== null && !items.some(one => isCode(one.knowledge)) && (
-        <p className="muted">
-          <strong>This project’s code</strong> — what each file defines, who calls it and its tests, for agents to look
-          up. Free: KOLONİ reads the files here, no model.{' '}
-          <button type="button" className="btn btn-small" disabled={scanning} onClick={scan}>
-            Scan the code
-          </button>
-        </p>
-      )}
-      <AddOwnGuide items={items} onAdd={onAdd} onSaid={setSaid} />
       {adding && (
         <AddKnowledge
           projectName={projectName}
@@ -395,18 +400,6 @@ function Card({
     setTab(next)
     document.getElementById(tabId(next))?.focus()
   }
-  const usedBy = (
-    <span>
-      Used by:{' '}
-      {item.used_by.length === 0
-        ? 'no role yet'
-        : item.used_by.map(one => (
-            <span key={one.role_id} className="chip">
-              {one.name} · {one.mode}
-            </span>
-          ))}
-    </span>
-  )
   /** The Guide tab: when it was learned and on what, then the guide. */
   const guideTab = () => (
     <>
@@ -453,18 +446,24 @@ function Card({
       </button>
     </>
   )
-  /** Its head: the topic that opens it, where it is from, Try it, and what its next learning spends beside the button that spends it. */
+  const cell = freshCell(state, code)
+  /** Its head: how fresh it is as a cell, the topic that opens it, and where it is from. */
   const head = () => (
     <div className="knowledge-card-head">
+      <Cell tone={cell.tone} fill={cell.fill} label={cell.word} />
       <button type="button" className="link-btn knowledge-topic" aria-expanded={open} onClick={onOpen}>
         {open ? '▾' : '▸'} {known.topic}
       </button>
+      {item.project_id === null && <span className="tag">every project</span>}
       <span className="muted knowledge-source">
         {code ? 'scanned from the project' : known.sources[0]}
         {known.sources.length > 1 && ` +${known.sources.length - 1}`}
       </span>
-      {item.project_id === null && <span className="tag">every project</span>}
-      <span className="knowledge-spacer" />
+    </div>
+  )
+  /** Its buttons: Try it, and what its next learning spends beside the button that spends it. */
+  const acts = () => (
+    <div className="knowledge-acts">
       <button type="button" className="btn btn-small" aria-expanded={trying} onClick={() => setTrying(!trying)}>
         Try it
       </button>
@@ -630,18 +629,14 @@ function Card({
       ))}
     </>
   )
-  /** Its facts - a scan's, the notes' or a learned guide's - and who uses it. */
-  const facts = () => (
-    <div className="knowledge-facts">
-      {code ? codeFacts() : learnedFacts()}
-      {usedBy}
-    </div>
-  )
   return (
-    <article className="knowledge-card" aria-label={known.topic}>
+    // Opened, or asked: across the row, its tabs and its answer read at full width.
+    <article className={`knowledge-card${open || trying ? ' knowledge-card-wide' : ''}`} aria-label={known.topic}>
       {head()}
+      <div className="knowledge-facts">{code ? codeFacts() : learnedFacts()}</div>
       {cover()}
-      {facts()}
+      <RoleTicks item={item} roles={page.roles} onUse={page.onUse} />
+      {acts()}
       {told()}
       {confirm.shown()}
       {trying && <TryIt state={state} onTry={question => page.onTry(item.id, question)} />}

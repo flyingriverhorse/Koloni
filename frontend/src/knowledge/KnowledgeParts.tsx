@@ -1,10 +1,125 @@
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from 'react'
 import { ApiError, errorText } from '../api/client'
-import type { Knowledge, KnowledgeState, Project, ProjectFile, Provider } from '../api/types'
+import type {
+  Knowledge,
+  KnowledgeItem,
+  KnowledgeState,
+  KnowsMode,
+  Project,
+  ProjectFile,
+  Provider,
+  Role,
+} from '../api/types'
+import { Cell } from '../shell/Cell'
 import { useConfirm } from '../shell/Confirm'
 import { modelChoices } from '../shell/modelName'
 
 // K-bilgi: a knowledge's parts, on the project's Knowledge page (a row opened) and, for its sources, Agents -> New role -> Expert.
+
+/** A source offered until it is added (this project's code, KOLONİ's own guide): a card with an empty, thin cell. */
+export function Offer({
+  name,
+  line,
+  button,
+  disabled,
+  onClick,
+}: {
+  name: string
+  line: string
+  button: string
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <div className="knowledge-card knowledge-offer">
+      <div className="knowledge-card-head">
+        <Cell tone="plain" fill="thin" label="not added" hidden />
+        <strong>{name}</strong>
+      </div>
+      <p className="muted knowledge-why">{line}</p>
+      <div className="knowledge-acts">
+        <button type="button" className="btn btn-small" disabled={disabled} onClick={onClick}>
+          {button}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 0.1.10: which roles look things up in it, a tick each - unticked, that role no longer does; and another role given it
+ * from the list (Map, as a role's Knowledge tab's switch). An expert's own (Full) is changed on the role's Knowledge tab.
+ */
+export function RoleTicks({
+  item,
+  roles = [],
+  onUse,
+}: {
+  item: KnowledgeItem
+  roles?: Role[]
+  onUse?: (knowledgeId: string, roleId: string, mode: KnowsMode | null) => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [said, setSaid] = useState<string | null>(null)
+  const topic = item.knowledge.topic
+  const use = (roleId: string, mode: KnowsMode | null) => {
+    if (!onUse) return
+    setBusy(true)
+    setSaid(null)
+    onUse(item.id, roleId, mode)
+      .catch(err => setSaid(errorText(err)))
+      .finally(() => setBusy(false))
+  }
+  const others = roles.filter(role => !item.used_by.some(one => one.role_id === role.id))
+  return (
+    <div role="group" aria-label={`Roles that use ${topic}`} className="knowledge-roles">
+      <span className="muted">Used by:</span>
+      {item.used_by.length === 0 && <span className="muted">no role yet</span>}
+      {item.used_by.map(one => (
+        <label
+          key={one.role_id}
+          className="knowledge-role"
+          title={one.mode === 'full' ? 'An expert in it (Full): change it on the role’s Knowledge tab' : undefined}
+        >
+          <input
+            type="checkbox"
+            checked
+            disabled={busy || !onUse || one.mode === 'full'}
+            onChange={() => use(one.role_id, null)}
+          />
+          {one.name}
+          {one.mode === 'full' && (
+            <>
+              {' '}
+              <span className="tag">full</span>
+            </>
+          )}
+        </label>
+      ))}
+      {onUse && others.length > 0 && (
+        <select
+          className="input knowledge-give"
+          aria-label={`Give ${topic} to a role`}
+          value=""
+          disabled={busy}
+          onChange={e => e.target.value && use(e.target.value, 'map')}
+        >
+          <option value="">+ Role…</option>
+          {others.map(role => (
+            <option key={role.id} value={role.id}>
+              {role.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {said && (
+        <span role="alert" className="alert">
+          {said}
+        </span>
+      )}
+    </div>
+  )
+}
 
 const lines = (text: string) =>
   text

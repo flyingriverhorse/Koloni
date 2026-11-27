@@ -4,7 +4,7 @@ import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import { memoryRecord, projectMemory } from '../test-fixtures'
 import { MemoryPage } from './MemoryPage'
-import { byTopic, meter, sourceOf, whereOf } from './memoryText'
+import { byTopic, factStands, meter, sourceOf, whereOf } from './memoryText'
 
 const handlers = () => ({
   onApprove: vi.fn().mockResolvedValue(undefined),
@@ -21,10 +21,13 @@ const handlers = () => ({
 })
 
 const section = (name: string | RegExp) => screen.getByRole('region', { name })
-const panel = (name: string) => screen.getByRole('tabpanel', { name: new RegExp(`^${name}`) })
-/** Opens a tab and gives back what it shows. */
+/** 0.1.10: the page's areas, side by side, by the names its four tabs had. */
+const AREA: Record<string, string> = { Told: 'Your words', Facts: 'Facts', Notes: 'Notes', History: 'History' }
+const panel = (name: string) => section(AREA[name])
+/** An area, History unfolded. */
 async function tab(name: string) {
-  await userEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
+  const fold = panel(name).closest('details')
+  if (fold && !fold.open) await userEvent.click(fold.querySelector('summary')!)
   return panel(name)
 }
 /** The ⋯ of a row, then one of its items. */
@@ -32,11 +35,12 @@ async function menu(row: HTMLElement, item: string) {
   await userEvent.click(within(row).getByRole('button', { name: /^More for/ }))
   await userEvent.click(screen.getByRole('menuitem', { name: item }))
 }
-/** The line of what waits for your word, unfolded. */
+/** What waits for your word: the honey box on top. */
 async function waits() {
-  await userEvent.click(screen.getByRole('button', { name: /wait.? for your word/ }))
   return section('Waits for you')
 }
+/** A note of the journal taken as the start of a fact. */
+const makeFact = (row: HTMLElement) => userEvent.click(within(row).getByRole('button', { name: 'Make it a fact' }))
 
 const fact = memoryRecord('f1', {
   tier: 'fact',
@@ -69,38 +73,96 @@ test('the words for a source say what is known and no more', () => {
   expect(meter(0, 4000)).toBe('0 / 4 000 characters')
 })
 
-test('four tabs by how a record reaches an agent, Facts first; arrows move between them; each says in one line what it holds, the rest behind its "?"', async () => {
+test('0.1.10 as cells: the three ways on top; the core and the journal at the left, your words at the right, History folded; each says in one line what it holds, the rest behind its "?"', async () => {
   render(
     <MemoryPage
       memory={projectMemory({ core: [fact], preferences: 'Answer in Turkish.\n\nKeep it short.', rules: 'Sign off.' })}
       {...handlers()}
     />,
   )
-  const tabs = within(screen.getByRole('tablist', { name: 'Memory' })).getAllByRole('tab')
-  expect(tabs.map(t => t.textContent)).toEqual(['Told 3', 'Facts 1', 'Notes 0', 'History 0'])
-  expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
+  const ways = within(screen.getByRole('list', { name: 'How memory reaches an agent' })).getAllByRole('listitem')
+  expect(ways.map(way => way.querySelector('b')?.textContent)).toEqual([
+    'Given at the start',
+    'Found when asked',
+    'Sources given to a role',
+  ])
+  // (as the app gives them, not more: a fact only when the work names its subject, the Project notes to the Orchestrator)
+  expect(ways[0]).toHaveTextContent('the Project notes, to the Orchestrator; a fact, when the work names its subject')
   expect(panel('Facts')).toHaveTextContent('Given to an agent when its work names the subject.')
-  // the old "how it works" is the Facts tab's "?", all of it there
+  // the old "how it works" is the Facts area's "?", all of it there
   expect(panel('Facts')).toHaveTextContent(
     '“Source unchanged since noted” only means the file lines a record rests on read as they did when it was written. It does not mean the record is right.',
   )
   expect(within(panel('Facts')).getByRole('button', { name: 'About this' })).toBeInTheDocument()
-  // its count of characters stays in sight: a full core refuses more
+  // its count of characters stays in sight beside its ten cells: a full core refuses more
   expect(panel('Facts')).toHaveTextContent('32 / 4 000 characters')
-  tabs[1].focus()
-  await userEvent.keyboard('{ArrowRight}')
-  expect(screen.getByRole('tab', { name: /^Notes/ })).toHaveFocus()
+  expect(panel('Facts').querySelectorAll('.memory-room .cell')).toHaveLength(10)
   expect(panel('Notes')).toHaveTextContent('Found only when an agent looks.')
-  await userEvent.keyboard('{ArrowRight}')
-  expect(panel('History')).toHaveTextContent('Decisions and what was removed. Nothing is deleted.')
-  await userEvent.keyboard('{ArrowRight}')
-  expect(screen.getByRole('tab', { name: /^Told/ })).toHaveFocus()
   expect(panel('Told')).toHaveTextContent('Said to every agent, always.')
-  // only the tab chosen is shown; no counters, no "how this works", no fold by topic
-  expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+  // History folded, with how many it holds on its fold; opened, it says what it is
+  const fold = panel('History').closest('details')!
+  expect(fold).not.toHaveAttribute('open')
+  expect(fold.querySelector('summary')).toHaveTextContent('History 0')
+  expect(await tab('History')).toHaveTextContent('Decisions and what was removed. Nothing is deleted.')
+  expect(fold).toHaveAttribute('open')
+  // a page of the one part has no tabs; no counters, no "how this works", no fold by topic
+  expect(screen.queryByRole('tablist')).toBeNull()
   expect(document.querySelector('.memory-stats')).toBeNull()
   expect(screen.queryByText('How this works')).toBeNull()
   expect(screen.queryByRole('region', { name: 'By topic' })).toBeNull()
+})
+
+test('0.1.10: two parts as tabs, each saying what waits in it; arrows go between them; what is typed in one stays while the other is shown', async () => {
+  const onPart = vi.fn()
+  const props = {
+    ...handlers(),
+    memory: projectMemory({ proposals: [memoryRecord('n1', { wants_core: true })] }),
+    onPart,
+    old: 2,
+    sourcesPart: <p>the sources</p>,
+  }
+  const { rerender } = render(<MemoryPage {...props} />)
+  const [knows, sources] = within(screen.getByRole('tablist', { name: 'Memory’s parts' })).getAllByRole('tab')
+  expect(knows).toHaveTextContent('What the project knows 1 waits for your word')
+  expect(knows).toHaveAttribute('aria-selected', 'true')
+  expect(sources).toHaveTextContent('Sources to look things up in 2 may be old')
+  expect(screen.getByText('the sources')).not.toBeVisible()
+  await userEvent.type(within(section('This project’s rules')).getByLabelText('Rules'), 'Sign off.')
+  knows.focus()
+  await userEvent.keyboard('{ArrowRight}')
+  expect(onPart).toHaveBeenLastCalledWith(true)
+  expect(sources).toHaveFocus()
+  rerender(<MemoryPage {...props} sources />)
+  expect(screen.getByRole('tabpanel', { name: /^Sources to look things up in/ })).toHaveTextContent('the sources')
+  expect(screen.getByLabelText('Rules')).not.toBeVisible()
+  await userEvent.click(within(screen.getByRole('tablist')).getByRole('tab', { name: /^What the project knows/ }))
+  expect(onPart).toHaveBeenLastCalledWith(false)
+  rerender(<MemoryPage {...props} sources={false} />)
+  expect(within(section('This project’s rules')).getByLabelText('Rules')).toHaveValue('Sign off.')
+  // nothing waits, none may be old - or the sources not read yet: no words on the tabs
+  rerender(<MemoryPage {...props} memory={projectMemory()} old={null} />)
+  expect(screen.getAllByRole('tab').map(one => one.textContent)).toEqual([
+    'What the project knows',
+    'Sources to look things up in',
+  ])
+})
+
+test('a fact’s cell says how it stands for agents - given, given to none until you look again, or only found by looking it up - never that it is right', () => {
+  expect([fact, stale, own].map(factStands)).toEqual(['given', 'stale', 'asked'])
+  expect(factStands({ source_state: 'moved', given_unasked: true })).toBe('stale')
+  render(<MemoryPage memory={projectMemory({ core: [fact, stale, own] })} {...handlers()} />)
+  const cells = within(panel('Facts'))
+    .getAllByRole('article')
+    .map(row => within(row).getByRole('img').getAttribute('aria-label'))
+  expect(cells).toEqual([
+    'given when the work names its subject',
+    'given to no agent until you look again',
+    'only found by looking it up',
+  ])
+  // each in words beside its colour, once, above the rows
+  expect(panel('Facts').querySelector('.cell-legend')).toHaveTextContent(
+    'given when the work names its subjectgiven to no agent until you look againonly found by looking it up',
+  )
 })
 
 test('a fact is one row: its words and subject, then where it rests, how that stands, who and when', () => {
@@ -154,7 +216,7 @@ test('a fact no work can name says it is only found by looking it up', () => {
     given_unasked: false,
   })
   render(<MemoryPage memory={projectMemory({ core: [general] })} {...handlers()} />)
-  const shown = within(screen.getAllByRole('tabpanel', { name: /^Facts/ })[1]).getByRole('article')
+  const shown = within(screen.getAllByRole('region', { name: 'Facts' })[1]).getByRole('article')
   expect(shown).toHaveTextContent('this subject is too general to be matched: only found by looking it up')
   expect(shown).not.toHaveTextContent('no subject')
 })
@@ -251,7 +313,7 @@ test('Look again: a moved source shows both places, and you say these are the sa
   expect(await within(card).findByRole('alert')).toHaveTextContent('source changed since it was noted')
 })
 
-test('what waits for your word is one line that unfolds its notes in place: approved as it is, with your edits, or rejected', async () => {
+test('what waits for your word is one honey box on top, its notes in sight: approved as it is, with your edits, or rejected', async () => {
   const h = handlers()
   const proposal = memoryRecord('n1', {
     text: 'Tests run with pytest -q.',
@@ -264,11 +326,10 @@ test('what waits for your word is one line that unfolds its notes in place: appr
     last_change: { agent_id: 'a2', agent_name: 'Coder', at: '2026-10-05T09:00:00Z' },
   })
   render(<MemoryPage memory={projectMemory({ proposals: [proposal], journal: [proposal] })} {...h} />)
-  const line = screen.getByRole('button', { name: '● 1 fact waits for your word' })
-  expect(line).toHaveAttribute('aria-expanded', 'false')
-  expect(screen.queryByRole('region', { name: 'Waits for you' })).toBeNull()
-  const card = within(await waits()).getByRole('article')
-  expect(line).toHaveAttribute('aria-expanded', 'true')
+  const box = await waits()
+  expect(within(box).getByRole('heading')).toHaveTextContent('1 fact waits for your word')
+  expect(box.compareDocumentPosition(panel('Facts')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy() // on top
+  const card = within(box).getByRole('article')
   expect(card).toHaveTextContent('README.md:10-12')
   expect(card).toHaveTextContent('source unchanged since noted')
   expect(card).toHaveTextContent('not seen by KOLONİ')
@@ -338,7 +399,7 @@ test('a note that would replace a fact shows that fact beside it', async () => {
   // put forward on its own, having taken the place of an older note: nothing in the core goes
   const fresh = memoryRecord('n3', { text: 'Docs are in docs/.', about: 'docs', wants_core: true, supersedes_id: 'n0' })
   render(<MemoryPage memory={projectMemory({ core: [stale], proposals: [instead, fresh] })} {...handlers()} />)
-  expect(screen.getByRole('button', { name: '● 2 facts wait for your word' })).toBeInTheDocument()
+  expect(within(await waits()).getByRole('heading')).toHaveTextContent('2 facts wait for your word')
   const [first, second] = within(await waits()).getAllByRole('article')
   const replaced = within(first).getByRole('group', { name: 'Would replace' })
   expect(replaced).toHaveTextContent('The port is 8790.')
@@ -374,17 +435,24 @@ test('a refused approval says why next to the record: the source changed, or the
   expect(within(section('Waits for you')).getAllByRole('article')).toHaveLength(2)
 })
 
-test('the last note that waited, decided, leaves its line saying nothing waits, with the focus on it; a page with nothing waiting has no line', async () => {
+test('the last note that waited, decided, leaves its box saying nothing waits, with the focus on it, once; a page with nothing waiting has no box', async () => {
   const h = handlers()
   const waiting = memoryRecord('n1', { text: 'Waits.', wants_core: true })
   const { rerender } = render(<MemoryPage memory={projectMemory({ proposals: [waiting] })} {...h} />)
   await userEvent.click(within(await waits()).getByRole('button', { name: 'Approve' }))
   // the memory is read again after the decision: nothing waits now
-  rerender(<MemoryPage memory={projectMemory({ core: [{ ...waiting, tier: 'fact' }] })} {...h} />)
-  expect(within(section('Waits for you')).getByText('Nothing waits for you.')).toHaveFocus()
-  expect(screen.getByRole('button', { name: 'Nothing waits for your word' })).toBeInTheDocument()
+  const after = projectMemory({ core: [{ ...waiting, tier: 'fact' }] })
+  rerender(<MemoryPage memory={after} {...h} />)
+  const said = within(section('Waits for you')).getByText('Nothing waits for you.')
+  expect(said).toHaveFocus()
+  expect(within(section('Waits for you')).queryByRole('heading')).toBeNull()
+  // drawn again (the other part's source learning, read each second), it does not take the focus back
+  const box = screen.getByLabelText('Search everything this project remembers')
+  box.focus()
+  rerender(<MemoryPage memory={{ ...after }} {...h} />)
+  expect(box).toHaveFocus()
   rerender(<MemoryPage key="other" memory={projectMemory()} {...h} />)
-  expect(screen.queryByRole('button', { name: /for your word/ })).toBeNull()
+  expect(screen.queryByRole('region', { name: 'Waits for you' })).toBeNull()
 })
 
 test('notes are rows with who wrote them, filtered by topic and by writer (the Lead as the Orchestrator)', async () => {
@@ -441,10 +509,8 @@ test('Make it a fact: Add a fact opens in Facts with the note’s words and subj
     source: { path: 'README.md', start: 1, end: 2 },
   })
   render(<MemoryPage memory={projectMemory({ journal: [note] })} {...h} />)
-  await tab('Notes')
-  await menu(within(panel('Notes')).getByRole('article'), 'Make it a fact')
-  expect(screen.getByRole('tab', { name: /^Facts/ })).toHaveAttribute('aria-selected', 'true')
-  const box = section('Add a fact')
+  await makeFact(within(panel('Notes')).getByRole('article'))
+  const box = within(panel('Facts')).getByRole('region', { name: 'Add a fact' })
   expect(within(box).getByLabelText('Fact')).toHaveValue('Tests run with pytest.')
   expect(within(box).getByLabelText('Fact')).toHaveFocus()
   expect(within(box).getByLabelText('Subject')).toHaveValue('tests')
@@ -473,30 +539,26 @@ test('Make it a fact over a fact half typed asks before replacing it; an empty b
   await userEvent.click(within(panel('Facts')).getByRole('button', { name: '＋ Add a fact' }))
   const words = within(section('Add a fact')).getByLabelText('Fact')
   await userEvent.type(words, 'My own words')
-  await tab('Notes')
-  await menu(within(panel('Notes')).getAllByRole('article')[0], 'Make it a fact')
+  await makeFact(within(panel('Notes')).getAllByRole('article')[0])
   const asked = screen.getByRole('alertdialog')
   expect(asked).toHaveTextContent('Replace what you typed with the note’s words?')
   expect(within(asked).getByRole('button', { name: 'Replace' })).toHaveFocus()
   await userEvent.click(within(asked).getByRole('button', { name: 'Keep editing' }))
   expect(words).toHaveValue('My own words')
-  await tab('Notes')
-  await menu(within(panel('Notes')).getAllByRole('article')[1], 'Make it a fact')
+  await makeFact(within(panel('Notes')).getAllByRole('article')[1])
   await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Replace' }))
   expect(words).toHaveValue('Docs are in docs/.')
   expect(within(section('Add a fact')).getByLabelText('Subject')).toHaveValue('docs')
   // emptied, the next one fills it without a question
   await userEvent.clear(words)
-  await tab('Notes')
-  await menu(within(panel('Notes')).getAllByRole('article')[0], 'Make it a fact')
+  await makeFact(within(panel('Notes')).getAllByRole('article')[0])
   expect(screen.queryByRole('alertdialog')).toBeNull()
   expect(words).toHaveValue('Tests run with pytest.')
 })
 
-test('what waits for your word is searched too: a hit opens the waiting line at that note', async () => {
+test('what waits for your word is searched too: a hit goes to that note in the box on top', async () => {
   const waiting = memoryRecord('n1', { text: 'Tests run with pytest -q.', about: 'tests', wants_core: true })
   render(<MemoryPage memory={projectMemory({ proposals: [waiting], journal: [waiting] })} {...handlers()} />)
-  expect(screen.queryByRole('region', { name: 'Waits for you' })).toBeNull()
   await userEvent.type(screen.getByLabelText('Search everything this project remembers'), 'pytest')
   const found = screen.getByRole('region', { name: 'Search' })
   expect(
@@ -505,7 +567,6 @@ test('what waits for your word is searched too: a hit opens the waiting line at 
       .map(g => g.getAttribute('aria-label')),
   ).toEqual(['Waiting for your word', 'In Notes'])
   await userEvent.click(within(within(found).getByRole('group', { name: 'Waiting for your word' })).getByRole('button'))
-  expect(screen.getByRole('button', { name: '● 1 fact waits for your word' })).toHaveAttribute('aria-expanded', 'true')
   expect(within(section('Waits for you')).getByRole('article')).toHaveFocus()
 })
 
@@ -570,7 +631,7 @@ test('what was removed or replaced is under History and can be taken back', asyn
   expect(await within(first).findByRole('alert')).toHaveTextContent('remove that one first')
 })
 
-test('this project’s rules are one text with a counter, saved as written; what they are is behind the Told tab’s "?"', async () => {
+test('this project’s rules are one text with a counter, saved as written; what they are is behind Your words’ "?"', async () => {
   const h = handlers()
   render(<MemoryPage memory={projectMemory({ rules: 'Sign off commits.' })} {...h} />)
   const told = await tab('Told')
@@ -587,19 +648,15 @@ test('this project’s rules are one text with a counter, saved as written; what
   expect(within(rules).getByText('17 / 1 500')).toBeInTheDocument()
   expect(within(rules).getByRole('button', { name: 'Save rules' })).toBeDisabled() // nothing changed
   await userEvent.type(text, ' No force-push.')
-  // a draft is kept while another tab is open
-  await tab('Facts')
-  await tab('Told')
   await userEvent.click(within(rules).getByRole('button', { name: 'Save rules' }))
   expect(h.onSaveRules).toHaveBeenCalledWith('Sign off commits. No force-push.')
 })
 
-test('0.1.10: the Project notes are the rules’ second box - a line each, up to 4 000, saved as corrected', async () => {
+test('0.1.10: the Project notes are your words’ third paper, under the rules - a line each, up to 4 000, saved as corrected', async () => {
   const h = handlers()
   const kept = '- Coder’s report (its words): the tax - fixed: added it'
   render(<MemoryPage memory={projectMemory({ project_notes: kept })} {...h} />)
-  await tab('Told')
-  const rules = section('This project’s rules')
+  const rules = within(await tab('Told')).getByRole('region', { name: 'Project notes' })
   expect(within(rules).getByText(/The Orchestrator is given them every turn/)).toBeInTheDocument()
   const box = within(rules).getByLabelText('Project notes')
   expect(box).toHaveValue(kept)
@@ -683,8 +740,8 @@ test('you write a fact yourself from ＋ Add a fact, with or without the file li
 test('an empty memory says so in plain words, and one not read yet says that instead', async () => {
   const { rerender } = render(<MemoryPage memory={projectMemory()} {...handlers()} />)
   expect(within(panel('Facts')).getByText(/Nothing is in the core yet/)).toBeInTheDocument()
-  // nothing waits: no line for it
-  expect(screen.queryByRole('button', { name: /for your word/ })).not.toBeInTheDocument()
+  // nothing waits: no box for it
+  expect(screen.queryByRole('region', { name: 'Waits for you' })).not.toBeInTheDocument()
   expect(within(await tab('Notes')).getByText('Agents have noted nothing yet.')).toBeInTheDocument()
   expect(within(await tab('History')).getByText('Nothing has been removed or replaced.')).toBeInTheDocument()
   expect(within(section('Recent decisions')).getByText('Nothing has been decided yet.')).toBeInTheDocument()
@@ -779,7 +836,7 @@ test('a fact made of your words at a card says so, not that you wrote it on this
   expect(second).not.toHaveTextContent('written by you')
 })
 
-test('your preferences are one text in Told, saved as written (22b)', async () => {
+test('your preferences are one text in Your words, saved as written (22b)', async () => {
   const h = handlers()
   render(<MemoryPage memory={projectMemory({ preferences: 'Answer in Turkish.' })} {...h} />)
   await tab('Told')
@@ -818,7 +875,7 @@ test('a suggested preference, under your preferences, is added by you or turned 
   expect(h.onApprove).not.toHaveBeenCalled()
 })
 
-test('as you type, all that is on the page is sifted, grouped by tab, and said; a hit opens its tab at its row, whatever the filters', async () => {
+test('as you type, all that is on the page is sifted, grouped by area, and said; a hit goes to its row, History unfolded, whatever the filters', async () => {
   const note = memoryRecord('n1', { text: 'The port moved to 9000 in staging.', about: 'deploy', agent_name: 'Coder' })
   const other = memoryRecord('n2', { text: 'Docs are in docs/.', about: 'docs', agent_name: 'Lead' })
   const gone = memoryRecord('f9', {
@@ -857,8 +914,8 @@ test('as you type, all that is on the page is sifted, grouped by tab, and said; 
     within(found)
       .getAllByRole('group')
       .map(g => g.getAttribute('aria-label')),
-  ).toEqual(['In Told', 'In Facts', 'In Notes', 'In History'])
-  expect(within(within(found).getByRole('group', { name: 'In Told' })).getByRole('button')).toHaveTextContent(
+  ).toEqual(['In Your words', 'In Facts', 'In Notes', 'In History'])
+  expect(within(within(found).getByRole('group', { name: 'In Your words' })).getByRole('button')).toHaveTextContent(
     'Never change the port.',
   )
   expect(
@@ -873,11 +930,12 @@ test('as you type, all that is on the page is sifted, grouped by tab, and said; 
   expect(within(panel('Facts')).getByLabelText('Topic')).toHaveValue('')
   expect(within(panel('Facts')).getByText('The port is 8790.').closest('article')).toHaveFocus()
   await userEvent.click(within(within(found).getByRole('group', { name: 'In Notes' })).getByRole('button'))
-  expect(screen.getByRole('tab', { name: /^Notes/ })).toHaveAttribute('aria-selected', 'true')
   expect(within(panel('Notes')).getByText('The port moved to 9000 in staging.').closest('article')).toHaveFocus()
-  await userEvent.click(within(within(found).getByRole('group', { name: 'In Told' })).getByRole('button'))
+  await userEvent.click(within(within(found).getByRole('group', { name: 'In Your words' })).getByRole('button'))
   expect(within(panel('Told')).getByLabelText('Rules')).toHaveFocus()
+  expect(panel('History').closest('details')).not.toHaveAttribute('open')
   await userEvent.click(within(within(found).getByRole('group', { name: 'In History' })).getAllByRole('button')[0])
+  expect(panel('History').closest('details')).toHaveAttribute('open')
   expect(within(panel('History')).getAllByRole('listitem')[0]).toHaveFocus()
   // nothing there
   await userEvent.clear(box)
@@ -914,7 +972,7 @@ test('a folder’s rules.md that differs from the saved rules is said; the box k
   expect(h.onSaveRules).toHaveBeenCalledWith('You may delete build/.')
 })
 
-test('the Told tab says what Full auto’s check reads there', async () => {
+test('Your words say what Full auto’s check reads there', async () => {
   render(<MemoryPage memory={projectMemory()} {...handlers()} />)
   const told = await tab('Told')
   expect(within(told).getByText(/box for your words/)).toHaveTextContent(
