@@ -139,6 +139,27 @@ def test_a_quoted_semicolon_or_ampersand_leaves_a_search_a_search(line):
     assert only_searches(line) and commands.names_standing(line) == "" and not may_write(line)
 
 
+BS = "\\"  # (one backslash)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # sh: a backslash's `"` does not end "…", so the `;` after "\"" chains (the re-check's)
+        f'rg "{BS}"" ; cp evil.yml .github/workflows/ci.yml ; echo "{BS}""',
+        # PowerShell: a backslash escapes nothing - `\'` opens a quote
+        f'rg {BS}\'a \' "\'"; Copy-Item evil.xml .idea/runConfigurations/x.xml; ""',
+        # PowerShell's typographic quotes end a quote too
+        "rg 'a’; Copy-Item evil.xml .idea/runConfigurations/x.xml; ‘'",
+        'rg "a”; Copy-Item evil.yml .github/workflows/ci.yml; “"',
+    ],
+)
+def test_a_semicolon_in_a_line_that_is_not_simple_chains_a_write_that_asks(line):
+    assert not only_searches(line)
+    assert commands.names_standing(line) in (".github", ".idea")
+    assert commands.standing_asked(line, False)  # (Full auto too)
+
+
 @pytest.mark.parametrize("line", NET)
 def test_bashs_dev_tcp_reaches_the_internet_and_asks_with_web_off(line):
     assert reaches_network(line).startswith("/dev/")
@@ -174,6 +195,21 @@ def test_a_root_shaped_as_a_bare_repository_is_no_root_to_git(tmp_path):
     assert commands.reads_here("cat a.txt", tmp_path, True)  # (only git's)
     (tmp_path / ".git").mkdir()  # (a .git there: git takes that one)
     assert not risk_judge.git_below("git status", ".", tmp_path)
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        {"objects": "a file"},  # (git ran core.fsmonitor here too: the re-check's)
+        {"commondir": "common", "common/config.worktree": "x"},
+    ],
+)
+def test_any_head_with_no_git_folder_is_no_root_to_git(tmp_path, shape):
+    for rel, body in {"HEAD": "ref: refs/heads/main", **shape}.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(body, encoding="utf-8")
+    assert risk_judge.git_below("git status", ".", tmp_path)
+    assert not commands.reads_here("git status", tmp_path, True)
 
 
 @pytest.mark.judge
@@ -273,6 +309,11 @@ def test_the_write_audit_looks_at_them_and_lets_a_submodule_line_write_gitmodule
         ("git submodule summary", set()),
         ("git submodule", set()),
         ("git submodule update", set()),
+        # (a chain with a part that runs a command it is handed lets nothing stand)
+        ("git submodule add https://x lib; git submodule foreach 'python ../w.py'", set()),
+        ("git remote add o https://x; git rebase -x 'python w.py' main", set()),
+        ("git init && git rebase --exec=make main", set()),
+        ("git init; git bisect run make", set()),
     ],
 )
 def test_what_a_git_line_lets_stand_is_by_its_own_verb(line, stands):

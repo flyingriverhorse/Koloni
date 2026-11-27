@@ -26,6 +26,9 @@ NET_PATH = re.compile(
 )
 # What sh expands in a word: a wildcard, and a brace (`{a,-}*`).
 _EXPANDS = frozenset("*?[{")
+# git's own commands that rewrite `.git/config` in their ordinary work: a remote, a branch's
+# upstream, a new repository (K-yazma-denetimi lets that stand: `git_writes`).
+_CONFIG_WRITERS = frozenset({"init", "remote", "branch", "checkout", "switch"})
 # `git submodule`'s verbs that rewrite `.git/config` as they work (`update` with `--init`), and
 # of them those that write `.gitmodules` too. Never `foreach` (it runs any command), `status`,
 # `summary` nor a bare `git submodule`.
@@ -64,42 +67,82 @@ def globs_an_option(line: str) -> bool:
 
 
 def chained(line: str) -> bool:
-    """Whether a line holds `;`, `&` or a line break outside quotes: one more command after it.
-    Quotes as sh and PowerShell read them, the shells a bare line runs in - `'…'` and `"…"`, a
-    quote after a backslash none (sh's `\\"`); a backslash before `;` keeps it a `;` (PowerShell's).
-    shortcut: cmd keeps no `'` quote - a line it runs comes as `cmd /c …`, whose program is no
-    search, and its script is split at every `&` before it is read (`_script`); a line run in
-    cmd with no `cmd /c` would be misread here."""
-    quote, at = "", 0
-    while at < len(line):
-        char = line[at]
+    """Whether a line holds a `;`, `&` or line break that may end a command and start another:
+    any of them - but in a simple line, one inside `'…'` or `"…"`, where sh and PowerShell (the
+    shells a bare line runs in) agree it is quoted: `rg '&&' .github`. Simple: no backslash,
+    backtick or `$` (sh does not end `"…"` at a backslash's `"`; in PowerShell a backslash before
+    `'` escapes nothing, so the `'` opens a quote), no character past ASCII (PowerShell's
+    typographic quotes are quotes too), every quote paired.
+    shortcut: the simple line alone - a quoted `;` in any other line is a card; tell more lines
+    apart if that is met often. cmd keeps no `'` quote: a line it runs comes as `cmd /c …`, whose
+    program is no search (its script is split at every `&` before it is read: `_script`)."""
+    if not re.search(r"[;&\r\n]", line):
+        return False
+    if re.search(r"[\\`$]|[^\x00-\x7f]", line):
+        return True
+    quote = ""
+    for char in line:
         if quote:
             quote = "" if char == quote else quote
-        elif char == "\\" and line[at + 1 : at + 2] in ("'", '"'):
-            at += 1
         elif char in "'\"":
             quote = char
         elif char in ";&\r\n":
             return True
-        at += 1
-    return False
+    return bool(quote)  # (a quote not paired: no simple line)
 
 
 def looks_bare(root: Path) -> bool:
-    """Whether a folder with no `.git` has a bare repository's shape - a `HEAD` file and an
-    `objects/` folder: git takes it for a repository, whose config an agent could have written
-    (no `.git` name to ask of). Blocking: a look at the disk."""
+    """Whether a folder with no `.git` holds a `HEAD`: git may take it for a repository of its
+    own - a bare one, one whose `objects` is a file, or whose `commondir` leads elsewhere -,
+    whose config an agent could have written (no `.git` name to ask of). Blocking: a look at
+    the disk."""
+    return not os.path.lexists(root / ".git") and os.path.lexists(root / "HEAD")
+
+
+def git_writes(parts: list[tuple[str | None, list[str]]]) -> frozenset[str]:
+    """What of git's own files a chain of git's own commands (each part's command and its words,
+    `commands._git_alone`) rewrites as it works, for the write audit to let stand: `.git/config`
+    (`git init`, `git remote add`, `git push -u`, `git checkout --track`, `git config` not
+    `--global`, a `git submodule` verb's), `.gitmodules` too (`git submodule add`). Nothing where
+    a part runs a command it is handed (`_runs_one`): what that wrote there is not git's."""
+    if any(_runs_one(sub, rest) for sub, rest in parts):
+        return frozenset()
+    written: set[str] = set()
+    for sub, rest in parts:
+        if sub == "submodule":
+            written |= _submodule_writes(rest)
+        elif (
+            sub in _CONFIG_WRITERS
+            or sub == "push"
+            and bool({"-u", "--set-upstream"} & set(rest))
+            or sub == "config"
+            and not {"--global", "--system"} & set(rest)
+        ):
+            written.add(".git/config")
+    return frozenset(written)
+
+
+def _runs_one(sub: str | None, rest: list[str]) -> bool:
+    """Whether a git command runs a command it is handed: `submodule foreach`, `bisect run`,
+    `rebase -x` / `--exec` (a bundle of short options with an `x` in it too: over-read)."""
+    verb = next((word for word in rest if not word.startswith("-")), None)
     return (
-        not os.path.lexists(root / ".git")
-        and (root / "HEAD").is_file()
-        and (root / "objects").is_dir()
+        sub == "submodule"
+        and verb == "foreach"
+        or sub == "bisect"
+        and rest[:1] == ["run"]
+        or sub == "rebase"
+        and any(
+            w.startswith("--exec") or w.startswith("-") and not w.startswith("--") and "x" in w
+            for w in rest
+        )
     )
 
 
-def submodule_writes(rest: list[str]) -> frozenset[str]:
+def _submodule_writes(rest: list[str]) -> frozenset[str]:
     """What of git's own files a `git submodule` line (its words past `submodule`) rewrites as it
-    works, for the write audit to let stand: `.git/config`, and `.gitmodules` for `add`,
-    `set-url`, `set-branch`; nothing for `foreach`, `status`, `summary` or a bare one."""
+    works: `.git/config`, and `.gitmodules` for `add`, `set-url`, `set-branch`; nothing for
+    `foreach`, `status`, `summary` or a bare one."""
     verb = next((word for word in rest if not word.startswith("-")), None)
     if verb in _SUBMODULE_GITMODULES:
         return frozenset({".git/config", ".gitmodules"})

@@ -24,9 +24,9 @@ from app.read_edges import (
     SEARCH_DOES,
     SINKS,
     chained,
+    git_writes,
     globs_an_option,
     looks_bare,
-    submodule_writes,
 )
 from app.workspace import (
     FREE,
@@ -4060,12 +4060,6 @@ def _sets_git_config(command: str) -> bool:
     return False
 
 
-# git's own commands that rewrite `.git/config` in their ordinary work: a remote, a branch's
-# upstream, a new repository (K-yazma-denetimi lets that stand, `writes_git_config`); a
-# submodule's by its verb, never `foreach` (`read_edges.submodule_writes`).
-_CONFIG_WRITERS = frozenset({"init", "remote", "branch", "checkout", "switch"})
-
-
 def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
     """Each part's git command and its words, where a command is git's own alone - every
     part of it; [] where it is not: a part that is no git command, a substitution in it
@@ -4084,27 +4078,11 @@ def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
 def writes_git_config(command: str) -> frozenset[str]:
     """What of git's own files a command rewrites as it works, where it is git's own alone
     (`_git_alone`): `.git/config` (`git init`, `git remote add`, `git push -u`, `git checkout
-    --track`, `git config` not `--global`), `.gitmodules` too (`git submodule add`) - in every
-    reading (`_readings`, k-okuyucu): the least any reading lets stand (`git init # `⏎`rm
-    .git/config` is not git's own alone as written)."""
-    return frozenset.intersection(*[_writes_git_config(line) for line in _readings(command)])
-
-
-def _writes_git_config(command: str) -> frozenset[str]:
-    return frozenset().union(
-        *(
-            submodule_writes(rest)
-            if sub == "submodule"
-            else {".git/config"}
-            if sub in _CONFIG_WRITERS
-            or sub == "push"
-            and bool({"-u", "--set-upstream"} & set(rest))
-            or sub == "config"
-            and not {"--global", "--system"} & set(rest)
-            else ()
-            for sub, rest in _git_alone(command)
-        )
-    )
+    --track`, `git config` not `--global`), `.gitmodules` too (`git submodule add`); nothing
+    where one runs a command (`foreach`: `read_edges.git_writes`) - in every reading (`_readings`,
+    k-okuyucu): the least any reading lets stand (`git init # `⏎`rm .git/config` is not git's
+    own alone as written)."""
+    return frozenset.intersection(*[git_writes(_git_alone(line)) for line in _readings(command)])
 
 
 PATCH = "a patch"
