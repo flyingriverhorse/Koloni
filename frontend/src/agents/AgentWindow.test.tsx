@@ -1272,7 +1272,7 @@ test('Tell <name>… while it works: sent, and said so; what the server says whe
   useApp.setState({
     providers: [
       { name: 'Claude', kind: 'claude_cli' },
-      { name: 'Copilot', kind: 'copilot_cli' },
+      { name: 'Agy', kind: 'agy_cli' },
     ] as Provider[],
   })
   const asked = vi.fn(async () => new Response(null, { status: 204 }))
@@ -1321,10 +1321,10 @@ test('Tell <name>… while it works: sent, and said so; what the server says whe
   expect(await screen.findByRole('alert')).toHaveTextContent('Coder works on in its CLI, which hears nothing more')
   expect(screen.queryByText('Sent to Coder while it works')).toBeNull()
   cleanup()
-  // Over, or a CLI that hears nothing more (Copilot's own session, agy's): no field.
+  // Over, or a CLI that hears nothing more (agy's own session): no field.
   for (const [status, more] of [
     ['completed', {}],
-    ['running', { provider_name: 'Copilot' }],
+    ['running', { provider_name: 'Agy' }],
     ['running', { provider_mode: 'reads' }],
   ] as const) {
     show(status, more)

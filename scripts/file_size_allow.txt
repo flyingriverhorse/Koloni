@@ -15,7 +15,7 @@
 4112 app/git.py
 2950 app/knowledge.py
 2013 app/memory.py
-5734 app/model_native.py
+5732 app/model_native.py
 1984 app/proof_kinds.py
 4646 app/schemas.py
 1656 app/tools.py

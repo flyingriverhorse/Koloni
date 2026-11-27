@@ -1,10 +1,12 @@
 """D2 (0.1.11) with a CLI as the Orchestrator (stand-in CLIs): Send now goes into the turn of a
-CLI that takes a word while it works - Claude Code's user line and Codex's `turn/steer`, both
-measured on 27 Nov 2026 to be read in that turn - as the user's own, once; and the turn does not
+CLI that takes a word while it works - Claude Code's user line, Codex's `turn/steer` and Copilot's
+session.send with mode "immediate", measured on 27 Nov 2026 to be read in that turn - as the
+user's own, once; and the turn does not
 end before its Orchestrator read it: one that took none is run once more, the word its input."""
 
 from app.agent import STEERED, USER_TOLD
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
+from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_parallel import until
 from tests.test_send_now import now
@@ -86,3 +88,17 @@ def test_send_now_to_a_cli_that_takes_none_while_it_works_is_its_next_runs_input
     assert [m["content"] for m in snap["messages"] if m["role"] == "assistant"][
         -1
     ] == "read your word"
+
+
+def test_send_now_to_copilot_in_its_running_work(copilot_native, wait_run, project_dir):  # noqa: F811
+    # Copilot takes a session.send with mode "immediate" into its running work (measured 27 Nov
+    # 2026, 1.0.114 with an empty COPILOT_HOME); with none it would wait for the turn's end.
+    client, provider = copilot_native([{"say": "working"}, {"await_send": True}, {"say": "done"}])
+    cid, run_id = started(client, project_dir, provider)
+    at_work(client, cid, name="Lead")
+    assert now(client, cid, WORD).json()["run"]["id"] == run_id
+    snap = wait_run(client, cid, run_id, timeout=30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (sent,) = copilot_native.record()["sent"]
+    assert (sent["prompt"], sent["mode"]) == (TOLD, "immediate")
+    assert client.app.state.runner._unheard.get(run_id) is None

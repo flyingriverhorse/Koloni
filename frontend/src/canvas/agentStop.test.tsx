@@ -122,16 +122,16 @@ test('a refused Stop says why on the node', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Coder has finished')
 })
 
-test("a Copilot or agy agent hears nothing while it works: its window's box tells the Orchestrator instead", async () => {
+test("an agy agent hears nothing while it works: its window's box tells the Orchestrator instead", async () => {
   const asked = vi.fn(async () => new Response(null, { status: 204 }))
   vi.stubGlobal('fetch', asked)
-  const one = coder({ provider_name: 'Copilot', provider_mode: 'native' })
+  const one = coder({ provider_name: 'Agy', provider_mode: 'native' })
   const s = state(one)
-  useApp.setState({ conv: s, providers: [{ name: 'Copilot', kind: 'copilot_cli' }] as Provider[] })
+  useApp.setState({ conv: s, providers: [{ name: 'Agy', kind: 'agy_cli' }] as Provider[] })
   render(<AgentWindow state={s} agentId="coder" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
   expect(
     screen.getByText(
-      "Coder can't hear messages while it works (Copilot). Tell the Orchestrator instead - it can stop it and start it again.",
+      "Coder can't hear messages while it works (Agy). Tell the Orchestrator instead - it can stop it and start it again.",
     ),
   ).toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: 'Tell Coder' })).toBeNull()

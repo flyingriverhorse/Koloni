@@ -29,6 +29,7 @@ from app import mcp_bridge
 from app.commands import _CLIMBS, only_looks
 from app.ledger import TESTS
 from app.model_cli import (
+    CLAUDE_EXIT,
     RESULT_TEXT,
     ClaudeCliClient,
     CliStepClient,
@@ -48,6 +49,7 @@ from app.model_cli import (
     image_copies,
     levels_of,
     own_error,
+    since_its_last_word,
 )
 from app.model_client import ModelUnavailable, OwnStop, count_of
 from app.model_session import (
@@ -2495,27 +2497,6 @@ def forget_session(session: dict, runtime_root: Path) -> None:
     shutil.rmtree(home / "file-history" / number, ignore_errors=True)
 
 
-def since_its_last_word(messages: list[dict]) -> list[dict]:
-    """What a session it goes on in has not seen: what came after its last answer (but the
-    results of that answer's tool calls, which it was handed then). [] where it has none, or
-    nothing came since: then it starts anew."""
-    talk = [m for m in messages if m["role"] != "system"]
-    last = next(
-        (at for at in range(len(talk) - 1, -1, -1) if talk[at]["role"] == "assistant"), None
-    )
-    if last is None:
-        return []
-    new = talk[last + 1 :]
-    while new and new[0]["role"] == "tool":
-        new = new[1:]
-    return new
-
-
-# How Claude Code's shell tools begin the result of a command that failed.
-# shortcut: from its tool results as known, not measured here (no CLI in tests); measure it
-# on the next live run if a failed command still says "no exit code reported".
-CLAUDE_EXIT = re.compile(r"(?:Error: )?Exit code (-?\d+)\b")
-
 # Claude Code's own tools, by what they can do. Others are asked about in words.
 CLAUDE_WRITES = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 # (Monitor runs a command and reads what it prints: its init `tools` on 2.1.310.)
@@ -4833,7 +4814,7 @@ class CopilotNativeClient(CodexNativeClient):
         effort: str | None,
         bridge_config: Path | None = None,
         denied: tuple[str, ...] | None = None,
-        on_live: OnLive | None = None,  # (never called: its session.send while busy waits, 89d)
+        on_live: OnLive | None = None,  # (its door while its turn runs: `steer`)
         read_only: bool = False,
         no_shell: bool = False,  # (read-only its shell is not among availableTools at all)
         resume: str | None = None,
@@ -5199,6 +5180,21 @@ class CopilotNativeClient(CodexNativeClient):
                 no = "it went on in another session than the one asked"
             return made, no
 
+        door = on_live or (lambda _door: None)  # (`steer` while its turn runs)
+
+        async def steer(text: str) -> bool:
+            """89d: `text` into its running work, `mode` "immediate" as its own client sends it
+            (measured 27 Nov 2026, 1.0.114: taken in that work; with none, after its turn). True:
+            taken, or not answered within STEER_SECONDS. Never an error that ends the run."""
+            asked = {"sessionId": session, "prompt": text, "mode": "immediate"}
+            try:
+                _, no = await asyncio.wait_for(ask("session.send", asked), STEER_SECONDS)
+            except TimeoutError:
+                return True
+            except Exception:
+                return False
+            return no is None
+
         async def talk() -> None:
             nonlocal unasked, started, failure, session, sent, hooked, not_resumed
             reading = asyncio.ensure_future(read())
@@ -5268,12 +5264,14 @@ class CopilotNativeClient(CodexNativeClient):
                 if no is not None:
                     failure = failure or no
                     return
+                door(steer)
                 await reading
                 if idle and self.on_limits and not server.ended:
                     await said_quota()
             except (BrokenPipeError, ConnectionResetError):
                 return  # it is gone: how it ended is said below
             finally:
+                door(None)
                 reading.cancel()
                 with contextlib.suppress(BaseException):
                     await asyncio.shield(asyncio.wait({reading}, timeout=2))

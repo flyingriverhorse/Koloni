@@ -1413,3 +1413,25 @@ class ClaudeSearch(_Searches, ClaudeCliClient):
     def _read(self, stdout: str) -> tuple[object, int | None, int | None]:
         result = next((e for e in reversed(_events(stdout)) if e.get("type") == "result"), {})
         return (None if result.get("is_error") else result.get("result")), None, None
+
+
+def since_its_last_word(messages: list[dict]) -> list[dict]:
+    """What a session it goes on in has not seen: what came after its last answer (but the
+    results of that answer's tool calls, which it was handed then). [] where it has none, or
+    nothing came since: then it starts anew."""
+    talk = [m for m in messages if m["role"] != "system"]
+    last = next(
+        (at for at in range(len(talk) - 1, -1, -1) if talk[at]["role"] == "assistant"), None
+    )
+    if last is None:
+        return []
+    new = talk[last + 1 :]
+    while new and new[0]["role"] == "tool":
+        new = new[1:]
+    return new
+
+
+# How Claude Code's shell tools begin the result of a command that failed.
+# shortcut: from its tool results as known, not measured here (no CLI in tests); measure it
+# on the next live run if a failed command still says "no exit code reported".
+CLAUDE_EXIT = re.compile(r"(?:Error: )?Exit code (-?\d+)\b")
