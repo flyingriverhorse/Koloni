@@ -290,8 +290,8 @@ messages.
       repository's top folder, and a Windows short name (`ENV~1`) are cards too.
     - Since 0.1.11 it decides [a plain push of your feature branch](../use/permissions.md#a-push-of-your-feature-branch)
       to its origin: a "fine" pushes with no card. Its prompt counts sending work off the machine as
-      risky, and no model was measured on pushes yet: expect some pushes to be refused or carded
-      (one you asked for is carded, quoting you, never refused). A bare `git push` (and `origin
+      risky, and no model was measured on pushes yet: expect some pushes to wait on their card
+      (never refused: one you asked for quotes you). A bare `git push` (and `origin
       HEAD`) pushes the branch checked out as it runs: KOLONİ looks again just before it runs, but a
       switch of the project's branch by your own hand in that moment is not seen. The judge is not
       told the branch's name, only the line and what the agent did before it. Before it is asked,
