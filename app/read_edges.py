@@ -14,10 +14,11 @@ SINKS = frozenset(
     | {"out-string", "ft", "fl", "fw"}
 )
 # What a search may be told that writes or runs something: find's actions, rg's preprocessor and
-# its replace and hostname program, ag's/ack's pager (`-r` is rg's and ag's replace, grep's not).
+# its replace and hostname program, ag's/ack's pager (`--pag` too: they take it cut short) and
+# ack's `--output`, which ack 2.x runs as Perl (`-r` is rg's and ag's replace, grep's not).
 SEARCH_DOES = re.compile(
-    r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fprintf|-fls"
-    r"|--pre(?:=.*)?|--replace(?:=.*)?|--pager(?:=.*)?|--hostname-bin(?:=.*)?"
+    r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fprintf|-fls|--output(?:=.*)?"
+    r"|--pre(?:=.*)?|--replace(?:=.*)?|--pag(?:e|er)?(?:=.*)?|--hostname-bin(?:=.*)?"
 )
 # A connection bash (and ksh) opens where a redirection names one of these - `cat <
 # /dev/tcp/host/80`, `exec 3<>/dev/udp/host/53`: the internet, with no program's name in the line;

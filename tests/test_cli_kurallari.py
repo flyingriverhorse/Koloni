@@ -180,6 +180,20 @@ def test_a_quoted_separator_still_cuts_any_line_but_a_lone_search(line):
 @pytest.mark.parametrize(
     "line",
     [
+        # (the review of E12: whole now, its quoted brackets no cut - ack 2.x runs it as Perl)
+        "ack --output='@{[system q[touch pwned]]}' foo .github",
+        "ag --pag='sh -c x' foo .github",  # (ag and ack take `--pager` cut short)
+        "ack --page=less foo .github",
+    ],
+)
+def test_a_search_told_to_run_something_is_no_search(line):
+    assert not only_searches(line)
+    assert commands.names_standing(line) == ".github" and commands.standing_asked(line, False)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
         "cmd /c \"rg 'x>.github/workflows/ci.yml ' src\"",  # (cmd: a `>` in `'` writes)
         "cmd /c \"rg '(x)|y>.github/a' src\"",
         "powershell -Command \"rg 'x>.github/workflows/ci.yml ' src\"",

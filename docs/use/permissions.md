@@ -83,7 +83,8 @@ cover, agy's reads): see [Known limits](../reference/known-limits.md#secrets).
   program run from one, or pytest's `--basetemp` there is asked at every level.
 - A search is a look only while it only reads. Its options are read as the shell joins them, so a quote
   or a backslash inside one changes nothing: `find src -de""lete` is a delete, and `-fpr""intf`,
-  `-ex""ec`, rg's `--p""re=` and `--hostname-bin`, and ag's and ack's `--pager` make it no read. A `find`
+  `-ex""ec`, rg's `--p""re=` and `--hostname-bin`, ag's and ack's `--pager` (or `--pag`), and ack's
+  `--output` (Perl to ack 2.x) make it no read. A `find`
   word in bash's ANSI-C quotes (`$'-de\x6cete'`), which KOLONİ does not decode, is taken for a delete,
   and ag or ack is no look into a tree. In a worktree or a copy such a line is asked at every level.
 - What is inside the scratch is still judged as any path: a `.claude/settings.json` there asks as it
