@@ -174,7 +174,9 @@ of the folder the command runs in or of one above it - and read an `.npmrc` ther
 any of them stops the rule. Where what the agent wrote is such a file - a setting, a manifest, a lock
 or a loader, not the program -, the card says so: "an agent wrote a file this line may read or load
 (web/.npmrc): no rule covers the line while that write stands, so none is offered - run it once or
-reject it".
+reject it". yarn's `.yarn` folder, which holds yarn itself and its unplugged installs, is said as its
+program, as a `node_modules` is ("an agent wrote its program (.yarn): …"). Where an agent wrote both
+a setting and the program, the card names the program.
 
 A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
 closed on two sides. **What an agent wrote:** while an agent's write of any `package.json` (a
@@ -209,7 +211,8 @@ path (`node_modules/.bin/tsc`, as the rule Code style and types offered in 0.1.7
 while an agent's write of a `tsconfig*.json` or `jsconfig*.json` anywhere in the project, or of a
 JSON file that a tsconfig the line reads (the nearest `tsconfig.json`, a folder or `.json` its
 words name - `-p`'s) `extends` or `references`, still holds what it wrote: a tsconfig can make tsc
-write a trace, or a composite build's info where `tsBuildInfoFile` says, outside the project too.
+write a trace, or a composite build's info where `tsBuildInfoFile` says, outside the project too -
+its card names that file as one the line may read or load.
 Code style and types' own line, word for word, is the exception: its `--composite false
 --generateTrace null`, last, win over a tsconfig's composite or incremental build info and its
 trace, so its rule still covers it.
@@ -223,7 +226,9 @@ write of any `pyproject.toml`, `setup.py` or `setup.cfg` anywhere in the project
 it; pip and build build what they install), of their settings (`uv.toml`, `poetry.toml`, `pdm.toml`, `hatch.toml`, `Pipfile`,
 `.python-version`, `.pdm-python`, and pipenv's `.env`, which it loads), their locks (`uv.lock`,
 `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml`) or requirements (`requirements*.txt`,
-`requirements/*.txt`) - but not for a test run (`uv run pytest`). As for node runners, the cost:
+`requirements/*.txt`) - but not for a test run (`uv run pytest`). The card of a write in an
+environment says "an agent wrote its program (.venv)"; of one of these files, that the agent wrote
+a file the line may read or load. As for node runners, the cost:
 after an agent edits a `pyproject.toml` (adding a dependency, say), these rules ask until that
 write is replaced. Their rule names what they run
 (`poetry run ruff`, `uv run python -m ruff`), never the tool alone; and npm's PowerShell shims are
@@ -551,9 +556,8 @@ in a job while you're away, nor in a To-do task's turn, which may run with nobod
 where the line runs a program an agent wrote (the judge reads that one), where it is an interpreter's or
 a runner's line whose file KOLONİ does not find (`uv run python x.py`, `npx x`), or a tool's run that
 builds the folder's code (`cargo run`, `go run .`, `dotnet run`): what it runs is not known, and the
-judge looks. The rule is the chat's, so a sub-agent of the same chat that runs that very line is let by
-too - on purpose, as a Claude Code allow rule holds for that session's sub-agents. A **broad** rule
-never lets a line by:
+judge looks. On purpose: a narrow rule belongs to the chat, so a sub-agent of the same chat running
+that exact line is let through too. A **broad** rule never lets a line by:
 
 - one with no word past its program that is not an option (`npm`, `git`, `docker`, `make`, `gh`,
   `pytest -x`);

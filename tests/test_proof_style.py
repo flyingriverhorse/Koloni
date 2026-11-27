@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from app import proof, proof_style
-from app.cards import PLANTED_READ as READ
+from app.cards import PLANTED, PLANTED_READ
 from app.executors import host
 from tests.conftest import migrated_copy, scaled
 from tests.fakes import Script, ScriptedExecutor
@@ -21,6 +21,15 @@ from tests.keyed import OWN
 from tests.test_agent_writes import wait_status, write
 from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import PASS, begin, texts
+
+
+def ran(place: str) -> str:  # (a card's words where an agent wrote what a line runs: W2, W6)
+    return PLANTED.format(place=place)
+
+
+def reads(place: str) -> str:  # (N9: ...where it wrote a file the line may read or load)
+    return PLANTED_READ.format(place=place)
+
 
 RUFF = ".venv/Scripts/ruff.exe" if sys.platform == "win32" else ".venv/bin/ruff"
 FIXED_LINE = f"{RUFF} check --no-cache --output-format=concise"
@@ -1082,9 +1091,7 @@ def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):
         '"my tools/node_modules/.bin/tsc.cmd" -p x',
         "& 'my tools/node_modules/.bin/tsc.cmd'",
     ):
-        assert _planted(factory, "c", tmp_path, line, ".") == (
-            proof_style_planted("my tools/node_modules")
-        ), line
+        assert _planted(factory, "c", tmp_path, line, ".") == ran("my tools/node_modules"), line
     # (the project's own install over it: theirs again)
     tool.write_text("@echo the project's\n", encoding="utf-8")
     assert _planted(factory, "c", tmp_path, '"my tools/node_modules/.bin/tsc.cmd"', ".") is None
@@ -1098,8 +1105,8 @@ TSC_LINE = f"{TSC} --noEmit --pretty false --incremental false -p tsconfig.json"
 @pytest.mark.parametrize(
     ("written", "cwd", "asked"),
     [
-        (f"sub096/{TSC}", "sub096", "sub096/node_modules"),  # (the review's Q4)
-        (TSC, ".", "node_modules"),  # (over the project's own)
+        (f"sub096/{TSC}", "sub096", ran("sub096/node_modules")),  # (the review's Q4)
+        (TSC, ".", ran("node_modules")),  # (over the project's own)
         ("sub096/notes.md", ".", None),  # (an install nobody wrote in: the rule covers it)
     ],
 )
@@ -1137,7 +1144,7 @@ def test_an_always_rule_does_not_cover_a_program_an_agent_wrote(
     snap = wait_status(client, cid, "waiting_approval")
     (card,) = [one for one in snap["commands"] if one["command"] == TSC_LINE]
     assert card["status"] == "proposed", snap["commands"]
-    assert card["danger"] == proof_style_planted(asked)
+    assert card["danger"] == asked
     assert card["suggested_prefix"] == ""  # (Y2: a rule would not cover it - none is offered)
     assert TSC_LINE not in [line for line, _cwd in executor.started]
     client.post(f"/api/commands/{card['id']}/reject")
@@ -1148,35 +1155,35 @@ def test_an_always_rule_does_not_cover_a_program_an_agent_wrote(
 @pytest.mark.parametrize(
     ("line", "written", "asked"),
     [
-        ("npx tsc --noEmit", TSC, "node_modules"),  # (the second session's Q9b)
-        ("npm exec tsc -- --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
-        ("yarn run tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
-        ("uv run ruff check .", RUFF, ".venv"),
-        ("python -m mypy .", "mypy.py", "mypy.py"),  # (`-m` reads its folder's own first)
+        ("npx tsc --noEmit", TSC, ran("node_modules")),  # (the second session's Q9b)
+        ("npm exec tsc -- --noEmit", "node_modules/typescript/bin/tsc", ran("node_modules")),
+        ("yarn run tsc --noEmit", "node_modules/typescript/bin/tsc", ran("node_modules")),
+        ("uv run ruff check .", RUFF, ran(".venv")),
+        ("python -m mypy .", "mypy.py", ran("mypy.py")),  # (`-m` reads its folder's own first)
         # (the last look's probe: any module the tool imports - the standard one shadowed)
-        ("python -m ruff check .", "subprocess.py", "subprocess.py"),
-        ("python3.12 -m ruff check .", "click/__init__.py", "click"),
-        (f"{RUFF.replace('ruff', 'python')} -m ruff check .", "subprocess.py", "subprocess.py"),
-        ("bun x tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
-        ("yarn run tsc --noEmit", ".yarnrc.yml", ".yarnrc.yml"),  # (its `yarnPath` runs)
-        ("corepack pnpm exec tsc --noEmit", TSC, "node_modules"),
+        ("python -m ruff check .", "subprocess.py", ran("subprocess.py")),
+        ("python3.12 -m ruff check .", "click/__init__.py", ran("click")),
+        (f"{RUFF.replace('ruff', 'python')} -m ruff check", "subprocess.py", ran("subprocess.py")),
+        ("bun x tsc --noEmit", "node_modules/typescript/bin/tsc", ran("node_modules")),
+        ("yarn run tsc --noEmit", ".yarnrc.yml", reads(".yarnrc.yml")),  # (its `yarnPath` runs)
+        ("corepack pnpm exec tsc --noEmit", TSC, ran("node_modules")),
         (
             "node node_modules/typescript/bin/tsc --noEmit",
             "node_modules/typescript/lib/x.js",
-            "node_modules",
+            ran("node_modules"),
         ),
         ("npx tsc --noEmit", "notes.md", None),  # (an install nobody wrote in: covered)
         ("uv run ruff check .", "src/venv_notes.py", None),
         ("python -m ruff check .", "src/app.py", None),  # (no module of its folder's)
         ("python -m pytest -q", "subprocess.py", None),  # (its tests run the project's code)
         # (W7: npx and `npm exec` run the local package's `bin` first; uv its [project.scripts])
-        ("npx tsc --noEmit", "package.json", "package.json"),
-        ("npm exec tsc -- --noEmit", "package.json", "package.json"),
-        ("uv run ruff check .", "pyproject.toml", "pyproject.toml"),
+        ("npx tsc --noEmit", "package.json", reads("package.json")),
+        ("npm exec tsc -- --noEmit", "package.json", reads("package.json")),
+        ("uv run ruff check .", "pyproject.toml", reads("pyproject.toml")),
         ("npm test", "package.json", None),  # (a script by its name: the project's code)
         ("uv run pytest -q", "pyproject.toml", None),
         # (W8: npm's PowerShell shim is npx)
-        ("npx.ps1 tsc --noEmit", TSC, "node_modules"),
+        ("npx.ps1 tsc --noEmit", TSC, ran("node_modules")),
     ],
 )
 def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(  # noqa: PLR0913
@@ -1213,7 +1220,7 @@ def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(  # noqa
     snap = wait_status(client, cid, "waiting_approval")
     (card,) = [one for one in snap["commands"] if one["command"] == line]
     assert card["status"] == "proposed", snap["commands"]
-    assert card["danger"] == proof_style_planted(asked)
+    assert card["danger"] == asked
     assert card["suggested_prefix"] == ""  # (Y2: run once or reject - no rule would cover it)
     assert line not in [one for one, _cwd in executor.started]
     client.post(f"/api/commands/{card['id']}/reject")
@@ -1279,24 +1286,24 @@ def test_a_rule_for_npm_exec_never_runs_it_in_another_package(
     ("line", "rule", "written", "asked"),
     [
         # (W7d: `npm install` runs every workspace's lifecycle scripts)
-        ("npm install", "npm install", "sub096/package.json", "sub096/package.json"),
+        ("npm install", "npm install", "sub096/package.json", reads("sub096/package.json")),
         # (a package.json anywhere - not the folder's or one above it - stops `npx tsc`)
-        ("npx tsc --noEmit", "npx tsc", "other096/package.json", "other096/package.json"),
-        ("npx tsc --noEmit", "npx tsc", "other096/evil096.npmrc", "other096/evil096.npmrc"),
-        ("npx tsc --noEmit", "npx tsc", "other096/.yarnrc.yml", "other096/.yarnrc.yml"),
+        ("npx tsc --noEmit", "npx tsc", "other096/package.json", reads("other096/package.json")),
+        ("npx tsc --noEmit", "npx tsc", "other096/evil096.npmrc", reads("other096/evil096.npmrc")),
+        ("npx tsc --noEmit", "npx tsc", "other096/.yarnrc.yml", reads("other096/.yarnrc.yml")),
         # (a script by its name under its own rule: the project's code, by design)
         ("npm test", "npm test", "sub096/package.json", None),
         ("npx tsc --noEmit", "npx tsc", "other096/notes.md", None),
         # (F395: a lock an install follows; a Python runner's lock anywhere - a pyproject.toml in a
         # folder would make KOLONİ's own test run ask first; tsc's settings)
-        ("npm install", "npm install", "package-lock.json", "package-lock.json"),
+        ("npm install", "npm install", "package-lock.json", reads("package-lock.json")),
         (
             "poetry run ruff check .",
             "poetry run ruff",
             "libs096/poetry.lock",
-            "libs096/poetry.lock",
+            reads("libs096/poetry.lock"),
         ),
-        ("npx tsc --noEmit", "npx tsc", "web096/tsconfig.json", "web096/tsconfig.json"),
+        ("npx tsc --noEmit", "npx tsc", "web096/tsconfig.json", reads("web096/tsconfig.json")),
     ],
 )
 def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noqa: PLR0913
@@ -1335,7 +1342,7 @@ def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noq
     snap = wait_status(client, cid, "waiting_approval")
     (card,) = [one for one in snap["commands"] if one["command"] == line]
     assert card["status"] == "proposed" and card["suggested_prefix"] == "", snap["commands"]
-    assert card["danger"] == proof_style_planted(asked)
+    assert card["danger"] == asked
     assert line not in [one for one, _cwd in executor.started]
     client.post(f"/api/commands/{card['id']}/reject")
     wait_run(client, cid, second["run"]["id"])
@@ -1612,7 +1619,7 @@ def test_a_python_runners_rule_stops_at_a_manifest_or_setting_an_agent_wrote_any
     factory = _copy_db(tmp_path, {written: "PLANTED = 1\n"})
     root = (tmp_path / "copy").resolve()
     (root / cwd).mkdir(parents=True, exist_ok=True)
-    assert _planted(factory, "c", root, line, cwd) == (READ.format(place=asked) if asked else None)
+    assert _planted(factory, "c", root, line, cwd) == (reads(asked) if asked else None)
     # (written over since - the user's own again: covered)
     (root / written).write_text("[tool.ruff]\n", encoding="utf-8")
     assert _planted(factory, "c", root, line, cwd) is None
@@ -1659,7 +1666,7 @@ def test_a_node_runners_rule_stops_at_a_lock_or_a_package_below_an_agent_wrote(
     factory = _copy_db(tmp_path, {written: "PLANTED\n"})
     root = (tmp_path / "copy").resolve()
     (root / cwd).mkdir(parents=True, exist_ok=True)
-    assert _planted(factory, "c", root, line, cwd) == (READ.format(place=asked) if asked else None)
+    assert _planted(factory, "c", root, line, cwd) == (reads(asked) if asked else None)
 
 
 TSC_EXTENDS = '{"extends": "./configs/base", "include": ["src"]}\n'
@@ -1715,7 +1722,7 @@ def test_a_tsc_rule_stops_at_a_setting_an_agent_wrote(tmp_path, line, cwd, writt
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_text(said, encoding="utf-8")
     (root / cwd).mkdir(parents=True, exist_ok=True)
-    assert _planted(factory, "c", root, line, cwd) == (READ.format(place=asked) if asked else None)
+    assert _planted(factory, "c", root, line, cwd) == (reads(asked) if asked else None)
 
 
 def test_what_tsc_reads_follows_extends_and_references_once_each_and_not_for_ever(tmp_path):
@@ -1782,13 +1789,6 @@ MANIFESTS = {
     "package.json": '{"name": "x", "bin": {"tsc": "./evil096.js"}}\n',
     "pyproject.toml": '[project]\nname = "x"\n\n[project.scripts]\nruff = "evil096:main"\n',
 }
-
-
-def proof_style_planted(place: str) -> str:
-    from app.command_runner import PLANTED, PLANTED_READ
-
-    read = place.endswith((".json", ".yml", ".toml", ".lock", ".npmrc"))  # (N9: not its program)
-    return (PLANTED_READ if read else PLANTED).format(place=place)
 
 
 # --- the second session's round (W3-W5): what a tool said, how long its lines take ------------

@@ -15,7 +15,7 @@ from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
 from app import ledger, project_map, proof, proof_style, risk_judge
-from app.cards import PLANTED, PLANTED_READ, card_reason, rule_kept_off
+from app.cards import PLANTED, PLANTED_READ, PLANTED_SAYS, card_reason, rule_kept_off
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
@@ -515,8 +515,9 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
         if places is None:
             found = proof_style.wrote_program(root, cwd, program, [rel])
         elif found := proof_style.planted_in(root, places, anywhere, rel):
-            # (a runner's place that is no install folder is a file it reads or loads: `.npmrc`)
-            code = PurePosixPath(found).name.casefold() in (*proof_style.INSTALLS, "venv")
+            # (an install folder, or yarn's `.yarn` - its release, its unplugged installs - is what
+            # it runs; any other place of a runner's is a file it reads or loads: `.npmrc`)
+            code = PurePosixPath(found).name.casefold() in (*proof_style.INSTALLS, "venv", ".yarn")
             return (PLANTED if code else PLANTED_READ).format(place=found)
         module = (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only)))
         if found := found or next(module, None):
@@ -524,7 +525,9 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
         return PLANTED_READ.format(place=read) if (read := setting(rel)) else None
 
     held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])
-    return next((said for rel in held if (said := plants(rel))), None)
+    said = [one for rel in held if (one := plants(rel))]
+    # (a program an agent wrote is said first, whichever write came first: it is what runs)
+    return next((one for one in said if one.startswith(PLANTED_SAYS[0])), next(iter(said), None))
 
 
 # Y1: cmd.exe's word for a bare name it did not find - under KOLONİ only on PATH (W1, as under
