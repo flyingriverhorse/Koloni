@@ -605,10 +605,13 @@ The list still asks at every level - its card, never the judge's word - about:
   (its `/s` reads as a path from the drive's root);
 - a working copy's, a branch worktree's and a disposable delete's own reasons.
 
-**fine** runs the line; **risky** is refused (Refuse and go on) or waits on its card (Ask me). That card
-says what the list says of the line ("Deletes files or disks."), the judge's sentence on its record, and
-has no **Don't ask about this line again here**: Run once runs that one line, and the next is asked
-again. Anything else - the switch off, no judge model to answer, an answer it cannot read, no room -
+Where [Check what I said first](#check-what-i-said-first) works it looks first: its run runs, its
+refusal refuses, and its ask - a condition of yours, "ask me first" - keeps the card; the judge is not
+asked then. **fine** runs the line; **risky** is refused (Refuse and go on) or waits on its card (Ask
+me). That card says what the list says of the line ("Deletes files or disks."), the judge's sentence on
+its record, and has no **Don't ask about this line again here**: Run once runs that one line. A **risky**
+stands for the turn - the same line again is refused or its card without asking -, a **fine** is asked
+again each time (what the turn did before changes what a delete takes). Anything else - the switch off, no judge model to answer, an answer it cannot read, no room -
 is the list's card as before; and so is each of these at **Ask before changes** and **Auto-edit
 files**, in a To-do task's turn, in a job while you're away (parked), in a turn of a chat you went away
 from, on a side of a comparison, and for a CLI whose folder KOLONİ does not know. If the chat leaves

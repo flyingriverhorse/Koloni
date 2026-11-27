@@ -575,17 +575,18 @@ class RiskJudgeMixin:
         found: tuple[str, dict | None],
         known: bool,
     ) -> bool:
-        """K3: whether the list's own card (`found`: its reason - of the check of the user's words
-        no record, or only its "ask") is Full auto's judge's to decide: each harm of the line one it
-        takes (`risk_judge.judges`), where it runs a fact (`known`), in a turn the user watches at
-        Full auto - not a job while they are away, a To-do task's, a side of a comparison, nor a
-        turn of the chat they went away from (`away.gone_from`). Ask, Auto-edit and every turn
-        nobody watches keep the list as it is."""
+        """K3: whether the list's own card (`found`: its reason, and no record of the check of the
+        user's words - its run runs, its refusal refuses and its ask, a condition of theirs or
+        "ask me first", keeps the card) is Full auto's judge's to decide: each harm of the line
+        one it takes (`risk_judge.judges`), where it runs a fact (`known`), in a turn the user
+        watches at Full auto - not a job while they are away, a To-do task's, a side of a
+        comparison, nor a turn of the chat they went away from (`away.gone_from`). Ask, Auto-edit
+        and every turn nobody watches keep the list as it is."""
         reason, record = found
         if not (
             reason
             and known
-            and (record is None or record.get("verdict") == "ask")
+            and record is None
             and ctx.run_id not in self._todo_turns
             and ctx.run_id not in self._sides
             and risk_judge.judges(with_cwd(command, cwd))
@@ -648,8 +649,8 @@ class RiskJudgeMixin:
         takes: bool = False,
     ) -> tuple[str, dict | None]:
         """`_risk_judged`'s work, which may raise. `takes`: the list's card put to the judge (K3) -
-        no key for its line: no Run on its card nor "don't ask again" lets a delete by, and each is
-        asked anew (what the turn did before it changes)."""
+        no Run on its card nor "don't ask again" is kept for its line, nor its "fine" (what the
+        turn did before it changes); its "risky" is, as any line's: not asked again and again."""
         line = with_cwd(command, cwd)
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
@@ -700,21 +701,25 @@ class RiskJudgeMixin:
         # x.py` is; a shell's code never is: `_named_file`'s exact)
         one = is_plain(command) and not is_wrapped(command)
         hashed = bool(digest) and exact and one
-        kept = not takes and known and (hashed or _no_local_code(root, command, cwd or "."))
+        kept = known and (hashed or _no_local_code(root, command, cwd or "."))
         key = (command.strip(), cwd or "", digest if hashed else "", str(root)) if kept else None
-        if key and (
-            self._risk_cache.get(ctx.run_id, {}).get(key) == "approved"
-            or self._risk_allowed(project_id, key)
+        if (
+            key
+            and not takes
+            and (
+                self._risk_cache.get(ctx.run_id, {}).get(key) == "approved"
+                or self._risk_allowed(project_id, key)
+            )
         ):
             return "", None
         # ("program", "root": the line's key, for `_risk_approved` - "program" None: none;
         # "looked": False until the model's verdict is had - no fields of `schemas.Judged`)
         record: dict = {"kind": "risk", "verdict": "risky", "why": "", "model": "", "looked": False}
-        record |= {"program": digest if key else None, "root": str(root)}
+        record |= {"program": digest if key and not takes else None, "root": str(root)}
         if why := risk_judge.risky_unasked(command, program[1] if program else None, earlier):
             return CARD.format(why=why), {**record, "why": why}
         seen = _Seen(root, (cwd or ".") if known else None, path, program, digest, earlier)
-        return await self._risk_asked(ctx, command, cwd, seen, key, record)
+        return await self._risk_asked(ctx, command, cwd, seen, key, record, takes)
 
     @staticmethod
     def _risk_earlier(session, ctx: Ctx) -> list[str]:
@@ -807,11 +812,13 @@ class RiskJudgeMixin:
         seen: _Seen,
         key: tuple[str, ...] | None,
         record: dict,
+        takes: bool = False,
     ) -> tuple[str, dict | None]:
         """The judge asked (`_risk_asks`) - once a turn for a line with a key and the user's words
-        as they are -, what it reads masked (`raw.hidden`); a "fine" whose program changed while
-        it was asked is a card. Where no model can be asked (`NO_MODEL`: fails closed) or one may
-        not be asked now (`_risk_no_room`), its card - said once a turn in the chat."""
+        as they are (`takes`, K3: its "fine" never kept) -, what it reads masked (`raw.hidden`); a
+        "fine" whose program changed while it was asked is a card. Where no model can be asked
+        (`NO_MODEL`: fails closed) or one may not be asked now (`_risk_no_room`), its card - said
+        once a turn in the chat."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = session.get_one(Project, conversation.project_id)
@@ -823,7 +830,8 @@ class RiskJudgeMixin:
             digest = hashlib.sha256(json.dumps(said, sort_keys=True).encode()).hexdigest()
             full = (*key, digest) if key else None
             cache = self._risk_cache.setdefault(ctx.run_id, {})
-            if full and isinstance(found := cache.get(full), dict):
+            found = cache.get(full) if full else None
+            if isinstance(found, dict) and not (takes and found["verdict"] == "fine"):
                 why = found["why"] or NO_REASON
                 return ("" if found["verdict"] == "fine" else CARD.format(why=why)), found
             would = would_run(session, find_role(session, LEAD), conversation)
@@ -857,7 +865,7 @@ class RiskJudgeMixin:
         if await asyncio.to_thread(self._risk_moved, command, seen):
             changed = {"verdict": "risky", "why": CHANGED, "looked": False}
             return CARD.format(why=CHANGED), {**record, **changed}
-        if full:
+        if full and not (takes and got["verdict"] == "fine"):
             cache[full] = record
         why = record["why"] or NO_REASON
         return ("" if got["verdict"] == "fine" else CARD.format(why=why)), record
