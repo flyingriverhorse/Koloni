@@ -34,6 +34,7 @@ from app.commands import (
     is_wrapped,
 )
 from app.masking import masked
+from app.read_edges import looks_bare
 
 # A command longer than this is a card unasked: what the judge reads is cut nowhere.
 MOST_COMMAND_CHARS = 4000
@@ -268,6 +269,20 @@ def ordinary(command: str, npm_run: bool = False) -> bool:
         else not _OUT.search(word)
         for word in rest[verbs is not None :]
     )
+
+
+def git_below(command: str, cwd: str | None, root: Path | None = None) -> bool:
+    """Whether a line runs git where a repository not the project's may stand: in a folder below
+    the project's root (its `cwd`, as `cd x && git status` does), in one not known (None: Claude
+    Code's PowerShell keeps a `Set-Location`), or at a `root` with no `.git` shaped as a bare
+    repository (`looks_bare`). One shaped there - a bare one's `config` and `hooks`, with no
+    `.git` name to ask of - sets programs git runs (Claude Code asks of `cd` + git: "bare
+    repository attacks"). It is judged, never let by as a read or as ordinary work. Blocking
+    where `root` is given: a look at the disk."""
+    words = _words(command.strip())
+    if not words or _program(words[0]) != "git":
+        return False
+    return cwd not in ("", ".") or root is not None and looks_bare(root)
 
 
 # K3 (0.1.10, as Claude Code's auto mode): the list's harms the judge decides in a turn the user

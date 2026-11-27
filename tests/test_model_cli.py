@@ -231,6 +231,8 @@ async def test_codex_is_run_with_its_tools_off_in_an_empty_folder(cli):
         "hooks",
         "image_generation",
     } <= disabled
+    # B-304: nor its own sub-agents - 0.172.0 opened one with `multi_agent` off (27 Nov 2026)
+    assert argv[argv.index("agents.enabled=false") - 1] == "-c"
     # measured 4 Nov 2026 (R185): this takes its web search off the model's list too
     assert argv[argv.index("web_search='disabled'") - 1] == "-c"
     assert argv[argv.index("--cd") + 1] == seen["cwd"]
@@ -354,6 +356,7 @@ async def test_codex_runs_without_the_users_own_mcp_servers(cli, tmp_path):
     argv = record()["argv"]
     overrides = [argv[i + 1] for i, a in enumerate(argv) if a == "-c"]
     assert overrides == [
+        "agents.enabled=false",
         "web_search='disabled'",
         "mcp_servers.token-efficiency.enabled=false",
         "mcp_servers.sonarqube.enabled=false",

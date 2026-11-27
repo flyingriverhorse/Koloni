@@ -153,6 +153,7 @@ def test_its_own_tools_are_off_but_its_code_mode_host_and_the_users_servers_are(
     assert not [one for one in argv if "code_mode_host" in one]
     assert "web_search='disabled'" in settings
     assert "mcp_servers.theirs.enabled=false" in settings  # the user's own server is off
+    assert "agents.enabled=false" in settings  # B-304: 0.172.0's sub-agents (multi-agent v2)
     assert argv[-1] == "app-server"
 
 

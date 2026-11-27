@@ -14,10 +14,12 @@ messages.
   `rg`, `gci | gc`), is asked about at every level, Full auto too. A script that opens a secret file
   without naming it (it builds the name, say) is not caught. Only Docker and Copilot's sandbox hide secret
   files from commands; KOLONİ's own commands on this machine, Claude Code, Codex and agy do not.
-- When it runs **Native**, Codex runs the commands its own rules count as safe (a read of `.env`, or of a
-  file outside the project) without asking KOLONİ, at every level; KOLONİ records them after they ran, so
-  no card stands in their way. agy reading with its own tools has no hook: its reads, of a secret file
-  too, are not asked about at any level.
+- When it runs **Native**, Codex asks KOLONİ before its commands - a read of `.env` too (measured on 27 Nov
+  2026 with Codex 0.172.0: it asked before both `Get-Content readme.txt` and `Get-Content .env`; this guide
+  said it ran its own safe commands unasked, and older versions were not measured again). A command an
+  allow rule of Codex's own covers
+  still runs without asking; KOLONİ records it after it ran, so no card stands in its way. agy reading with
+  its own tools has no hook: its reads, of a secret file too, are not asked about at any level.
 - A command you approve can still print, encode or send a secret it was given.
 - An agent's request for a key on a hidden card is not available to CLIs working with their own tools.
 - A branch deleted because it held a secret you gave still has its commits in git's reflog until git
@@ -185,6 +187,11 @@ messages.
   `rsync --delete`, `robocopy /MIR`, `mail`, `ssh host 'command'`.
 - At Full auto, the harm check sees honest commands only; a command written to hide what it does is not
   seen. See [Security model](../security/model.md).
+- A command that writes into `.idea/` without naming it is not seen: KOLONİ puts back files that steer
+  later turns after a command, but does not look into `.idea/`, which a JetBrains IDE rewrites itself.
+- Below Full auto, a `git` read whose folder KOLONİ does not know - Claude Code's PowerShell or Monitor,
+  and many of Copilot's commands - is judged as run at the project's top, where it runs unasked; at Full
+  auto it goes to the judge.
 - [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
     - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
       at Full auto before the judge.

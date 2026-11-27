@@ -535,7 +535,8 @@ class RiskJudgeMixin:
         Not judged: not a watched Full auto turn nor a job's at Full auto, a
         line the user lets run or KOLONİ asks of anyway (`exempt`: a skill's script they allowed,
         a disposable delete, a reason in a working copy, a role that runs no command),
-        the project's switch off (read at each command), one that only reads, their own test
+        the project's switch off (read at each command), one that only reads (and an ordinary
+        line: git's at the root alone, `risk_judge.git_below`), their own test
         command (but where an agent wrote the program it runs), one asked at every level anyway
         (a secret, a file that steers later turns), an ordinary line (`risk_judge.ordinary`, what
         it runs not an agent's: `_planted`, W7), one a narrow "Always run" rule of the chat covers
@@ -623,17 +624,18 @@ class RiskJudgeMixin:
         root: Path,
         known: bool,
         ruled: bool = False,
+        below: bool = False,
     ) -> tuple[bool, Path | None, tuple[str, str | None, int] | None, str, bool]:
-        """Whether a line is let by unjudged: ordinary (`risk_judge.ordinary`) or covered by a
-        narrow rule (`ruled`), nothing it runs an agent's (`_planted`; a ruled line's program not
-        an agent's either: `_agents`); the
+        """Whether a line is let by unjudged: ordinary (`risk_judge.ordinary`; no git `below`) or
+        by a narrow rule (`ruled`), nothing it runs an agent's (`_planted`; a ruled line's program
+        not an agent's either: `_agents`); the
         file it runs as its program (`_named_file`, where `known`); that program as the judge is
         shown it where an agent wrote it (`_agents`) - its text only where a write of an agent's
         on record made it, never one in the scratch it did not (0.1.10: a command's output, a
         fetched page; text None) -; its digest whoever wrote it ("": no file found); and whether
         that file is all the line runs (`_Files.exact`). Blocking."""
         npm = [_program(word) for word in _words(command.strip())[:1]] == ["npm"]  # (npm.cmd)
-        ordinary = risk_judge.ordinary(command, npm_run=True)
+        ordinary = risk_judge.ordinary(command, npm_run=True) and not below
         plain = (
             (ordinary or ruled)
             and _planted(self._factory, ctx.cid, root, command, cwd) is None
@@ -671,13 +673,15 @@ class RiskJudgeMixin:
         no Run on its card nor "don't ask again" is kept for its line, nor its "fine" (what the
         turn did before it changes); its "risky" is, as any line's: not asked again and again."""
         line = with_cwd(command, cwd)
+        # (git where another repository may stand: a folder below, or one not known; a bare root)
+        below = await asyncio.to_thread(risk_judge.git_below, command, cwd if known else None, root)
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = project_of(session, conversation)
             if (
                 project is None
                 or not project.full_auto_judge
-                or only_reads(command)
+                or (only_reads(command) and not below)
                 or names_secret(line)
                 or standing_asked(line, False)
             ):
@@ -706,7 +710,7 @@ class RiskJudgeMixin:
             # (anywhere but the project itself - a working copy, a branch's worktree - is a copy)
             in_copy = root.resolve() != Path(project.root_path).resolve()
         plain, path, program, digest, exact = await asyncio.to_thread(
-            self._risk_line, ctx, command, cwd or ".", root, known, ruled
+            self._risk_line, ctx, command, cwd or ".", root, known, ruled, below
         )
         exact = exact and not _sees_python_path(command, in_copy)
         # (the user's own test command is theirs - but not where it runs a program an agent wrote)

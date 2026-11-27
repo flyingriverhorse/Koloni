@@ -1167,6 +1167,15 @@ class CodexCliClient(CliStepClient):
         "in_app_browser",
         "in_app_local_automation",
     )
+    # B-304: none of its own sub-agents, here and Native (`CodexNativeClient._native_arguments`).
+    # Measured 27 Nov 2026 (Codex 0.172.0, app-server, gpt-6-luna): with `multi_agent` off (a
+    # deprecated v1 switch: its models take multi-agent v2) it still opened one when asked - a
+    # second thread, `collabAgentToolCall` items; with `agents.enabled=false` too it had no such
+    # tool. Both are given: an older Codex reads the feature.
+    # shortcut: the key on a Codex before 0.172.0 is not measured; one that refuses it says so as
+    # it starts - drop it there then. Nor is it measured with `codex exec`: step by step (where no
+    # tool of its own runs without its code-mode host anyway) and its search.
+    NO_AGENTS = ("-c", "agents.enabled=false")
     # Measured 4 Nov 2026 (R182): one stderr line for each refused attempt. (Not stdout's
     # `error` item "Code Mode is unavailable because code-mode host is disabled", which every
     # run writes as it starts: no attempt.)
@@ -1218,6 +1227,7 @@ class CodexCliClient(CliStepClient):
         ]
         for feature in self.DISABLED:
             arguments += ["--disable", feature]
+        arguments += self.NO_AGENTS
         arguments += ["-c", "web_search='disabled'"]  # (not `CodexSearch`'s: its own arguments)
         # The user's own MCP servers would be tools KOLONİ neither approves nor records.
         for name in self._own_mcp_servers():
@@ -1349,6 +1359,7 @@ class CodexSearch(_Searches, CodexCliClient):
         for feature in self.DISABLED:
             if feature != "code_mode_host":
                 arguments += ["--disable", feature]
+        arguments += self.NO_AGENTS
         for name in self._own_mcp_servers():
             arguments += ["-c", f"mcp_servers.{name}.enabled=false"]
         arguments += codex_skills_off(self._env)

@@ -5,7 +5,7 @@ What KOLONİ supports for each CLI. How to set one up is in [Set up a CLI](../mo
 | CLI | Command | How it runs (default first) | Native asks KOLONİ before | Plan read | Versions measured with KOLONİ |
 |---|---|---|---|---|---|
 | Claude Code | `claude` | session, step, native | every tool it uses | yes (one short request) | 2.1.310, 2.1.311, 2.1.312 |
-| Codex | `codex` | session, native | each command and patch, but not those its own rules count as safe | yes | 0.163.0, 0.164.0 |
+| Codex | `codex` | session, native | each command and patch, but not those its own allow rules cover | yes | 0.163.0, 0.164.0, 0.172.0 |
 | GitHub Copilot CLI | `copilot` | session, native | every tool it uses, through KOLONİ's own hook (1.0.114 on); on the older protocol, each command, write and read | yes | 1.0.91, 1.0.103, 1.0.105, 1.0.114 |
 | agy ([experimental](../models/setup-cli.md#experimental-clis)) | `agy` | reads, native | every tool it uses | yes | 1.3.3, 1.4.7, 1.4.8 |
 

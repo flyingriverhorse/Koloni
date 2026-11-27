@@ -32,6 +32,13 @@ UNREAD_FOLDERS = frozenset(
         "htmlcov",
     }
 )
+# Standing names the write audit (`standing`) does not look into: a JetBrains IDE rewrites
+# `.idea/workspace.xml` itself as the user works - it would be put back in every watched turn -
+# and keeps megabytes of caches there (`dataSources/`, SonarLint's). A write or a command naming
+# it is still asked (`NOT_WRITTEN_UNATTENDED`).
+# shortcut: so a command that writes into `.idea` without naming it is not seen; look at its run
+# configurations alone if one is seen written so.
+UNLOOKED = frozenset({".idea"})
 MAX_FILE_BYTES = 256 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 # How a link or a junction at a standing path is held in `standing`, before where it leads.
@@ -153,7 +160,7 @@ def standing(root: str | Path) -> dict[str, bytes]:
     `NOT_WRITTEN_UNATTENDED` in it (of git's folder only its hooks and its config), the folder
     `core.hooksPath` names in the project, and an environment's `.pth` files (`PTH_GLOBS`). A
     link or a junction at such a path is held as `LINK` and where it leads, and not gone
-    into. No size or text limit and no mtime shortcut: the set is small.
+    into. No size or text limit and no mtime shortcut: the set is small (not `UNLOOKED`).
     shortcut: a file KOLONİ cannot read is not in it, nor what is written through a link that
     was there before (a linked worktree's git folder, a `.venv` linked in); read those too if
     an agent is seen to write there. The scratch `.koloni/tmp/` is not walked (`_scratch`).
@@ -186,6 +193,7 @@ def standing(root: str | Path) -> dict[str, bytes]:
                 or name not in UNREAD_FOLDERS
                 and not (in_claude and _name(name) == "worktrees")
             )
+            and _name(name) not in UNLOOKED
             and tuple(map(_name, (*parts, name))) != own
             and not _scratch(parts, name)
             and not is_kept_code((*parts, name))
