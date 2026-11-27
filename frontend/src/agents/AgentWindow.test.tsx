@@ -692,7 +692,9 @@ test('89j: while its CLI works the window says how full it says its context is, 
   // (no tokens on record yet: its CLI says them at its end)
   expect(screen.getByText('Context').nextElementSibling).toHaveTextContent(/^34% full$/)
   expect(screen.getByRole('meter', { name: 'Context used' })).toHaveAttribute('value', '34000')
-  const steps = within(screen.getByText('Plan').nextElementSibling as HTMLElement).getAllByRole('listitem')
+  const steps = within(screen.getByText('Plan (its own words)').nextElementSibling as HTMLElement).getAllByRole(
+    'listitem',
+  )
   expect(steps.map(one => one.textContent)).toEqual(['✓ Read <b>hello.py</b>', '▸ Fix it'])
   expect(steps[1]).toHaveClass('agent-plan-inProgress')
 })

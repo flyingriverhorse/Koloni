@@ -32,8 +32,6 @@ STOP_AGENT_SCHEMA = {
         },
     },
 }
-# The tools above, by name, for `_tool_call_4`'s dispatch (`AtWorkMixin._at_work_call`).
-AT_WORK_TOOLS = frozenset({"stop_agent"}) | {"agents_at_work"}
 
 # Task 8: run_command's, for the API Orchestrator where command_output and stop_command are its
 # (`AtWorkMixin._command_offered_later`).
@@ -61,3 +59,31 @@ AT_WORK_LINE = (
 # How a status is said where it is not its own word.
 AT_WORK_SAID = {"proposed": "waits for the user's yes", "queued": "waits for a place"}
 SAID_MOST = 300  # characters of an agent's last words
+
+# Task 5: the API Orchestrator's plan, shown as its own words (`LeadToolsMixin._update_plan`).
+UPDATE_PLAN_SCHEMA = _fn(
+    "update_plan",
+    "Show the user your plan for this turn, in your own words: its steps, each pending, "
+    "inProgress or completed - the whole plan each time it changes. The user sees it over the "
+    "chat and in your window; it changes nothing else. At most 30 steps of 200 characters.",
+    {
+        "steps": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "step": {"type": "string", "description": "What is done in it."},
+                    "status": {"type": "string", "enum": ["pending", "inProgress", "completed"]},
+                },
+                "required": ["step", "status"],
+            },
+        }
+    },
+    ["steps"],
+)
+PLAN_SHOWN = "Plan shown to the user: step {k} of {m}."
+
+# The Orchestrator's own tools beside its agents (`LeadToolsMixin._lead_tool`).
+LEAD_TOOLS = frozenset({"update_plan"})
+# The tools above, by name, for `_tool_call_4`'s dispatch (`AtWorkMixin._at_work_call`).
+AT_WORK_TOOLS = frozenset({"stop_agent", "agents_at_work"}) | LEAD_TOOLS

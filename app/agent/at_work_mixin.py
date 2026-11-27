@@ -69,6 +69,7 @@ from app.tools_at_work import (
     AT_WORK_NONE,
     AT_WORK_SAID,
     COMMAND_BACKGROUND_PROPERTY,
+    LEAD_TOOLS,
     SAID_MOST,
     SPAWN_BACKGROUND_PROPERTY,
     STOP_AGENT_SCHEMA,
@@ -116,6 +117,7 @@ class AtWorkMixin:
         self._listening: set[str] = set()
         self._seen_by: dict[str, list[str]] = {}
         self._steered_word: dict[str, tuple[str, str]] = {}
+        self._lead_tools_init()  # (the Orchestrator's own tools: `LeadToolsMixin`)
 
     def _at_work_offered(self: "AgentRunner", ctx: Ctx, schemas: list[dict]) -> None:
         """`_offered`'s schemas, with what goes on beside the turn's agents where it is this
@@ -129,6 +131,7 @@ class AtWorkMixin:
         ):
             schemas.append(STOP_AGENT_SCHEMA)
             schemas.append(AGENTS_AT_WORK_SCHEMA)  # (D4: who of them is at work)
+            self._lead_offered(ctx, schemas)
         if self._background_offered(ctx) and self._serving_not(ctx) is None:
             for run in (s["function"] for s in schemas if s["function"]["name"] == "run_command"):
                 run["parameters"]["properties"]["background"] = COMMAND_BACKGROUND_PROPERTY
@@ -229,6 +232,8 @@ class AtWorkMixin:
             raise ToolError(f"{name} is not available: only the Orchestrator at its own work")
         if name == "agents_at_work":
             return self._agents_at_work(ctx)
+        if name in LEAD_TOOLS:
+            return await self._lead_tool(ctx, call_id, name, args)
         named = args.get("name")
         if not isinstance(named, str) or not named.strip():
             raise ToolError("missing required argument: name")
@@ -565,6 +570,7 @@ class AtWorkMixin:
         # on record if that is ever felt.
         self._door_shut.add(run_id)
         self._listening -= {one for one, known in self._ctxs.items() if known.run_id == run_id}
+        self._lead_tools_forget(run_id)  # (its plan shown, what its tools counted)
         if unheard and cid:
             self._requeue(run_id, cid, unheard)
 
