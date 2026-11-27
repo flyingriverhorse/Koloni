@@ -34,6 +34,12 @@ _CONFIG_WRITERS = frozenset({"init", "remote", "branch", "checkout", "switch"})
 # `summary` nor a bare `git submodule`.
 _SUBMODULE_CONFIG = frozenset({"add", "init", "sync", "set-url", "set-branch", "deinit"})
 _SUBMODULE_GITMODULES = frozenset({"add", "set-url", "set-branch"})
+# git commands that run a command they are handed with an option: its long name and its letter.
+_HANDS_ON = {
+    "rebase": ("--exec", "x"),
+    "difftool": ("--extcmd", "x"),
+    "grep": ("--open-files-in-pager", "O"),
+}
 
 
 def globs_an_option(line: str) -> bool:
@@ -68,17 +74,18 @@ def globs_an_option(line: str) -> bool:
 
 def chained(line: str) -> bool:
     """Whether a line holds a `;`, `&` or line break that may end a command and start another:
-    any of them - but in a simple line, one inside `'…'` or `"…"`, where sh and PowerShell (the
-    shells a bare line runs in) agree it is quoted: `rg '&&' .github`. Simple: no backslash,
-    backtick or `$` (sh does not end `"…"` at a backslash's `"`; in PowerShell a backslash before
-    `'` escapes nothing, so the `'` opens a quote), no character past ASCII (PowerShell's
-    typographic quotes are quotes too), every quote paired.
+    any of them - but in a simple line, a `;` or `&` inside `'…'` or `"…"`, where sh and
+    PowerShell (the shells a bare line runs in) agree it is quoted: `rg '&&' .github`. Simple: no
+    backslash, backtick or `$` (sh does not end `"…"` at a backslash's `"`; in PowerShell a
+    backslash before `'` escapes nothing, so the `'` opens a quote), no `#` (out of quotes it
+    starts a comment, and a quote in that is none), no line break, nothing past ASCII
+    (PowerShell's typographic quotes are quotes too), every quote paired.
     shortcut: the simple line alone - a quoted `;` in any other line is a card; tell more lines
     apart if that is met often. cmd keeps no `'` quote: a line it runs comes as `cmd /c …`, whose
     program is no search (its script is split at every `&` before it is read: `_script`)."""
     if not re.search(r"[;&\r\n]", line):
         return False
-    if re.search(r"[\\`$]|[^\x00-\x7f]", line):
+    if re.search(r"[\\`$#\r\n]|[^\x00-\x7f]", line):
         return True
     quote = ""
     for char in line:
@@ -86,7 +93,7 @@ def chained(line: str) -> bool:
             quote = "" if char == quote else quote
         elif char in "'\"":
             quote = char
-        elif char in ";&\r\n":
+        elif char in ";&":
             return True
     return bool(quote)  # (a quote not paired: no simple line)
 
@@ -124,18 +131,23 @@ def git_writes(parts: list[tuple[str | None, list[str]]]) -> frozenset[str]:
 
 def _runs_one(sub: str | None, rest: list[str]) -> bool:
     """Whether a git command runs a command it is handed: `submodule foreach`, `bisect run`,
-    `rebase -x` / `--exec` (a bundle of short options with an `x` in it too: over-read)."""
+    `filter-branch` (its `--*-filter`s: all of it), and one with its option for that
+    (`_HANDS_ON`: `rebase -x`, `difftool --extcmd`, `grep -O`) - by the option's long name or a
+    part of it, as git takes one (`--exe=`), or its letter in a bundle of short ones (over-read,
+    never under)."""
     verb = next((word for word in rest if not word.startswith("-")), None)
-    return (
-        sub == "submodule"
-        and verb == "foreach"
-        or sub == "bisect"
-        and rest[:1] == ["run"]
-        or sub == "rebase"
-        and any(
-            w.startswith("--exec") or w.startswith("-") and not w.startswith("--") and "x" in w
-            for w in rest
-        )
+    if sub == "filter-branch":
+        return True
+    if sub in ("submodule", "bisect"):
+        return verb == ("foreach" if sub == "submodule" else "run")
+    long, short = _HANDS_ON.get(sub or "", ("", ""))
+    return bool(long) and any(
+        long.startswith(word.partition("=")[0])
+        and len(word.partition("=")[0]) > 2
+        or word.startswith("-")
+        and not word.startswith("--")
+        and short in word
+        for word in rest
     )
 
 

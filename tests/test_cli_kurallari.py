@@ -152,6 +152,12 @@ BS = "\\"  # (one backslash)
         # PowerShell's typographic quotes end a quote too
         "rg 'a’; Copy-Item evil.xml .idea/runConfigurations/x.xml; ‘'",
         'rg "a”; Copy-Item evil.yml .github/workflows/ci.yml; “"',
+        # a `#` out of quotes starts a comment in both shells: the quote after it is none (the
+        # third re-check's), and PowerShell's `--%` takes the rest of its line as it is
+        "rg x #'\ncp evil.yml .github/workflows/ci.yml #'",
+        'rg x #"\ncp evil.yml .github/workflows/ci.yml #"',
+        "rg x #'\nCopy-Item evil.xml .idea/runConfigurations/x.xml #'",
+        "rg --% '\nCopy-Item evil.xml .idea/runConfigurations/x.xml #'",
     ],
 )
 def test_a_semicolon_in_a_line_that_is_not_simple_chains_a_write_that_asks(line):
@@ -314,6 +320,15 @@ def test_the_write_audit_looks_at_them_and_lets_a_submodule_line_write_gitmodule
         ("git remote add o https://x; git rebase -x 'python w.py' main", set()),
         ("git init && git rebase --exec=make main", set()),
         ("git init; git bisect run make", set()),
+        ("git init && git rebase --exe=make main", set()),  # (git takes a part of a name)
+        ("git init; git difftool -x 'python w.py'", set()),
+        ("git init; git difftool --extcmd=w.sh", set()),
+        ("git init; git grep -Ow.sh foo", set()),
+        ("git init; git grep --open-files-in-pager=w.sh foo", set()),
+        ("git init; git filter-branch --tree-filter 'python w.py' HEAD", set()),
+        # (and their other options run nothing: git's config there stands)
+        ("git init; git rebase --empty=drop main", {".git/config"}),
+        ("git init; git grep -o foo", {".git/config"}),
     ],
 )
 def test_what_a_git_line_lets_stand_is_by_its_own_verb(line, stands):
