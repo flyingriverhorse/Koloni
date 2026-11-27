@@ -26,7 +26,7 @@ const BUILT_IN: Record<string, { label: string; line: string }> = {
   },
 }
 
-/** Where a switchable tool no role's tile lists goes (every agent has it): with the tools it reads after. */
+/** Where a switchable tool no role's tile lists goes: with the tools it reads after. */
 const GROUP_OF: Record<string, string> = { read_attachment: 'Files', recall_output: 'Commands' }
 
 /** A row of the tab: a role's tile, or a switchable tool no tile lists (`RoleTool.asks`: neither asks). */

@@ -53,7 +53,7 @@ nav = [
     { "Subscription rules" = "models/subscription-rules.md" },
   ] },
   { "Tools" = [
-    { "Built-in tools" = "tools/built-in.md" },
+    { "KOLONİ's tools" = "tools/built-in.md" },
     { "MCP servers and trust" = "tools/mcp.md" },
     { "Skills" = "tools/skills.md" },
   ] },
