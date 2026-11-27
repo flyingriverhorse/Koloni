@@ -338,9 +338,10 @@ export function App() {
     return () => clearInterval(timer)
   }, [projectId])
 
-  // K-bilgi: the project's knowledge is read when its page opens, and on Agents (a role's Knowledge tab).
+  // K-bilgi: the project's knowledge is read when Memory opens (either part: the sources' tab says how many may be old),
+  // and on Agents (a role's Knowledge tab).
   useEffect(() => {
-    if (projectId && (view === 'knowledge' || view === 'agents')) void useApp.getState().loadKnowledge()
+    if (projectId && ['memory', 'knowledge', 'agents'].includes(view)) void useApp.getState().loadKnowledge()
   }, [projectId, view])
 
   useEffect(() => {

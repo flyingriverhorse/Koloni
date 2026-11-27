@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
@@ -80,8 +80,9 @@ const page = (over: object = {}) => {
     onTry: vi.fn().mockResolvedValue('Use set_registered_model_alias (guide/registry.md:41).'),
     ...over,
   }
-  render(<KnowledgePage {...props} />)
-  return props
+  const { rerender } = render(<KnowledgePage {...props} />)
+  // (Drawn again with what the page reads next.)
+  return Object.assign(props, { again: (next: object) => rerender(<KnowledgePage {...props} {...next} />) })
 }
 
 test('0.1.10: the rail has no Knowledge - its sources are Memory’s second part, the Memory button pressed', async () => {
@@ -119,8 +120,8 @@ test('a card says how much of what was read is in its guide, how fresh, what it 
   expect(within(roles).getByRole('checkbox', { name: 'ML engineer full' })).toBeChecked()
   expect(within(roles).getByRole('checkbox', { name: 'ML engineer full' })).toBeDisabled()
   expect(within(roles).getByRole('checkbox', { name: 'Coder' })).toBeChecked()
-  // its cell says how fresh it is: learned, green, in words too
-  expect(within(mlflow).getByRole('img', { name: 'fresh' })).toHaveClass('cell-ok', 'cell-full')
+  // its cell says how it stands: learned, green, in words too
+  expect(within(mlflow).getByRole('img', { name: 'learned' })).toHaveClass('cell-ok', 'cell-full')
   // Pages left for its limits: Learn more, with what it spends in sight beside it.
   const more = within(mlflow).getByRole('button', { name: 'Learn more' })
   expect(more.previousElementSibling).toHaveTextContent('≈ 0.42 USD')
@@ -136,7 +137,7 @@ test('a card says how much of what was read is in its guide, how fresh, what it 
   expect(within(tomli).queryByRole('meter')).not.toBeInTheDocument()
 })
 
-test('0.1.10: a card’s cell says how fresh it is - learning, failed, may be old, fresh, not learned - and the tab counts those that may be old', () => {
+test('0.1.10: a card’s cell says how it stands - learning, failed, may be old, learned (never “fresh”: only no change known), not learned - and the tab counts those that may be old', () => {
   expect(freshCell({ ...LEARNED, learning: true })).toMatchObject({ tone: 'honey', word: 'learning' })
   expect(freshCell({ ...LEARNED, learning: true }, true).word).toBe('scanning')
   expect(freshCell({ ...LEARNED, failed: 'no model' })).toMatchObject({
@@ -144,7 +145,8 @@ test('0.1.10: a card’s cell says how fresh it is - learning, failed, may be ol
     word: 'its last learning failed',
   })
   expect(freshCell({ ...LEARNED, stale: 'a week old' })).toMatchObject({ tone: 'warn', word: 'may be old' })
-  expect(freshCell(LEARNED)).toMatchObject({ tone: 'ok', word: 'fresh' })
+  expect(freshCell(LEARNED)).toMatchObject({ tone: 'ok', word: 'learned' })
+  expect(freshCell(LEARNED, true).word).toBe('scanned')
   // (never learned, its "no guide yet" is not an old guide)
   expect(freshCell(NEW.state)).toMatchObject({ tone: 'plain', word: 'not learned' })
   expect([{ ...LEARNED, stale: 'a week old' }, NEW.state, LEARNED].filter(mayBeOld)).toHaveLength(1)
@@ -182,6 +184,33 @@ test('0.1.10: a role is given a source on its card, or no longer uses it, as on 
   expect(await within(used).findByRole('alert')).toHaveTextContent('that role cannot use it')
   // no role uses it yet: said so, and one can be given it
   expect(within(card('tomli')).getByRole('group', { name: 'Roles that use tomli' })).toHaveTextContent('no role yet')
+})
+
+test('0.1.10: unticked, the focus goes to the tick in its place, else to + Role…; a Full tick says why it is greyed', async () => {
+  let done = () => {}
+  const onUse = vi.fn(() => new Promise<void>(resolve => (done = resolve)))
+  const roles = [
+    { id: 'r1', name: 'ML engineer' },
+    { id: 'r2', name: 'Coder' },
+    { id: 'r3', name: 'Reviewer' },
+  ] as Role[]
+  const coder = { role_id: 'r2', name: 'Coder', mode: 'map' as const }
+  const reviewer = { role_id: 'r3', name: 'Reviewer', mode: 'map' as const }
+  const expert = { role_id: 'r1', name: 'ML engineer', mode: 'full' as const }
+  const p = page({ items: [{ ...MLFLOW, used_by: [expert, coder, reviewer] }], roles, onUse })
+  const used = () => within(card('MLflow')).getByRole('group', { name: 'Roles that use MLflow' })
+  expect(within(used()).getByRole('checkbox', { name: 'ML engineer full' })).toHaveAccessibleDescription(
+    'An expert in it (Full): change it on the role’s Knowledge tab',
+  )
+  await userEvent.click(within(used()).getByRole('checkbox', { name: 'Coder' }))
+  // read again without it, then done: the tick that took its place has the focus
+  p.again({ items: [{ ...MLFLOW, used_by: [expert, reviewer] }] })
+  await act(async () => done())
+  expect(within(used()).getByRole('checkbox', { name: 'Reviewer' })).toHaveFocus()
+  await userEvent.click(within(used()).getByRole('checkbox', { name: 'Reviewer' }))
+  p.again({ items: [{ ...MLFLOW, used_by: [expert] }] })
+  await act(async () => done())
+  expect(within(used()).getByRole('combobox', { name: 'Give MLflow to a role' })).toHaveFocus()
 })
 
 test('0.1.10: the cards stand in a grid, one opened goes across the row; what is offered is a dashed card of its own', async () => {

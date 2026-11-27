@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useId, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { ApiError, errorText } from '../api/client'
 import type {
   Knowledge,
@@ -46,6 +46,48 @@ export function Offer({
   )
 }
 
+const FULL_HERE = 'An expert in it (Full): change it on the role’s Knowledge tab'
+
+/** A role that uses a knowledge, ticked. An expert's (Full) is greyed, and says why to a screen reader as to the mouse. */
+function RoleTick({
+  user,
+  disabled,
+  onUntick,
+}: {
+  user: KnowledgeItem['used_by'][number]
+  disabled: boolean
+  onUntick: (tick: HTMLInputElement) => void
+}) {
+  const why = useId()
+  const full = user.mode === 'full'
+  return (
+    <>
+      <label className="knowledge-role" title={full ? FULL_HERE : undefined}>
+        <input
+          type="checkbox"
+          checked
+          disabled={disabled || full}
+          aria-describedby={full ? why : undefined}
+          onChange={e => onUntick(e.currentTarget)}
+        />
+        {user.name}
+        {full && (
+          <>
+            {' '}
+            <span className="tag">full</span>
+          </>
+        )}
+      </label>
+      {/* (Out of the label: its words describe the tick, they do not name it.) */}
+      {full && (
+        <span id={why} className="visually-hidden">
+          {FULL_HERE}
+        </span>
+      )}
+    </>
+  )
+}
+
 /**
  * 0.1.10: which roles look things up in it, a tick each - unticked, that role no longer does; and another role given it
  * from the list (Map, as a role's Knowledge tab's switch) with Give - not on choosing, so the keyboard's arrows through
@@ -64,6 +106,17 @@ export function RoleTicks({
   const [said, setSaid] = useState<string | null>(null)
   const [chosen, setChosen] = useState('')
   const topic = item.knowledge.topic
+  const group = useRef<HTMLDivElement>(null)
+  // Unticked: the focus goes, once the list is read again, to the tick that took its place, else to + Role….
+  const refocus = useRef<number | null>(null)
+  const ticks = () =>
+    Array.from(group.current?.querySelectorAll<HTMLElement>('input[type="checkbox"]:not(:disabled)') ?? [])
+  useEffect(() => {
+    if (busy || refocus.current === null) return
+    const at = refocus.current
+    refocus.current = null
+    ;(ticks()[at] ?? group.current?.querySelector<HTMLElement>('select') ?? group.current)?.focus()
+  }, [busy, item.used_by])
   const use = (roleId: string, mode: KnowsMode | null) => {
     if (!onUse) return
     setBusy(true)
@@ -74,29 +127,19 @@ export function RoleTicks({
   }
   const others = roles.filter(role => !item.used_by.some(one => one.role_id === role.id))
   return (
-    <div role="group" aria-label={`Roles that use ${topic}`} className="knowledge-roles">
+    <div ref={group} tabIndex={-1} role="group" aria-label={`Roles that use ${topic}`} className="knowledge-roles">
       <span className="muted">Used by:</span>
       {item.used_by.length === 0 && <span className="muted">no role yet</span>}
       {item.used_by.map(one => (
-        <label
+        <RoleTick
           key={one.role_id}
-          className="knowledge-role"
-          title={one.mode === 'full' ? 'An expert in it (Full): change it on the role’s Knowledge tab' : undefined}
-        >
-          <input
-            type="checkbox"
-            checked
-            disabled={busy || !onUse || one.mode === 'full'}
-            onChange={() => use(one.role_id, null)}
-          />
-          {one.name}
-          {one.mode === 'full' && (
-            <>
-              {' '}
-              <span className="tag">full</span>
-            </>
-          )}
-        </label>
+          user={one}
+          disabled={busy || !onUse}
+          onUntick={tick => {
+            refocus.current = ticks().indexOf(tick)
+            use(one.role_id, null)
+          }}
+        />
       ))}
       {onUse && others.length > 0 && (
         <>

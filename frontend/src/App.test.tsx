@@ -483,6 +483,19 @@ const emptyPages = (over: Record<string, unknown> = {}) => {
     return answer(url, over)
   })
 }
+test('0.1.10: Memory opened on its first part reads its sources too, for the tab that says how many may be old', async () => {
+  const fetched = emptyPages()
+  vi.stubGlobal('fetch', fetched)
+  render(<App />)
+  await screen.findByText('this machine')
+  fetched.mockClear()
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Memory' }),
+  )
+  await vi.waitFor(() =>
+    expect(fetched.mock.calls.map(([url]) => String(url).split('?')[0])).toContain('/api/projects/p/knowledge'),
+  )
+})
 test('each page of the rail is the one in the workspace; a page of a folder, in a plain chat, asks for a folder, and Usage has no day', async () => {
   // (The canvas is known by its first steps: a test above may have hidden them.)
   localStorage.removeItem('koloni-first-steps')

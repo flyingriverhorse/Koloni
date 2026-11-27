@@ -50,7 +50,7 @@ a fact is right.
 | Cell | What it means |
 |---|---|
 | Green, filled | Given when the work names its subject. |
-| Red-orange, filled | Given to no agent until you look again: its source changed or moved. |
+| Red-orange, filled | Given to no agent until you look again: its source changed or moved. One with no subject, or one too general to match, says "its source changed: look again - only found by looking it up": looking again does not make it given. |
 | Empty | Only found by looking it up: it has no subject, or one too general to match. |
 
 Ten smaller cells beside **Facts** fill in honey as facts take the core's room, with the count beside
@@ -163,7 +163,8 @@ the journal as KOLONİ's, under "flaky test: `test`", with how many times it was
 
 **Agents propose facts; you approve them.** An agent can put a note forward for the core. Nothing
 enters the core unless you approve it. Waiting proposals show at once in a honey box at the top of
-the part, headed such as "1 fact waits for your word"; the part's tab says so too. For each one you
+the part, headed such as "1 fact waits for your word"; the part's tab says so too. The box shows three;
+the rest wait behind **Show N more**, so that the facts and your words stay near the top. For each one you
 can choose **Approve**, **Edit and approve** (then **Approve as edited**) or **Reject**. If it would
 replace a fact on the same subject, you see both side by side: **Would replace** and **Put forward**.
 Once you decided the last one, the box says "Nothing waits for you." until you leave the page.

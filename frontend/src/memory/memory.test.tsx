@@ -194,15 +194,27 @@ test('the core’s ten cells fill down: the tenth only when it is full', () => {
 test('a fact’s cell says how it stands for agents - given, given to none until you look again, or only found by looking it up - never that it is right', () => {
   expect([fact, stale, own].map(factStands)).toEqual(['given', 'stale', 'asked'])
   expect(factStands({ source_state: 'moved', given_unasked: true })).toBe('stale')
-  render(<MemoryPage memory={projectMemory({ core: [fact, stale, own] })} {...handlers()} />)
-  const cells = within(panel('Facts'))
-    .getAllByRole('article')
-    .map(row => within(row).getByRole('img').getAttribute('aria-label'))
+  // one no work can name, its source changed: looking again does not make it given, and its cell does not say so
+  const unnamed = memoryRecord('f4', {
+    tier: 'fact',
+    text: 'Docs are markdown.',
+    about: 'md',
+    given_unasked: false,
+    source: { path: 'docs.md', start: 1, end: 1 },
+    source_state: 'changed',
+  })
+  expect(factStands(unnamed)).toBe('staleAsked')
+  render(<MemoryPage memory={projectMemory({ core: [fact, stale, own, unnamed] })} {...handlers()} />)
+  const rows = within(panel('Facts')).getAllByRole('article')
+  const cells = rows.map(row => within(row).getByRole('img').getAttribute('aria-label'))
   expect(cells).toEqual([
     'given when the work names its subject',
     'given to no agent until you look again',
     'only found by looking it up',
+    'its source changed: look again - only found by looking it up',
   ])
+  expect(within(rows[3]).getByRole('img')).toHaveClass('cell-warn')
+  expect(within(rows[3]).getByRole('button', { name: 'Look again' })).toBeInTheDocument()
   // each in words beside its colour, once, above the rows
   expect(panel('Facts').querySelector('.cell-legend')).toHaveTextContent(
     'given when the work names its subjectgiven to no agent until you look againonly found by looking it up',
@@ -598,6 +610,25 @@ test('Make it a fact over a fact half typed asks before replacing it; an empty b
   await makeFact(within(panel('Notes')).getAllByRole('article')[0])
   expect(screen.queryByRole('alertdialog')).toBeNull()
   expect(words).toHaveValue('Tests run with pytest.')
+})
+
+test('many notes waiting: the box shows three, the rest behind "Show N more" - opened, the focus is on the first of them; a hit opens it too', async () => {
+  const five = [1, 2, 3, 4, 5].map(n =>
+    memoryRecord(`w${n}`, { text: `Waiting note ${n}.`, about: `topic ${n}`, wants_core: true }),
+  )
+  const { unmount } = render(<MemoryPage memory={projectMemory({ proposals: five })} {...handlers()} />)
+  const box = await waits()
+  expect(within(box).getByRole('heading')).toHaveTextContent('5 facts wait for your word')
+  expect(within(box).getAllByRole('article')).toHaveLength(3)
+  await userEvent.click(within(box).getByRole('button', { name: 'Show 2 more' }))
+  expect(within(box).getAllByRole('article')).toHaveLength(5)
+  expect(within(box).getAllByRole('article')[3]).toHaveFocus()
+  expect(within(box).queryByRole('button', { name: /more$/ })).toBeNull()
+  unmount()
+  render(<MemoryPage memory={projectMemory({ proposals: five })} {...handlers()} />)
+  await userEvent.type(screen.getByLabelText('Search everything this project remembers'), 'note 5')
+  await userEvent.click(within(screen.getByRole('group', { name: 'Waiting for your word' })).getByRole('button'))
+  expect(within(section('Waits for you')).getByText('Waiting note 5.').closest('article')).toHaveFocus()
 })
 
 test('what waits for your word is searched too: a hit goes to that note in the box on top', async () => {

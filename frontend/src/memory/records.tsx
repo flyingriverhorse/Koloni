@@ -89,9 +89,8 @@ export function CoreFact({ record, onCorrect, onReject, onConfirm }: CoreProps) 
     : record.about
       ? 'this subject is too general to be matched: only found by looking it up'
       : 'no subject: only found by looking it up'
-  const stands = factStands(record)
-  const stale = stands === 'stale'
-  const cell = FACT_CELL[stands]
+  const cell = FACT_CELL[factStands(record)]
+  const stale = record.source_state === 'changed' || record.source_state === 'moved'
   const remove = () => void ask(() => onReject(record.id))
   return (
     <RecordCard

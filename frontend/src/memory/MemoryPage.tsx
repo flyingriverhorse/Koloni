@@ -13,12 +13,13 @@ import {
   byTopic,
   decisionId,
   decisionOf,
-  FACT_CELL,
+  FACT_LEGEND,
   lastAutoText,
   meter,
   moment,
   partId,
   subject,
+  waitId,
   wouldReplace,
   writerOf,
 } from './memoryText'
@@ -121,6 +122,9 @@ function TopicFilter({
   )
 }
 
+/** How many notes that wait for your word the box shows before "Show N more". */
+const SHOWN = 3
+
 const ofTopic = (records: MemoryRecord[], topic: string) =>
   topic ? records.filter(record => `=${subject(record.about)}` === topic) : records
 
@@ -139,11 +143,11 @@ function Room({ chars, limit }: { chars: number; limit: number }) {
   )
 }
 
-/** What a fact's cell says, each in words. */
+/** What a fact's cell says, each colour in words. */
 function FactLegend() {
   return (
     <p className="cell-legend">
-      {Object.values(FACT_CELL).map(one => (
+      {FACT_LEGEND.map(one => (
         <span key={one.word}>
           <Cell tone={one.tone} fill={one.fill} label={one.word} hidden />
           {one.word}
@@ -242,9 +246,14 @@ export function MemoryPage({
   const [waited, setWaited] = useState(false)
   if (!waited && memory && memory.proposals.length > 0) setWaited(true)
 
-  // A hit, or the fact box: History unfolded for one of its rows, and this part shown.
+  // Many notes waiting: the first few in the box, the rest behind "Show N more" - Facts and your words stay near the top.
+  const [allWaits, setAllWaits] = useState(false)
+
+  // A hit, or the fact box: History unfolded for one of its rows, every note that waits for one of them, and this part
+  // shown.
   const go = (to: Place, id: string) => {
     if (to === 'history') setHistoryOpen(true)
+    if (to === 'waiting') setAllWaits(true)
     if (sources) onPart?.(false)
     setGoTo(was => ({ id, n: (was?.n ?? 0) + 1 }))
   }
@@ -329,7 +338,7 @@ export function MemoryPage({
             Nothing waits for you.
           </p>
         )}
-        {memory.proposals.map(record => (
+        {(allWaits ? memory.proposals : memory.proposals.slice(0, SHOWN)).map(record => (
           <Proposal
             key={record.id}
             record={record}
@@ -339,6 +348,12 @@ export function MemoryPage({
             onConfirm={on.onConfirm}
           />
         ))}
+        {!allWaits && waiting > SHOWN && (
+          // (Opened, the focus goes to the first that was folded: the button is gone.)
+          <button type="button" className="link-btn" onClick={() => go('waiting', waitId(memory.proposals[SHOWN].id))}>
+            Show {waiting - SHOWN} more
+          </button>
+        )}
       </section>
     )
 

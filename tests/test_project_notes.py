@@ -490,7 +490,8 @@ def test_the_notes_reach_their_projects_orchestrator_every_turn_as_data(
 ):
     """0.1.10: what the user keeps reaches that project's Orchestrator at every turn - its lines
     in its instructions, quoted, noted where one reads like orders - no other project's, no
-    sub-agent's; nothing to look up (no knowledge). Taken out on Memory's Told tab, it is gone."""
+    sub-agent's; nothing to look up (no knowledge). Taken out of Memory's Project notes box, it is
+    gone."""
     other = tmp_path / "other"
     other.mkdir()
     client, model = make_client(
@@ -538,7 +539,7 @@ def test_the_notes_reach_their_projects_orchestrator_every_turn_as_data(
     # Another project's Lead: not these.
     system, _tools = lead(other)
     assert project_notes.HEAD not in system
-    # Taken out on Memory's Told tab: gone.
+    # Taken out of Memory's Project notes box: gone.
     cleared = client.put(f"/api/projects/{pid}/project-notes", headers=OWN, json={"text": ""})
     assert cleared.status_code == 200
     system, _tools = lead(project_dir)

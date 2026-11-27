@@ -10,14 +10,14 @@ facts and notes.
 ## The sources part {#the-knowledge-page}
 
 Each knowledge is a card, the cards side by side in a grid. A card's head has a small hexagon, a cell,
-for how fresh it is, its topic and its first source. Under them it says when it was last read
+for how it stands, its topic and its first source. Under them it says when it was last read
 (**Fresh:**), how much it spent (**Spent:**) and which model it learns with (**Learns with:**); then
 **Used by:**, a tick for each role that uses it; then **Try it** and **Learn** (later **Learn more** or
 **Learn again**), with what learning may cost beside it.
 
 | Cell | What it means |
 |---|---|
-| Green, filled | Fresh: learned, and not old. |
+| Green, filled | Learned (for this project's code, scanned), and KOLONİ knows of no change since. That is all it says: KOLONİ looks at a project's files again each time, at a site or a topic only once a week and only with **Learn again weekly** on, and at a repository, a folder on this machine or this project's code not at all until you learn or scan again. |
 | Honey, filled | Learning (or, for this project's code, scanning). |
 | Red-orange, filled | May be old - its sources changed since it learned, a file it read changed or went, or its guide is a week old and **Learn again weekly** is on (**Fresh: old**, the reason on hover) - or its last learning failed. |
 | Empty | Not learned yet. |
