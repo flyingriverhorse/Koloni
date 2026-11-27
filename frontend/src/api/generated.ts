@@ -1424,7 +1424,7 @@ export interface paths {
          * Noted Change
          * @description The user's Change on a noted decision, in their own words: into its turn while that one is
          *     at work and takes a word - Send now's own way (`post_message`); else in a turn of KOLONİ's of
-         *     its chat, queued behind one at work. Seen either way.
+         *     its chat, queued behind one at work - not a job's chat (`JOB_CHAT`). Seen once sent.
          */
         post: operations["noted_change_api_decisions__decision_id__change_post"];
         delete?: never;
@@ -2404,6 +2404,27 @@ export interface paths {
         patch: operations["patch_command_api_own_commands__command_id__patch"];
         trace?: never;
     };
+    "/api/preference-lines/{message_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo Preference Line
+         * @description Undo on KOLONİ's "Added to your preferences: …" line: exactly that line out of Your
+         *     preferences, the chat's line marked undone - only from the app's own page.
+         */
+        post: operations["undo_preference_line_api_preference_lines__message_id__undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/preferences": {
         parameters: {
             query?: never;
@@ -2422,6 +2443,28 @@ export interface paths {
          *     nobody's project's), the page reads the memory again itself after the save.
          */
         put: operations["set_preferences_api_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/preferences/from-words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read From Words */
+        get: operations["read_from_words_api_preferences_from_words_get"];
+        /**
+         * Set From Words
+         * @description The user's setting, for every project: what the Orchestrator does with a preference you
+         *     state - add your sentence at once, or ask you first.
+         */
+        put: operations["set_from_words_api_preferences_from_words_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5015,6 +5058,8 @@ export interface components {
             model_id: string | null;
             /** Provider Name */
             provider_name: string;
+            /** Quote */
+            quote?: string | null;
         };
         /**
          * AttachmentOut
@@ -7073,6 +7118,14 @@ export interface components {
         FrameOut: {
             /** Frameable */
             frameable: boolean | null;
+        };
+        /** FromWordsOut */
+        FromWordsOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "add" | "ask";
         };
         /** GeminiSayIn */
         GeminiSayIn: {
@@ -16090,6 +16143,35 @@ export interface operations {
             };
         };
     };
+    undo_preference_line_api_preference_lines__message_id__undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_preferences_api_preferences_get: {
         parameters: {
             query?: never;
@@ -16130,6 +16212,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_from_words_api_preferences_from_words_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FromWordsOut"];
+                };
+            };
+        };
+    };
+    set_from_words_api_preferences_from_words_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FromWordsOut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FromWordsOut"];
                 };
             };
             /** @description Validation Error */

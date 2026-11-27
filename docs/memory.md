@@ -184,17 +184,25 @@ is kept as a fact, shown as "said by you at a card, asking for changes".
 
 **Preferences and rules are yours alone.** No agent writes them.
 
-**The Orchestrator can suggest a line for your preferences.** When you say how you want work done
-from now on - a rule, not a request for this one task ("from now on don't ask me for X", "write commits
-in Turkish", "never push without asking") - the Orchestrator may propose it as a line, and you get a
-card in the chat: "Add this to your preferences: "…"?" with **Add** and **Not now**. **Add** appends it
-to Your preferences; **Not now** writes nothing. It is only a suggestion - the same one the Memory page
-and Ready for you show, answered in any of them - and it is made only from your own words: the
-Orchestrator must quote your sentence of that turn, and KOLONİ checks the quote is in your messages
-(never an agent's words, a file's or a tool's). The line is masked and cut at 300 characters, one that
-reads like orders to an agent is refused, a line you have or that waits already is not suggested twice,
-and at most 3 are suggested in a turn. A sub-agent cannot suggest one. The Memory page says who suggested
-it: the Orchestrator.
+**The Orchestrator keeps what you say about how you work.** When you say how you want work done from
+now on - a rule, not a request for this one task ("from now on don't ask me for X", "write commits in
+Turkish", "never push without asking") - the Orchestrator can keep it for Your preferences. It is made
+only from your own words: the Orchestrator quotes your sentence of that turn, and KOLONİ checks the quote
+is in a sentence of your own prose - never a fenced, `>`-quoted, indented or backticked line (what you
+pasted: an agent's report, a file), an agent's words or a tool's. What then is your setting, **New
+preferences from your words** (Settings › The app › Agents):
+
+- **Add them, tell me** (the default): your own sentence - never the model's wording, which could turn it
+  around - goes into Your preferences at once, and the chat says so: "Added to your preferences: "…"" with
+  **Undo**, which takes exactly that line out again.
+- **Ask me first**: a card in the chat, **Suggested by the Orchestrator**, shows "The Orchestrator
+  suggests, from your words "…":" and "Add this to your preferences: "…"?" with **Add** and **Not now**.
+  **Add** keeps the line as shown; **Not now** writes nothing. The Memory page and Ready for you show the
+  same suggestion.
+
+Either way it is masked and cut at 300 characters, one that reads like orders to an agent is refused, a
+line you have or that waits already is not kept twice, and at most 3 are kept in a turn. A sub-agent
+cannot do it. Your words it came from are kept with it.
 
 **Automatic notes** are off by default. Switch them on under Settings › This project › Memory and web ›
 **Note what the work found, by itself**. After each message's work, a fast model writes at most

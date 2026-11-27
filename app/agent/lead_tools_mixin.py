@@ -11,19 +11,30 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, literal_column, select
 
-from app import advisor, git, injection, masking, model_native, pr_feedback, push_judge
+from app import (
+    advisor,
+    git,
+    injection,
+    masking,
+    model_native,
+    pr_feedback,
+    preference_words,
+    push_judge,
+)
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
 from app.agent.judge_mixin import words_of_the_turn
-from app.db.models import Conversation, Memory, Project, Run, ToolCall, project_of
+from app.db.models import Conversation, Memory, Message, Project, Run, ToolCall, project_of
 from app.db.turn_models import NotedDecision
 from app.model_client import OwnStop
 from app.providers import ask_once
 from app.roles import LEAD, find_role
+from app.serialize import message_out
 from app.team import quoted, would_run
 from app.tools import ToolError
 from app.tools_at_work import (
+    ADDED_TOLD,
     ASK_ADVISOR_SCHEMA,
     LINE_MOST,
     NOT_SAID,
@@ -39,7 +50,6 @@ from app.tools_at_work import (
     SUGGEST_PREFERENCE_SCHEMA,
     SUGGESTED,
     SUGGESTED_FULL,
-    SUGGESTED_LINE,
     SUGGESTED_MOST,
     UPDATE_PLAN_SCHEMA,
 )
@@ -319,32 +329,36 @@ class LeadToolsMixin:
     # --- suggest_preference (the user, 28 Nov) -------------------------------------------------
 
     def _suggest_preference(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
-        """suggest_preference: a line for the user's preferences, as they stated it in this turn -
-        a suggestion waiting for their Add on a card in the chat (`memory.suggest_preference`'s
-        record, the summariser's: its Add and Not now are theirs alone), never written by itself.
-        Only from their own words: `quote` must be in this turn's messages of theirs, as K5 reads
-        them (`words_of_the_turn`), in a turn they started from KOLONİ's page. The line masked, on
-        one line, cut; one that reads like orders to an agent refused (`injection.scan`); at most
-        SUGGESTED_MOST a turn, counted on record; one in the preferences or waiting already
-        refused (`suggest_preference`).
-        shortcut: the line is not checked to say what the quote says - the user reads both on the
-        card; ask a model to compare them if a line is seen to stray from its quote."""
-        line, quote = args.get("line"), args.get("quote")
-        if not isinstance(line, str) or not line.strip():
-            raise ToolError("missing required argument: line")
-        if not isinstance(quote, str) or len(_plain(quote)) < QUOTE_LEAST:
+        """suggest_preference: a line for the user's preferences from their own words of this
+        turn - `quote` must be in a sentence of their own prose (`preference_words.sentence_of`:
+        not a fenced, `>`-quoted, indented or backticked line - what they pasted), in their
+        messages as K5 reads them (`words_of_the_turn`), in a turn they started from KOLONİ's page.
+        Their setting (`preference_words.mode`) says what then:
+        - "add" (Add them, tell me - the default): their sentence itself goes into Your
+          preferences at once - never the model's wording: `line` is not read, no paraphrase can
+          turn it around -, and KOLONİ's line in the chat says so, with Undo on the page;
+        - "ask" (Ask me first): `line` waits on a card - their quote above it - for their Add.
+        Masked, on one line, cut; one that reads like orders to an agent refused
+        (`injection.scan`); at most SUGGESTED_MOST a turn, counted on record; one in the
+        preferences or waiting already refused. The masked quote kept on the record
+        (`noted_by.quote`). It is `memory.suggest_preference`'s record, the summariser's."""
+        quote = args.get("quote")
+        if not isinstance(quote, str) or len(preference_words.plain(quote)) < QUOTE_LEAST:
             raise ToolError("quote: the user's own sentence that states it, word for word")
-        said = masking.masked(line)
-        said = said if len(said) <= SUGGESTED_LINE else said[: SUGGESTED_LINE - 1] + "…"
-        if injection.scan(line) or injection.scan(said):
-            raise ToolError(READS_AS_ORDERS)
         with self._factory() as session:
             project = project_of(session, session.get_one(Conversation, ctx.cid))
             if project is None or not session.get_one(Run, ctx.run_id).by_user:
                 raise ToolError(NOT_THEIRS)
-            theirs = words_of_the_turn(session, ctx.run_id)
-            if not any(_plain(quote) in _plain(one) for one in theirs):
+            sentence = preference_words.sentence_of(words_of_the_turn(session, ctx.run_id), quote)
+            if sentence is None:
                 raise ToolError(NOT_SAID)
+            adds = preference_words.mode(session) == "add"
+            line = sentence if adds else args.get("line")
+            if not isinstance(line, str) or not line.strip():
+                raise ToolError("missing required argument: line")
+            said = preference_words.kept_line(line)
+            if injection.scan(line) or injection.scan(said):
+                raise ToolError(READS_AS_ORDERS)
             made = session.scalar(
                 select(func.count())
                 .select_from(Memory)
@@ -356,6 +370,11 @@ class LeadToolsMixin:
             )
             if (made or 0) >= SUGGESTED_MOST:
                 raise ToolError(SUGGESTED_FULL)
+            noted_by = {
+                "provider_name": ctx.provider,
+                "model_id": ctx.model_name,
+                "quote": preference_words.kept_line(quote),
+            }
             try:
                 record = kept.suggest_preference(
                     session,
@@ -363,16 +382,30 @@ class LeadToolsMixin:
                     said,
                     run_id=ctx.run_id,
                     conversation_id=ctx.cid,
-                    noted_by={"provider_name": ctx.provider, "model_id": ctx.model_name},
+                    noted_by=noted_by,
                 )
+                # (the Orchestrator's, not the summariser's: the Memory page names who it was)
+                record.origin, record.agent_id = "agent", ctx.agent_id
+                if adds:
+                    kept.add_preference(session, record)
+                    told = Message(
+                        conversation_id=ctx.cid,
+                        run_id=ctx.run_id,
+                        role="koloni",
+                        content=preference_words.ADDED.format(line=quoted(said)),
+                    )
+                    session.add(told)
+                    session.flush()
+                    record.noted_by = {**noted_by, "line_id": told.id}  # (its Undo's)
             except kept.Refused as refused:
                 raise ToolError(str(refused)) from None
-            # (the Orchestrator's, not the summariser's: the Memory page names who suggested it)
-            record.origin, record.agent_id = "agent", ctx.agent_id
             session.commit()
+            line_said = message_out(told) if adds else None
             project_id = project.id
+        if line_said is not None:
+            self.bus.emit(ctx.cid, ctx.run_id, "message.completed", line_said)
         self.bus.emit(ctx.cid, ctx.run_id, "memory.changed", {"project_id": project_id})
-        return SUGGESTED.format(line=quoted(said))
+        return (ADDED_TOLD if adds else SUGGESTED).format(line=quoted(said))
 
 
 def _on_github(root: Path) -> bool:
@@ -385,8 +418,3 @@ def _line(text: str) -> str:
     """An agent's words as a noted decision keeps them: masked, on one line, cut."""
     shown = masking.masked(text)
     return shown if len(shown) <= LINE_MOST else shown[: LINE_MOST - 1] + "…"
-
-
-def _plain(text: str) -> str:
-    """Words as a quote is compared: case, spacing and quotation marks do not count."""
-    return " ".join(text.casefold().replace("“", '"').replace("”", '"').split()).strip(" \"'")

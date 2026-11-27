@@ -6,14 +6,13 @@ import {
   Clock,
   Copy,
   DotsThree,
-  FolderOpen,
-  GitBranch,
   Graph,
   Moon,
 } from '@phosphor-icons/react'
 import { SUMMARISING, titleOf as agentTitle } from '../agents/agentStatus'
 import { Fragment, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Markdown, UserText } from './Markdown'
+import { KoloniLine } from './KoloniLine'
 import { AgentSaid } from './AgentSaid'
 import { QuestionCard, QuestionRow } from '../agents/QuestionCard'
 import { RoleApproval } from '../agents/RoleApproval'
@@ -153,42 +152,6 @@ function sideName(state: ConvState, runId: string): string {
 type Notice = { title: string; text?: string; alert: boolean; step?: string | null; console?: string | null }
 
 const KOLONI_LINES = new Set<Message['role']>(['git', 'landed', 'koloni'])
-
-/** A line of KOLONİ's own in the chat, which no agent wrote: on git, on where a turn's work is, or another. */
-function KoloniLine({ message, onShowGit }: { message: Message; onShowGit?: () => void }) {
-  if (message.role === 'git') {
-    // What a turn did to the project's git (slice 70): a branch switched, a worktree opened.
-    return (
-      <div className="msg msg-from git-said" role="note">
-        <GitBranch size={13} aria-hidden />
-        <span className="git-said-text">{message.content}</span>
-        {onShowGit && (
-          <button type="button" className="btn btn-small" onClick={onShowGit}>
-            Show git
-          </button>
-        )}
-      </div>
-    )
-  }
-  if (message.role === 'landed') {
-    // B-205: under the answer, where the turn's work is - from KOLONİ's records, not the model's words.
-    return (
-      <p className="msg msg-from landed-said" role="note" title="From KOLONİ's records, not the model's words">
-        <FolderOpen size={13} aria-hidden />
-        <span>
-          <span className="landed-by">KOLONİ:</span> {message.content}
-        </span>
-      </p>
-    )
-  }
-  // A role a Lead's answer named but never opened this turn (K-lead-andigi-rol); at Take in, what stays in a copy (B-383).
-  // Above the answer it follows (`answerLast`).
-  return (
-    <p className="msg msg-from muted" role="note">
-      {message.content}
-    </p>
-  )
-}
 
 /** A turn's end as a card that only tells: a failure is said at once - an alert - with the one thing to do about it. */
 function RunNotice({ notice }: { notice: Notice }) {

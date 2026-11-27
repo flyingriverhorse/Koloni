@@ -102,8 +102,8 @@ command that keeps running): it goes on at once and is told when each ends. Besi
 **agents_at_work** (who of the turn is at work, since when, what each waits for and last said), **update_plan** (its
 plan shown to you, an API model's), **ask_advisor** (a second model's advice, three times a turn: your
 **Advisor model**, else another provider's), **note_decision** (a decision it took for you, a row of
-**Decided for you**), **suggest_preference** (a line for Your preferences from your own words of the
-turn, on a card you **Add** or not) and, where `gh` is installed and the origin is on GitHub,
+**Decided for you**), **suggest_preference** (your own sentence of the turn for Your preferences,
+added with **Undo**, or on a card you **Add** - as you set it) and, where `gh` is installed and the origin is on GitHub,
 **read_pr_feedback** (one pull request's reviews, comments and failing checks, read only). None is a
 sub-agent's. See
 [Talking while agents work](../use/talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).

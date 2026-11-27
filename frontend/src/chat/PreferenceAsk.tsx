@@ -9,9 +9,11 @@ const preferenceAsks = (conv: ConvState | null, suggestions: MemoryRecord[] | un
   conv ? (suggestions ?? []).filter(one => one.origin === 'agent' && one.conversation_id === conv.conversation.id) : []
 
 /**
- * suggest_preference (the user, 28 Nov): "Add this to your preferences: “…”?" over the message box, for each line the
- * Orchestrator suggested from your own words in this chat - Add puts it in Your preferences, Not now leaves them as they
- * are. The same suggestion as on the Memory page and Ready for you: answered in one place, gone from all.
+ * suggest_preference (the user, 28 Nov), with New preferences from your words at Ask me first: "Add this to your
+ * preferences: “…”?" over the message box, under the words of yours it came from, for each line the Orchestrator
+ * suggested in this chat - Add puts it in Your preferences as shown, Not now leaves them as they are. The same suggestion
+ * as on the Memory page and Ready for you: answered in one place, gone from all. (At Add them, tell me, your own
+ * sentence is added at once and the chat's line has Undo: `KoloniLine`.)
  */
 export function PreferenceAsk({ conv, open }: { conv: ConvState | null; open: boolean }) {
   const asks = preferenceAsks(
@@ -35,8 +37,13 @@ function Ask({ record }: { record: MemoryRecord }) {
   return (
     <section aria-labelledby={id} className="cmd-approval card-tell">
       <h3 id={id} className="kicker cmd-approval-kicker">
-        Your preferences
+        Suggested by the Orchestrator
       </h3>
+      {record.noted_by?.quote && (
+        <p className="muted">
+          The Orchestrator suggests, from your words <q>{record.noted_by.quote}</q>:
+        </p>
+      )}
       <p>
         Add this to your preferences: <q>{record.text}</q>?
       </p>

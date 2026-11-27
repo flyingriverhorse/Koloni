@@ -6,6 +6,7 @@ import { GUIDE } from '../guide'
 import { LANGUAGES } from '../ProjectSettings'
 import { useJudgeModel } from './JudgeModel'
 import { useAdvisorModel } from './AdvisorModel'
+import { useFromWords } from './FromWords'
 import { fromOf, Legend, Marked, More, Row, Said, SaveBar } from './part'
 import { appSaid } from './said'
 
@@ -176,6 +177,7 @@ export function AppAgents({ toLimits, moreAsked }: { toLimits?: () => void; more
     .map(([one, , name]) => `${name} ${one.kept ?? 'no limit'}`)
   const judge = useJudgeModel()
   const advisor = useAdvisorModel()
+  const fromWords = useFromWords()
   const experimental = useExperimental()
   // (What the save bar says changed, by name.)
   const named: [{ changed: boolean }, string][] = [
@@ -315,6 +317,7 @@ export function AppAgents({ toLimits, moreAsked }: { toLimits?: () => void; more
       {experimental.view}
       {judge.view}
       {advisor}
+      {fromWords}
       <Legend />
     </>
   )

@@ -216,7 +216,7 @@ what agents, models and other people wrote stays in quotes, with secrets masked.
   reply with it. What reviewers and checks say is theirs, never yours: framed as data, masked, cut at
   20,000 characters. Where it reads like orders to an agent, the chat warns you, as it does for a web
   page or an MCP tool.
-- **suggest_preference** - when you say how you want work done from now on, a line for Your
-  preferences, quoted from your own words of the turn: a card in the chat asks "Add this to your
-  preferences: "…"?" - **Add** or **Not now**. Nothing is written until you press Add. See
+- **suggest_preference** - when you say how you want work done from now on, your own sentence for
+  Your preferences, quoted from your prose of the turn: added at once with **Undo** in the chat, or - with
+  **New preferences from your words** at **Ask me first** - on a card with **Add** and **Not now**. See
   [Memory](../memory.md#who-writes-what).
