@@ -5,11 +5,13 @@ turn goes with it (`_lead_tools_forget`)."""
 
 import asyncio
 import logging
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, literal_column, select
 
-from app import advisor, injection, masking, model_native
+from app import advisor, git, injection, masking, model_native, pr_feedback
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
 from app.commands import OutputMask
@@ -28,6 +30,7 @@ from app.tools_at_work import (
     NOTED_FULL,
     NOTED_MOST,
     PLAN_SHOWN,
+    READ_PR_FEEDBACK_SCHEMA,
     UPDATE_PLAN_SCHEMA,
 )
 
@@ -45,10 +48,13 @@ class LeadToolsMixin:
         self._planned: dict[str, Ctx] = {}
         # Task 9: how many times the advisor was asked, by the turn (`advisor.ASKS_MOST`).
         self._advised: dict[str, int] = {}
+        # Task 11: whether gh is installed and the project's origin is on GitHub, by the turn.
+        self._on_github: dict[str, bool] = {}
 
     def _lead_tools_forget(self: "AgentRunner", run_id: str) -> None:
         """`_shut_door`: the turn is over - what its Orchestrator's tools kept of it goes."""
         self._advised.pop(run_id, None)
+        self._on_github.pop(run_id, None)
         if (planned := self._planned.pop(run_id, None)) is not None:
             self._end_live(planned)
 
@@ -60,6 +66,8 @@ class LeadToolsMixin:
             schemas.append(UPDATE_PLAN_SCHEMA)
         schemas.append(ASK_ADVISOR_SCHEMA)
         schemas.append(NOTE_DECISION_SCHEMA)
+        if self._on_github.get(ctx.run_id):
+            schemas.append(READ_PR_FEEDBACK_SCHEMA)
 
     async def _lead_tool(self: "AgentRunner", ctx: Ctx, call_id: str, name: str, args: dict) -> str:
         """`_at_work_call`'s part for the Orchestrator's own tools, held to where they are offered
@@ -70,6 +78,8 @@ class LeadToolsMixin:
             return await self._ask_advisor(ctx, args)
         if name == "note_decision":
             return self._note_decision(ctx, call_id, args)
+        if name == "read_pr_feedback":
+            return await self._read_pr_feedback(ctx, args)
         raise ToolError(f"unknown tool: {name}")
 
     def _update_plan(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
@@ -95,6 +105,44 @@ class LeadToolsMixin:
         self._show_live(ctx, plan)
         done = sum(one["status"] == "completed" for one in plan["plan"])
         return PLAN_SHOWN.format(k=min(done + 1, len(plan["plan"])), m=len(plan["plan"]))
+
+    # --- Task 11: the turn's git, and read_pr_feedback ------------------------------------
+
+    async def _git_start(self: "AgentRunner", ctx: Ctx) -> None:
+        """The project's git as the turn begins (slice 70): what a CLI of it is told, and
+        what its end is compared with. Once a turn, by its Lead, before any agent of the turn
+        works (`_attempt`: where Stop is taken) - never at an agent's steps. A folder with no
+        `.git` is not looked at (no thread); one that is, in a thread: `git.where` keeps to its
+        own time limit.
+        shortcut: also a turn none of whose agents turns out to be a CLI or run a command;
+        which will is not known yet as it begins.
+        Task 11 (0.1.11, moved here from `LoopMixin` to make room there): and, where gh is
+        installed, whether the project's origin is on GitHub - read_pr_feedback is offered by it,
+        the same all through the turn (`_pr_offered`)."""
+        if ctx.root is None or ctx.run_id in self._git_at:
+            return
+        self._git_at[ctx.run_id] = None  # (None: no git, or not read - nothing to compare)
+        if os.path.lexists(Path(ctx.root) / ".git"):
+            self._git_at[ctx.run_id] = await asyncio.to_thread(git.where, Path(ctx.root))
+        if self._git_at[ctx.run_id] is not None and not ctx.depth:  # (Task 11, `_pr_offered`)
+            self._on_github[ctx.run_id] = await asyncio.to_thread(_on_github, Path(ctx.root))
+
+    async def _read_pr_feedback(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
+        """read_pr_feedback: one pull request's reviews, comments, line comments and checks, read
+        with the user's own gh off the event loop (`pr_feedback.read`) - data, masked, cut, framed.
+        Only where it was offered (gh installed, origin on GitHub: `_git_start`); else, or where gh
+        is not logged in or the pull request is another repository's, refused with why."""
+        raw = args.get("pr")
+        if not isinstance(raw, str | int) or isinstance(raw, bool) or not str(raw).strip():
+            raise ToolError("missing required argument: pr")
+        root = Path(ctx.root or ".")
+        if not self._on_github.get(ctx.run_id):
+            _repo, why = await asyncio.to_thread(git.pr_ready, root)
+            raise ToolError(f"read_pr_feedback is not available: {why or git.NO_ANSWER}")
+        try:
+            return await asyncio.to_thread(pr_feedback.read, root, str(raw))
+        except git.Refused as refused:
+            raise ToolError(str(refused)) from None
 
     # --- Task 9: ask_advisor ---------------------------------------------------------------
 
@@ -235,6 +283,12 @@ class LeadToolsMixin:
             session.add(row)
             session.commit()
             return NOTED.format(id=row.id, what=quoted(row.what))
+
+
+def _on_github(root: Path) -> bool:
+    """Whether gh is installed and the project's origin is on github.com - read from its config,
+    never from GitHub: read_pr_feedback asks gh whether it is logged in when it is called."""
+    return git.gh() is not None and git.github_remote(root)
 
 
 def _line(text: str) -> str:
