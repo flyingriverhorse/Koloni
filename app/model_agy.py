@@ -635,8 +635,8 @@ class AgyClient(CodexNativeClient):
         skills: dict[str, str] | None = None,
         skills_told: str = "",
         on_live: object = None,  # (agy has no door into its turn: never called, 89d)
-        # shortcut: 89g's roles as its own sub-agents (`--agent`) are Claude Code's only; offer
-        # them to agy once measured.
+        # shortcut: 89g's roles as sub-agents of its own (`--agent`) are Claude Code's and
+        # Copilot's only; offer them to agy once measured.
         inside: dict[str, dict] | None = None,
         report_schema: dict | None = None,  # (never given to agy: `_hands_back`, 89p)
         # shortcut: Stop on one of agy's own commands does not end its turn (B-357 was Codex's);

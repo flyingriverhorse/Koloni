@@ -65,3 +65,14 @@ test('what is shown of a sub-agent’s ending claims no more than the record kno
 test('agy’s own tools are recorded under its name, like the other CLIs’', () => {
   expect(ownTool('agy__view_file')).toEqual({ server: null, tool: 'view_file' })
 })
+
+test('0.1.11: Copilot’s own sub-agent is its task tool, unless it was refused; its kind its agent_type', async () => {
+  const { ownSubAgentBrief, ownSubAgentCli } = await import('./ownWork')
+  const task = own('1', 'copilot__task', { status: 'running', arguments: '{"agent_type":"koloni-checker"}' })
+  expect(isOwnSubAgent(task)).toBe(true)
+  expect(isOwnSubAgent(own('1', 'copilot__task', { status: 'denied' }))).toBe(false)
+  expect(isOwnSubAgent(own('1', 'copilot__view'))).toBe(false)
+  expect(ownSubAgentBrief(task).kind).toBe('koloni-checker')
+  expect(ownSubAgentCli(task)).toBe('GitHub Copilot CLI')
+  expect(ownSubAgentCli(own('1', 'claude__Agent'))).toBe('Claude Code')
+})

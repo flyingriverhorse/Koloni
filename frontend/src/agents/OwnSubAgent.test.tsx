@@ -152,3 +152,32 @@ test('the two tool nodes list their own calls: KOLONİ’s, and the CLI’s own 
   view.rerender(<Inspector state={state} selectedId="owntools:2" onClose={() => {}} />)
   expect(names()).toEqual(['claude__Readown tooldone', 'edit_file hello.pyown tooldone'])
 })
+
+test('0.1.11: a role inside GitHub Copilot CLI is its task call, said inside Copilot, on Copilot’s models', async () => {
+  // Copilot's task tool opened a role KOLONİ gave it (agent_type koloni-checker); its view hangs under it.
+  const state = convState({
+    runs: [run('r', 'running')],
+    agents: [agent('r', 'running', { provider_name: 'Copilot' })],
+    messages: [userMessage('r', 'check it'), assistantMessage('m1', 'r', '')],
+    toolCalls: [
+      toolCall(
+        '2',
+        'r',
+        'copilot__task',
+        'succeeded',
+        '{"description":"Check it","prompt":"Read hello.py","agent_type":"koloni-checker","koloni_role":"Checker"}',
+        { ...cli, message_id: 'm1', result: 'It prints hi.' },
+      ),
+      toolCall('3', 'r', 'copilot__view', 'succeeded', '{}', { ...cli, message_id: 'm1', parent_call_id: '2' }),
+    ],
+  })
+  render(<AgentWindow state={state} agentId="r" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const block = screen.getByRole('group', { name: 'Own sub-agent: Check it' })
+  await userEvent.click(within(block).getByRole('button', { name: /Check it/ }))
+  expect(within(block).getByText('Checker (inside GitHub Copilot CLI)')).toBeInTheDocument()
+  expect(
+    within(block).getByText('uses GitHub Copilot CLI’s own models, not KOLONİ’s team guide; model not reported'),
+  ).toBeInTheDocument()
+  expect(within(block).getByText('copilot__view')).toBeInTheDocument()
+  expect(screen.getAllByText('copilot__view')).toHaveLength(1)
+})

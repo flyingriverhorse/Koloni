@@ -2694,7 +2694,7 @@ class RoleOut(Out):
     mcp: list[str]
     # The skills (their names) its agents are given.
     skills: list[str]
-    # 89g: also offered to a Claude Code Lead as one of its own sub-agents.
+    # 89g: also offered to a Claude Code or Copilot Lead as one of its own sub-agents.
     inside_cli: bool
     # K-bilgi: the knowledge it uses ("full": an expert in it), with each one's topic and project.
     knows: list[KnowsOut] = Field(validation_alias="knows_shown")

@@ -61,7 +61,7 @@ export interface RoleValues {
   context_window: number | null
   /** The skills (their names) its agents are given. */
   skills: string[]
-  /** 89g: also offered to a Claude Code Lead as one of its own sub-agents. */
+  /** 89g: also offered to a Claude Code or Copilot Lead as one of its own sub-agents. */
   inside_cli: boolean
   /** A new role's team, where it is added in one (slice 81d); a role's own are changed from its panel. */
   teams?: string[]

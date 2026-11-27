@@ -949,10 +949,10 @@ test('89g: a role may also run inside a Claude Code Lead - off until ticked, and
   await edit('Reviewer', 'Edit model')
   const inside = screen.getByRole('checkbox', { name: /Run inside the CLI/ })
   expect(inside).not.toBeChecked()
-  // It depends on the agent that opens it running in Claude Code, not on the role's own provider.
+  // It depends on the agent that opens it running in Claude Code or Copilot, not on the role's own provider.
   expect(
     screen.getByText(
-      'Only when the agent opening it runs in Claude Code, Native - experimental: Show experimental features in Settings › The app › Agents.',
+      'Only when the agent opening it runs in Claude Code or GitHub Copilot CLI, Native - experimental: Show experimental features in Settings › The app › Agents.',
     ),
   ).toBeInTheDocument()
   expect(screen.getByText(/the instructions hold any of % & \| < > !/)).toBeInTheDocument()
