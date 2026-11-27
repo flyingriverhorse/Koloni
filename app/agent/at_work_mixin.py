@@ -15,16 +15,31 @@ from sqlalchemy import literal_column, select
 from app import recipe_run
 from app.agent.ctx import Ctx
 from app.agent.spawn_mixin import INTERNAL, SPAWN_ENDED, SPAWN_ENDED_SEE, SPAWN_REJECTED
-from app.agent.words import AGENT_TERMINAL
-from app.db.models import Agent, Message, Run, now
-from app.model_client import ToolCallRequest
+from app.agent.words import (
+    AGENT_TERMINAL,
+    NOT_HEARD,
+    STEERED,
+    STOP_ASKED,
+    STOP_DONE,
+    STOP_FINISHED,
+    STOP_NONE,
+    STOP_NOT_SPAWNED,
+    STOP_NOT_YOURS,
+    STOPPED_BY,
+    USER_STOPPED,
+    YOU_STOPPED,
+)
+from app.db.models import Agent, Message, Run, ToolCall, now
+from app.model_client import OwnStop, ToolCallRequest
+from app.proof import PROOF_CALL
 from app.tools import ToolError, parse_arguments
-from app.tools_at_work import SPAWN_BACKGROUND_PROPERTY
+from app.tools_at_work import SPAWN_BACKGROUND_PROPERTY, STOP_AGENT_SCHEMA
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
 
 log = logging.getLogger(__name__)
+LEADS_STOP = STOPPED_BY.format(who="the Orchestrator")
 
 # B-376 (live): a Copilot Lead gave its last answer while a team's "All at once" group had just
 # opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
@@ -38,12 +53,135 @@ HOLD_LOOK = 0.5  # seconds between looks at whether they are back
 
 
 class AtWorkMixin:
+    def _at_work_init(self: "AgentRunner") -> None:
+        """`AgentRunner.__init__`'s part for what goes on beside the turn's agents."""
+        # D3: each sub-agent's own work while it runs (`_see_through_run`), and why one that was
+        # stopped alone was (`stop_agent`).
+        self._own_work: dict[str, asyncio.Task] = {}
+        self._stopped_one: dict[str, str] = {}
+
     def _at_work_offered(self: "AgentRunner", ctx: Ctx, schemas: list[dict]) -> None:
         """`_offered`'s schemas, with what goes on beside the turn's agents where it is this
-        agent's: spawn_agent's `background` (D1)."""
+        agent's: spawn_agent's `background` (D1); stop_agent for the Orchestrator that may open
+        agents (D3) - a CLI's too, over MCP."""
         if self._background_offered(ctx):
             for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
                 spawn["parameters"]["properties"]["background"] = SPAWN_BACKGROUND_PROPERTY
+        if not (ctx.depth or ctx.answering or ctx.discussion) and any(
+            s["function"]["name"] == "spawn_agent" for s in schemas
+        ):
+            schemas.append(STOP_AGENT_SCHEMA)
+
+    async def _at_work_call(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
+        """`_tool_call_4`'s part for `AT_WORK_TOOLS`, held to the agent they are offered to (a
+        CLI keeps the tools it was given at its start)."""
+        if ctx.depth or ctx.answering or ctx.discussion:
+            raise ToolError(f"{name} is not available: only the Orchestrator at its own work")
+        named = args.get("name")
+        if not isinstance(named, str) or not named.strip():
+            raise ToolError("missing required argument: name")
+        named = " ".join(named.split())
+        with self._factory() as session:
+            found = session.scalar(
+                select(Agent.id).where(
+                    Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.name == named
+                )
+            )
+        if found is None:
+            raise ToolError(STOP_NONE.format(name=named))
+        if why := await self.stop_agent(found, by=ctx):
+            raise ToolError(why)
+        return STOP_DONE.format(name=named)
+
+    async def stop_agent(self: "AgentRunner", agent_id: str, by: Ctx | None = None) -> str | None:
+        """D3: one agent of the turn stopped - by the user from its box (`by` None), or by the
+        Orchestrator that opened it with spawn_agent (`by`). Its own work ends at once (its task:
+        `_see_through_run`), the helpers it opened with it (`_halt`): its cards close, what it
+        changed is kept for the user's Take in as where it stops unfinished by itself (`_take_in`)
+        and nothing of it reaches the project; its opener hears it ended, the rest of the turn
+        goes on. Not KOLONİ's own look, nor a step of a team's recipe: their Stop is theirs. Why
+        not, or None once stopped."""
+        with self._factory() as session:
+            agent = session.get(Agent, agent_id)
+            call = session.get(ToolCall, agent.tool_call_id or "") if agent else None
+            cid = session.get_one(Run, agent.run_id).conversation_id if agent else ""
+        if agent is None:
+            return STOP_NONE.format(name="that")
+        mine = (
+            call is not None
+            and call.name == "spawn_agent"
+            and not call.provider_call_id.startswith(PROOF_CALL)
+            and agent_id not in self._in_recipe
+        )
+        if by is not None and not (
+            mine and agent.parent_agent_id == by.agent_id and agent.run_id == by.run_id
+        ):
+            return STOP_NOT_YOURS.format(name=agent.name)
+        work = self._own_work.get(agent_id)
+        if agent.status in AGENT_TERMINAL or (work is not None and work.done()):
+            return STOP_FINISHED.format(name=agent.name)
+        if not mine:
+            return STOP_NOT_SPAWNED.format(name=agent.name)
+        if work is None:
+            return STOP_ASKED.format(name=agent.name)
+        why = self._stopped_one[agent_id] = (
+            LEADS_STOP if by is not None else STOPPED_BY.format(who="the user")
+        )
+        self._halt(agent.run_id, [agent_id], why)  # (its helpers too; no try-again advice)
+        work.cancel()
+        if by is None:
+            self._koloni_line(cid, agent.run_id, YOU_STOPPED.format(name=agent.name))
+            if (opener := self._ctxs.get(agent.parent_agent_id or "")) is not None:
+                self._send(opener, opener, USER_STOPPED.format(name=agent.name), False, koloni=True)
+        return None
+
+    async def _see_through_run(self: "AgentRunner", ctx: Ctx, child: Ctx) -> tuple[str, str | None]:
+        """`_see_through`: the sub-agent's work, in its place among the agents at work - in a task
+        of its own, which one Stop ends alone (`stop_agent`): then it ended "cancelled", and its
+        opener goes on with that as with an agent that stopped unfinished. The turn's Stop goes
+        through it as ever."""
+        work = self._own_work[child.agent_id] = asyncio.ensure_future(
+            self._see_through_place(ctx, child)
+        )
+        try:
+            return await work
+        except asyncio.CancelledError:
+            why = self._stopped_one.get(child.agent_id)
+            task = asyncio.current_task()
+            if why is None or (task is not None and task.cancelling()):
+                if why is not None:  # (its own Stop, then the turn's: kept as the turn's keeps it)
+                    await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
+                raise
+            line = {child.agent_id}  # (and what hangs on its helpers' calls: their cards)
+            while more := {a for a, one in self._ctxs.items() if one.parent_id in line} - line:
+                line |= more
+            for one in line:
+                self._interrupt_open_calls(child.run_id, child.cid, one)
+            return "cancelled", why
+        finally:
+            self._own_work.pop(child.agent_id, None)
+
+    async def _see_through_place(
+        self: "AgentRunner", ctx: Ctx, child: Ctx
+    ) -> tuple[str, str | None]:
+        """`_see_through_run`'s work."""
+        async with self._working(child, queued=True):
+            self._set_agent(ctx.cid, child.agent_id, status="running", started_at=now())
+            if why := await self._candidate_copy(child):
+                return "failed", why
+            try:
+                ended, error = await self._run_child(child)
+            except asyncio.CancelledError:
+                # B-405: Stop (the turn's, Stop everything's) in its work in a copy - not its own
+                # Stop (`stop_agent`): `_take_in` keeps that, as where it stops by itself.
+                if child.agent_id not in self._stopped_one:
+                    await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
+                raise
+            if ended == "completed" and child.agent_id in self._candidates:
+                # K-evrim: measured as its last act, its place still held - a card
+                # for the command waits as for any command of its own.
+                self._scored[child.agent_id] = await self._measure(child)
+            return ended, error
 
     def _background_offered(self: "AgentRunner", ctx: Ctx) -> bool:
         """D1: whether this agent may open one in the background - the Orchestrator of an API
@@ -344,6 +482,8 @@ class AtWorkMixin:
             log.warning("agent %s: spawn_agent %s failed: %r", ctx.agent_id, child_id, exc)
             status, said = "failed", INTERNAL
         await self._take_slot_back(ctx)
+        if self._stopped_one.get(child_id) == LEADS_STOP:
+            raise asyncio.CancelledError  # (its own stop_agent's answer said it: nothing to read)
         opener = self._ctxs.get(ctx.agent_id, ctx)
         with self._factory() as session:
             child = session.get(Agent, child_id)
@@ -369,3 +509,68 @@ class AtWorkMixin:
             said,
             self._send(replace(ctx, agent_id=child_id), opener, said, delivered=False),
         )
+
+    def _nudge(self: "AgentRunner", ctx: Ctx, words: str) -> None:
+        """`words` follow the agent's last message in what it sees from its next step on."""
+        with self._factory() as session:
+            last = session.scalar(
+                select(Message.id)
+                .where(
+                    Message.run_id == ctx.run_id,
+                    Message.agent_id == ctx.agent_id,
+                    Message.role == "assistant",
+                )
+                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+                .limit(1)
+            )
+        self._nudges.setdefault(ctx.agent_id, []).append((last, words))
+
+    async def steer(self: "AgentRunner", ctx: Ctx, words: str, kept: bool = False) -> str | None:
+        """89d: `words` to an agent while it works - into Claude Code's or Codex's own turn at
+        once (`STEERED`), with a CLI session's next KOLONİ tool result, or at its next step of
+        KOLONİ's own; and from its next step or run on (`_nudge`, B-83) - not where they are
+        `kept` in its conversation already (`_send`), which its later steps read. None once
+        sent; why it cannot hear them where it cannot (Copilot's and agy's own sessions:
+        B-164). One at a time to an agent (`_changing`).
+        Only KOLONİ's own words around what the user decided, anything an agent wrote (a
+        question, its options) `quoted()` inside them - never an agent's words as they are: a
+        CLI's user line carries the user's authority."""
+        name = ctx.name or ctx.role
+        # shortcut: one at a time while it is sent, not until it is read - a second sent before
+        # Claude Code reads the first takes its place for `steer_unread`; hold them until read
+        # if two land in one turn live.
+        if ctx.agent_id in self._changing:
+            return f"can't be sent now: another message to {name} is on its way"
+        self._changing.add(ctx.agent_id)
+        try:
+            door = self._doors.get(ctx.agent_id)
+            if door is not None:
+                if not await door(f"{STEERED}\n\n{words}"):
+                    return NOT_HEARD.format(name=name)
+            elif getattr(ctx.model, "native", False):
+                return NOT_HEARD.format(name=name)
+            elif getattr(ctx.model, "session", False):
+                # shortcut: a session that calls no KOLONİ tool again hears it only on a re-run;
+                # steer its CLI live too once a session's input is measured mid-turn.
+                self._heard_later.setdefault(ctx.agent_id, []).append(words)
+        finally:
+            self._changing.discard(ctx.agent_id)
+        if not kept:
+            self._nudge(ctx, words)
+        return None
+
+    def _lead_of(self: "AgentRunner", run_id: str) -> Ctx | None:
+        """The turn's Lead, while it is at work."""
+        return next(
+            (one for one in self._ctxs.values() if one.run_id == run_id and not one.depth), None
+        )
+
+    def stop_cli(self: "AgentRunner", agent_id: str) -> bool:
+        """B-357: Stop on a command a CLI runs with its own tool - whose process KOLONİ does not
+        hold - ends that CLI's turn; the command is closed with the rest of it (also one still
+        waiting for its place after the yes). False: the agent's CLI is not at work."""
+        for watch in [w for watches in self._watches.values() for w in watches]:
+            if watch.end and watch.ctx and watch.ctx.agent_id == agent_id:
+                watch.end(OwnStop("you stopped its command"))
+                return True
+        return False

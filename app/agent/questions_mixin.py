@@ -15,7 +15,7 @@ from sqlalchemy.orm import object_session
 from app import away, earlier, memory, parked, raw, signs, topics
 from app.agent.cards import _answer, lead_pick
 from app.agent.ctx import Ctx
-from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, KOLONIS, READY_FOR_YOU
+from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, KOLONIS, LEAD_TOLD_ABOUT, READY_FOR_YOU
 from app.api.usage import over_month, past_its_limit
 from app.db.models import (
     Agent,
@@ -711,16 +711,27 @@ class QuestionsMixin:
         finally:
             self._changing.discard(question.id)
 
-    async def tell_at_work(self: "AgentRunner", agent_id: str, words: str) -> str | None:
+    async def tell_at_work(
+        self: "AgentRunner", agent_id: str, words: str, to_lead: bool = False
+    ) -> str | None:
         """89d C: the user's own word, from an agent's window, to it while it works (`steer`) -
         theirs, with their authority; on record in its conversation as KOLONİ passed it on.
-        Why not, or None once said."""
+        `to_lead` (B-164): to the turn's Orchestrator instead, about it - for a CLI that hears
+        nothing while it works. Why not, or None once said."""
         ctx = self._ctxs.get(agent_id)
         with self._factory() as session:
             agent = session.get(Agent, agent_id)
             at_work = agent is not None and agent.status not in AGENT_TERMINAL
         if ctx is None or not at_work:
             return "it has finished"
+        if to_lead:
+            if (lead := self._lead_of(ctx.run_id)) is None or lead.agent_id == agent_id:
+                return "the Orchestrator is not at work"
+            name = ctx.name or ctx.role
+            self._send(
+                lead, lead, LEAD_TOLD_ABOUT.format(name=name, words=quoted(words)), False, True
+            )
+            return None
         told = USER_TOLD.format(words=quoted(words))
         door = agent_id in self._doors
         if why := await self.steer(ctx, told, kept=True):

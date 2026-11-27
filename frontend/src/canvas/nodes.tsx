@@ -24,6 +24,7 @@ import { StatusLabel } from '../shell/StatusLabel'
 import { AwayReport } from '../backlog/Away'
 import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
+import { StopAndMessage } from './agentStop'
 import {
   type AgentData,
   type AttachmentData,
@@ -675,6 +676,7 @@ function AgentCard({ id, data, selected }: AgentProps) {
           <span className="node-title">{name}</span>
           <span className="node-where"> · {where}</span>
         </span>
+        <StopAndMessage agentId={id.replace(/^agent:/, '')} name={name} />
         <OpenWindow id={id} name={name} />
       </div>
       <div className="node-body">

@@ -315,7 +315,6 @@ from app.agent.words import (
     MAX_PATHS_TOLD,
     MAX_SENT_BACK,
     NO_TRIGGER_ALLOWS,
-    NOT_HEARD,
     NOT_IN_A_COPY,
     NOT_IN_THE_PART,
     NOT_ITS_TEST,
@@ -334,7 +333,6 @@ from app.agent.words import (
     SECRET_IN_COPY,
     SHARED_WITH_PROJECT,
     SOME_NOT_HERE,
-    STEERED,
     TEAM_STOPPED,
     TESTS_TAIL_LINES,
     UNCHECKED,
@@ -342,7 +340,9 @@ from app.agent.words import (
 from app.agent.words import CONTINUE_WORDS as CONTINUE_WORDS
 from app.agent.words import MAX_FINDINGS as MAX_FINDINGS
 from app.agent.words import MAX_WHAT as MAX_WHAT
+from app.agent.words import NOT_HEARD as NOT_HEARD
 from app.agent.words import READY_FOR_YOU as READY_FOR_YOU
+from app.agent.words import STEERED as STEERED
 from app.agent.words import WEB_REJECTED as WEB_REJECTED
 from app.changes import DELETED_SHA, apply_change
 from app.claims import Claims, place
@@ -391,7 +391,7 @@ from app.db.models import (
 from app.executors import executor_for
 from app.executors.base import Executor
 from app.limits import at_limit
-from app.model_client import ModelClient, OwnStop, ToolCallRequest
+from app.model_client import ModelClient, ToolCallRequest
 from app.model_native import Steer
 from app.project_view import standing as standing_files
 from app.providers import Providers
@@ -440,6 +440,7 @@ from app.tools import (
     run_read_tool,
 )
 from app.tools import who_line as who_line
+from app.tools_at_work import AT_WORK_TOOLS
 from app.workspace import (
     Workspace,
     WorkspaceError,
@@ -1513,6 +1514,7 @@ class AgentRunner(
         self._recipe_copy: dict[str, str] = {}
         # The agents opened for a step of a recipe, or to run one (a team's lead): in that copy.
         self._in_recipe: set[str] = set()
+        self._at_work_init()
         # S3: the spawn calls of KOLONİ's end-of-turn Reviewers - read tools only, no recipe
         # started by them (`ReviewMixin._look`).
         self._read_only_calls: set[str] = set()
@@ -6073,6 +6075,8 @@ class AgentRunner(
             status, output = "succeeded", await self._own_tool(ctx, call_id, request.name)
         elif request.name in SERVING_TOOLS:
             status, output = "succeeded", await self._serving_call(ctx, request.name, args)
+        elif request.name in AT_WORK_TOOLS:  # (0.1.11: beside the turn's agents)
+            status, output = "succeeded", await self._at_work_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:
             status, output = "succeeded", await self._browser(ctx, ws, call_id, request.name, args)
         elif request.name in WEB_SCHEMAS:
@@ -6715,21 +6719,6 @@ class AgentRunner(
             )
             is not None
         )
-
-    def _nudge(self, ctx: Ctx, words: str) -> None:
-        """`words` follow the agent's last message in what it sees from its next step on."""
-        with self._factory() as session:
-            last = session.scalar(
-                select(Message.id)
-                .where(
-                    Message.run_id == ctx.run_id,
-                    Message.agent_id == ctx.agent_id,
-                    Message.role == "assistant",
-                )
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-                .limit(1)
-            )
-        self._nudges.setdefault(ctx.agent_id, []).append((last, words))
 
     def _mark_not_run(self, ctx: Ctx) -> None:
         """B-90: the Lead's turn ended with a picked team that did not run, told twice: its row
@@ -8609,46 +8598,6 @@ class AgentRunner(
         if ctx.depth and (lead := self._lead_of(ctx.run_id)) is not None:
             self._nudge(lead, words)
 
-    async def steer(self, ctx: Ctx, words: str, kept: bool = False) -> str | None:
-        """89d: `words` to an agent while it works - into Claude Code's or Codex's own turn at
-        once (`STEERED`), with a CLI session's next KOLONİ tool result, or at its next step of
-        KOLONİ's own; and from its next step or run on (`_nudge`, B-83) - not where they are
-        `kept` in its conversation already (`_send`), which its later steps read. None once
-        sent; why it cannot hear them where it cannot (Copilot's and agy's own sessions:
-        B-164). One at a time to an agent (`_changing`).
-        Only KOLONİ's own words around what the user decided, anything an agent wrote (a
-        question, its options) `quoted()` inside them - never an agent's words as they are: a
-        CLI's user line carries the user's authority."""
-        name = ctx.name or ctx.role
-        # shortcut: one at a time while it is sent, not until it is read - a second sent before
-        # Claude Code reads the first takes its place for `steer_unread`; hold them until read
-        # if two land in one turn live.
-        if ctx.agent_id in self._changing:
-            return f"can't be sent now: another message to {name} is on its way"
-        self._changing.add(ctx.agent_id)
-        try:
-            door = self._doors.get(ctx.agent_id)
-            if door is not None:
-                if not await door(f"{STEERED}\n\n{words}"):
-                    return NOT_HEARD.format(name=name)
-            elif getattr(ctx.model, "native", False):
-                return NOT_HEARD.format(name=name)
-            elif getattr(ctx.model, "session", False):
-                # shortcut: a session that calls no KOLONİ tool again hears it only on a re-run;
-                # steer its CLI live too once a session's input is measured mid-turn.
-                self._heard_later.setdefault(ctx.agent_id, []).append(words)
-        finally:
-            self._changing.discard(ctx.agent_id)
-        if not kept:
-            self._nudge(ctx, words)
-        return None
-
-    def _lead_of(self, run_id: str) -> Ctx | None:
-        """The turn's Lead, while it is at work."""
-        return next(
-            (one for one in self._ctxs.values() if one.run_id == run_id and not one.depth), None
-        )
-
     async def _go_on_again(
         self, ctx: Ctx, child: Ctx, resets: datetime | None
     ) -> tuple[bool, str] | None:
@@ -9354,16 +9303,6 @@ class AgentRunner(
         if not ctx.depth:
             said += await self._ready_for_you(ctx, child)
         return said
-
-    def stop_cli(self, agent_id: str) -> bool:
-        """B-357: Stop on a command a CLI runs with its own tool - whose process KOLONİ does not
-        hold - ends that CLI's turn; the command is closed with the rest of it (also one still
-        waiting for its place after the yes). False: the agent's CLI is not at work."""
-        for watch in [w for watches in self._watches.values() for w in watches]:
-            if watch.end and watch.ctx and watch.ctx.agent_id == agent_id:
-                watch.end(OwnStop("you stopped its command"))
-                return True
-        return False
 
     def stop_team(self, cid: str, team_id: str, finish: bool = False) -> str | None:
         """The user's Stop on a team of the chat: its row stops, and so does each of its

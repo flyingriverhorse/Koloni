@@ -37,3 +37,6 @@ class TellIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     words: str = Field(min_length=1, max_length=4000)
+    # B-164: to the Orchestrator instead, about the agent - one whose CLI hears nothing while it
+    # works (Copilot's, agy's own; the user's answer 2, 25 Nov).
+    to_lead: bool = False

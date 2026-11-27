@@ -9,3 +9,26 @@ SPAWN_BACKGROUND_PROPERTY = {
     "you as a note when it ends. Meanwhile talk to the user, open others, message or stop it "
     "(stop_agent). Until its note comes, never say what it found: say it is still at work.",
 }
+
+# D3: the Orchestrator's own Stop, for an agent it opened in this turn (`AtWorkMixin.stop_agent`).
+STOP_AGENT_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "stop_agent",
+        "description": "Stop one agent you opened in this turn with spawn_agent, while it still "
+        "works. Its work so far is kept for the user; nothing of it reaches the project. Open it "
+        "again only if the user asks.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": 'Its name, as spawn_agent\'s answer gave it ("Coder 2").',
+                }
+            },
+            "required": ["name"],
+        },
+    },
+}
+# The tools above, by name, for `_tool_call_4`'s dispatch (`AtWorkMixin._at_work_call`).
+AT_WORK_TOOLS = frozenset({"stop_agent"})

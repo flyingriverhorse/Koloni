@@ -188,7 +188,20 @@ async def tell_agent(
         raise HTTPException(404, "agent not found")
     if not body.words.strip():
         raise HTTPException(422, "say something to it")
-    if why := await request.app.state.runner.tell_at_work(agent_id, body.words.strip()):
+    if why := await request.app.state.runner.tell_at_work(
+        agent_id, body.words.strip(), body.to_lead
+    ):
+        raise HTTPException(409, why)
+
+
+@router.post("/agents/{agent_id}/stop", status_code=204, dependencies=[Depends(require_own_origin)])
+async def stop_agent(agent_id: str, request: Request, session: Session = Depends(get_session)):
+    """D3 (0.1.11): the user's Stop on one agent at work, from its box on the app's own page:
+    it alone stops, its work so far kept for Take in; 409 with why it is not one to stop so
+    (async: its task is cancelled on the event loop)."""
+    if session.get(Agent, agent_id) is None:
+        raise HTTPException(404, "agent not found")
+    if why := await request.app.state.runner.stop_agent(agent_id):
         raise HTTPException(409, why)
 
 

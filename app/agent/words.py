@@ -357,3 +357,24 @@ NOT_ON_BRANCH_AGAIN = (
     "You are not going on on your branch: {why}. You work in a new copy of "
     "the project as it is now: read each file again before you change it."
 )
+
+# D3 (0.1.11): one agent stopped - by the user from its box, or by the Orchestrator (stop_agent).
+STOPPED_BY = "stopped by {who}"
+YOU_STOPPED = (
+    "You stopped {name}. Its work so far is kept for your Take in; nothing of it is in the project."
+)
+USER_STOPPED = "KOLONİ: the user stopped {name}. Do not open it again unless the user asks."
+STOP_DONE = (
+    "Stopped {name}. Its work so far is kept for the user; nothing of it reached the project."
+)
+STOP_NOT_YOURS = "{name} is not one you opened in this turn"
+STOP_FINISHED = "{name} has finished"
+STOP_NONE = "no agent named {name} in this turn"
+STOP_ASKED = "{name} waits for the user's answer on its card: Reject it there"
+STOP_NOT_SPAWNED = "{name} was not opened with spawn_agent: its check's or its team's Stop stops it"
+# B-164: Copilot's and agy's own sessions hear nothing while they work - the user's word about one
+# goes to the Orchestrator instead (the user's answer 2, 25 Nov).
+LEAD_TOLD_ABOUT = (
+    "KOLONİ: the user's word to you about {name}, which can't hear messages while it works "
+    "- their own word: {words}"
+)

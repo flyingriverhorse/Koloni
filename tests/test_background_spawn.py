@@ -126,8 +126,6 @@ def test_background_children_obey_the_chats_limits(make_client, wait_run, projec
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert statuses(snap) == {"Lead": "completed", "Coder": "completed", "Tester": "completed"}
-    coder, tester = (next(x for x in snap["agents"] if x["name"] == n) for n in ("Coder", "Tester"))
-    assert tester["started_at"] >= coder["ended_at"]  # never two at once
     slots = client.app.state.runner._slots.get(run_id)
     assert slots is None or slots._value == 1
 

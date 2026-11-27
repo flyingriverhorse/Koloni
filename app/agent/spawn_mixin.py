@@ -2828,24 +2828,6 @@ class SpawnMixin:
             return "denied", declined + await self._declined(ctx, child)
         return None
 
-    async def _see_through_run(self: "AgentRunner", ctx: Ctx, child: Ctx) -> tuple[str, str | None]:
-        """`_see_through`: the sub-agent's work, in its place among the agents at work."""
-        async with self._working(child, queued=True):
-            self._set_agent(ctx.cid, child.agent_id, status="running", started_at=now())
-            if why := await self._candidate_copy(child):
-                return "failed", why
-            try:
-                ended, error = await self._run_child(child)
-            except asyncio.CancelledError:
-                # B-405: Stop (the turn's, Stop everything's) in its work in a copy.
-                await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
-                raise
-            if ended == "completed" and child.agent_id in self._candidates:
-                # K-evrim: measured as its last act, its place still held - a card
-                # for the command waits as for any command of its own.
-                self._scored[child.agent_id] = await self._measure(child)
-            return ended, error
-
     def _see_through_finished(
         self: "AgentRunner",
         ctx: Ctx,
