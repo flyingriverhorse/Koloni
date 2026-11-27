@@ -21,6 +21,8 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-11-27
+
 ### Changed
 
 - **Ready**: **Ready for you** and **To-do** are one page. The rail's **To-do** is gone: **Ready** opens a page of two halves - side by side on a wide screen, one under the other on a narrow one. On the left, what was done: a greeting, then the report of the project's last ☾ Away, while it works and once it has ended - one sentence ("2 of 3 jobs done, 1 could not be done."), a row for each job with its branch, checks and **Take in** / **Try again** / **Open its chat**, the night's lanes, how many were decided for you on its jobs and not seen (**See them**), what it spent, **Copy report as Markdown** - or one line, "Nothing new since you last looked", with no night or one seen and over a day old. Under it **Waiting for your word**, one list in one frame, each row saying what it is - Push, Parked command, Question, Proposed task, Done?, Ready to take in… - and whose; and **Decided for you**, a row you have not seen marked **new**. On the right, To-do. Ctrl+K's **To-do (on Ready for you)**, a chat's **Open it in To-do**, **The task** on a decision, the canvas's **To-do →** and the top bar's ☾ Away line bring you there ([docs](docs/use/ready.md#the-page)).
