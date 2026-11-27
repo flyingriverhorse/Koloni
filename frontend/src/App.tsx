@@ -39,8 +39,7 @@ import { kept, tabOf } from './shell/openTabs'
 import { type Place, Palette } from './shell/Palette'
 import { PageGuard } from './shell/PageGuard'
 import { HoldStatus } from './shell/HoldStatus'
-import { SECTIONS } from './shell/ProjectSettings'
-import { APP_SECTIONS, Settings } from './shell/Settings'
+import { Settings, settingsPlaces } from './shell/Settings'
 import { Rail, type View } from './shell/Rail'
 import { RunStatus } from './shell/RunStatus'
 import { Toasts } from './shell/Toasts'
@@ -1184,13 +1183,12 @@ export function App() {
       ...roles.map(role => ({ kind: 'Role', name: role.name, go: () => go('agents', role.id) })),
       ...providers.map(provider => ({ kind: 'Model', name: provider.name, go: () => go('models', provider.id) })),
       ...mcpServers.map(server => ({ kind: 'Tool server', name: server.name, go: () => go('tools', server.id) })),
-      ...[...(project ? SECTIONS : []), ...APP_SECTIONS.map(([key, name]) => [key, `${name} (the app)`] as const)].map(
-        ([key, name]) => ({
-          kind: 'Setting',
-          name,
-          go: () => useApp.getState().askSettings(key),
-        }),
-      ),
+      ...settingsPlaces(!!project).map(({ place, name, also }) => ({
+        kind: 'Setting',
+        name,
+        also,
+        go: () => useApp.getState().askSettings(place),
+      })),
       { kind: 'Help', name: 'Show the first steps', go: firstSteps },
     ]
     return (

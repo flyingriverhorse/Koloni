@@ -154,7 +154,7 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
   ]
   const warned = new Set<RegExp>()
   let hinted = 0
-  expect(sections).toHaveLength(11)
+  expect(sections).toHaveLength(7)
   for (const section of sections) {
     await userEvent.click(section)
     const hints = Array.from(document.querySelectorAll('.hint-bubble'))

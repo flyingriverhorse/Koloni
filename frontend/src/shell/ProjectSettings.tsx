@@ -1,18 +1,16 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
-import { ProjectRules } from '../commands/ProjectRules'
-import { ProjectSites } from '../commands/Sites'
 import type { Budget, OthersInstructions, Project } from '../api/types'
-import { OwnCommands } from './OwnCommands'
 import { ProjectMap } from './ProjectMap'
-import { useAgents, useAsking } from './sections/Agents'
+import { useAgents } from './sections/Agents'
+import { type AskedFor, useAsking } from './sections/Asked'
 import { useChecks } from './sections/Checks'
-import { useCommands } from './sections/Commands'
 import { useLimits } from './sections/Limits'
 import { useMemoryWeb } from './sections/MemoryWeb'
-import { useNewChats } from './sections/NewChats'
 import { useNotifications } from './sections/Notifications'
-import { own, type Part, type Setter } from './sections/part'
+import { own, type Part, Said, SaveBar, type Setter } from './sections/part'
+import { folderSaid } from './sections/said'
+import { changes } from './sections/usual'
 
 export { Row } from './sections/part'
 export { LEAD_WORK } from './sections/Agents'
@@ -48,6 +46,8 @@ export interface ProjectSettingsValues {
   measure_command?: string
   /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code - Test and review, Tests only or Nothing. Sent only when changed. */
   after_change?: Project['after_change']
+  /** S11: the rounds spent and a test still failing, the next stronger tier tries. Sent only when changed. */
+  stronger_model?: boolean
   /** S3: how often failing tests and the Reviewer's blocking findings go back - 1 to 10, or "until" it passes (k-canli-016). Sent only when changed. */
   fix_rounds?: number | 'until'
   /** S5a: Check by kind of work - the kinds switched, merged into the project's. Sent only when changed. */
@@ -104,8 +104,9 @@ interface Props {
   onSave: (values: ProjectSettingsValues) => Promise<void>
   /** The user's yes to what the folder's .koloni/settings.json asks for, as the card showed it; the project as it is then saved. */
   onUseKoloni?: (asks: Project['koloni']['asks']) => Promise<Project>
-  /** A section asked for (Ctrl+K, a chat's "run without asking" link), each time with a new count: shown, and what is not saved elsewhere stays. */
-  picked?: { section: Section; n: number }
+  /** A place asked for (Ctrl+K, a chat's "run without asking" link), each time with a new count: its section shown - and
+   *  what it names in it, where that is folded - and what is not saved elsewhere stays. */
+  picked?: { section: ProjectPlace; n: number }
   /** This month's spend against the budget, as last read: its currency, and whether the budget is enforced. */
   spend?: Budget | null
   /** The open chat of this project: listed under Runs without asking even with none. */
@@ -114,8 +115,6 @@ interface Props {
   levels?: (sections: ReactNode) => ReactNode
   /** The app's step limit, from Limits and money. */
   toApp?: () => void
-  /** Limits and money's More limits open: it was asked for from the app's link to Continue's steps. */
-  moreLimits?: boolean
   /** Under This folder, after the form: Delete project (it has a form of its own). */
   children?: ReactNode
 }
@@ -148,34 +147,48 @@ function askedFor(asks: Project['koloni']['asks'], project: Project): string {
   return parts.filter(Boolean).join(', ')
 }
 
-export type Section =
-  | 'agents'
-  | 'asking'
-  | 'new-chats'
-  | 'limits'
-  | 'commands'
-  | 'rules'
-  | 'checks'
-  | 'memory'
-  | 'notifications'
-  | 'own-commands'
-  | 'folder'
+export type Section = 'agents' | 'asking' | 'checks' | 'limits' | 'memory' | 'notifications' | 'folder'
 
-/** This project's sections (sample A), in order. */
+/** This project's sections (0.1.10: by job, and fewer), in order. */
 export const SECTIONS: [Section, string][] = [
-  ['agents', 'Agents'],
-  ['asking', 'Asking and away'],
-  ['new-chats', 'New chats start with'],
+  ['agents', 'How agents work'],
+  ['asking', 'When you’re asked'],
+  ['checks', 'When the work is done'],
   ['limits', 'Limits and money'],
-  ['commands', 'Commands and secrets'],
-  ['rules', 'Runs without asking'],
-  ['checks', 'Checks and git'],
   ['memory', 'Memory and web'],
   ['notifications', 'Notifications'],
-  // (Your own; "Commands and secrets" is where they run.)
-  ['own-commands', 'Slash commands'],
   ['folder', 'This folder'],
 ]
+
+/**
+ * The sections before 0.1.10 and what was folded into one now: the section that holds it, and what opens there - its
+ * More, or the rules. A link, Ctrl+K and the old names still find them.
+ */
+const MOVED = {
+  'new-chats': ['agents', 'more', 'New chats start with'],
+  'own-commands': ['agents', 'more', 'Slash commands'],
+  rules: ['asking', 'rules', 'Runs without asking'],
+  commands: ['asking', 'more', 'Commands and secrets'],
+  'more-limits': ['limits', 'more', ''],
+} as const satisfies Record<string, [Section, AskedFor['what'], string]>
+
+/** A place in This project a link or Ctrl+K may ask for. */
+export type ProjectPlace = Section | keyof typeof MOVED
+
+/** A section's names before 0.1.10, which Ctrl+K still finds it by. */
+export const OLD_NAMES: Partial<Record<Section, string[]>> = {
+  agents: ['Agents', MOVED['new-chats'][2], MOVED['own-commands'][2]],
+  asking: ['Asking and away', MOVED.rules[2], MOVED.commands[2]],
+  checks: ['Checks and git'],
+}
+
+/** A place asked for: its section, and what opens in it then (each time with a new count). */
+function opened(picked: { section: ProjectPlace; n: number }): [Section, Opening | undefined] {
+  if (!(picked.section in MOVED)) return [picked.section as Section, undefined]
+  const [section, what] = MOVED[picked.section as keyof typeof MOVED]
+  return [section, { section, what, n: picked.n }]
+}
+type Opening = AskedFor & { section: Section }
 
 /** Under a section's Save, once it is saved and not changed since: that it is - and, by the save that put the settings into the folder, that. */
 const savedSaid = (saved: boolean, keptBefore: boolean, koloni: Project['koloni'] | undefined) =>
@@ -202,28 +215,34 @@ export function ProjectSettings({
   chat,
   levels = alone,
   toApp,
-  moreLimits = false,
   children,
 }: Props) {
-  const [section, setSection] = useState<Section>(picked?.section ?? 'agents')
+  const [first, firstOpening] = picked ? opened(picked) : (['agents', undefined] as const)
+  const [section, setSection] = useState<Section>(first)
+  const [opening, setOpening] = useState<Opening | undefined>(firstOpening)
   const [asked, setAsked] = useState(picked?.n)
   if (picked && picked.n !== asked) {
     setAsked(picked.n)
-    setSection(picked.section)
+    const [now, then] = opened(picked)
+    setSection(now)
+    setOpening(then)
   }
+  // What a link asked to open in a section, each time with a new count.
+  const opens = (at: Section, what: AskedFor['what']) =>
+    opening?.section === at && opening.what === what ? opening.n : undefined
   // (Every section's, each time: what is typed in one stays while another is shown.)
   const parts: Record<Section, Part> = {
-    agents: useAgents(project),
-    asking: useAsking(project),
-    'new-chats': useNewChats(project),
-    limits: useLimits(project, spend, toApp, moreLimits),
-    commands: useCommands(project, { dockerAvailable, dockerError, shell, shellNote }),
-    rules: own(<Rules projectId={project.id} chat={chat} />),
+    agents: useAgents(project, opens('agents', 'more')),
+    asking: useAsking(
+      project,
+      { dockerAvailable, dockerError, shell, shellNote },
+      chat,
+      opening?.section === 'asking' ? opening : undefined,
+    ),
     checks: useChecks(project, section === 'checks'),
+    limits: useLimits(project, spend, toApp, opens('limits', 'more')),
     memory: useMemoryWeb(project),
     notifications: useNotifications(project, desktopAvailable),
-    // shortcut: a command half written here is dropped when another section is chosen (no "not saved" mark); keep it mounted if that bites.
-    'own-commands': own(<OwnCommands projectId={project.id} />),
     folder: own(<ThisFolder project={project} />),
   }
   const shown = parts[section]
@@ -284,7 +303,7 @@ export function ProjectSettings({
             project={project}
             koloni={koloni}
             onUseKoloni={onUseKoloni}
-            take={now => [parts.commands, parts.memory].forEach(one => one.take?.(now))}
+            take={now => [parts.asking, parts.memory].forEach(one => one.take?.(now))}
           />
           {shown.view}
           {error?.section === section && (
@@ -293,14 +312,13 @@ export function ProjectSettings({
             </div>
           )}
           {!shown.own && (
-            <div className="role-actions">
-              <button type="submit" className="btn btn-primary" disabled={busy || !shown.valid || !shown.changed}>
-                Save
-              </button>
-              <span role="status" className="muted">
-                {savedSaid(savedSection === section && !shown.changed, keptBefore, koloni)}
-              </span>
-            </div>
+            <SaveBar
+              changed={shown.changed}
+              valid={shown.valid}
+              busy={busy}
+              said={changes(project, shown.patch)}
+              saved={savedSaid(savedSection === section && !shown.changed, keptBefore, koloni)}
+            />
           )}
         </div>
       </form>
@@ -309,24 +327,13 @@ export function ProjectSettings({
   )
 }
 
-/** Runs without asking: the project's sites, then each chat's commands and requests. */
-function Rules({ projectId, chat }: { projectId: string; chat?: { id: string; title: string } }) {
-  // The project's sites, counted into each chat's "run without asking" as the chat's own link counts them.
-  const [siteCount, setSiteCount] = useState(0)
-  return (
-    <>
-      <h2>Runs without asking</h2>
-      <ProjectSites projectId={projectId} onCount={setSiteCount} />
-      <ProjectRules projectId={projectId} chat={chat} sites={siteCount} />
-    </>
-  )
-}
-
-/** This folder: its map and its rules (and, after the form, Delete project). */
+/** This folder: what of the project it keeps, its map and its rules (and, after the form, Delete project). */
 function ThisFolder({ project }: { project: Project }) {
-  const rules = (project.koloni as Project['koloni'] | undefined)?.rules
+  const koloni = project.koloni as Project['koloni'] | undefined
+  const rules = koloni?.rules
   return (
     <>
+      <Said title="This folder">{folderSaid(koloni)}</Said>
       <ProjectMap project={project} />
       {rules && (
         <section aria-label="This folder’s rules" className="field">

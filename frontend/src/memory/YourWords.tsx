@@ -7,7 +7,7 @@ import { FolderRules, ProjectNotes, RulesBox } from './forms'
 import { Suggestion } from './records'
 
 const TOLD_MORE =
-  'Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either. At Full auto, with Full auto’s judge’s box for your words on (Settings › This project › Asking and away - once its measurement has passed), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”'
+  'Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either. At Full auto, with Full auto’s judge’s box for your words on (Settings › This project › When you’re asked - once its measurement has passed), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”'
 
 /** One of your texts, on paper: apart from what agents wrote. */
 function Paper({ title, why, children }: { title: string; why?: string; children: ReactNode }) {

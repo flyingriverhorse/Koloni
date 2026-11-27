@@ -111,7 +111,9 @@ test('the project settings list it as a section of its own, with no Save of the 
   } as Project
   useApp.setState({ ownCommands: [command('a'), command('b')] })
   render(<ProjectSettings project={project} dockerAvailable dockerError={null} desktopAvailable onSave={vi.fn()} />)
-  await userEvent.click(screen.getByRole('button', { name: /^Slash commands/ }))
+  // (How agents work › More since 0.1.10)
+  await userEvent.click(screen.getByRole('button', { name: /^How agents work/ }))
+  await userEvent.click(screen.getByRole('button', { name: /^More ·/ }))
   expect(screen.getByRole('heading', { name: 'Slash commands' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
 })

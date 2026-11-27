@@ -5,7 +5,9 @@ import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
 import { useAfterChange } from './AfterChange'
 import { useCheckKinds } from './CheckKinds'
-import { part, Row } from './part'
+import { fromOf, Legend, Marked, More, part, Row, Said } from './part'
+import { doneSaid } from './said'
+import { USUAL } from './usual'
 
 /** When a commit of what was taken is offered, and the rest of that note, which is folded under it. */
 const COMMIT_OFFERED =
@@ -13,7 +15,11 @@ const COMMIT_OFFERED =
 const COMMIT_REST =
   'Always your click: never made by itself. It commits only the files taken in from the sub-agent, edited ones too, with your repository’s own name and hooks. Nothing is pushed.'
 
-/** This project › Checks and git: what is run on a sub-agent's work before it is added, and how it reaches git. */
+/**
+ * This project › When the work is done (Checks and git before 0.1.10): what KOLONİ checks after a turn that changed
+ * code, and how the work reaches git; under More, the checks by kind of work, the test command KOLONİ found, and what
+ * is run on a sub-agent's work before it is added.
+ */
 export function useChecks(project: Project, shown: boolean) {
   const [measureCommand, setMeasureCommand] = useState(project.measure_command ?? '')
   const [gitCommit, setGitCommit] = useState(project.git_commit)
@@ -36,56 +42,67 @@ export function useChecks(project: Project, shown: boolean) {
     ...(gitCommit !== project.git_commit && { git_commit: gitCommit }),
     ...(finishWay && finishWay !== project.finish_way && { finish_way: finishWay }),
   }
+  const now = { ...after.now, git_commit: gitCommit, finish_way: finishWay }
+  const measured = measureCommand.trim() !== (project.measure_command ?? '')
   return part(
     patch,
     true,
     <>
-      <h2>After a turn that changed code</h2>
+      <Said title="When the work is done">{doneSaid(now)}</Said>
+      <h3>After a turn that changed code</h3>
       {after.view}
-      {kinds.view}
-      <h2>When a sub-agent’s work is added</h2>
-      {/* (0.1.7: no field - the test files the sub-agent wrote run, each part's runner narrowed to them) */}
-      <p className="choice-note" id="own-tests-note">
-        Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those, with
-        each part’s test command from the project map narrowed to them; none written: no test before adding, and the
-        card says so. KOLONİ’s check at the turn’s end still runs every test. Those tests are the sub-agent’s own code:
-        they run by themselves in Full auto, or where the part’s test command is yours (set on the map, or a saved one
-        under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are away a guess
-        never runs them.
-      </p>
-      <Row
-        label="Measure command"
-        htmlFor="measure-command"
-        whyId="measure-command-more"
-        doc={GUIDE.settingsChecks}
-        why="The last line of its output is a number from 0 to 100: the score of a sub-agent’s work, measured in its working copy. Empty: nothing is measured."
-      >
-        <input
-          id="measure-command"
-          className="input mono"
-          value={measureCommand}
-          maxLength={500}
-          placeholder="python measure.py"
-          aria-describedby="measure-command-more"
-          onChange={e => setMeasureCommand(e.target.value)}
-        />
-      </Row>
-      <label className="choice">
-        {/* Named as it was, by all of its note: a browser leaves a closed hint out of a name, and would add its button’s name to it. */}
-        <input
-          type="checkbox"
-          aria-label={`Save each sub-agent’s work as a git commit ${COMMIT_OFFERED} ${COMMIT_REST}`}
-          checked={gitCommit}
-          onChange={e => setGitCommit(e.target.checked)}
-        />
-        <span>
-          Save each sub-agent’s work as a git commit
-          <span className="choice-note">
-            {COMMIT_OFFERED} <Hint doc={GUIDE.settingsChecks}>{COMMIT_REST}</Hint>
+      <h3>How the work reaches git</h3>
+      <Marked from={fromOf(gitCommit, project.git_commit, USUAL.git_commit)}>
+        <label className="choice">
+          {/* Named as it was, by all of its note: a browser leaves a closed hint out of a name, and would add its button’s name to it. */}
+          <input
+            type="checkbox"
+            aria-label={`Save each sub-agent’s work as a git commit ${COMMIT_OFFERED} ${COMMIT_REST}`}
+            checked={gitCommit}
+            onChange={e => setGitCommit(e.target.checked)}
+          />
+          <span>
+            Save each sub-agent’s work as a git commit
+            <span className="choice-note">
+              {COMMIT_OFFERED} <Hint doc={GUIDE.settingsChecks}>{COMMIT_REST}</Hint>
+            </span>
           </span>
-        </span>
-      </label>
-      <FinishWay finishWay={finishWay} setFinishWay={setFinishWay} prOff={prOff} />
+        </label>
+      </Marked>
+      <FinishWay finishWay={finishWay} setFinishWay={setFinishWay} prOff={prOff} saved={project.finish_way ?? null} />
+      <More count={3} set={Number(kinds.set) + Number(!!project.measure_command)}>
+        {kinds.view}
+        {after.found}
+        <h3>When a sub-agent’s work is added</h3>
+        {/* (0.1.7: no field - the test files the sub-agent wrote run, each part's runner narrowed to them) */}
+        <p className="choice-note" id="own-tests-note">
+          Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those, with
+          each part’s test command from the project map narrowed to them; none written: no test before adding, and the
+          card says so. KOLONİ’s check at the turn’s end still runs every test. Those tests are the sub-agent’s own
+          code: they run by themselves in Full auto, or where the part’s test command is yours (set on the map, or a
+          saved one under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are
+          away a guess never runs them.
+        </p>
+        <Row
+          label="Measure command"
+          htmlFor="measure-command"
+          whyId="measure-command-more"
+          doc={GUIDE.settingsChecks}
+          from={measured ? 'dirty' : project.measure_command ? 'here' : 'usual'}
+          why="The last line of its output is a number from 0 to 100: the score of a sub-agent’s work, measured in its working copy. Empty: nothing is measured."
+        >
+          <input
+            id="measure-command"
+            className="input mono"
+            value={measureCommand}
+            maxLength={500}
+            placeholder="python measure.py"
+            aria-describedby="measure-command-more"
+            onChange={e => setMeasureCommand(e.target.value)}
+          />
+        </Row>
+      </More>
+      <Legend />
     </>,
   )
 }
@@ -95,35 +112,44 @@ function FinishWay({
   finishWay,
   setFinishWay,
   prOff,
+  saved,
 }: {
   finishWay: Project['finish_way']
+  saved: Project['finish_way']
   setFinishWay: (way: 'merge' | 'pull_request') => void
   prOff: string | null | undefined
 }) {
   return (
-    <fieldset className="choice" aria-label="How finished work reaches main">
-      <legend>How a team’s finished branch reaches yours</legend>
-      <label>
-        <input type="radio" name="finish-way" checked={finishWay === 'merge'} onChange={() => setFinishWay('merge')} />{' '}
-        Merge here
-      </label>{' '}
-      <label title={prOff ?? undefined}>
-        <input
-          type="radio"
-          name="finish-way"
-          checked={finishWay === 'pull_request'}
-          disabled={prOff !== null}
-          onChange={() => setFinishWay('pull_request')}
-        />{' '}
-        Open a pull request
-        {prOff && <span className="choice-note"> Not now: {prOff}.</span>}
-      </label>
-      <span className="choice-note">
-        {finishWay === null ? 'Not chosen yet: the first finished branch on a GitHub project asks. ' : ''}A pull request
-        lets KOLONİ push this project’s finished <span className="mono">koloni/</span> branches to GitHub and open one
-        with gh; it never merges it. Only once your branch is on GitHub: none of your own commits go up with it. A
-        pushed branch runs the repository’s own CI (<span className="mono">on: push</span>).
-      </span>
-    </fieldset>
+    <Marked from={fromOf(finishWay, saved, USUAL.finish_way)}>
+      <fieldset className="choice" aria-label="How finished work reaches main">
+        <legend>How a team’s finished branch reaches yours</legend>
+        <label>
+          <input
+            type="radio"
+            name="finish-way"
+            checked={finishWay === 'merge'}
+            onChange={() => setFinishWay('merge')}
+          />{' '}
+          Merge here
+        </label>{' '}
+        <label title={prOff ?? undefined}>
+          <input
+            type="radio"
+            name="finish-way"
+            checked={finishWay === 'pull_request'}
+            disabled={prOff !== null}
+            onChange={() => setFinishWay('pull_request')}
+          />{' '}
+          Open a pull request
+          {prOff && <span className="choice-note"> Not now: {prOff}.</span>}
+        </label>
+        <span className="choice-note">
+          {finishWay === null ? 'Not chosen yet: the first finished branch on a GitHub project asks. ' : ''}A pull
+          request lets KOLONİ push this project’s finished <span className="mono">koloni/</span> branches to GitHub and
+          open one with gh; it never merges it. Only once your branch is on GitHub: none of your own commits go up with
+          it. A pushed branch runs the repository’s own CI (<span className="mono">on: push</span>).
+        </span>
+      </fieldset>
+    </Marked>
   )
 }

@@ -413,10 +413,10 @@ function CliNotes(props: CliProps) {
           diff to approve, an edit of an existing file as a sentence with its diff, a command as a command to approve
           and a secret file as a read to approve. Anything else it asks for, such as a web page, is refused. What it
           does unasked is marked so on the record. Where this machine can, its commands run in Copilot’s sandbox, denied
-          the project’s secret files (Settings › This project › Commands and secrets); where it cannot, the run says so.
-          It can open sub-agents and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one at a
-          time here; session mode runs them at once. Copilot’s own sandbox cannot start Python here (measured): tests
-          run only through a sub-agent or in session mode.
+          the project’s secret files (Settings › This project › When you’re asked, under More); where it cannot, the run
+          says so. It can open sub-agents and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one
+          at a time here; session mode runs them at once. Copilot’s own sandbox cannot start Python here (measured):
+          tests run only through a sub-agent or in session mode.
         </p>
       )}
     </>

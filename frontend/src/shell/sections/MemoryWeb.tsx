@@ -4,7 +4,9 @@ import { useExperimentalClis } from '../../models/experimental'
 import { useApp } from '../../state/store'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
-import { part, Row } from './part'
+import { fromOf, Legend, Marked, More, part, Row, Said } from './part'
+import { memorySaid } from './said'
+import { USUAL } from './usual'
 
 /** What noting by itself costs, holds up and does not do, in sight under its box; how it is made, behind ⓘ. */
 const NOTES_SHOWN =
@@ -12,7 +14,7 @@ const NOTES_SHOWN =
 const NOTES_REST =
   'It is the first model you gave the fast tier in the team guide, with no tools. It is given your message, the Orchestrator’s answer, the agents’ reports and the names of the changed files. Its notes go into the journal, signed as that model’s; they never replace an agent’s note or a fact on the same subject. The Memory page shows how the last one went.'
 
-/** This project › Memory and web: what is noted by itself, where recall also looks, and how agents search. */
+/** This project › Memory and web: what is noted by itself, and how agents search; under More, where recall also looks. */
 export function useMemoryWeb(project: Project) {
   const [autoNotes, setAutoNotes] = useState(project.auto_notes)
   // 22c: the other projects whose memory recall also looks in. (A server older than the page has no such field yet.)
@@ -25,27 +27,34 @@ export function useMemoryWeb(project: Project) {
     ...(linksChanged && { memory_links: links }),
     ...web.patch,
   }
+  const now = { auto_notes: autoNotes, memory_links: links, ...web.now }
   return part(
     patch,
     true,
     <>
-      <h2>Memory</h2>
-      <label className="choice">
-        <input
-          type="checkbox"
-          aria-label={`Note what the work found, by itself ${NOTES_SHOWN} ${NOTES_REST}`}
-          checked={autoNotes}
-          onChange={e => setAutoNotes(e.target.checked)}
-        />
-        <span>
-          Note what the work found, by itself
-          <span className="choice-note">
-            {NOTES_SHOWN} <Hint doc={GUIDE.memoryWho}>{NOTES_REST}</Hint>
+      <Said title="Memory and web">{memorySaid(now)}</Said>
+      <h3>Memory</h3>
+      <Marked from={fromOf(autoNotes, project.auto_notes, USUAL.auto_notes)}>
+        <label className="choice">
+          <input
+            type="checkbox"
+            aria-label={`Note what the work found, by itself ${NOTES_SHOWN} ${NOTES_REST}`}
+            checked={autoNotes}
+            onChange={e => setAutoNotes(e.target.checked)}
+          />
+          <span>
+            Note what the work found, by itself
+            <span className="choice-note">
+              {NOTES_SHOWN} <Hint doc={GUIDE.memoryWho}>{NOTES_REST}</Hint>
+            </span>
           </span>
-        </span>
-      </label>
-      <OtherMemories project={project} links={links} setLinks={setLinks} />
+        </label>
+      </Marked>
       {web.view}
+      <More count={1} set={Number(savedLinks.length > 0)}>
+        <OtherMemories project={project} links={links} setLinks={setLinks} changed={linksChanged} />
+      </More>
+      <Legend />
     </>,
     { take: web.take },
   )
@@ -55,15 +64,19 @@ function OtherMemories({
   project,
   links,
   setLinks,
+  changed,
 }: {
   project: Project
   links: string[]
   setLinks: (ids: string[]) => void
+  changed: boolean
 }) {
   const otherProjects = useApp(s => s.projects).filter(p => p.id !== project.id)
   return (
     <>
-      <h2>Also look in the memory of</h2>
+      <Marked from={changed ? 'dirty' : links.length ? 'here' : 'usual'}>
+        <h3>Also look in the memory of</h3>
+      </Marked>
       <span className="choice-note">
         An agent’s recall also finds their notes, facts and earlier messages, each tagged with the project and not
         checked here: their files are not in this folder. Nothing of theirs is given to an agent at its start, and
@@ -102,14 +115,16 @@ function useWeb(project: Project) {
   }
   return {
     patch,
+    now: { search_url: searchUrl, search_order: searchOrder },
     take: (now: Project) => setSearchOrder(now.search_order),
     view: (
       <>
-        <h2>Web search</h2>
+        <h3>Web search</h3>
         <Row
           label="Search address (SearXNG)"
           htmlFor="search-url"
           doc={GUIDE.settingsMemoryWeb}
+          from={fromOf(searchUrl.trim(), project.search_url ?? '', '')}
           why="Your own SearXNG. An agent’s web search asks it first (turn on its JSON format). Empty: none."
         >
           <input
@@ -124,6 +139,7 @@ function useWeb(project: Project) {
         <Row
           label="Otherwise search with"
           htmlFor="search-order"
+          from={fromOf(searchOrder, project.search_order, USUAL.search_order)}
           warn={
             <span className="choice-note">
               <span id="search-order-note">
@@ -148,16 +164,18 @@ function useWeb(project: Project) {
           </select>
         </Row>
         {agyShown && (
-          <label className="choice">
-            <input type="checkbox" checked={searchAgy} onChange={e => setSearchAgy(e.target.checked)} />
-            <span>
-              Let agy search too
-              <span className="choice-note">
-                While it searches, agy is not held to its search tool: it may read files on this machine or open pages
-                unasked. Codex and Claude Code are held to it.
+          <Marked from={fromOf(searchAgy, project.search_agy, USUAL.search_agy)}>
+            <label className="choice">
+              <input type="checkbox" checked={searchAgy} onChange={e => setSearchAgy(e.target.checked)} />
+              <span>
+                Let agy search too
+                <span className="choice-note">
+                  While it searches, agy is not held to its search tool: it may read files on this machine or open pages
+                  unasked. Codex and Claude Code are held to it.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          </Marked>
         )}
       </>
     ),
