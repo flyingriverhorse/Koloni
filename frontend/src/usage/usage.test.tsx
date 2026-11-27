@@ -224,7 +224,9 @@ test('a model’s row counts KOLONİ’s own requests among its agents: the box 
   const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
   expect(cells(models.getByRole('row', { name: /Local · fake-qwen/ }))[1]).toBe('13')
   expect(box('Messages')).toEqual(['10', '12 agents', '1 request by KOLONİ itself'])
-  expect(screen.getByText(/^Agents here include 1 request by KOLONİ itself, in no message\./)).toBeInTheDocument()
+  // Its own line: the cost's words under the table begin as they did.
+  expect(screen.getByText('Agents here include 1 request by KOLONİ itself, in no message.')).toBeInTheDocument()
+  expect(screen.getByText(/^Cost shows for a model with a price/)).toBeInTheDocument()
 })
 
 test('it starts on this project and Today, and reads again when either is changed', async () => {

@@ -350,8 +350,8 @@ export function UsagePage({
               unpriced: Boolean(row.cost?.cache_unpriced),
             }))}
           />
+          {itself && <p className="muted memory-hint">Agents here include {started(itself)}, in no message.</p>}
           <div className="muted memory-hint">
-            {itself && `Agents here include ${started(itself)}, in no message. `}
             {costed
               ? 'Cost: from the prices you entered. Cache reads and writes are counted at the cache prices you gave, and not at all without them. Where you entered no price, models.dev’s is used, and the model’s row says so.'
               : 'Cost shows for a model with a price: yours, or else models.dev’s, where it has one.'}{' '}
