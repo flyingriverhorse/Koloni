@@ -427,7 +427,7 @@ class MemoryMixin:
                     .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
                     .limit(1)
                 )
-                if koloni
+                if koloni or left is not None
                 else None
             )
         now_on = self._role_now(target)
@@ -553,11 +553,11 @@ class MemoryMixin:
         else:
             if left is None:
                 inbound_id = self._send(ctx, target, body, delivered=True)
-            else:
+            else:  # (handed now: last in its history, its reply what it says after its last row)
                 with self._factory() as session:
-                    session.get_one(Message, left).delivered_at = now()
+                    note = session.get_one(Message, left)
+                    note.delivered_at = note.created_at = now()
                     session.commit()
-                inbound_id = left
             self._channel(ctx, ctx.agent_id, target.agent_id, "message", body)
             # Read by it in its turn, with the note (`_from`): the user is told here (93-A4) -
             # but not of the word of the agent it works for.

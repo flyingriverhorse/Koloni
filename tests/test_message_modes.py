@@ -8,11 +8,11 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
-from app.agent import message_modes, talk_mixin
+from app.agent import AgentRunner, message_modes, talk_mixin
 from app.agent.message_modes import AS_REPLY, LEFT_AT_WORK, LEFT_NOW, NOT_TAKEN_UP
 from app.agent.talk_mixin import MESSAGE_WENT, SENT_WHILE_IT_WORKS
 from app.db.models import ChannelMessage
-from app.delivery import TAKEN
+from app.delivery import TAKEN, UNKNOWN
 from app.tools import ToolError
 from tests.conftest import Gate
 from tests.test_background_spawn import bg, said_in, tool_result
@@ -39,9 +39,13 @@ def notes_of(snap, name):
 
 @pytest.mark.parametrize("how", ["leave", "now"])
 def test_left_to_one_not_at_work_it_takes_it_up_now_and_its_reply_wakes_the_sender(
-    make_client, wait_run, project_dir, how
+    make_client, wait_run, project_dir, how, monkeypatch
 ):
-    b = Gate()
+    b, lent = Gate(), []
+    lend = AgentRunner._lend_slot  # (watched from the start: the Lead lends its place at once)
+    monkeypatch.setattr(
+        AgentRunner, "_lend_slot", lambda self, ctx: lent.append(ctx.name) or lend(self, ctx)
+    )
     client, model, cid, run_id = setup(
         make_client,
         project_dir,
@@ -53,6 +57,7 @@ def test_left_to_one_not_at_work_it_takes_it_up_now_and_its_reply_wakes_the_send
     b.wait_partial()  # (its turn on it runs - and the Lead went on meanwhile)
     until(client, cid, lambda _s: len(model.calls_of["Lead"]) >= 3)
     assert tool_result(model.calls_of["Lead"][2], "m1") == LEFT_NOW.format(name="Coder")
+    assert lent == ["Lead"]  # (its place lent to the Coder's turn on it)
     b.release()
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -101,6 +106,7 @@ def test_left_to_one_at_work_is_read_at_its_next_step_or_taken_up_once_its_work_
         assert [one for one in nudged if took in one] == [f"KOLONİ: {took}."]
     else:  # (its work ended first: a turn of its own on it, its reply the Lead's note)
         assert seen == [0, 1] and said_in(model.calls_of["Lead"][-1], "B done") == 1
+        assert "do B" in str(model.calls_of["Coder"][-1][-1]["content"])  # (last, after its words)
 
 
 @pytest.mark.parametrize("ends", ["stopped", "turn", "error"])
@@ -139,10 +145,10 @@ async def broken(*_args, **_kwargs):
     raise RuntimeError("a bug")
 
 
-def test_a_left_messages_turn_waits_for_its_receivers_turn_and_lends_the_senders_place(
+def test_a_left_messages_turn_waits_for_its_receivers_other_turn_with_one_place_only(
     make_client, wait_run, project_dir
 ):
-    # (G2/H: not beside another turn of its, and in a place - one only here, the Lead's, lent.)
+    # (G2/H: not beside another turn of its - and one place only here: the Lead's, lent.)
     held = Gate()
     client, model, cid, run_id = setup(
         make_client,
@@ -165,8 +171,6 @@ def test_a_left_messages_turn_waits_for_its_receivers_turn_and_lends_the_senders
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert said_in(model.calls_of["Lead"][-1], "B done") == 1
-    slots = runner._slots.get(run_id)
-    assert slots is None or slots._value == 1  # (the Lead's place given back)
 
 
 def test_how_is_the_api_orchestrators_and_reach_and_the_limit_hold(
@@ -232,3 +236,69 @@ def test_now_into_a_cli_at_work_is_its_turn_and_c2s_outcome_is_the_senders(
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     (line,) = claude_app.record()["steered"]  # (into its turn, once)
     assert "use blue" in line["message"]["content"]
+
+
+@pytest.mark.parametrize("stop", ["turn", "agent"])
+def test_a_stop_as_it_takes_a_left_message_up_is_told_its_sender(
+    make_client, wait_run, project_dir, stop
+):
+    b = Gate()
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [spawn("Coder", "do A"), leave(), text("went on"), *[text("x")] * 3],
+            "Coder": [text("A done"), b.step(text("B done"))],
+        },
+    )
+    b.wait_partial()  # (in its turn on it)
+    snap = until(client, cid, lambda _s: len(model.calls_of["Lead"]) >= 3)
+    coder = next(one["id"] for one in snap["agents"] if one["name"] == "Coder")
+    if stop == "turn":
+        assert client.post(f"/api/runs/{run_id}/cancel", headers=ORIGIN).status_code == 202
+    else:  # (the user's Stop on it ends its turn on the message alone)
+        assert client.post(f"/api/agents/{coder}/stop", headers=ORIGIN).status_code == 204
+    b.release()
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == ("cancelled" if stop == "turn" else "completed")
+    went = MESSAGE_WENT[UNKNOWN].format(name="Coder", words='"do B"')
+    assert f"KOLONİ: {went}." in notes_of(snap, "Lead"), notes_of(snap, "Lead")
+    assert next(a["status"] for a in snap["agents"] if a["name"] == "Coder") == "cancelled"
+
+
+def test_a_sub_agents_how_and_one_to_an_earlier_turns_agent_are_sent_as_replies_and_said(
+    make_client, wait_run, project_dir
+):
+    asks = call("message_agent", {"to": "Lead", "message": "which file?", "how": "leave"}, "m1")
+    client, model, cid, run_id = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [spawn("Coder", "do A"), text("hello.py"), text("done")],
+            "Coder": [step(asks), text("A done")],
+        },
+    )
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    told = tool_result(model.calls_of["Coder"][1], "m1")
+    assert told.startswith(AS_REPLY.format(how="leave")) and "hello.py" in told  # (its reply)
+    assert message_modes.EARLIER.format(how="now").startswith('how "now": an agent of an earlier')
+
+
+def test_left_to_a_cli_at_work_is_never_written_into_its_turn_and_is_taken_up_after_it(
+    claude_app, wait_run, project_dir
+):  # noqa: F811
+    client, provider, _model = claude_app(
+        [{"say": "working"}, {"sleep": 2}, {"say": "done"}],
+        default_steps={"Lead": [spawn("Coder", "sort the list"), text("done"), text("read")]},
+        version=ECHOES,
+    )
+    cid, run_id = started(client, provider, project_dir)
+    at_work(client, cid)
+    runner = client.app.state.runner
+    args = {"to": "Coder", "message": "use blue", "how": "leave"}
+    said = client.portal.call(runner._message, runner._lead_of(run_id), "c1", args)
+    assert said == ("succeeded", LEFT_AT_WORK.format(name="Coder"))
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
+    assert not claude_app.record().get("steered")  # (a note, not its running turn's line)
+    assert claude_app.record()["stdin"].count("use blue") == 1  # (its run on it, once)

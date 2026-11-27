@@ -119,8 +119,9 @@ turn. A message left counts twice toward the turn's messages between agents (its
 it may start), so it is refused where there is room for one only. However it ends, the Orchestrator
 is told: the agent read it (from its next step on, without a step of its own for it), its reply, or
 why it was not taken up - the agent was stopped, or can no longer be messaged, or the turn ended
-first; it is not sent again. Every other agent, and a CLI Orchestrator, sends a message as a reply:
-one that asks otherwise is told so.
+first, or it was stopped as it took it up (then it may have read it); it is not sent again. Every
+other agent, and a CLI Orchestrator, sends a message as a reply, as does a message to an agent of an
+earlier turn: one that asks otherwise is told so.
 
 ## Stop and Message on one agent
 

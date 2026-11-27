@@ -60,6 +60,7 @@ LEFT_AT_WORK = (
     "work."
 )
 AS_REPLY = 'how "{how}" is only the Orchestrator\'s, of an API model: sent as "reply". '
+EARLIER = 'how "{how}": an agent of an earlier turn is gone on with as a reply. '
 NOT_TAKEN_UP = "KOLONİ: your message ({words}) did not reach {name}: {why}; it is not sent again."
 
 
@@ -90,6 +91,8 @@ async def left(
     turn's messages (`_within_limit`): room for both, or it is refused now."""
     if how == "now" and kind == "steer":  # (its CLI's turn, C2's outcome told)
         return await runner._steer_message(ctx, target, body, files)
+    # shortcut: room for two is looked at, not kept - what others send meanwhile may take it, and
+    # its turn then goes one over the limit; keep the room if a turn is seen past it.
     runner._within_limit(ctx, room=2)
     with runner._factory() as session:
         at_work = session.get_one(Agent, target.agent_id).status in AT_WORK
@@ -136,13 +139,10 @@ async def _taken_up(
                     return _not_taken_up(runner, ctx, target, body, _why_not(runner, target))
                 started = True
                 status, result = await _turn(runner, ctx, target, kind, body, note)
-            if status == "succeeded":
-                await runner._add_to_guide(ctx, target, call_id, result)
-            if not runner._is_above(target.agent_id, ctx):
-                status, result = runner._reply_read(ctx, call_id, status, result)
-            sender = runner._ctxs.get(ctx.agent_id, ctx)
-            reply = runner._send(replace(ctx, agent_id=target.agent_id), sender, result, False)
-            return target.name, result, reply
+            if status == "stopped":  # (its own Stop, the user's, as it took it up)
+                runner._message_went(ctx.agent_id, target, body, note, UNKNOWN)
+                return target.name, "", note
+            return await _replied(runner, ctx, call_id, target, status, result)
     except asyncio.CancelledError:
         # (The turn stopped, or its sender's work ended: on its record, never dropped unsaid.)
         with contextlib.suppress(Exception):
@@ -154,6 +154,19 @@ async def _taken_up(
     except Exception as exc:
         log.warning("agent %s: a message left for %s failed: %r", ctx.agent_id, target.name, exc)
         return _not_taken_up(runner, ctx, target, body, "an internal error")
+
+
+async def _replied(
+    runner: AgentRunner, ctx: Ctx, call_id: str, target: Ctx, status: str, result: str
+) -> tuple[str, str, str]:
+    """Its turn's reply, as `_message_turn` hands one back - the sender's note, from it."""
+    if status == "succeeded":
+        await runner._add_to_guide(ctx, target, call_id, result)
+    if not runner._is_above(target.agent_id, ctx):
+        status, result = runner._reply_read(ctx, call_id, status, result)
+    sender = runner._ctxs.get(ctx.agent_id, ctx)
+    reply = runner._send(replace(ctx, agent_id=target.agent_id), sender, result, False)
+    return target.name, result, reply
 
 
 async def _read_while_at_work(runner: AgentRunner, target: Ctx, note: str) -> bool:
@@ -187,14 +200,22 @@ async def _turn(
     on record as one its opener did not wait for (`_later_work`: Stop ends it, the turn's end
     waits for it), its sender's place lent and taken back once it is over (`_lend_slot`)."""
     work = asyncio.ensure_future(runner._reply_turn(ctx, target, kind, body, left=note))
-    runner._later_work.setdefault(ctx.run_id, []).append(
-        (ctx.agent_id, target.agent_id, ctx.cid, work)
-    )
+    entry = (ctx.agent_id, target.agent_id, ctx.cid, work)
+    runner._later_work.setdefault(ctx.run_id, []).append(entry)
+    runner._own_work[target.agent_id] = work  # (one Stop ends it alone: `stop_agent`)
     runner._went_on.add(target.agent_id)  # (not its sender's to close: `_settle_session`)
     runner._lend_slot(ctx)
     try:
         return await work
+    except asyncio.CancelledError:
+        task = asyncio.current_task()
+        if task is None or task.cancelling() or not work.cancelled():
+            raise
+        await runner._stopped_later([entry])  # (its row: cancelled, its calls closed)
+        return "stopped", ""
     finally:
+        if runner._own_work.get(target.agent_id) is work:
+            runner._own_work.pop(target.agent_id, None)
         if work.done():
             await runner._take_slot_back(runner._ctxs.get(ctx.agent_id, ctx))
 

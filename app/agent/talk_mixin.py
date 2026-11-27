@@ -571,11 +571,13 @@ class TalkMixin:
         handed_files = self._named_files(ctx, args.get("attachments"))  # (slice 85b)
         reachable = self._reachable(ctx)
         match = next((m for m in reachable if m[0].name.casefold() == to.casefold()), None)
+        how, told = message_modes.how_of(self, ctx, args.get("how"))  # (C1)
         if match is None:
-            return await self._message_unknown(ctx, call_id, to, body, reachable)
+            status, result = await self._message_unknown(ctx, call_id, to, body, reachable)
+            earlier = message_modes.EARLIER.format(how=how) if how != "reply" else ""
+            return status, told + earlier + result
         target, kind = match
         self._within_limit(ctx)
-        how, told = message_modes.how_of(self, ctx, args.get("how"))  # (C1)
         if how != "reply":
             return await message_modes.left(
                 self, ctx, call_id, target, kind, body, handed_files, how
