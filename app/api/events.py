@@ -5,8 +5,10 @@ import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-from app.api.deps import require_own_origin
+from app.api.deps import get_session, require_own_origin
+from app.db.models import Conversation, now
 
 router = APIRouter(prefix="/api/conversations", tags=["events"])
 
@@ -58,10 +60,19 @@ class LookingIn(BaseModel):
 @router.post(
     "/{conversation_id}/looking", status_code=204, dependencies=[Depends(require_own_origin)]
 )
-async def looking(conversation_id: str, body: LookingIn, request: Request) -> None:
+async def looking(
+    conversation_id: str,
+    body: LookingIn,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> None:
     """herdr's rule (28 Nov 2026): whether the page `client` has the chat on screen now - a notice
-    that something waits, or that a background agent ended, is shown only where nobody does."""
+    that something waits, or that a background agent ended, is shown only where nobody does. On
+    screen, the chat is seen (`seen_at`: not "done · not seen")."""
     request.app.state.bus.look(conversation_id, body.client, body.looking)
+    if body.looking and (chat := session.get(Conversation, conversation_id)) is not None:
+        chat.seen_at = now()
+        session.commit()
 
 
 @router.get("/{conversation_id}/events")

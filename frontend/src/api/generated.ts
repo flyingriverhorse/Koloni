@@ -1327,7 +1327,8 @@ export interface paths {
         /**
          * Looking
          * @description herdr's rule (28 Nov 2026): whether the page `client` has the chat on screen now - a notice
-         *     that something waits, or that a background agent ended, is shown only where nobody does.
+         *     that something waits, or that a background agent ended, is shown only where nobody does. On
+         *     screen, the chat is seen (`seen_at`: not "done · not seen").
          */
         post: operations["looking_api_conversations__conversation_id__looking_post"];
         delete?: never;
@@ -5602,6 +5603,11 @@ export interface components {
             /** Title */
             title: string;
             turn: components["schemas"]["BoardTurn"] | null;
+            /**
+             * Unseen
+             * @default false
+             */
+            unseen: boolean;
         };
         /**
          * BoardOut

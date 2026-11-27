@@ -591,7 +591,9 @@ const board = (waiting: number): Board => ({
   limit: null,
   running: 0,
   conflicts: [],
-  conversations: [{ conversation_id: 'c', title: 'One', agents: [], merges_pending: waiting, turn: null }],
+  conversations: [
+    { conversation_id: 'c', title: 'One', agents: [], merges_pending: waiting, turn: null, unseen: false },
+  ],
 })
 function opened(more: Parameters<typeof convState>[0] = {}) {
   const conv = convState({ runs: [run('r1', 'running')], agents: [lead], ...more })

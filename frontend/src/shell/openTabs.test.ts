@@ -32,6 +32,7 @@ const onBoard = (id: string, over: Partial<BoardConversation> = {}): BoardConver
   title: id,
   agents: [],
   merges_pending: 0,
+  unseen: false,
   turn: null,
   ...over,
 })

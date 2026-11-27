@@ -3,7 +3,7 @@ import { CELL } from '../ready/cells'
 import type { ReadyItem } from '../ready/ready'
 import { kindWord } from '../ready/ReadyViews'
 import { Cell } from './Cell'
-import { CHAT_WORD, type ChatStands, nowSaid } from './chatStands'
+import { CHAT_WORD, type ChatStands, NOT_SEEN, nowSaid } from './chatStands'
 
 /** The comb shows at most this many cells; the rest are said as a number. */
 const MOST = 30
@@ -28,21 +28,24 @@ function useRoomUnder() {
 
 /**
  * The Chats page's Now (0.1.10), over every folder, on top of the page and in sight while the list scrolls: a cell for
- * each chat at work, for each thing that waits for your word - Ready for you's rows, as the top bar's pill counts them -
- * and for each chat stuck or done today; one sentence that counts them, and the way to Ready for you, where what waits
- * is answered. Then what the cells mean.
+ * each thing that waits for your word - Ready for you's rows, as the top bar's pill counts them -, for each chat whose
+ * last turn ended where you have not looked since, for each chat at work, and for each chat stuck or done today - in
+ * that order, herdr's of what needs you most; one sentence that counts them, and the way to Ready for you, where what
+ * waits is answered. Then what the cells mean.
  */
 export function ChatsNow({
   items,
   working,
+  unseen,
   stuck,
   done,
   read,
   onReady,
 }: {
   items: ReadyItem[]
-  /** The names of the chats at work, stuck today and done today. */
+  /** The names of the chats at work, ended out of sight (with how each stands), stuck today and done today. */
   working: string[]
+  unseen: [string, ChatStands][]
   stuck: string[]
   done: string[]
   /** Whether the Board was read: how each chat stands is known. */
@@ -52,8 +55,9 @@ export function ChatsNow({
   const chats = (titles: string[], stands: ChatStands) =>
     titles.map(title => [stands, `“${title}”: ${CHAT_WORD[stands]}${stands === 'running' ? '' : ' today'}`] as const)
   const cells = [
-    ...chats(working, 'running'),
     ...items.map(item => ['yours', waitsLabel(item)] as const),
+    ...unseen.map(([title, stands]) => [stands, `“${title}”: ${CHAT_WORD[stands]} · ${NOT_SEEN}`] as const),
+    ...chats(working, 'running'),
     ...chats(stuck, 'stuck'),
     ...chats(done, 'done'),
   ]
@@ -74,7 +78,7 @@ export function ChatsNow({
             </span>
           )}
           <p>
-            {nowSaid(working.length, items.length, stuck.length, done.length, read)}
+            {nowSaid(working.length, items.length, stuck.length, done.length, read, unseen.length)}
             {items.length > 0 && ' What waits is on Ready for you.'}
           </p>
           {onReady && (

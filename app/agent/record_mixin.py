@@ -409,6 +409,8 @@ class RecordMixin:
             run.status, run.error, run.ended_at = status, error, now()
             conversation = session.get(Conversation, cid)
             conversation.updated_at = now()
+            if self.bus.looking(cid):  # (herdr: on screen as it ends - not "done, not seen")
+                conversation.seen_at = now()
             # A backlog task worked on here waits for review - with the turn, not after it
             # (and goes back to todo where a turn ends otherwise: `_force_fail`,
             # `recover_interrupted`, a Stop with nothing to stop).
