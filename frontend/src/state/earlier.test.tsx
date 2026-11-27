@@ -49,6 +49,25 @@ test('an older page goes before the turns shown, each row once, and a turn that 
   expect([next.older, next.olderFrom]).toEqual([1, 'r1'])
 })
 
+test('a row the events changed while the older page was read keeps the copy shown, not the page’s older one', () => {
+  // Turn 2 still waited (a change asked about) and came with the first page; it was answered while the page was read.
+  const shown = convState({
+    runs: [turn(2), turn(7)],
+    fileChanges: [fileChange('k', 'r2', { status: 'applied' })],
+    older: 5,
+    olderFrom: 'r7',
+  })
+  const older = page({
+    runs: [1, 2, 3].map(turn),
+    file_changes: [fileChange('k', 'r2', { status: 'proposed' })],
+    older: 0,
+    older_from: null,
+  })
+  const next = withEarlier(shown, older)
+  expect(next.fileChanges.map(c => [c.id, c.status])).toEqual([['k', 'applied']])
+  expect(next.runs.map(r => r.id)).toEqual(['r1', 'r2', 'r3', 'r7'])
+})
+
 test('a chat is read with its newest page - again with as many turns as are shown', () => {
   const many = convState({ runs: Array.from({ length: TURNS_PAGE + 5 }, (_, n) => turn(n % 60)) })
   expect(turnsOf(null, false)).toBe(TURNS_PAGE)

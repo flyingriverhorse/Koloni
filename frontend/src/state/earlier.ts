@@ -49,8 +49,10 @@ const TURNS_KEYS = [
 ] as const
 
 /**
- * A page of older turns (`?turns=&before=`) put before those shown, each row once (the older page's copy: the newer
- * read). An older turn that still waited came with the first page: every row of a turn goes back to its turn's place.
+ * A page of older turns (`?turns=&before=`) put before those shown, each row once - the copy shown: the chat's events
+ * kept it current, also while the page was read (a card answered, a command ended), and their cursor is past them, so
+ * the page's older copy must not win (PR #31's review). An older turn that still waited came with the first page: every
+ * row of a turn goes back to its turn's place.
  */
 export function withEarlier(state: ConvState, page: Snapshot): ConvState {
   const older = fromSnapshot(page)
@@ -59,8 +61,11 @@ export function withEarlier(state: ConvState, page: Snapshot): ConvState {
     { id: string }[]
   >
   for (const key of TURNS_KEYS) {
+    const shown = new Map(state[key].map(row => [row.id, row] as const))
     const seen = new Set<string>()
-    next[key] = [...older[key], ...state[key]].filter(row => !seen.has(row.id) && !!seen.add(row.id))
+    next[key] = [...older[key], ...state[key]]
+      .filter(row => !seen.has(row.id) && !!seen.add(row.id))
+      .map(row => shown.get(row.id) ?? row)
   }
   // (Stable: a turn's rows keep their own order.)
   const runs = (next.runs as Run[]).sort((a, b) => a.created_at.localeCompare(b.created_at))
