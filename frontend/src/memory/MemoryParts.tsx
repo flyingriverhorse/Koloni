@@ -17,6 +17,17 @@ export function MemoryParts({
   waiting: number | null
   old: number | null
 }) {
+  // Two tabs: either arrow goes to the other, Home to the first, End to the last - on the tab that has the focus (the
+  // tablist itself takes none).
+  const onKey = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const to = ({ ArrowRight: !sources, ArrowLeft: !sources, Home: false, End: true } as Record<string, boolean>)[
+      event.key
+    ]
+    if (to === undefined) return
+    event.preventDefault()
+    onPart(to)
+    document.getElementById(partId(to))?.focus()
+  }
   const part = (on: boolean, words: string, badge: string | null) => (
     <button
       id={partId(on)}
@@ -27,6 +38,7 @@ export function MemoryParts({
       aria-controls={`${partId(on)}-panel`}
       tabIndex={on === sources ? 0 : -1}
       onClick={() => onPart(on)}
+      onKeyDown={onKey}
     >
       {words}
       {badge && (
@@ -37,18 +49,8 @@ export function MemoryParts({
       )}
     </button>
   )
-  // Two tabs: either arrow goes to the other, Home to the first, End to the last.
-  const onKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    const to = ({ ArrowRight: !sources, ArrowLeft: !sources, Home: false, End: true } as Record<string, boolean>)[
-      event.key
-    ]
-    if (to === undefined) return
-    event.preventDefault()
-    onPart(to)
-    event.currentTarget.querySelector<HTMLElement>(`#${partId(to)}`)?.focus()
-  }
   return (
-    <div role="tablist" aria-label="Memory’s parts" className="tabs memory-tabs" onKeyDown={onKey}>
+    <div role="tablist" aria-label="Memory’s parts" className="tabs memory-tabs">
       {part(
         false,
         'What the project knows',

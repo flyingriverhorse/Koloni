@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chat**: a command kept off its **Always run** rule by an agent's write of a file it may read - an `.npmrc` or `x.npmrc`, a `package.json`, a lock, a `tsconfig.json`, a `pyproject.toml` - says so on its card: "an agent wrote a file this line may read or load (evil096.npmrc)"; it said "an agent wrote its program" of a file the line does not run. Where an agent wrote the program too, the card names the program, whichever was written first. The rule still stops there, and no rule is offered ([docs](use/permissions.md#what-a-rule-never-covers)).
+
 ## [0.1.10] - 2026-11-27
 
 ### Changed

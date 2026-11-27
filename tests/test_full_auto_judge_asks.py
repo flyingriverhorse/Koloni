@@ -233,3 +233,30 @@ def test_a_narrow_rule_does_not_go_round_the_judge_for_a_program_an_agent_wrote(
     (ran,) = wait_run(client, cid, run_id)["commands"]
     assert ran["status"] == "exited" and len(judge.calls) == 1
     assert "AGENTS-7731" in judge.calls[0][0]["content"]
+
+
+def test_a_narrow_rule_lets_a_sub_agent_of_the_chat_run_its_very_line(
+    judging, wait_run, project_dir
+):
+    # (on purpose: a narrow rule belongs to the chat, so a sub-agent of the same chat running that
+    # exact line at its root, in a chat you watch, is let through too - the second session, F428)
+    from tests.test_spawn import spawn
+
+    client, _lead, judge, executor = judging(
+        {
+            "Lead": [text("ok"), spawn("Coder", "generate"), text("done")],
+            "Coder": [cmd("python gen.py"), text("generated")],
+        },
+        [said("risky", "Not asked for.")],
+        [Script(["made\n"])],
+    )
+    (project_dir / "gen.py").write_text("print('mine')\n", encoding="utf-8")
+    pid, cid, first = go(client, project_dir, risky="ask")
+    wait_run(client, cid, first)
+    rule(client, pid, cid, "python gen.py")
+    snap = wait_run(client, cid, again(client, cid))
+    (ran,) = snap["commands"]
+    coder = next(one["id"] for one in snap["agents"] if one["role_name"] == "Coder")
+    assert ran["agent_id"] == coder and ran["status"] == "exited", (ran, snap["agents"])
+    assert ran["judged"] is None and judge.calls == [], judge.calls
+    assert [line for line, _cwd in executor.started] == ["python gen.py"]

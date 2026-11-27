@@ -266,7 +266,7 @@ export function ToolsPage({
                   onOpen={() => setSelected(shown ? '' : server.id)}
                   onSwitch={() => void saveServer(server, { enabled: !server.enabled })}
                   busy={work.busy(server.id)}
-                  onTrust={() => work.trust(server)}
+                  onTrust={() => void work.trust(server)}
                 >
                   {/* Keyed by the server and what was saved of it, so a save or a switch reloads the form. */}
                   <ServerEditor
