@@ -124,17 +124,33 @@
   width: auto;
 }
 
-/* The Chats page (0.1.10): the chats by folder on the left, Now on the right - as Ready for you's halves, about 1.35
-   to 1; one under the other on a narrow screen. */
-.conv-sub {
-  margin: -8px 0 0;
+/* The Chats page (0.1.10): its heading with one row of tools beside it - under it where narrow -, Now across the top,
+   the chats by folder the whole width under it. */
+.conv-head-chats {
+  flex-wrap: wrap;
+  gap: 8px 4px;
 }
 
-.conv-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 1fr);
-  align-items: start;
-  gap: 24px;
+.conv-toolbar {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.conv-toolbar .input {
+  width: auto;
+}
+
+.conv-toolbar input[type='search'] {
+  flex: 1 1 180px;
+  max-width: 340px;
+}
+
+.conv-sub {
+  margin: -8px 0 0;
 }
 
 .conv-main {
@@ -213,18 +229,35 @@
   font-weight: normal;
 }
 
-/* Now: what is at work and what waits for your word, in every folder - in view while the list scrolls. */
+/* Now: what is at work and what waits for your word, in every folder - one strip across the top, in sight while the
+   list scrolls under it: its heading, its cells, its sentence and Go to Ready, what the cells mean; wrapped where
+   narrow. It sticks to the page's very top (its padding is 28 px) in a band of the page's ground, so the rows that
+   go under it are not seen above it or by its corners. */
 .conv-now {
   position: sticky;
-  top: 0;
+  top: -28px;
+  z-index: 2;
+  flex: none;
+  margin: -8px 0;
+  padding: 8px 0;
+  background: var(--bg);
+}
+
+.conv-now-strip {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .conv-now h3 {
   margin: 0;
   font-size: var(--text-heading);
+  white-space: nowrap;
 }
 
 .conv-now h3 .muted {
@@ -234,26 +267,44 @@
 
 .conv-now-box {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  flex: 1 1 520px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+/* (Twelve cells a line: thirty are three lines.) */
+.conv-now-box .cell-comb {
+  max-width: 300px;
 }
 
 .conv-now-box p {
+  flex: 1 1 200px;
   margin: 0;
 }
 
-@media (max-width: 980px) {
-  .conv-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
+/* What the cells mean, in two short lines beside the sentence. */
+.conv-now .cell-legend {
+  flex: 0 1 250px;
+}
 
+/* A row the keyboard reaches is scrolled into view under Now, not behind it (Now's height: ChatsNow). */
+.conv-page:has(> .conv-now) {
+  scroll-padding-top: calc(var(--now-h, 0px) + 8px);
+}
+
+/* Narrow, Now wraps to a few lines: it stays on top but scrolls away with the page, so the list keeps the screen. */
+@media (max-width: 980px) {
   .conv-now {
     position: static;
+  }
+
+  .conv-page:has(> .conv-now) {
+    scroll-padding-top: 0;
+  }
+
+  .conv-toolbar {
+    justify-content: flex-start;
   }
 }
 

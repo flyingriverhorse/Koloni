@@ -439,8 +439,8 @@ test('the chats are grouped by folder: the open chat’s first and open, the oth
     )
   let { unmount } = shown('mermaid')
   const groups = () => screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)
-  // Each folder says how many chats it holds; Now is the last heading.
-  expect(groups()).toEqual(['Skyulf-Agent 2 chats', 'oyun-projesi 1 chat', 'No folder 1 chat', 'Now every folder'])
+  // Now is the first heading, on top of the list; each folder says how many chats it holds.
+  expect(groups()).toEqual(['Now every folder', 'Skyulf-Agent 2 chats', 'oyun-projesi 1 chat', 'No folder 1 chat'])
   const titles = (name: string) =>
     within(screen.getByRole('region', { name }))
       .queryAllByRole('listitem')
@@ -459,13 +459,13 @@ test('the chats are grouped by folder: the open chat’s first and open, the oth
   // In a plain chat its group is the first and open.
   unmount()
   ;({ unmount } = shown('plain talk'))
-  expect(groups()).toEqual(['No folder 1 chat', 'oyun-projesi 1 chat', 'Skyulf-Agent 2 chats', 'Now every folder'])
+  expect(groups()).toEqual(['Now every folder', 'No folder 1 chat', 'oyun-projesi 1 chat', 'Skyulf-Agent 2 chats'])
   expect(titles('No folder')).toEqual(['plain talk'])
   expect(titles('Skyulf-Agent')).toEqual([])
   // With no chat open, all of them are open.
   unmount()
   shown(null)
-  expect(groups()).toEqual(['oyun-projesi 1 chat', 'Skyulf-Agent 2 chats', 'No folder 1 chat', 'Now every folder'])
+  expect(groups()).toEqual(['Now every folder', 'oyun-projesi 1 chat', 'Skyulf-Agent 2 chats', 'No folder 1 chat'])
   expect(titles('oyun-projesi')).toEqual(['enemy AI'])
 })
 
@@ -604,9 +604,9 @@ test('a chat that waits for you stays under its folder, its row saying so - no g
       .queryAllByRole('listitem')
       .map(item => item.querySelector('.conv-row-title')!.textContent)
   expect(screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual([
+    'Now every folder',
     'Skyulf-Agent 1 chat',
     'oyun-projesi 2 chats',
-    'Now every folder',
   ])
   expect(screen.getByRole('button', { name: 'oyun-projesi' })).toHaveAttribute('aria-expanded', 'false')
   await userEvent.click(screen.getByRole('button', { name: 'oyun-projesi' }))

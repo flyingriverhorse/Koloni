@@ -486,10 +486,10 @@ export function ConversationList({
 
   return (
     <div className="conv-page">
-      <div className="conv-head">
+      <div className="conv-head conv-head-chats">
         <h2>Chats</h2>
         <RefreshButton onRefresh={onRefresh} onError={setStale} />
-        <div className="usage-filters">
+        <div className="conv-toolbar">
           <input
             type="search"
             className="input"
@@ -524,10 +524,9 @@ export function ConversationList({
       <p className="muted conv-sub">
         Each chat with how it stands: what is at work, what waits for your word, how it ended.
       </p>
-      <div className="conv-body">
-        <div className="conv-main">{listPart()}</div>
-        <ChatsNow items={waiting} {...nowOf(conversations, said, on)} read={!!board} onReady={onReady} />
-      </div>
+      {/* Now on top, in sight while the list scrolls (0.1.10); the list the whole width under it. */}
+      <ChatsNow items={waiting} {...nowOf(conversations, said, on)} read={!!board} onReady={onReady} />
+      <div className="conv-main">{listPart()}</div>
     </div>
   )
 }

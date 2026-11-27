@@ -1,9 +1,9 @@
 # Chats
 
-**Chats** on the left rail opens the list of your chats: each chat with how it stands, and on the
-right **Now**, what is at work and what waits for your word in every folder.
+**Chats** on the left rail opens the list of your chats: on top **Now**, what is at work and what waits
+for your word in every folder, and under it each chat with how it stands.
 
-![The Chats page: under the project folder, three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"; on the right Now, its cells, "Nothing at work; 1 thing waits for your word. Today 8 done.", Go to Ready, and what the cells mean](../images/chats.png)
+![The Chats page: the heading Chats with one row of tools beside it - Search by name, All states, Last activity, New chat, From a GitHub issue…; under it the Now strip across the page with its cells, "Nothing at work; 1 thing waits for your word. Today 1 done. What waits is on Ready for you.", Go to Ready, and what the cells mean; under it the project folder with three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"](../images/chats.png)
 
 ## The list
 
@@ -41,7 +41,8 @@ state is not read at all has no cell and no line: the page says nothing it does 
 
 ## Now
 
-**Now** stands beside the list, over every folder:
+**Now** is the strip across the top of the page, over every folder, and it stays in sight while you
+scroll the list:
 
 - a cell for each chat at work (one that waits for your word too, while another of its agents works),
   each thing that waits for your word, and each chat whose last turn ended today stuck or done; hover a
@@ -51,7 +52,8 @@ state is not read at all has no cell and no line: the page says nothing it does 
 - **Go to Ready**, where what waits is answered;
 - what the cells mean.
 
-On a narrow window Now goes under the list.
+On a narrow window (980 px or less) Now wraps onto a few lines; it is still on top of the list but
+scrolls away with it, so the list keeps the screen.
 
 ## Starting a chat
 
