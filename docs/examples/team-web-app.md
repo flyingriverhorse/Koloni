@@ -10,7 +10,7 @@ A small web app, built by the ready **Web app** team, from the first message to 
 4. **Write the message**, for example: "A one-page to-do list app in plain HTML and JavaScript, with a
    test." With **Plan first** on, you approve a plan first.
 5. **Watch the canvas.** It draws the team as a frame with its steps and agents, their tools, commands
-   and files. Answer the cards as they come; **Ready** on the rail counts what waits.
+   and files. Answer the cards as they come; **Work** on the rail counts what waits.
 6. **Preview it.** An agent can start a dev server and show the page; running servers are listed under **Previews** in the Workspace.
 7. **Take it in.** When the recipe ends, the **Teams' work is ready** card asks: **Take in**, **Fix the
    findings** (if reviewers left findings), or **Ask for changes** with what to change.

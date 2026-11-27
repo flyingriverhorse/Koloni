@@ -85,18 +85,21 @@ function useNews(away: Away | null): boolean {
 /**
  * Ready for you's "what was done" (0.1.10): the project's last ☾ Away, while it works and once it ended - one sentence,
  * a row per job, the night's lanes on its clock, what was decided for you and what it spent; Copy report as Markdown.
- * A night that is no news - none, or one ended over a day ago that you have seen - is one line.
+ * A night that is no news - none, or one ended over a day ago that you have seen - is one line. `hidden`: its tab is not
+ * shown, so the night is not seen yet.
  */
 export function Report({
   away,
   parked,
   onReport,
   onOpen,
+  hidden,
 }: {
   away: Away | null
   parked: Waiting[]
   onReport?: () => void
   onOpen: (conversationId: string) => void
+  hidden?: boolean
 }) {
   const id = useId()
   const news = useNews(away)
@@ -104,7 +107,7 @@ export function Report({
     return <Nothing away={away} onReport={onReport} />
   if (away.status === 'ended' && axisOf(away))
     return (
-      <NightStrip away={away} parked={parked} onReport={onReport} foot={<Foot away={away} />}>
+      <NightStrip away={away} parked={parked} onReport={onReport} foot={<Foot away={away} />} hidden={hidden}>
         <Body away={away} onOpen={onOpen} />
       </NightStrip>
     )

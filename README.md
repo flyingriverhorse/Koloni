@@ -39,7 +39,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 <td width="50%"><img src="docs/images/take-in.png" alt="The Ready for you panel asks: take the work into the project?"><br><sub><b>The card.</b> A team's work stays in its copy until you say Take in, or Ask for changes in your own words.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/images/ready-morning.png" alt="Ready for you the morning after a night while you were away: the night&#39;s report with a row per job, what waits for your word, and To-do&#39;s cards on the right"><br><sub><b>The morning.</b> ☾ Away works your To-do through while you are away; Ready for you says what was done, what waits for your word, and your To-do beside it.</sub></td>
+<td width="50%"><img src="docs/images/ready-morning.png" alt="Work the morning after a night while you were away, on its Ready for you tab beside To-do: the night&#39;s report with a row per job, and what waits for your word"><br><sub><b>The morning.</b> ☾ Away works your To-do through while you are away; Work's Ready for you says what was done and what waits for your word, your To-do on the tab beside it.</sub></td>
 <td width="50%"><img src="docs/images/usage.png" alt="The Usage page: what the month cost in a sentence, its budget as ten cells, the last 30 days in a strip, and the table by provider and model"><br><sub><b>Usage.</b> What the month cost and how much of its budget is used, day by day; tokens, AI credits and plan windows as the CLIs reported them; nothing invented.</sub></td>
 </tr>
 <tr>
@@ -90,8 +90,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve - one Memory page, with what the project knows and its sources, and one tool,
   Recall, that looks in both. [Memory](docs/memory.md) · [Sources](docs/knowledge.md)
-- **Ready for you**: one page - what was done (the last ☾ Away's report), one list of what waits for
-  your word and what was decided for you, and your To-do beside them; the Chats, Memory, Tools, Usage and
+- **Work**: one page of two tabs - **Ready for you**, what was done (the last ☾ Away's report), one list
+  of what waits for your word and what was decided for you; and your **To-do**; the Chats, Memory, Tools, Usage and
   Settings pages say how each thing stands in the same honeycomb cells. [Ready for you](docs/use/ready.md)
 - **Work over time**: a To-do list of stories and their tasks and bugs - a rough note written
   as one by the Hive keeper - ticked tasks done in a chat one by one, at its level and on its model

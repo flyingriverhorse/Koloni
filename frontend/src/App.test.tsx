@@ -177,8 +177,9 @@ test('with no folder and no chat KOLONİ opens on the canvas, not on a setup pag
   expect(screen.queryByRole('button', { name: /^Project settings for/ })).toBeNull()
   // Nothing is made at the start: the first message makes a plain chat.
   expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
-  // (To-do is Ready for you's right half, 0.1.10.)
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Ready' }))
+  // (To-do is Work's second tab, 0.1.10.)
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Work' }))
+  await userEvent.click(screen.getByRole('tab', { name: 'To-do' }))
   const none = screen.getByText('This chat has no folder - pick one with the folder button to use the To-do.')
   // ...with the way to one beside it: the folder button's own panel.
   expect(screen.queryByRole('button', { name: 'Open a folder…' })).toBeNull()
@@ -519,7 +520,7 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Ready', 'ready-page', `Ready for you ${greeting()}`],
+    ['Work', 'ready-page work-page', 'Work'],
     ['Usage', 'memory-page', 'Usage'],
     // (0.1.10: its heading, the three ways and its tabs stand while its memory is read)
     ['Memory', 'memory-page', 'Memory'],
@@ -536,21 +537,23 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
-    ['Ready', 'ready-page', `Ready for you ${greeting()}`],
+    ['Work', 'ready-page work-page', 'Work'],
     ['Usage', 'memory-page', 'Usage'],
     ['Memory', 'memory-page', noFolder('Memory')],
     ['Chats', 'conv-page', 'Chats'],
     ['Canvas', 'stage', 'First steps'],
   ])
-  // (To-do, Ready for you's right half since 0.1.10, asks for one there.)
-  await visit([['Ready', 'ready-page', `Ready for you ${greeting()}`]])
+  // (Work's Ready for you; its To-do, a tab since 0.1.10, asks for one there.)
+  await visit([['Work', 'ready-page work-page', 'Work']])
+  expect(screen.getByRole('heading', { name: `Ready for you ${greeting()}` })).toBeVisible()
+  await userEvent.click(screen.getByRole('tab', { name: 'To-do' }))
   expect(screen.getByRole('region', { name: 'To-do' })).toHaveTextContent(noFolder('To-do'))
   // (The day of a folder says it is read as soon as it is drawn: here there is none.)
   await visit([['Usage', 'memory-page', 'Usage']])
   expect(screen.queryByText(/^Reading the day…$|^The day could not be read/)).toBeNull()
 })
 
-test("the top bar's pill says what the Lead decided for you when nothing waits; it opens and shuts Ready for you, but not on the Ready page", async () => {
+test("the top bar's pill says what the Lead decided for you when nothing waits; it opens and shuts Ready for you, but not on the Work page - there it shows its tab", async () => {
   const decided = question('q', 'r', {
     status: 'answered',
     answer: 'yes',
@@ -576,11 +579,16 @@ test("the top bar's pill says what the Lead decided for you when nothing waits; 
   await userEvent.click(pill)
   expect(document.getElementById('ready-panel')).toBeNull()
   await userEvent.click(pill)
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Ready' }))
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Work' }))
   expect(pill).toHaveAttribute('aria-expanded', 'false')
   expect(document.getElementById('ready-panel')).toBeNull()
   await userEvent.click(pill)
   expect(useApp.getState().readyPanel.open).toBe(true)
+  expect(document.getElementById('ready-panel')).toBeNull()
+  // (On To-do's tab the list is not in sight: the pill shows Ready for you's, not the panel over the page.)
+  await userEvent.click(screen.getByRole('tab', { name: /^To-do/ }))
+  await userEvent.click(pill)
+  expect(screen.getByRole('tab', { name: /^Ready for you/ })).toHaveAttribute('aria-selected', 'true')
   expect(document.getElementById('ready-panel')).toBeNull()
 })
 
@@ -677,7 +685,7 @@ test("Usage's Today says the day's decisions in one line; Open in Ready for you 
   await vi.waitFor(() => expect(decided).toHaveFocus())
   // The ask was taken: Ready for you opened later, from the rail, is as any.
   await userEvent.click(rail('Canvas'))
-  await userEvent.click(rail('Ready'))
+  await userEvent.click(rail('Work'))
   const again = await screen.findByRole('region', { name: /^Decided for you/ })
   await within(again).findByText("KOLONİ's judge")
   expect(again).not.toHaveFocus()
@@ -742,6 +750,42 @@ test('a page you opened before the night was read is never taken from you: the m
   expect(screen.queryByRole('heading', { name: /^Ready for you/ })).toBeNull()
 })
 
+test('Work opens on the tab shown last, its arrows go between its two; the night is seen only once Ready for you is shown', async () => {
+  let release = () => {}
+  const held = new Promise<void>(go => (release = go))
+  const read = vi.fn(async (url: string) => {
+    if (url !== '/api/projects/p/away') return answer(url)
+    await held
+    return new Response(JSON.stringify(endedNight), { status: 200 })
+  })
+  vi.stubGlobal('fetch', read)
+  render(<App />)
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  await screen.findByText('this machine')
+  // (Another page first: the morning leaves it, M1.)
+  await userEvent.click(rail('Agents'))
+  release()
+  await vi.waitFor(() => expect(useApp.getState().away?.id).toBe('a1'))
+  act(() => useApp.setState({ readyTab: 'todo' }))
+  await userEvent.click(rail('Work'))
+  const tab = (name: RegExp) => screen.getByRole('tab', { name })
+  expect(tab(/^To-do/)).toHaveAttribute('aria-selected', 'true')
+  expect(screen.queryByRole('region', { name: /^Last night/ })).toBeNull()
+  const seen = () => read.mock.calls.some(([url]) => url === '/api/away/a1/seen')
+  await act(async () => {})
+  expect(seen()).toBe(false)
+  tab(/^To-do/).focus()
+  await userEvent.keyboard('{ArrowLeft}')
+  expect(tab(/^Ready for you/)).toHaveFocus()
+  expect(tab(/^Ready for you/)).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('region', { name: /^Last night/ })).toBeVisible()
+  await vi.waitFor(() => expect(seen()).toBe(true))
+  await userEvent.keyboard('{End}')
+  expect(tab(/^To-do/)).toHaveFocus()
+  await userEvent.keyboard('{Home}')
+  expect(tab(/^Ready for you/)).toHaveAttribute('aria-selected', 'true')
+})
+
 test('the morning is asked of the first answer about the night alone: a later one never moves you (M1)', async () => {
   // (the first read fails; the next, a minute later, finds the night ended - you may be typing by then)
   let failed = false
@@ -803,7 +847,7 @@ test("an agent's window and a discussion's open over the canvas only with a chat
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
 })
 
-test('To-do is Ready for you’s right half (0.1.10): no rail button of its own; a chat’s Open it in To-do lands there, at its task', async () => {
+test('To-do is a tab of Work (0.1.10): no rail button of its own; a chat’s Open it in To-do lands there, at its task', async () => {
   const stuck = {
     id: 't1',
     title: 'Fix the login',
@@ -834,13 +878,15 @@ test('To-do is Ready for you’s right half (0.1.10): no rail button of its own;
   expect(rail('To-do')).toBeNull()
   act(() => void window.dispatchEvent(new CustomEvent(OPEN_TODO, { detail: 't1' })))
   const panel = await screen.findByRole('complementary', { name: 'Without a story' })
-  expect(rail('Ready')).toHaveAttribute('aria-pressed', 'true')
+  expect(rail('Work')).toHaveAttribute('aria-pressed', 'true')
+  // (Its tab says its open tasks: the one stuck.)
+  expect(screen.getByRole('tab', { name: 'To-do · 1' })).toHaveAttribute('aria-selected', 'true')
   await vi.waitFor(() => expect(within(panel).getByRole('button', { name: 'Fix the login' })).toHaveFocus())
   // Its card says how it stands, in a word beside its cell.
   expect(screen.getByRole('button', { name: 'Without a story: 0 of 1 done' })).toHaveTextContent('Fix the login: stuck')
 })
 
-test('To-do asked at a task opens there once: Ready for you opened again from the rail is as any', async () => {
+test('To-do asked at a task opens there once: Work opened again from the rail is on its To-do, as any', async () => {
   const task = {
     id: 't1',
     title: 'Fix the login',
@@ -870,7 +916,7 @@ test('To-do asked at a task opens there once: Ready for you opened again from th
   act(() => void window.dispatchEvent(new CustomEvent(OPEN_TODO, { detail: 't1' })))
   expect(await screen.findByRole('complementary', { name: 'Without a story' })).toBeInTheDocument()
   await userEvent.click(rail('Usage'))
-  await userEvent.click(rail('Ready'))
+  await userEvent.click(rail('Work'))
   await screen.findByRole('button', { name: 'Without a story: 0 of 1 done' })
   expect(screen.queryByRole('complementary', { name: 'Without a story' })).toBeNull()
 })

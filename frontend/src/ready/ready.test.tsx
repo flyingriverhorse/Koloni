@@ -223,6 +223,9 @@ test('N11: the Orchestrator’s kept copy says “Orchestrator” on its card as
 
 test('the page: the same list, by where it is from', async () => {
   render(<Shown page />)
+  // (On Work's tab Ready for you, its count the list's; To-do says none while it has no count.)
+  expect(screen.getByRole('tab', { name: 'Ready for you · 5', selected: true })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'To-do', selected: false })).toBeInTheDocument()
   const shows = screen.getByRole('group', { name: 'Show' })
   expect(
     within(shows)
@@ -319,9 +322,9 @@ test('the same decision everywhere: answered in Ready, another chat’s card is 
   expect(screen.queryByText('Which greeting?')).toBeNull()
 })
 
-test('the rail: Ready carries the badge, the total; no Board page (0.1.10)', () => {
+test('the rail: Work carries the badge, the total; no Board page (0.1.10)', () => {
   render(<Rail view="canvas" onView={vi.fn()} theme="dark" onToggleTheme={vi.fn()} waiting={5} />)
-  expect(screen.getByRole('button', { name: 'Ready' })).toHaveAccessibleDescription('5 waiting')
+  expect(screen.getByRole('button', { name: 'Work' })).toHaveAccessibleDescription('5 waiting')
   expect(screen.queryByRole('button', { name: 'Board' })).toBeNull()
   expect(screen.getAllByText('5')).toHaveLength(1)
 })
@@ -390,7 +393,7 @@ test('a chat answered here that asks again with the same Board row is read again
       <Shown page />
     </>,
   )
-  const ready = screen.getByRole('button', { name: 'Ready' })
+  const ready = screen.getByRole('button', { name: 'Work' })
   expect(ready).toHaveAccessibleDescription('1 waiting')
   await userEvent.click(screen.getByRole('button', { name: 'Run once' }))
   await vi.waitFor(() => expect(ready).not.toHaveAccessibleDescription())

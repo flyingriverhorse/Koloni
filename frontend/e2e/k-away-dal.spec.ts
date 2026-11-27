@@ -70,7 +70,7 @@ test('a night job works on its own branch, and its push waits for your Run', asy
     .filter((c: { name: string }) => c.name === 'run_checks')
     .map((c: { result: string }) => c.result)
   expect(answers[0]).toMatch(/^CHECKS: green/)
-  await rail(page, 'Ready').click()
+  await rail(page, 'Work').click()
   await expect(page.getByRole('listitem', { name: /^Tidy hello, dal/ }).first()).toContainText(
     `On branch ${job.branch.name} · 1 commits · 1 files · checks ✓`,
   )

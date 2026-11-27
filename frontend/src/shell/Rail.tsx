@@ -14,7 +14,7 @@ import {
 import type { Ref } from 'react'
 import type { Theme } from '../theme/theme'
 
-// (0.1.10: To-do is Ready for you's right half - no page of its own.)
+// (0.1.10: To-do is a tab of Work, with Ready for you - no page of its own.)
 export type View =
   'canvas' | 'conversations' | 'ready' | 'agents' | 'models' | 'tools' | 'memory' | 'knowledge' | 'usage'
 
@@ -24,7 +24,7 @@ interface Props {
   onView: (view: View) => void
   theme: Theme
   onToggleTheme: () => void
-  /** How many things wait for your word anywhere: Ready for you's rows. */
+  /** How many things wait for your word anywhere: Ready for you's rows, on Work. */
   waiting: number
   /** Settings (tek-ev): its own page, opened and closed by ⚙; the focus comes back to it. */
   settingsOpen?: boolean
@@ -62,16 +62,17 @@ export function Rail({ view, onView, theme, onToggleTheme, waiting, settingsOpen
           Chats
         </span>
       </button>
+      {/* 0.1.10: Work - Ready for you and To-do, its two tabs; it opens on the one shown last. */}
       <button
         className="icon-btn"
         aria-pressed={view === 'ready'}
-        aria-label="Ready"
+        aria-label="Work"
         aria-describedby={waiting > 0 ? 'rail-waiting' : undefined}
         onClick={() => onView('ready')}
       >
         <CheckSquare size={19} />
         <span className="rail-label" aria-hidden="true">
-          Ready
+          Work
         </span>
         {/* What waits for your word, anywhere: the top bar's pill says the same number (tek-ev §1). */}
         {waiting > 0 && (

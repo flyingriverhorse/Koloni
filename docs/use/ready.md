@@ -1,9 +1,9 @@
 # Ready and approval cards
 
 Everything that waits for your word is in one place: **Ready for you**. Each item is a card with its
-own buttons. You answer it there, or in the chat where it was asked. Since 0.1.10 the page is also
-where your [To-do](../automation/todo.md) is: what was done and what waits for you on the left, your
-stories and tasks on the right.
+own buttons. You answer it there, or in the chat where it was asked. Since 0.1.10 its page is
+**Work** on the rail, with two tabs: **Ready for you** - what was done and what waits for you - and
+your [To-do](../automation/todo.md), your stories and tasks.
 
 Every card has the same shape: a title that says what is asked or told, one sentence on what and why,
 the buttons, and a folded **Details** with the longer notes on what the buttons do. A warning about what
@@ -14,15 +14,19 @@ question off.
 
 ## Where you see what waits
 
-- **Ready** on the left rail. When something waits, it shows the count. Its page has the night's
-  report, what waits for your word and **Decided for you** - what was decided for you in the project,
-  with **OK** and **Change** (see [Decisions](decisions.md)) - on the left, and To-do on the right.
-- **The pill in the top bar**, such as "2 wait". It opens the **Ready for you** panel. When nothing
-  waits but things were decided for you, it says how many wait for your OK in the project ("5 decided"),
-  the count **Not seen** lists - or, in a chat with no folder, in that chat.
+- **Work** on the left rail. When something waits, it shows the count. Its page has two tabs:
+  **Ready for you** - the night's report, what waits for your word and **Decided for you**, what was
+  decided for you in the project, with **OK** and **Change** (see [Decisions](decisions.md)) - and
+  **To-do**. Each tab says its count: "Ready for you · 2", what waits for your word; "To-do · 5", the
+  tasks not done yet.
+- **The pill in the top bar**, such as "2 wait". It opens the **Ready for you** panel - on the Work
+  page, where the list is, it shows the **Ready for you** tab instead. When nothing waits but things
+  were decided for you, it says how many wait for your OK in the project ("5 decided"), the count
+  **Not seen** lists - or, in a chat with no folder, in that chat.
 - **In the chat**, where the card was asked. A closed chat's line says how many wait for you, and a
   chat says under its message box when more wait elsewhere ("2 more wait elsewhere").
-- Ctrl+K lists **Ready for you** too, and **To-do (on Ready for you)**, which brings To-do into view.
+- Ctrl+K lists **Work › Ready for you** and **Work › To-do** - "work", "ready" or "to-do" finds them -,
+  each opening Work on its tab.
 
 ### The panel
 
@@ -33,7 +37,7 @@ The **Ready for you** panel opens from the right. Esc closes it.
   the project and waits for your OK - the pill's count, **Not seen**'s -, with **Open in Ready for you**.
   What was decided is not counted with what waits.
 - **Elsewhere** lists what waits in other chats, the To-do list, memory and work while you're away.
-- **Open all as a page →** opens the Ready page.
+- **Open all as a page →** opens Work on its **Ready for you** tab.
 
 <video src="../videos/ready.webm" poster="../../videos/ready.jpg" controls muted loop playsinline preload="none" style="width: 100%; height: auto" aria-label="Video: two chats wait; the pill opens Ready for you, Run once answers this chat, the page lists the other, and Open chat answers it there"></video>
 
@@ -45,15 +49,25 @@ The **Ready for you** panel opens from the right. Esc closes it.
 
 ### The page
 
-**Ready for you** is one page in two halves: on the left, what was done and what waits for you; on the
-right, [To-do](../automation/todo.md). On a wide screen they stand side by side, each scrolling by
-itself; on a narrow one To-do comes under the rest.
+**Work** is one page of two tabs under its heading: **Ready for you** - what was done and what waits
+for you - and [To-do](../automation/todo.md). The tab shown fills the page and scrolls by itself, its
+tabs staying in sight; the arrow keys go from one tab to the other, Home and End to the first and the
+last. What you type on one tab, and a story open on To-do, stay as you switch.
 
-![Ready for you the morning after a night while you were away: on the left the greeting, the night's report - "2 of 2 jobs done.", a row per job with its cell, the night's lanes, what was decided and spent, Copy report as Markdown - and Waiting for your word; on the right To-do, a card of two tasks waiting at done?, the rough note and what the cells mean](../images/ready-morning.png)
+Work opens on the tab you showed last while KOLONİ is open (a reload starts on **Ready for you**).
+Some ways in open a tab of their own:
 
-*The morning: the night's report and what waits on the left, To-do on the right.*
+- **Ready for you**: KOLONİ opened the morning after a night, the top bar's ☾ Away line, **Open in
+  Ready for you** (a chat's line, Usage's Today), **Open all as a page →** on the panel, **Go to Ready**
+  on Chats, **Open on Ready for you** on Tools, and the top bar's pill while you are on Work.
+- **To-do**: Ctrl+K's **Work › To-do**, a chat's **Open it in To-do**, **The task** on a decision, and
+  the canvas's **To-do →** and its Scout's node.
 
-The left half, from the top:
+![Work the morning after a night while you were away, on its Ready for you tab - "Ready for you · 2" and "To-do · 2" under the heading: the greeting, the night's report - "2 of 2 jobs done.", a row per job with its cell, the night's lanes, what was decided and spent, Copy report as Markdown - and Waiting for your word](../images/ready-morning.png)
+
+*The morning: the night's report and what waits for your word, on Work's Ready for you.*
+
+**Ready for you**, from the top:
 
 - **The greeting** and one line: how many things wait for your word, and how many decisions were made
   for you since you left.
@@ -68,8 +82,9 @@ The left half, from the top:
   [The night on Ready for you](../automation/overnight.md#the-night-on-ready-for-you). With no night,
   or one you have seen that ended more than a day ago, this is one line: "Nothing new since you last
   looked" - with **The whole report** of that night, where there is one. Where the record says why the
-  night ended (its money limit, its time, **Stop all**), the report says it too. KOLONİ opened after a night opens on this page, until the night has been on screen - not
-  where you opened another page before it was read.
+  night ended (its money limit, its time, **Stop all**), the report says it too. KOLONİ opened after a night opens on this tab, until the night has been on screen - not
+  where you opened another page before it was read. (While Work shows its To-do tab, the night is not
+  on screen.)
 - **Waiting for your word**: everything that waits, oldest first - what the night parked for you
   first -, in one list. Each row starts with its cell and says what it is - **Push**, **Parked
   command**, **Question**, **Command**, **Proposed task**, **Done?**, **Memory proposal**,
@@ -82,8 +97,8 @@ The left half, from the top:
 - **Decided for you**: the project's decisions, with **OK** and **Change** - see
   [Decisions](decisions.md).
 
-The right half is [To-do](../automation/todo.md): each story a card, a story opened in a panel over
-it, and the rough note the Hive keeper splits into tasks.
+The **To-do** tab is [To-do](../automation/todo.md): each story a card, a story opened in a panel over
+the cards, and the rough note the Hive keeper splits into tasks.
 
 ### The cells
 
@@ -167,7 +182,7 @@ On the canvas the same card is a box titled **Ready for you**. **Open the list �
 | An agent's question itself, saying who asks (**Orchestrator asks**, **Coder asks**), or a title of KOLONİ's own such as **Allow this?** or **Go on with the recipe?** (**KOLONİ asks**), with its words whole under it | its own options, or **Or answer in your own words…** | An agent, or KOLONİ, asks you a question. KOLONİ's **Deny** is shown as **Reject**. A question KOLONİ did not put to you (your message was waiting, or it offered **Take in**) is a row in the chat, "Wanted to ask: … · not asked"; open it for why. |
 | **Add to Project notes?** | ticks, **Add**, **Not now** | After a turn found things worth noting. It never holds the turn. |
 | **☾ Go away now?** | **Go away**, **Change** | The Orchestrator put work on To-do and offers to go away; nothing starts before Go away. |
-| **Decided for you** (on the Ready for you page; a chat with no folder: **Decided for you while you were away**) | **OK**, or **Change →** another answer - **Change and redo →** once the agent that asked has finished | The Orchestrator answered for you (see [Answering for you](../automation/answering-for-you.md)), KOLONİ's judge refused a command, or [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, on a line of yours (**OK**). See [Decisions](decisions.md). |
+| **Decided for you** (on Work's Ready for you tab; a chat with no folder: **Decided for you while you were away**) | **OK**, or **Change →** another answer - **Change and redo →** once the agent that asked has finished | The Orchestrator answered for you (see [Answering for you](../automation/answering-for-you.md)), KOLONİ's judge refused a command, or [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, on a line of yours (**OK**). See [Decisions](decisions.md). |
 | **Go on past its step limit?** | **Continue (+*N* steps)**, **Stop here** | An agent came to its step limit before its work was done. See [Step limits](../agents/step-limits.md). |
 | "*Model* has not answered for 5 min. Keep waiting, or stop this turn and pick another model?" | **Keep waiting**, **Stop and pick another model** | The Orchestrator's model said nothing for 5 minutes in a turn you started. See [Step limits](../agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer). |
 

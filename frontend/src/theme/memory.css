@@ -1023,7 +1023,7 @@ a.btn {
   margin: 4px 0 0;
 }
 
-/* To-do as cards (0.1.10, Ready for you's right half): each story a card - its name, how many are done, a cell for each
+/* To-do as cards (0.1.10, Work's To-do tab): each story a card - its name, how many are done, a cell for each
    task in a row of honeycomb, then its tasks each with its cell and how it stands. The card is one button. */
 .todo-cards {
   display: flex;
@@ -1147,10 +1147,12 @@ a.btn {
   color: var(--faint);
 }
 
-/* A story opened: its panel over the right half, from the right - its facts, its notebook, its buttons, its tasks. */
+/* A story opened: its panel over the To-do tab, from the right - its facts, its notebook, its buttons, its tasks; the
+   cards it lies over still seen at its left on a wide window. */
 .todo-panel {
   position: absolute;
-  inset: 0;
+  inset: 0 0 0 auto;
+  width: min(100%, 760px);
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -1250,10 +1252,56 @@ a.btn {
   padding: 0;
 }
 
-/* On a narrow screen the halves stand one under the other: a story's panel takes the window. */
+/* Work (0.1.10): Ready for you and To-do, two tabs under the page's heading - the tab shown fills the page and scrolls by
+   itself, its tabs staying in sight. (Over board.css's two halves side by side: `.work-page` wins by its two classes.) */
+.ready-page.work-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.work-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 28px 0;
+}
+
+.work-top > h2 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+
+.work-tabs {
+  padding: 0;
+}
+
+.work-page .ready-left {
+  flex: 1;
+  border-right: 0;
+}
+
+.work-page .ready-right {
+  flex: 1;
+}
+
+.work-page > [hidden] {
+  display: none;
+}
+
+/* On a narrow screen the page scrolls as one, and a story's panel takes the window. */
 @media (max-width: 980px) {
+  .ready-page.work-page {
+    display: block;
+  }
+
+  .work-page .ready-left {
+    border-bottom: 0;
+  }
+
   .todo-panel {
     position: fixed;
+    inset: 0;
+    width: auto;
     z-index: 40;
   }
 }

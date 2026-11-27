@@ -84,7 +84,7 @@ changes the files**), or no copy can be made (a very large project), each change
 with its diff and **Approve** or **Reject** instead, and after it is written you can still
 **Revert** it.
 
-While something waits for you, the project's tab above the canvas turns orange, and **Ready** on the
+While something waits for you, the project's tab above the canvas turns orange, and **Work** on the
 rail counts it, so you can do something else meanwhile.
 
 ## Next

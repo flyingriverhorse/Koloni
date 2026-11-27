@@ -174,6 +174,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** Ready for you's panel (tek-ev §1): open or not, and the row it was asked to bring into view. */
   readyPanel: { open: boolean; at: string | null }
   showReady(open: boolean, at?: string): void
+  /** The Work page's tab shown (0.1.10): Ready for you or To-do - kept while you go to other pages, not over a reload. */
+  readyTab: 'ready' | 'todo'
   /** A place in Settings asked for (Ctrl+K, a chat's "run without asking" link, a page's link), each time with a new count: Settings opens on it. */
   settingsAsked: { section: SettingsPlace; n: number } | null
   askSettings(section: SettingsPlace): void
@@ -818,6 +820,7 @@ export const useApp = create<AppStore>()((set, get) => {
     showReady(open, at) {
       set({ readyPanel: { open, at: at ?? null } })
     },
+    readyTab: 'ready',
 
     settingsAsked: null,
     askSettings(section) {

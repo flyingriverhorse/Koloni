@@ -12,7 +12,7 @@ test.afterEach(async ({ request }, info) => {
 
 /** What the rail's badge says waits now. The backend is shared with the specs before this one: it is read, never assumed. */
 async function waiting(page: Page) {
-  const id = await rail(page, 'Ready').getAttribute('aria-describedby')
+  const id = await rail(page, 'Work').getAttribute('aria-describedby')
   return id ? Number((await page.locator(`#${id}`).textContent())?.split(' ')[0]) : 0
 }
 
@@ -60,7 +60,7 @@ for (const theme of ['light', 'dark'] as const) {
     await rail(page, 'Usage').click()
     await expect(toasts.getByText(`Orchestrator waits for you · ${title}`)).toBeVisible({ timeout: 15_000 })
     await expect.poll(() => waiting(page)).toBe(before + 1)
-    await expect(rail(page, 'Ready')).toHaveAccessibleName('Ready')
+    await expect(rail(page, 'Work')).toHaveAccessibleName('Work')
     await expect(toasts.locator('.toast')).toHaveCount(1)
     await readable(toasts)
     await readable(page.locator('.rail-badge'))

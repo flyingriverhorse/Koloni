@@ -12,8 +12,8 @@ your project.
 
 ## Where you see them
 
-- **Ready for you**, the page: on its left half, the night's report, what waits for your word and,
-  under it, **Decided for you** - [To-do](../automation/todo.md) is its right half. The night's report
+- **Ready for you**, a tab of the **Work** page: the night's report, what waits for your word and,
+  under it, **Decided for you** - [To-do](../automation/todo.md) is its other tab. The night's report
   says how many were decided for you that night and how many you have not seen; **See them** brings
   them here, at **Not seen**. The page's first line counts both: "4 things wait for your word.
   5 decisions were made for you since you left." The second part shows only when the project had a

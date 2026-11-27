@@ -57,7 +57,7 @@ KOLONİ's own words, as they appear on screen.
 : Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
   card waited the project's minutes (Settings › This project › When you're asked › **When you're
   away**); and the commands **Check what I said first** ran, or did not run, on a line of yours.
-  The project's whole list is on the Ready for you page, with OK and Change; a chat says it in one
+  The project's whole list is on Work's Ready for you tab, with OK and Change; a chat says it in one
   line: [Decisions](../use/decisions.md).
 
 **Discussion**
@@ -146,9 +146,9 @@ KOLONİ's own words, as they appear on screen.
 : Where a model runs: an OpenAI-compatible server, the Anthropic API, or a CLI you are signed in to
   (Claude Code, Codex, GitHub Copilot CLI, agy). You add providers on the Models page.
 
-**Ready**
-: A page on the rail, with the count of what waits for your word: **Ready for you** on the left and,
-  since 0.1.10, To-do on the right.
+**Work**
+: A page on the rail (0.1.10; once **Ready**), with the count of what waits for your word: two tabs,
+  **Ready for you** and **To-do**. It opens on the tab shown last.
 
 **Ready for you**
 : The panel and page that list everything waiting for your word. The panel lists the open chat's in two
@@ -189,7 +189,7 @@ KOLONİ's own words, as they appear on screen.
   [Chat and canvas](../use/chat-and-canvas.md#writing-a-message).
 
 **Story**
-: On To-do (Ready for you's right half), tasks and bugs that go on together. Its state comes from its tasks; it is done
+: On To-do (a tab of Work), tasks and bugs that go on together. Its state comes from its tasks; it is done
   only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
   on in one topic of a chat. A **bug** is a task about something that works wrong. See
   [Stories](../automation/todo.md#goals-and-stories) and
@@ -222,7 +222,7 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order, on the right of the Ready page: stories hold tasks and bugs. Ticked tasks run
+: A project's tasks, in your order, on the Work page's To-do tab: stories hold tasks and bugs. Ticked tasks run
   in a chat you give them to (**Do in chat**), one by one, at that chat's level and on its model. Agents,
   and the Scout after a turn, propose tasks; you decide. See [To-do](../automation/todo.md).
 
