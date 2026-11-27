@@ -121,15 +121,16 @@ DESTRUCTIVE = (
 # (`tasarim/specs/2026-11-27-cli-kurallari-karsilastirma.md` point 4), and K4's gaps (a) - (c).
 WIDER = (
     " A plain push of the branch being worked on to the project's own origin is ordinary work, "
-    "not sending data off the machine; a push to main, master or the default branch, a force "
-    "push or a push elsewhere is not. RISKY too: work the user's words do not cover that reaches "
-    "outside the task - reaching an outside service (`curl` to an API, `gh pr comment`, `gh issue "
-    "create`), changing CI or settings files, touching another repository; ordinary work for what "
-    "they asked stays fine. RISKY too: amending or rewriting a commit that was already pushed, or "
-    "someone else's; a flag that turns a protection off (`--no-verify`, `--insecure`, `-c "
-    "http.sslVerify=false`); starting an agent loop with no sandbox (`claude "
-    "--dangerously-skip-permissions`, `codex --yolo` or `--dangerously-bypass-approvals-and-"
-    "sandbox`, `copilot --allow-all-tools`)."
+    "not sending data off the machine - unless what it sends holds a secret (`.env`, a key), or "
+    "the user's words or the project's rules say not to push; a push to main, master or the "
+    "default branch, a force push or a push elsewhere is not. RISKY too: work the user's words "
+    "do not cover that reaches outside the task - reaching an outside service (`curl` to an API, "
+    "`gh pr comment`, `gh issue create`), changing CI or settings files, touching another "
+    "repository; ordinary work for what they asked stays fine. RISKY too: amending or rewriting a "
+    "commit that was already pushed, or someone else's; a flag that turns a protection off "
+    "(`--no-verify`, `--insecure`, `-c http.sslVerify=false`); starting an agent loop with no "
+    "sandbox (`claude --dangerously-skip-permissions`, `codex --yolo` or "
+    "`--dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all-tools`)."
 )
 DESTRUCTIVE_C = (
     DESTRUCTIVE.replace(
