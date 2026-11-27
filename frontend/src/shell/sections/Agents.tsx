@@ -5,7 +5,7 @@ import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
 import { OwnCommands } from '../OwnCommands'
 import { useNewChats } from './NewChats'
-import { fromOf, Legend, Marked, More, part, Row, Said } from './part'
+import { fromOf, Legend, Marked, More, noSubmit, part, Row, Said } from './part'
 import { agentsSaid } from './said'
 import { USUAL } from './usual'
 
@@ -127,7 +127,10 @@ export function useAgents(project: Project, more?: number) {
       {chats.teams}
       <More count={2} set={Number(chats.folders > 0) + Number(commands > 0)} asked={more}>
         {chats.others}
-        <OwnCommands projectId={project.id} />
+        {/* (Saved command by command: Enter in its fields sends nothing of the section's Save.) */}
+        <div onKeyDown={noSubmit}>
+          <OwnCommands projectId={project.id} />
+        </div>
       </More>
       <Legend />
     </>,

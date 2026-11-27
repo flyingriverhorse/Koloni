@@ -51,6 +51,10 @@ test('When you’re asked: the judge as it is set, who answers a card that waits
   ).toBe(
     'At Full auto no judge looks at commands: what the list does not stop runs. Every card waits for you, while you’re away too. Sub-agents open without asking.',
   )
+  // No model to ask: every such command waits for you, whatever Refuse and go on says - and so the box for your words.
+  expect(askedSaid({ ...now, no_judge: true, judge_words: true })).toMatch(
+    /^At Full auto no model can be asked for the judge now: each command the list does not stop waits for you on a card\. When a card/,
+  )
   expect(askedSaid({ ...now, away_minutes: 1 })).toContain('When a card has waited 1 minute -')
   expect(askedSaid({ ...now, away_minutes: 0 })).toContain(
     'The Orchestrator answers what it safely can of a card at once.',
@@ -123,7 +127,13 @@ test('Memory and web, Notifications and This folder', () => {
     'No desktop notification is shown. No day’s summary is sent.',
   )
   expect(notifySaid({ notify_desktop: false, day_note_at: '18:00' }, false)).toBe(
-    'A desktop notification is not available on this system. The day’s summary comes at 18:00.',
+    'A desktop notification is not available on this system. The day’s summary at 18:00 is sent only with a desktop notification on.',
+  )
+  expect(notifySaid({ notify_desktop: true, day_note_at: '18:00' }, false)).toBe(
+    'A desktop notification is not available on this system, though it is on here. The day’s summary at 18:00 is sent only with a desktop notification on.',
+  )
+  expect(notifySaid({ notify_desktop: true, day_note_at: '18:00' }, true)).toContain(
+    'The day’s summary comes at 18:00.',
   )
   expect(notifySaid({ notify_desktop: true, day_note_at: null }, true)).toMatch(/^A desktop notification shows when/)
   const koloni = { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} }

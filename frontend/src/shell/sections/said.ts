@@ -39,15 +39,22 @@ const SPAWN: Record<Project['spawn_approval'], string> = {
 
 /** This project › When you’re asked. */
 export function askedSaid(
-  now: Now<'full_auto_judge' | 'judge_risky' | 'judge_words' | 'when_away' | 'away_minutes' | 'spawn_approval'>,
+  now: Now<'full_auto_judge' | 'judge_risky' | 'judge_words' | 'when_away' | 'away_minutes' | 'spawn_approval'> & {
+    /** No model can be asked for the judge now (`/api/judge`'s `now` null). */
+    no_judge?: boolean
+  },
 ) {
   const judge = !now.full_auto_judge
     ? 'At Full auto no judge looks at commands: what the list does not stop runs.'
-    : now.judge_risky === 'ask'
-      ? 'At Full auto a small model looks at each command the list does not stop; one it finds risky waits for you on a card.'
-      : 'At Full auto a small model looks at each command the list does not stop; one it finds risky is refused and its agent goes another way - after 3 refusals in a row it asks you.'
+    : now.no_judge
+      ? 'At Full auto no model can be asked for the judge now: each command the list does not stop waits for you on a card.'
+      : now.judge_risky === 'ask'
+        ? 'At Full auto a small model looks at each command the list does not stop; one it finds risky waits for you on a card.'
+        : 'At Full auto a small model looks at each command the list does not stop; one it finds risky is refused and its agent goes another way - after 3 refusals in a row it asks you.'
   const words =
-    now.full_auto_judge && now.judge_words ? ' It also lets a delete or a push run when a line you saved names it.' : ''
+    now.full_auto_judge && !now.no_judge && now.judge_words
+      ? ' It also lets a delete or a push run when a line you saved names it.'
+      : ''
   const away =
     now.when_away !== 'lead'
       ? 'Every card waits for you, while you’re away too.'
@@ -119,14 +126,21 @@ export function memorySaid(now: Now<'auto_notes' | 'search_url' | 'search_order'
 
 /** This project › Notifications. */
 export function notifySaid(now: Now<'notify_desktop' | 'day_note_at'>, available: boolean) {
-  const desktop = now.notify_desktop
-    ? 'A desktop notification shows when an agent notifies you or something waits for you.'
-    : available
-      ? 'No desktop notification is shown.'
-      : 'A desktop notification is not available on this system.'
-  const day = now.day_note_at ? ` The day’s summary comes at ${now.day_note_at}.` : ' No day’s summary is sent.'
-  return desktop + day
+  const desktop = !available
+    ? `A desktop notification is not available on this system${now.notify_desktop ? ', though it is on here' : ''}.`
+    : now.notify_desktop
+      ? 'A desktop notification shows when an agent notifies you or something waits for you.'
+      : 'No desktop notification is shown.'
+  return desktop + dayOf(now.day_note_at, available && now.notify_desktop)
 }
+
+/** The day's summary is a desktop notification: sent only where one shows (app/clock.py). */
+const dayOf = (at: string | null, shows: boolean) =>
+  !at
+    ? ' No day’s summary is sent.'
+    : shows
+      ? ` The day’s summary comes at ${at}.`
+      : ` The day’s summary at ${at} is sent only with a desktop notification on.`
 
 /** This project › This folder: what of the project the folder’s .koloni/ keeps. */
 export function folderSaid(koloni: Project['koloni'] | undefined) {

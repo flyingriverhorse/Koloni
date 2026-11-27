@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import type { Project } from '../../api/types'
+import { useEffect, useState } from 'react'
+import { api } from '../../api/client'
+import type { JudgeOut, Project } from '../../api/types'
 import { useJudgeMeasured } from '../../chat/judgeMeasured'
 import { wordsMeasured } from '../../chat/levels'
 import { ProjectRules } from '../../commands/ProjectRules'
@@ -44,6 +45,7 @@ export type AskedFor = { what: 'rules' | 'more'; n: number }
  */
 export function useAsking(project: Project, where: Where, chat?: { id: string; title: string }, asked?: AskedFor) {
   const judge = useFullAutoJudge(project)
+  const noJudge = useNoJudge()
   const away = useAway(project)
   const opening = useOpening(project)
   const disposable = useDisposableDeletes(project)
@@ -59,7 +61,9 @@ export function useAsking(project: Project, where: Where, chat?: { id: string; t
     patch,
     away.valid && commands.valid,
     <>
-      <Said title="When you’re asked">{askedSaid({ ...judge.now, ...away.now, ...opening.now })}</Said>
+      <Said title="When you’re asked">
+        {askedSaid({ ...judge.now, ...away.now, ...opening.now, no_judge: noJudge })}
+      </Said>
       <h3>Commands</h3>
       {judge.row}
       <Rules projectId={project.id} chat={chat} asked={asked?.what === 'rules' ? asked.n : undefined} />
@@ -183,6 +187,22 @@ function useOpening(project: Project) {
       </Row>
     ),
   }
+}
+
+/** Whether no model can be asked for Full auto's judge now (`/api/judge`'s `now` null): its sentence says so then. */
+function useNoJudge() {
+  const [none, setNone] = useState(false)
+  useEffect(() => {
+    let live = true
+    api.get<JudgeOut>('/judge').then(
+      judge => live && setNone(judge?.now === null),
+      () => undefined,
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+  return none
 }
 
 /** `useAsking`'s switch for Full auto's judge (0.1.9), on unless turned off; what it costs in sight, the rest behind ⓘ -

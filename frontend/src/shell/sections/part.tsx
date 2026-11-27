@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
 import { Cell, type CellFill, type CellTone } from '../Cell'
 import { type GuidePlace } from '../guide'
 import { Hint } from '../Hint'
@@ -34,6 +34,12 @@ export const part = (
   view,
   ...more,
 })
+
+/** Enter in a field of what saves itself (a list inside a section's form): never the section's Save. A textarea keeps
+ *  its new line. */
+export const noSubmit = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault()
+}
 
 /** A section saved row by row. */
 export const own = (view: ReactNode): Part => ({ patch: {}, valid: true, changed: false, view, own: true })
