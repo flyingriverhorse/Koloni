@@ -52,7 +52,7 @@ test('at Auto-edit an unlisted site is a card: This time keeps nothing, Allow th
   await card.getByRole('button', { name: 'Allow this site' }).click()
   await expect(chat.getByText('Opened the sites.')).toBeVisible({ timeout: 20_000 })
 
-  // The chat's link to what runs without asking (⚙ Chat) opens Settings › This project › Runs without asking (tek-ev): the
+  // The chat's link to what runs without asking (⚙ Chat) opens Settings › This project › When you’re asked, its rules shown (tek-ev): the
   // project's sites first - other.test alone, with its Ask first mark; one is added by hand, a refused one says why.
   await (await chatSheet(page)).getByRole('button', { name: '1 run without asking →' }).click()
   const sites = page.getByRole('form', { name: 'Project settings' }).getByRole('region', { name: 'Sites agents open' })

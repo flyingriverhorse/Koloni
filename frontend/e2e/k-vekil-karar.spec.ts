@@ -21,8 +21,8 @@ for (const theme of ['light', 'dark'] as const) {
     const id = await openFreshConversation(page, { leadWrites: false })
     mkdirSync(SHOTS, { recursive: true })
 
-    // The setting: every chat's, in Settings › This project › Asking and away, with the minutes before the Lead answers (0: at once).
-    const settings = await projectSettings(page, /^Asking and away/)
+    // The setting: every chat's, in Settings › This project › When you’re asked, with the minutes before the Lead answers (0: at once).
+    const settings = await projectSettings(page, /^When you’re asked/)
     await expect(settings.getByLabel('When you’re away')).toHaveValue('waits')
     await settings.getByLabel('When you’re away').selectOption('lead')
     await settings.getByLabel('Minutes before the Orchestrator answers').fill('0')

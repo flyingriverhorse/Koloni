@@ -30,7 +30,9 @@ for (const theme of ['light', 'dark'] as const)
     // Project settings: the measure command, beside the test command, sent alone.
     await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
     const settings = page.getByRole('form', { name: 'Project settings' })
-    await settings.getByRole('button', { name: /^Checks/ }).click()
+    // (When the work is done › More since 0.1.10)
+    await settings.getByRole('button', { name: /^When the work is done/ }).click()
+    await settings.getByRole('button', { name: /^More ·/ }).click()
     // (its why behind ⓘ, describing the field)
     await expect(settings.getByLabel('Measure command')).toHaveAccessibleDescription(
       /^The last line of its output is a number from 0 to 100/,

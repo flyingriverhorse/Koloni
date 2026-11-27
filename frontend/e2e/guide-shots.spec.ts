@@ -174,8 +174,9 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await page.getByLabel('Message').waitFor()
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
-  // (At Asking and away: when you're away, Full auto's judge (0.1.9) and its box for your words (§8), disposable deletes.)
-  await settings.getByRole('button', { name: /^Asking and away/ }).click()
+  // (At When you’re asked: its sentence, Full auto's judge (0.1.9) and its box for your words (§8), when you're away;
+  // disposable deletes under More.)
+  await settings.getByRole('button', { name: /^When you’re asked/ }).click()
   await expect(settings.getByRole('checkbox', { name: /^Full auto’s judge/ })).toBeChecked()
   await expect(settings.getByRole('checkbox', { name: /^It also lets a delete or a push run/ })).toBeDisabled()
   await picture(page, 'settings-project')
@@ -789,11 +790,11 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(chat.getByRole('switch', { name: 'Full auto’s judge' })).toBeChecked()
     await picture(page, 'level-menu-checks')
     await page.keyboard.press('Escape')
-    // This project › Checks and git: After a change with its live line, Fix rounds (Then a stronger model, once in),
-    // Check by kind of work, Found by KOLONİ.
+    // This project › When the work is done: its sentence, After a change with its live line, Fix rounds, Then a stronger
+    // model (Check by kind of work and Found by KOLONİ are under its More, below).
     await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
     const settings = page.getByRole('form', { name: 'Project settings' })
-    await settings.getByRole('button', { name: /^Checks and git/ }).click()
+    await settings.getByRole('button', { name: /^When the work is done/ }).click()
     await expect(settings.getByLabel('After a change')).toBeVisible()
     await expect(settings.getByLabel('Fix rounds')).toBeVisible()
     await picture(page, 'settings-checks')

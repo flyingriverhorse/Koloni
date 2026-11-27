@@ -40,7 +40,7 @@ for (const theme of ['light', 'dark'] as const)
     await expect(chat.getByRole('button', { name: 'More', exact: true })).toHaveAttribute('aria-expanded', 'false')
 
     // A sub-agent waits to be let open: nothing it would write is left for the other specs.
-    const settings = await projectSettings(page, /^Asking and away/)
+    const settings = await projectSettings(page, /^When you’re asked/)
     await settings.getByLabel('Opening a sub-agent').selectOption('always')
     await saveSettings(page)
 
