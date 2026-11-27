@@ -427,7 +427,9 @@ messages.
 
 - Canvas positions are worked out from the record each time and are not saved.
 - At phone width, the top bar wraps to two lines.
-- Desktop notifications are on Windows only.
+- Desktop notifications on macOS (terminal-notifier, else `osascript`) and on Linux (`notify-send`, only with
+  `DISPLAY` or `WAYLAND_DISPLAY` set) are shown as herdr shows them and are tested with stand-ins only: not yet
+  seen on a Mac or a Linux desktop. A text that starts with a dash is shown after a space.
 
 ## Systems
 

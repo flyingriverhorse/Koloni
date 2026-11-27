@@ -643,9 +643,11 @@ def test_a_toast_that_was_not_shown_says_so_without_the_text(monkeypatch, ends):
     assert "done" not in str(failed.value) and "calc" not in str(failed.value)
 
 
-def test_there_is_no_desktop_notification_off_windows(monkeypatch):
+def test_there_is_no_desktop_notification_off_windows_with_no_desktop(monkeypatch):
     started = powershell(monkeypatch)
     monkeypatch.setattr(web.sys, "platform", "linux")
+    for name in ("DISPLAY", "WAYLAND_DISPLAY"):  # (no desktop: `test_desktop_notice` has one)
+        monkeypatch.delenv(name, raising=False)
     with pytest.raises(web.WebError, match="not available on this system"):
         web.desktop(TITLE, SAID)
     assert started == []
