@@ -32,9 +32,12 @@ from app.agent.words import (
     FINDING_KINDS,
     IN_THE_PROJECT,
     NATIVE_NEEDS_A_FOLDER,
+    STEER_UNKNOWN,
+    STEERED,
 )
 from app.copilot_own_agents import copilot_tools, with_own_calls
 from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now, settings_of
+from app.delivery import UNKNOWN, Delivery
 from app.limits import CLI_HOMES
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, ToolCallRequest
 from app.model_native import (
@@ -460,7 +463,7 @@ class NativeMixin:
                 planted=self._planted(ctx.run_id),
                 skills={skill.name: skill.folder for skill in self._skills(ctx)},
                 skills_told=self._skills_told(told, False) if claude else "",
-                on_live=partial(self._native_work_door, ctx),
+                on_live=partial(self._native_work_door, ctx, transcript),
                 on_end=lambda end: setattr(watch, "end", end),
                 # 89p: its findings come back in their schema, not to be read out of its words.
                 **({"report_schema": REPORT_SCHEMA} if _hands_back(ctx) and findings else {}),  # pyrefly: ignore[bad-argument-type]  # (its own keyword)
@@ -779,12 +782,30 @@ class NativeMixin:
         notes = self._deliver(ctx) + self._no_longer_given(ctx)
         return status == "succeeded", "\n\n".join([output, *notes])
 
-    def _native_work_door(self: "AgentRunner", ctx: Ctx, door: Steer | None) -> None:
-        """`_native_work`'s `on_live` (89d: `steer`)."""
+    def _native_work_door(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", door: Steer | None
+    ) -> None:
+        """`_native_work`'s `on_live` (89d: `steer`): what its CLI showed no sign of taking by
+        its turn's end is on its record (C2: unknown, `app.delivery`)."""
         if door is None:
             self._doors.pop(ctx.agent_id, None)
-        else:
-            self._doors[ctx.agent_id] = door
+            return
+
+        async def steer(text: str) -> Delivery:
+            sent = await door(text)
+            sent.then(lambda outcome: self._steer_unknown(ctx, transcript, text, outcome))
+            return sent
+
+        self._doors[ctx.agent_id] = steer
+
+    def _steer_unknown(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", text: str, outcome: str
+    ) -> None:
+        if outcome == UNKNOWN:
+            words = text.removeprefix(f"{STEERED}\n\n")
+            said = STEER_UNKNOWN.format(name=ctx.name or ctx.role, words=words)
+            # (on its last message: at its turn's end a new one would be an empty bubble)
+            self._note(ctx, transcript, "steer", {}, "failed", said, transcript.said())
 
     async def _native_work_puts_back(
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch"

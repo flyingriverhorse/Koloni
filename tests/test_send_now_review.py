@@ -1,12 +1,15 @@
 """D2 (0.1.11), what its adversarial review found (each failed before its fix): a word about an
 agent is never a turn of its own; a word Claude Code read steered in is not sent again to a session
-it goes on in; Copilot's answer to a send is no reading of it; the Orchestrator answers a word
+it goes on in; Copilot's answer to a send is no reading of it (C2: its user.message naming the
+send is, before its idle); the Orchestrator answers a word
 while its agents hold every place; a step that answers writes nothing; K5 quotes a push the user
 asked for by Send now, and a later word takes it back."""
 
 import contextlib
 
-from app.agent.words import LISTEN, TOLD_UNREAD
+import pytest
+
+from app.agent.words import LISTEN, TOLD_UNREAD, WORD_MAYBE_UNREAD
 from tests.conftest import Gate
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
@@ -83,20 +86,27 @@ def test_a_word_claude_code_read_steered_in_is_not_sent_again_to_its_session(
     assert "WORD-ONCE" not in fake.stdin()  # (its session has it)
 
 
+@pytest.mark.parametrize("taken", ["after_idle", False])
 def test_copilots_answer_to_a_send_after_its_last_words_is_no_reading_of_it(
-    copilot_native, wait_run, project_dir
+    copilot_native, wait_run, project_dir, taken
 ):  # noqa: F811
+    # C2: its user.message naming the send only after its idle (a turn of its own) or never:
+    # unknown - never sent again, said in the chat.
     client, provider = copilot_native(
-        [{"say": "working"}, {"say": "FINAL ANSWER"}, {"await_send": True}]
+        [{"say": "working"}, {"say": "FINAL ANSWER"}, {"await_send": True, "taken": taken}]
     )
     cid, run_id = started(client, project_dir, provider)
     at_work(client, cid, name="Lead")
-    copilot_native.rescript([{"say": "read it"}])  # (its next run's: this one read its plan)
+    copilot_native.rescript([{"say": "read it"}])  # (a run more's, were there one)
     assert now(client, cid, "LATE WORD").json()["run"]["id"] == run_id
     snap = wait_run(client, cid, run_id, timeout=30)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert "LATE WORD" in copilot_native.record()["prompt"]  # one more run reads it
-    assert [m["content"] for m in snap["messages"] if m["role"] == "assistant"][-1] == "read it"
+    assert "LATE WORD" not in copilot_native.record()["prompt"]  # no run more
+    words = [m["content"] for m in snap["messages"] if m["role"] == "assistant"]
+    assert words[-1].endswith("FINAL ANSWER"), words
+    said = [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+    assert WORD_MAYBE_UNREAD.format(name="Lead", words='"LATE WORD"') in said, said
+    assert client.app.state.runner._unheard.get(run_id) is None
 
 
 def test_the_orchestrator_answers_a_word_while_its_agents_hold_every_place(

@@ -228,7 +228,6 @@ from app.agent.native_mixin import NativeMixin
 from app.agent.not_applied import not_applied
 from app.agent.observe_mixin import KEEP_CARDS as KEEP_CARDS
 from app.agent.observe_mixin import LEAD_COMMAND as LEAD_COMMAND
-from app.agent.observe_mixin import UNREAD_TOLD as UNREAD_TOLD
 from app.agent.observe_mixin import ObserveMixin
 from app.agent.outside_mixin import OUTSIDE_REJECTED as OUTSIDE_REJECTED
 from app.agent.outside_mixin import OutsideMixin
@@ -290,6 +289,7 @@ from app.agent.summary import _trim_to_budget as _trim_to_budget
 from app.agent.summary import compact_at as compact_at
 from app.agent.talk_mixin import AGENT_STEERED as AGENT_STEERED
 from app.agent.talk_mixin import MAX_MESSAGES_PER_TURN as MAX_MESSAGES_PER_TURN
+from app.agent.talk_mixin import MESSAGE_WENT as MESSAGE_WENT
 from app.agent.talk_mixin import SENT_WHILE_IT_WORKS as SENT_WHILE_IT_WORKS
 from app.agent.talk_mixin import TURN_ENDING as TURN_ENDING
 from app.agent.talk_mixin import TalkMixin
@@ -341,6 +341,7 @@ from app.agent.words import MAX_FINDINGS as MAX_FINDINGS
 from app.agent.words import MAX_WHAT as MAX_WHAT
 from app.agent.words import NOT_HEARD as NOT_HEARD
 from app.agent.words import READY_FOR_YOU as READY_FOR_YOU
+from app.agent.words import STEER_UNKNOWN as STEER_UNKNOWN
 from app.agent.words import STEERED as STEERED
 from app.agent.words import WEB_REJECTED as WEB_REJECTED
 from app.changes import DELETED_SHA, apply_change
@@ -1619,15 +1620,12 @@ class AgentRunner(
         self._nudges: dict[str, list[tuple[str | None, str]]] = {}
         # agent id -> the agents `discuss` refused it to while it was at work (K-oda-takim).
         self._discuss_later: dict[str, set[str]] = {}
-        # 89d: an agent at work in Claude Code's or Codex's own session -> its run's steer; and
+        # 89d: an agent at work in its CLI's own turn -> its run's steer (C2: `app.delivery`); and
         # words for one in a CLI session, with its next KOLONİ tool result (`steer`).
         self._doors: dict[str, Steer] = {}
         self._heard_later: dict[str, list[str]] = {}
         # agent id -> the user's queued messages it was handed instead of asking (K-fikir-okunmamis)
         self._read_first: dict[str, set[str]] = {}
-        # 89d B: an agent at work -> who steered the last message into its turn, what it was
-        # sent and that message's words (told to the sender if its turn ends unread).
-        self._steered_by: dict[str, tuple[str, str, str]] = {}
         # The questions whose Change is on its way to the agent, and the agents a `steer` is on
         # its way to (N2: one at a time; ids of both are uuids, never the same).
         self._changing: set[str] = set()
@@ -2227,7 +2225,6 @@ class AgentRunner(
             self._doors.pop(agent_id, None)
             self._heard_later.pop(agent_id, None)
             self._read_first.pop(agent_id, None)
-            self._steered_by.pop(agent_id, None)
             self._asked_leads.pop(agent_id, None)
             self._beside.pop(agent_id, None)
             self._paid_asked.pop(agent_id, None)

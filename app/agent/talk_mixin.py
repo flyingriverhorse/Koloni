@@ -44,6 +44,7 @@ from app.db.models import (
     ShownFile,
     now,
 )
+from app.delivery import NOT_SENT, TAKEN, UNKNOWN
 from app.discussion import MEMORY_HEAD
 from app.providers import list_providers
 from app.roles import LEAD, ORCHESTRATOR, closed, list_roles, pickable, team_roles, tools_off
@@ -78,11 +79,22 @@ if TYPE_CHECKING:
 
 # 89d B: a message of the agent it works for, into a CLI's turn (a user line): not the user's.
 AGENT_STEERED = "{message}\n\n(An agent's words, passed on by KOLONİ - not the user's.)"
+NO_REPLY = "It does not reply unless it messages you; go on with your own work."
 SENT_WHILE_IT_WORKS = (
-    "sent while it works: written into {name}'s current turn - not yet that it read it; if it "
-    "finishes first, you are told. It does not reply unless it messages you; go on with your "
-    "own work."
+    "sent while it works: written into {name}'s current turn - not yet known that it took it; "
+    "you are told once it is. " + NO_REPLY
 )
+# C2: what came of a message written into a CLI's turn, once its CLI shows it: its tool's result
+# where it is known by then (`_steer_message`), else KOLONİ's note to its sender (`_message_went`).
+# KOLONİ never sends one again.
+MESSAGE_WENT = {
+    TAKEN: "{name} took your message ({words}) into its turn: it is read in its turn",
+    NOT_SENT: "your message ({words}) was not delivered to {name}; you may send it again",
+    UNKNOWN: (
+        "{name}'s turn ended before it showed it took your message ({words}): it may not have "
+        "read it; it is not sent again"
+    ),
+}
 
 # A Claude Code's or Codex's door that did not take it: its turn is over, or about to be.
 TURN_ENDING = "{name}'s turn is ending; try again once it has finished"
@@ -668,22 +680,37 @@ class TalkMixin:
         self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, files: list
     ) -> tuple[str, str]:
         """89d B: a message of the agent a CLI works for into the CLI's turn while it works
-        (`steer`, Claude Code's or Codex's door: `_reachable`) - as that agent's, `quoted()`,
-        never as the user's; on record in its conversation, with its `files`, once its CLI took
-        it. Its sender is told if its turn ends before it read it (`_observe`)."""
+        (`steer`, its CLI's door: `_reachable`) - as that agent's, `quoted()`, never as the
+        user's; on record in its conversation, with its `files`, once its CLI took it. C2: its
+        sender is told what came of it - in this result where it is known by now, else once it
+        is (`_message_went`); it is never sent again."""
         said = AGENT_STEERED.format(
             message=self._from(target, "", ctx.agent_id, ctx.name, "above", quoted(body))
         )
-        if why := await self.steer(target, said, kept=True):
+        sent = await self._steer_sent(target, said, kept=True)
+        if isinstance(sent, str):
             raise ToolError(
                 f"{target.name} cannot be messaged by you now: "
-                f"{self._not_taken(target, why, door=True)}"
+                f"{self._not_taken(target, sent, door=True)}"
             )
-        self._steered_by[target.agent_id] = (ctx.agent_id, said, body)
         self._hand_files(ctx, files, target.agent_id)
         self._send(ctx, target, body, delivered=True)
         self._channel(ctx, ctx.agent_id, target.agent_id, "note", body)
+        if sent is not None and sent.outcome is not None:  # (known by now: Codex answers at once)
+            went = MESSAGE_WENT[sent.outcome].format(name=target.name, words=quoted(body[:200]))
+            return "succeeded", f"{went}. {NO_REPLY}"
+        if sent is not None:
+            sent.then(lambda outcome: self._message_went(ctx.agent_id, target, body, outcome))
         return "succeeded", SENT_WHILE_IT_WORKS.format(name=target.name)
+
+    def _message_went(
+        self: "AgentRunner", sender_id: str, target: Ctx, body: str, outcome: str
+    ) -> None:
+        """C2: what came of a message steered into a CLI's turn, once known - told to the agent
+        that sent it while it is at work (B: never left believing it was acted on)."""
+        if (sender := self._ctxs.get(sender_id)) is not None:
+            went = MESSAGE_WENT[outcome].format(name=target.name, words=quoted(body[:200]))
+            self._send(sender, sender, f"KOLONİ: {went}.", delivered=False, koloni=True)
 
     @staticmethod
     def _not_taken(ctx: Ctx, why: str, door: bool) -> str:

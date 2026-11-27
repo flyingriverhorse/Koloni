@@ -1295,12 +1295,12 @@ def test_a_change_goes_into_a_cli_at_work_that_can_hear_it_and_is_refused_where_
     make_client, wait_run, project_dir, gate
 ):
     # B-164 (live): the Coder on Claude Code ran slow.py; Change → blue never reached it, it wrote red.
-    # 89d: it goes into Claude Code's or Codex's own turn (their steer); Copilot's and agy's hear
-    # nothing, and are told no Change.
+    # 89d: it goes into its CLI's own turn (its steer); a CLI that hears nothing is told no Change.
     from dataclasses import replace
     from types import SimpleNamespace
 
     from app.agent import NOT_HEARD, STEERED, USER_CHANGED
+    from app.delivery import NOT_SENT, TAKEN, Delivery
 
     client, model = make_client(
         {
@@ -1333,7 +1333,7 @@ def test_a_change_goes_into_a_cli_at_work_that_can_hear_it_and_is_refused_where_
     async def steer(words):  # (its CLI's: it does not take the first, and takes the second)
         heard.append(words)
         await asyncio.sleep(0.5 if len(heard) > 1 else 0)  # (a pipe that takes its time)
-        return len(heard) > 1
+        return Delivery(words, TAKEN if len(heard) > 1 else NOT_SENT)
 
     for _ in ("no steer", "one it does not take"):
         said = client.post(path, json={"answer": "by date"}, headers=OWN)
@@ -1410,7 +1410,7 @@ def test_a_change_goes_into_claude_codes_turn_and_one_it_ended_before_reading_is
     claude_app, wait_run, project_dir, monkeypatch
 ):  # noqa: F811
     from app import model_native
-    from app.agent import STEERED, USER_CHANGED
+    from app.agent import STEER_UNKNOWN, STEERED, USER_CHANGED
 
     monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
     client, provider, _model = claude_app(
@@ -1426,6 +1426,7 @@ def test_a_change_goes_into_claude_codes_turn_and_one_it_ended_before_reading_is
             "Lead": [spawn("Coder", "sort the list"), says("by name", "Names first."), text("done")]
         },
         linger=True,
+        echo="none",  # (C2: no echo of it by its result - unknown)
     )
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     clock = held(client)
@@ -1439,7 +1440,6 @@ def test_a_change_goes_into_claude_codes_turn_and_one_it_ended_before_reading_is
     )
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     question = until_answered(client, cid)
-    # (once it has said its last word: what it wrote before cannot pass for having read it)
     until(
         lambda: any(
             m["content"] == "sorted by name"
@@ -1459,7 +1459,7 @@ def test_a_change_goes_into_claude_codes_turn_and_one_it_ended_before_reading_is
     assert line["message"]["content"] == f"{STEERED}\n\n{told}"
     (note,) = [t for t in snap["tool_calls"] if t["name"] == "steer"]
     assert note["status"] == "failed"
-    assert note["result"] == f"Coder finished before it read: {told}"
+    assert note["result"] == STEER_UNKNOWN.format(name="Coder", words=told)
 
 
 def test_once_the_agent_that_asked_is_done_its_answer_cannot_be_changed(

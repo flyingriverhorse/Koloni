@@ -28,6 +28,7 @@ from pathlib import Path, PureWindowsPath
 from app import mcp_bridge
 from app.commands import _CLIMBS, only_looks
 from app.copilot_own_agents import APPROVE_ONCE, OwnAgents
+from app.delivery import NOT_SENT, Deliveries, Delivery, steer_asked
 from app.ledger import TESTS
 from app.model_cli import (
     CLAUDE_EXIT,
@@ -111,8 +112,8 @@ has them. A refused command of your own is no reason to stop: read with those to
 # Called for everything Codex does with tools of its own: the event's phase
 # ("started" or "completed") and the item as Codex reported it.
 OnItem = Callable[[str, dict], Awaitable[None]]
-# 89d: words to a CLI while its turn runs; whether it took them (not that it read them).
-Steer = Callable[[str], Awaitable[bool]]
+# 89d: words to a CLI while its turn runs; what came of them, once known (C2: `app.delivery`).
+Steer = Callable[[str], Awaitable[Delivery]]
 # Handed the run's steer once its turn is under way, and None when it no longer is.
 OnLive = Callable[[Steer | None], None]
 STEER_SECONDS = 5.0
@@ -1590,6 +1591,7 @@ class CodexNativeClient(CliStepClient):
         broke: BaseException | None = None  # what answering a request of its own ended in
         started = False  # its turn is under way
         turn_id: object = None  # its turn's, while it runs: what a steer is sent into
+        deliveries = Deliveries()  # (C2: what is steered into it, till each is settled)
         numbers = itertools.count(4)  # (1 to 3: its start and its turn's)
         # Its thread's size (its last request's input) and window, as it last said them.
         size: dict[str, object] = {"used": None, "window": None}
@@ -1619,34 +1621,18 @@ class CodexNativeClient(CliStepClient):
             error = told.get("error")
             return {}, _brief(self._hide(str(_dict(error).get("message") or error)))
 
-        async def steer(text: str) -> bool:
-            """89d: `text` into its turn, as measured 25 Oct (`turn/steer`, mid-command); True:
-            Codex took it, or sent and not answered within STEER_SECONDS - which may have
-            reached its turn, as Claude Code's line still in the pipe is on its way - and not
-            yet that it read it. Never into a thread of its own agents', and never an error that
-            ends the run."""
+        async def steer(text: str) -> Delivery:
+            """89d: `text` into its turn, as measured 25 Oct (`turn/steer`, mid-command): taken
+            where Codex answers with its turn, not sent where it says no (C2: -32600 once its
+            turn is over) - `steer_asked`. Never into a thread of its own agents', and never an
+            error that ends the run."""
             if turn_id is None:
-                return False
-            # shortcut: one Codex refuses after STEER_SECONDS is called taken (and kept on
-            # record); wait longer if a slow answer is seen live.
-            try:
-                _, no = await asyncio.wait_for(
-                    ask(
-                        next(numbers),
-                        "turn/steer",
-                        {
-                            "threadId": thread_id,
-                            "expectedTurnId": turn_id,
-                            "input": [{"type": "text", "text": text, "text_elements": []}],
-                        },
-                    ),
-                    STEER_SECONDS,
-                )
-            except TimeoutError:
-                return True
-            except Exception:
-                return False
-            return no is None
+                return Delivery(text, NOT_SENT)
+            steering = {"threadId": thread_id, "expectedTurnId": turn_id}
+            input_ = [{"type": "text", "text": text, "text_elements": []}]
+            number = next(numbers)
+            request = ask(number, "turn/steer", {**steering, "input": input_})
+            return await steer_asked(deliveries, text, request, number, STEER_SECONDS)
 
         async def answer(request: dict) -> None:
             nonlocal heard, broke
@@ -1696,6 +1682,7 @@ class CodexNativeClient(CliStepClient):
                         if method is None:  # an answer to a request of KOLONİ's
                             number = message.get("id")
                             future = replies.get(number) if isinstance(number, int) else None
+                            deliveries.answered(number, message)  # (C2: a steer's, now)
                             if future is not None and not future.done():
                                 future.set_result(message)
                         elif "id" in message:  # a request of its own
@@ -1779,6 +1766,7 @@ class CodexNativeClient(CliStepClient):
                         return
                 await process.wait()
             finally:
+                deliveries.over()  # (C2: a steer it did not answer is unknown, not refused)
                 for future in replies.values():  # nothing more will answer them
                     if not future.done():
                         future.set_result({"error": {"message": "it ended"}})
@@ -1915,6 +1903,7 @@ class CodexNativeClient(CliStepClient):
             finally:
                 if on_live:
                     on_live(None)
+                deliveries.over()  # (C2: what it did not answer by now is unknown)
                 for task in (talking, *answering):
                     task.cancel()
                 with contextlib.suppress(BaseException):
@@ -2536,6 +2525,8 @@ CLAUDE_NEVER = (
 START_SECONDS = 30.0
 # How long it may stay silent after a turn's end that came before it read a steer (`_control`).
 LATE_SECONDS = 30.0
+# C2: the longest prompt it is asked to echo (`--replay-user-messages`): half the line KOLONİ reads.
+REPLAY_AT_MOST = 2**23
 # What of its init line is its own (where its memory, its socket and its session are):
 # kept nowhere.
 CLAUDE_OWN = frozenset({"memory_paths", "messaging_socket_path", "session_id"})
@@ -2985,6 +2976,10 @@ class ClaudeNativeClient(CodexNativeClient):
             {f"{PLUGIN}:{p.name}" for p in Path(plugin, "skills").iterdir()} if plugin else set()
         )
         own = await asyncio.to_thread(own_names, self._env) if plugin else set()
+        # C2: its echo of each user line it takes (`steer`) - not where the prompt's own echo
+        # could pass the line KOLONİ reads (pictures): what is steered in is then unknown.
+        if len(json.dumps(prompt)) < REPLAY_AT_MOST:
+            argv = [*argv, "--replay-user-messages"]
         try:
             process, job = await self._start(argv, shim, root, env)
         except OSError as exc:
@@ -3015,11 +3010,7 @@ class ClaudeNativeClient(CodexNativeClient):
         broke: BaseException | None = None  # what answering a request of its own ended in
         opened = False  # it took the hook and was given the prompt
         live = False  # its turn runs: a steer is read in it (89d)
-        # The words last steered into it, until it takes a turn on them; whether it said
-        # anything after they were written (its message ids are in no order: that it has is
-        # not that it read them, so a turn's end then is read on past all the same).
-        steered: str | None = None
-        after = False
+        deliveries = Deliveries()  # (C2: what is steered into it, till its echo or its result)
         late = False  # a turn has ended since: it may take one more on them
         measured: object = None  # 89j: the message of its own its context was last asked after
         measuring = itertools.count(1)
@@ -3079,28 +3070,22 @@ class ClaudeNativeClient(CodexNativeClient):
                 "session_id": "default",
             }
 
-        async def steer(text: str) -> bool:
-            """89d: `text` as a user line while its turn runs - measured 25 Oct: read and obeyed
-            in the same turn. True: written, which is not yet that it read it. Never an error
-            that ends the run."""
-            nonlocal steered, after
-            if not live:
-                return False
-            # (Before the write: a result read while it waits for the pipe is read on past.)
-            steered, after, written = text, False, False
+        async def steer(text: str) -> Delivery:
+            """89d: `text` as a user line while its turn runs (measured: read in that turn) - taken
+            where it echoes it before its result (C2). Never an error that ends the run."""
+            sent = Delivery(text, NOT_SENT)
             try:
                 async with asyncio.timeout(STEER_SECONDS):
                     async with writing:
-                        stdin.write((json.dumps(prompt_line(text)) + "\n").encode())
-                        written = True
-                        await stdin.drain()
+                        sent = deliveries.sent(text) if live else sent
+                        if sent.outcome is None:  # (open before the write: its echo may come)
+                            stdin.write((json.dumps(prompt_line(text)) + "\n").encode())
+                            await stdin.drain()
             except TimeoutError:
                 pass  # (written, it waits for room in the pipe: it is on its way)
             except Exception:
-                written = False
-            if not written:
-                steered = None
-            return written
+                deliveries.settle(sent, NOT_SENT)  # (its pipe is gone)
+            return sent
 
         async def answer(number: object, request: dict) -> None:
             nonlocal heard, broke
@@ -3161,8 +3146,6 @@ class ClaudeNativeClient(CodexNativeClient):
                 limited, \
                 own_word, \
                 live, \
-                steered, \
-                after, \
                 late, \
                 measured, \
                 handed, \
@@ -3208,15 +3191,9 @@ class ClaudeNativeClient(CodexNativeClient):
                             )
                             measures.add(task)
                             task.add_done_callback(measures.discard)
-                        if (
-                            line.get("type") == "assistant"
-                            and steered is not None
-                            and not line.get("parent_tool_use_id")
-                        ):
-                            if late:
-                                steered = None  # it took a turn on them
-                            else:
-                                after = True
+                        if line.get("type") == "user" and line.get("isReplay"):  # (C2: taken)
+                            echoed = _dict(line.get("message")).get("content")
+                            deliveries.took(text=_result_text(echoed))  # (a string, measured)
                         for event in translate(line):
                             kind, item = event.get("type"), _dict(event.get("item"))
                             if kind == "model":
@@ -3246,6 +3223,7 @@ class ClaudeNativeClient(CodexNativeClient):
                                     for key in told
                                 }
                                 live = False  # (a steer now could start a turn nobody reads)
+                                unread = deliveries.over()  # (C2: not echoed by now: unknown)
                                 if event.get("more"):
                                     # Its sub-agent works on in the background, and it will
                                     # take another turn on its report (B-136).
@@ -3254,13 +3232,11 @@ class ClaudeNativeClient(CodexNativeClient):
                                 usage = told
                                 if event.get("structured") is not None:  # (89p: the last kept)
                                     handed = event["structured"]
-                                if steered is not None and not late:
-                                    # shortcut: not measured - a steer it did not read in its
-                                    # turn may start one more: read on to its end, or to
-                                    # LATE_SECONDS of silence (every steered run's end waits
-                                    # so). Read in its turn or dropped stays unknown until its
-                                    # own word on a user line (--replay-user-messages) is
-                                    # measured live (89d).
+                                if unread and not late:
+                                    # C2, measured 27 Nov 2026: a line it did not echo before
+                                    # its result it echoes after it, and takes one more turn on:
+                                    # that turn is read on to its end (or LATE_SECONDS of
+                                    # silence) - this run's, never one nobody reads.
                                     earlier, late = told, True
                                     continue
                                 if report_schema is not None and await hand_back(True):
@@ -3376,6 +3352,7 @@ class ClaudeNativeClient(CodexNativeClient):
         finally:
             if on_live:
                 on_live(None)
+            deliveries.over()  # (C2: what it did not echo by its end is unknown)
             if opened and usage is None:
                 # A turn not finished (Stop, say) is asked to stop first; ended below if not.
                 with contextlib.suppress(Exception):
@@ -3431,8 +3408,6 @@ class ClaudeNativeClient(CodexNativeClient):
             )
             failed.failure = classed(limited, own_word)
             raise failed
-        if steered is not None and not after:  # (no error: its work is done; it is on record)
-            await on_item("completed", {"type": "steer_unread", "text": steered})
         sent, made = usage.get("input_tokens"), usage.get("output_tokens")
         return SessionResult(
             sent if isinstance(sent, int) else None,
@@ -4884,9 +4859,9 @@ class CopilotNativeClient(CodexNativeClient):
                 stdin.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
                 await stdin.drain()
 
-        async def ask(method: str, params: dict) -> tuple[dict, str | None]:
-            """What it answered, and why it said no (None: it did not)."""
-            number = next(numbers)
+        async def ask(method: str, params: dict, number: int = 0) -> tuple[dict, str | None]:
+            """What it answered, and why it said no (None: it did not). `number`: its id."""
+            number = number or next(numbers)
             replies[number] = loop.create_future()
             await send({"id": number, "method": method, "params": params})
             told = await replies[number]
@@ -4962,6 +4937,7 @@ class CopilotNativeClient(CodexNativeClient):
                     if method is None:  # an answer to a request of KOLONİ's
                         number = message.get("id")
                         future = replies.get(number) if isinstance(number, int) else None
+                        deliveries.answered(number, message)  # (C2: a steer's, now)
                         if future is not None and not future.done():
                             future.set_result(message)
                         elif "error" in message or (
@@ -5073,6 +5049,8 @@ class CopilotNativeClient(CodexNativeClient):
                         answering.add(task)
                         task.add_done_callback(answering.discard)
                         continue
+                    if kind == "user.message":  # (C2: one steered in, taken into its work)
+                        deliveries.took(key=_dict(event.get("data")).get("messageId") or "")
                     if kind == "session.idle" and sent:
                         if _dict(event.get("data")).get("aborted"):
                             failure = failure or "its turn was aborted"
@@ -5119,6 +5097,7 @@ class CopilotNativeClient(CodexNativeClient):
                         return
                 await process.wait()
             finally:
+                deliveries.over()  # (C2: a steer it did not answer is unknown, not refused)
                 for future in replies.values():  # nothing more will answer them
                     if not future.done():
                         future.set_result({"error": {"message": "it ended"}})
@@ -5181,19 +5160,17 @@ class CopilotNativeClient(CodexNativeClient):
             return made, no
 
         door = on_live or (lambda _door: None)  # (`steer` while its turn runs)
+        deliveries = Deliveries()  # (C2: what is steered into it, till each is settled)
 
-        async def steer(text: str) -> bool:
+        async def steer(text: str) -> Delivery:
             """89d: `text` into its running work, `mode` "immediate" as its own client sends it
-            (measured 27 Nov 2026, 1.0.114: taken in that work; with none, after its turn). True:
-            taken, or not answered within STEER_SECONDS. Never an error that ends the run."""
+            (measured 27 Nov 2026, 1.0.114: taken in that work; with none, after its turn) -
+            taken where its user.message names the id it answered with before its idle (C2:
+            `steer_asked`). Never an error that ends the run."""
+            number = next(numbers)
             asked = {"sessionId": session, "prompt": text, "mode": "immediate"}
-            try:
-                _, no = await asyncio.wait_for(ask("session.send", asked), STEER_SECONDS)
-            except TimeoutError:
-                return True
-            except Exception:
-                return False
-            return no is None
+            request = ask("session.send", asked, number)
+            return await steer_asked(deliveries, text, request, number, STEER_SECONDS, "messageId")
 
         async def talk() -> None:
             nonlocal unasked, started, failure, session, sent, hooked, not_resumed
@@ -5305,6 +5282,7 @@ class CopilotNativeClient(CodexNativeClient):
                         f"{self.label} sent what KOLONİ cannot read: {exc}"
                     ) from None
         finally:
+            deliveries.over()  # (C2: what it did not show taken by now is unknown)
             for task in (talking, *answering):
                 task.cancel()
             with contextlib.suppress(BaseException):

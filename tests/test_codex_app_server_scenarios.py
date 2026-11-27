@@ -11,8 +11,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import raw
+from app import model_native, raw
 from app.commands import suggest_prefix
+from app.delivery import NOT_SENT, TAKEN, UNKNOWN
 from app.model_native import (
     ASK_WITH_KOLONI,
     ASKS_USER,
@@ -984,7 +985,7 @@ async def test_a_steer_goes_into_codexs_turn_and_none_after_it_ended(tmp_path):
         **plan(tmp_path, [{"say": "working"}, {"await_steer": True}, {"say": "done"}]),
     )
     took, usage, _said, _items, steer = await steered(client, tmp_path)
-    assert took is True and usage.output_tokens == 120
+    assert took.outcome == TAKEN and usage.output_tokens == 120  # (C2: its answer names its turn)
     assert record(tmp_path)["steers"] == [
         {
             "threadId": "thr_1",
@@ -992,18 +993,45 @@ async def test_a_steer_goes_into_codexs_turn_and_none_after_it_ended(tmp_path):
             "input": [{"type": "text", "text": "use blue", "text_elements": []}],
         }
     ]
-    assert await steer("too late") is False  # (its turn is over: nothing is sent)
+    late = await steer("too late")
+    assert late.outcome == NOT_SENT  # (its turn is over: nothing is sent)
     assert len(record(tmp_path)["steers"]) == 1
 
 
 @pytest.mark.anyio
-async def test_a_steer_codex_refuses_is_not_taken_and_its_turn_goes_on(tmp_path):
+async def test_a_steer_codex_refuses_is_not_sent_and_its_turn_goes_on(tmp_path):
     client = CodexNativeClient(
         launcher=FAKE_CODEX,
         **plan(tmp_path, [{"await_steer": True}, {"say": "done"}], steer="reject"),
     )
     took, usage, said, _items, _steer = await steered(client, tmp_path)
-    assert took is False and usage.output_tokens == 120 and "done" in "".join(said)
+    assert took.outcome == NOT_SENT and usage.output_tokens == 120 and "done" in "".join(said)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("answers", "outcome"), [("late", TAKEN), ("late_reject", NOT_SENT)])
+async def test_a_steer_codex_answers_after_steer_seconds_is_settled_by_that_answer(
+    tmp_path, monkeypatch, answers, outcome
+):
+    # C2: its answer, however late, says what came of it (not a guess once STEER_SECONDS pass).
+    monkeypatch.setattr(model_native, "STEER_SECONDS", 0.2)
+    client = CodexNativeClient(
+        launcher=FAKE_CODEX,
+        **plan(tmp_path, [{"await_steer": True}, {"say": "done"}], steer=answers),
+    )
+    took, _usage, said, _items, _steer = await steered(client, tmp_path)
+    assert took.outcome == outcome and "done" in "".join(said)
+
+
+@pytest.mark.anyio
+async def test_a_steer_codex_never_answers_by_its_turns_end_is_unknown(tmp_path, monkeypatch):
+    monkeypatch.setattr(model_native, "STEER_SECONDS", 0.2)
+    client = CodexNativeClient(
+        launcher=FAKE_CODEX,
+        **plan(tmp_path, [{"await_steer": True}, {"say": "done"}], steer="never"),
+    )
+    took, usage, _said, _items, _steer = await steered(client, tmp_path)
+    assert took.outcome == UNKNOWN and usage.output_tokens == 120  # (not refused: not known)
 
 
 # --- 14. A patch it sends as a command (R175) -----------------------------------------------

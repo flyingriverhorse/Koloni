@@ -2,9 +2,13 @@
 CLI that takes a word while it works - Claude Code's user line, Codex's `turn/steer` and Copilot's
 session.send with mode "immediate", measured on 27 Nov 2026 to be read in that turn - as the
 user's own, once; and the turn does not
-end before its Orchestrator read it: one that took none is run once more, the word its input."""
+end before its Orchestrator read it: one that took none is run once more, the word its input.
+C2: as its CLI shows it - taken: heard; not sent: a run more reads it; unknown: said in the chat,
+never sent again."""
 
+from app import model_native
 from app.agent import STEERED, USER_TOLD
+from app.agent.words import WORD_MAYBE_UNREAD
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
 from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
@@ -50,6 +54,25 @@ def test_send_now_into_claude_codes_turn_once(claude_app, wait_run, project_dir)
     assert line["message"]["content"] == TOLD
     assert WORD not in claude_app.record()["stdin"]  # (its prompt: the turn's first message)
     assert client.app.state.runner._unheard.get(run_id) is None
+    assert not [m for m in snap["messages"] if m["role"] == "koloni"]  # (taken: its echo)
+
+
+def test_send_now_claude_code_never_echoes_is_unknown_said_and_never_sent_again(
+    claude_app, wait_run, project_dir, monkeypatch
+):  # noqa: F811
+    monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
+    client, provider, _model = claude_app(
+        [{"say": "working"}, {"await_steer": 10}, {"say": "done"}], echo="none", linger=True
+    )
+    cid, run_id = started(client, project_dir, provider)
+    at_work(client, cid, name="Lead")
+    assert now(client, cid, WORD).json()["run"]["id"] == run_id
+    snap = wait_run(client, cid, run_id, timeout=30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert len(snap["runs"]) == 1 and WORD not in claude_app.record()["stdin"]  # (no run more)
+    said = [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+    assert said == [WORD_MAYBE_UNREAD.format(name="Lead", words=f'"{WORD}"')]
+    assert client.app.state.runner._unheard.get(run_id) is None
 
 
 def test_send_now_to_codex_by_turn_steer(native_app, wait_run, project_dir):  # noqa: F811
@@ -63,6 +86,26 @@ def test_send_now_to_codex_by_turn_steer(native_app, wait_run, project_dir):  # 
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (steer,) = native_app.record()["steers"]
     assert steer["input"][0]["text"] == TOLD
+    assert WORD not in native_app.record()["stdin"]  # (taken: its answer named its turn)
+
+
+def test_send_now_codex_refuses_is_read_in_a_run_more(native_app, wait_run, project_dir):  # noqa: F811
+    # C2: Codex's no (-32600, its turn over) - not sent: the word waits for a step that reads it
+    client, provider, _model = native_app(
+        [{"say": "working"}, {"await_steer": True}, {"say": "done"}],
+        steer="reject",
+        later_script=[{"say": "read your word"}],
+        later_when=WORD,
+    )
+    cid, run_id = started(client, project_dir, provider)
+    at_work(client, cid, name="Lead")
+    assert now(client, cid, WORD).json()["run"]["id"] == run_id
+    snap = wait_run(client, cid, run_id, timeout=30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert WORD in native_app.record()["stdin"]  # its run more's input
+    words = [m["content"] for m in snap["messages"] if m["role"] == "assistant"]
+    assert words[-1] == "read your word", words
+    assert not [m for m in snap["messages"] if m["role"] == "koloni"]
 
 
 def test_send_now_to_a_cli_that_takes_none_while_it_works_is_its_next_runs_input(
@@ -96,14 +139,16 @@ def test_send_now_to_copilot_in_its_running_work(copilot_native, wait_run, proje
     client, provider = copilot_native([{"say": "working"}, {"await_send": True}, {"say": "done"}])
     cid, run_id = started(client, project_dir, provider)
     at_work(client, cid, name="Lead")
-    # (A run more, where its words after the answer were read before the answer: it says them.)
-    copilot_native.rescript([{"say": "again"}])
+    copilot_native.rescript([{"say": "again"}])  # (a run more's, were there one)
     assert now(client, cid, WORD).json()["run"]["id"] == run_id
     (sent,) = until_sent(copilot_native)
     assert (sent["prompt"], sent["mode"]) == (TOLD, "immediate")
     snap = wait_run(client, cid, run_id, timeout=30)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert client.app.state.runner._unheard.get(run_id) is None  # heard, in this turn
+    # (C2: its user.message named the send before its idle - taken: no run more)
+    assert WORD not in copilot_native.record()["prompt"]
+    assert not [m for m in snap["messages"] if m["role"] == "koloni"]
 
 
 def until_sent(copilot):
