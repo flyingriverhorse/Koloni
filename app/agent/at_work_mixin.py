@@ -532,10 +532,8 @@ class AtWorkMixin:
                 session.get(Provider, lead.provider_id or "") or Provider()
             ).kind == "copilot_cli"
         # (Copilot's answer said "taken": heard where it writes words after that answer -
-        # Claude Code and Codex read it in the turn it was sent into, measured: heard now.)
-        # shortcut: Copilot's words are counted whoever of it writes them - one of its own inside
-        # sub-agents' assistant.message too (no parentToolCallId check: model_native's Copilot
-        # events) may count the word read; count the top level's alone if that is seen.
+        # Claude Code and Codex read it in the turn it was sent into, measured: heard now. Its
+        # own sub-agents' words are never its: `OwnAgents.apart`.)
         at = self._said.get(lead.agent_id, 0) if copilot else None
         self._steered_word.setdefault(lead.agent_id, []).append((message_id, told, at))
         if at is None:

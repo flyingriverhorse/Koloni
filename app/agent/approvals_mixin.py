@@ -215,8 +215,9 @@ class ApprovalsMixin:
             return {"behavior": "deny", "message": why, **({"koloni": True} if fixed else {})}
 
         # 89g: a role run inside the CLI has its role's tools only - none of KOLONİ's, which
-        # would be its Lead's; one not offered by KOLONİ (a project's own) has none.
-        kind = asked.get("agent_type")
+        # would be its Lead's; one not offered by KOLONİ (a project's own) has none. On record
+        # by its CLI's name: Claude Code's (claude__), or Copilot's (copilot__, `OwnAgents`).
+        kind, cli = asked.get("agent_type"), getattr(ctx.model, "command", "claude")
         if (
             isinstance(kind, str)
             and kind.startswith(INSIDE)
@@ -227,7 +228,7 @@ class ApprovalsMixin:
             self._note(
                 ctx,
                 transcript,
-                re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                re.sub(r"[^A-Za-z0-9_-]", "_", f"{cli}__{tool}")[:64],
                 given,
                 "denied",
                 why,

@@ -32,7 +32,8 @@ from app.agent.words import (
     IN_THE_PROJECT,
     NATIVE_NEEDS_A_FOLDER,
 )
-from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now
+from app.copilot_own_agents import copilot_tools
+from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now, settings_of
 from app.limits import CLI_HOMES
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, ToolCallRequest
 from app.model_native import (
@@ -43,14 +44,17 @@ from app.model_native import (
     USED_INSIDE,
     ClaudeNativeClient,
     CodexNativeClient,
+    CopilotNativeClient,
     Steer,
+    claude_tools,
     copilot_home,
     forget_session,
+    inside_name,
 )
 from app.model_session import SessionResult
 from app.project_view import ProjectView
 from app.project_view import standing as standing_files
-from app.roles import LEARN, LOOKUP, can_change_things
+from app.roles import LEARN, LOOKUP, can_change_things, closed, list_roles, shown_name
 from app.team import NATIVE_NEEDS_TOOLS, closed_to_agents, reads_only
 from app.tools import READ_TOOLS, WRITE_TOOLS
 from app.workspace import Outside, Workspace, WorkspaceError, opened
@@ -207,6 +211,75 @@ class NativeMixin:
             return ctx.cid, None
         return ctx.cid, owner if await self._working_copy(ctx, owner) is not None else None
 
+    def _inside_roles(
+        self: "AgentRunner",
+        ctx: Ctx,
+        offered: list[dict],
+        withheld: tuple[str, ...],
+        watch: "_Watch",
+        copilot: bool = False,
+    ) -> dict[str, dict]:
+        """89g: the roles the user lets run inside Claude Code (`Role.inside_cli`) - or, where
+        `copilot`, inside GitHub Copilot CLI (0.1.11, `OwnAgents`) - of those this agent may open
+        now (as spawn_agent lists them: `_offered`), as `--agents` takes each - its line, its
+        instructions, its tools (capped by this agent's) as the CLI's own, and on Claude Code its
+        model where it runs on its Lead's provider. Nothing else of the role's or the user's goes.
+        Each is put on `watch` with its tools as `approve` is asked of them, where `_approve` holds
+        it to those.
+        shortcut: of two roles offered by one name (`inside_name`) only the first is; the other
+        is opened as an agent of KOLONİ's only. None where a spawn_agent of this agent's would
+        be asked about every time, or could not go a level deeper, nor in a job done while the
+        user is away (whose cost nothing here would hold).
+        shortcut: its sub-agents count toward no limit of the turn's (`spawn_max_agents`, a
+        role's steps and tokens): they are its Lead's turn; count them if that is seen to matter."""
+        if (
+            "spawn_agent" not in {tool["function"]["name"] for tool in offered}
+            or ctx.run_id in self._away_jobs
+        ):
+            return {}
+        given: dict[str, dict] = {}
+        with self._factory() as session:
+            own = settings_of(session, session.get_one(Conversation, ctx.cid))
+            if own.spawn_approval == "always" or self._level(ctx) + 1 > own.spawn_max_depth:
+                return {}
+            door, named = self._door(session, ctx), self._names_past(session, ctx)
+            closed_here = self._closed_here(ctx)
+            for role in list_roles(session):
+                name = inside_name(role.name)
+                capped = [t for t in role.tools if t in ctx.tools]
+                if copilot:
+                    tools, held = copilot_tools(capped, withheld)
+                else:
+                    tools = held = claude_tools(capped, withheld)
+                # (No tools at all would be every tool to its CLI: such a role is not offered.
+                # Nor, under a Lead that hands code on, one that would change things: its Bash
+                # would write in the Lead's folder, past any diff - it is opened as KOLONİ's.)
+                if (
+                    not role.inside_cli
+                    or not tools
+                    or name in given
+                    or closed(role, door, named)
+                    or ("write" in withheld and can_change_things(capped))
+                ):
+                    continue
+                # shortcut: a model on another provider than its Lead's is not given; the Lead's is.
+                # (Nor any on Copilot: `OwnAgents`.)
+                model = (
+                    role.model_id
+                    if role.provider_id and role.provider_id == ctx.provider_id and not copilot
+                    else None
+                )
+                if model is None and closed_here:
+                    continue  # (B-385: it would run on its Lead's model, closed to agents)
+                given[name] = {
+                    "description": role.description or shown_name(role.name),
+                    "prompt": role.instructions or role.description or role.name,
+                    "tools": tools,
+                    **({"model": model} if model else {}),
+                }
+                watch.roles[name] = (shown_name(role.name), held)
+        return given
+
     async def _native_work(
         self: "AgentRunner", ctx: Ctx, info: ModelInfo, hold: "_Hold"
     ) -> tuple[str, str | None]:
@@ -332,7 +405,13 @@ class NativeMixin:
             model = cast(CodexNativeClient, self._model_of(ctx))
             # B-151: Claude Code's skills go in its instructions as `run_native` gives them.
             claude = isinstance(model, ClaudeNativeClient) and model.command == "claude"
-            inside = self._inside_roles(ctx, offered, withheld, watch) if claude else {}
+            # 89g: roles as sub-agents of its own - Claude Code's, and Copilot's (0.1.11).
+            copilot = isinstance(model, CopilotNativeClient)
+            inside = (
+                self._inside_roles(ctx, offered, withheld, watch, copilot)
+                if claude or copilot
+                else {}
+            )
             # 27 / 93-C3: the session it may go on in, and keeps the one it leaves (not in a
             # discussion, whose history is the shared place's).
             keeps = getattr(model, "resumes", False) and not ctx.discussion

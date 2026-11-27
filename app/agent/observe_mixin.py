@@ -884,10 +884,12 @@ class ObserveMixin:
             name = re.sub(r"[^A-Za-z0-9_-]", "_", f"{item.get('server')}__{item.get('tool')}")
             said = _as_dict(item.get("arguments"))
             # 89g: one of the roles offered to it: which, on its record beside what it asked
-            # - by KOLONİ only: one the model wrote into its own input is not kept.
+            # - by KOLONİ only: one the model wrote into its own input is not kept. (Claude
+            # Code's Agent names it subagent_type, Copilot's task agent_type: `OwnAgents`.)
             given = {key: value for key, value in said.items() if key != "koloni_role"}
             asked = watch.asked_other.pop(use_id, None)
-            if role := watch.roles.get(str(given.get("subagent_type"))):
+            kind = "agent_type" if item.get("server") == "copilot" else "subagent_type"
+            if role := watch.roles.get(str(given.get(kind))):
                 given = {**given, "koloni_role": role[0]}
             if asked and (role or "koloni_role" in said):
                 self._set_call(ctx.cid, asked, arguments=json.dumps(given))
