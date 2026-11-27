@@ -14,7 +14,6 @@ from sqlalchemy import func, literal_column, select
 from app import advisor, git, injection, masking, model_native, pr_feedback
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
-from app.commands import OutputMask
 from app.db.models import Conversation, Project, ToolCall
 from app.db.turn_models import NotedDecision
 from app.model_client import OwnStop
@@ -180,7 +179,7 @@ class LeadToolsMixin:
         if isinstance(found, str):
             return advisor.NOT_NOW.format(why=found)
         asking, mode, steps = found
-        mask = OutputMask(()).hide
+        mask = advisor.mask  # (`\\"` read as `"`: escaped JSON hid a secret's shape)
         at_work = self._still_at_work(ctx)
         sent = advisor.prompt(
             advisor.cut(mask(summary), advisor.SUMMARY_MOST),

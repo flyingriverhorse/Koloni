@@ -47,12 +47,23 @@ def cut(text: str, most: int) -> str:
     return text if len(text) <= most else text[: most - 1] + "…"
 
 
+def mask(text: str) -> str:
+    """Words as the advisor - another provider - is sent them: every secret KOLONİ knows, and those
+    known by their shape, masked (`OutputMask`), with `\\"` read as `"` first - a shell's or a
+    program's escaped JSON (`curl -d "{\\"password\\": \\"…\\"}"`, JSON kept as a string in
+    JSON) hid a secret's shape from the mask. Only here: the text goes out of the user's providers'
+    reach, and a quote read for an escaped one changes nothing it does.
+    shortcut: a secret that itself holds a `"` is not masked by its shape, and the general
+    OutputMask (what the Orchestrator's own provider is sent) still reads `\\"` as it is - on
+    purpose; read through it there too if a secret is seen to pass that way."""
+    return OutputMask(()).hide(text.replace('\\"', '"'))
+
+
 def masked_call(text: str) -> str:
     """A call's arguments or result as the advisor is sent them: in JSON, each string in it
     masked as it is (`"api_key": "…"` written into a file's content is escaped there, out of the
     mask's sight) and encoded again; text that is no JSON as it is - its step is masked whole
     besides (`LeadToolsMixin._ask_advisor`)."""
-    mask = OutputMask(()).hide
 
     def leaves(value: object) -> object:
         if isinstance(value, str):

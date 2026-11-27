@@ -177,3 +177,61 @@ def test_each_string_of_a_calls_json_is_masked(arguments):
     raw = json.dumps(arguments)
     assert "Zq7hunter2Zq7hunter2" not in advisor.masked_call(raw)
     assert advisor.masked_call("not json {") == "not json {"  # (masked whole with its step)
+
+
+ESCAPED = "Zq7hunter2Zq7hunter2"
+
+
+def sent_step(name, arguments, result=""):
+    """A step as `_advisor_of` builds it and `_ask_advisor` masks it for the advisor."""
+    built = f"{name}({advisor.masked_call(json.dumps(arguments))}) -> succeeded: "
+    return advisor.cut(advisor.mask(built + advisor.masked_call(result)), advisor.STEP_MOST)
+
+
+@pytest.mark.parametrize(
+    "name, arguments, result",
+    [
+        # a shell's escaped JSON (cmd's `curl -d "{\"password\": …}"`)
+        ("run_command", {"command": f'curl -d "{{\\"password\\": \\"{ESCAPED}\\"}}" http://x'}, ""),
+        # an escaped JSON literal in code
+        (
+            "write_file",
+            {
+                "path": "t.py",
+                "content": f'cfg = json.loads("{{\\"api_key\\": \\"{ESCAPED}\\"}}")\n',
+            },
+            "",
+        ),
+        # JSON kept as a string in JSON
+        (
+            "write_file",
+            {"path": "c.json", "content": json.dumps(json.dumps({"api_key": ESCAPED}))},
+            "",
+        ),
+        # the same in a plain-text result
+        ("read_file", {"path": "t.py"}, f'x = "{{\\"api_key\\": \\"{ESCAPED}\\"}}"'),
+    ],
+)
+def test_escaped_json_in_a_step_is_masked_for_the_advisor(name, arguments, result):
+    # (the review's re-check: `\"` hid a secret's shape inside what masked_call decoded)
+    assert ESCAPED not in sent_step(name, arguments, result)
+
+
+def test_a_shell_escaped_secret_in_a_script_never_reaches_the_advisor(
+    judging, wait_run, project_dir
+):
+    script = f'curl -d "{{\\"password\\": \\"{ESCAPED}\\"}}" http://localhost:1\n'
+    client, lead, quick, _ = judging(
+        [
+            step(call("write_file", {"path": "go.sh", "content": script}, "w1")),
+            step(ask("a1", summary="s", question="q?")),
+            text("done"),
+        ],
+        [text("fine")],
+        [],
+    )
+    _pid, cid, run_id = begin(client, project_dir, "go")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (sent,) = [one for one in quick.calls if one[0]["content"] == advisor.ADVICE]
+    assert "go.sh" in sent[1]["content"] and ESCAPED not in sent[1]["content"]
