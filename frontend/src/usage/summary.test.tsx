@@ -3,6 +3,7 @@ import { expect, test, vi } from 'vitest'
 import type { Budget, DecisionLog, Limits, Project, Provider, Usage } from '../api/types'
 import { DecidedToday } from '../ready/DecidedToday'
 import { Days } from './Days'
+import { daysLeft } from './budgetText'
 import { since } from './period'
 import { TopChats, WhoStarted } from './Spenders'
 import { UsagePage } from './UsagePage'
@@ -261,4 +262,10 @@ test('the decisions line follows the period: this month’s from its first day, 
   rerender(<DecidedToday onLoad={onLoad} period="7" />)
   await screen.findByText('1 decision was made for you in the last 7 days.')
   expect(onLoad).toHaveBeenCalledTimes(1)
+})
+
+test('the days left of the month do not count today; on its last day none are left', () => {
+  expect(daysLeft(new Date(2026, 10, 27, 15))).toBe(3)
+  expect(daysLeft(new Date(2026, 10, 30, 23))).toBe(0)
+  expect(daysLeft(new Date(2026, 1, 1))).toBe(27)
 })

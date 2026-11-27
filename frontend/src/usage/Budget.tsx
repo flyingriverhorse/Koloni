@@ -91,7 +91,8 @@ export function BudgetSection({ budget, onSettings }: { budget: Budget; onSettin
               {budget.budget.toLocaleString('en-US')} {budget.currency ?? ''}
             </span>{' '}
             <span className="muted">
-              · {usedPercent(budget)}% used · {left === 1 ? '1 day' : `${left} days`} left
+              · {usedPercent(budget)}% used ·{' '}
+              {left === 0 ? 'the month’s last day' : left === 1 ? '1 day left' : `${left} days left`}
             </span>
           </p>
           {budget.over && <p className="alert">{budgetWarning(budget)}</p>}

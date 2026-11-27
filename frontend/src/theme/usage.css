@@ -39,6 +39,11 @@
   }
 }
 
+/* (Inside its rim: the group clips what is outside it.) */
+.usage-seg button:focus-visible {
+  outline-offset: -3px;
+}
+
 .usage-seg button:first-child {
   border-left: 0;
 }
