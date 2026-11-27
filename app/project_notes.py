@@ -2,8 +2,8 @@
 accepted on a card under a turn ("Add to Project notes?", a `NotesOffer`: answered whenever the
 user likes - it never holds the turn): a finding a fixer answered `| fixed:` (a Reviewer's, a
 Debugger's or a Bugfix recipe's - every fixer answers so, `agent.FINDINGS_ANSWERED`) and a change
-to `docs/`. Since 0.1.10 they are part of Memory: the second box of the project's rules on its
-Told tab (`Project.project_notes`, a line each, at most MOST_KEPT characters), given to the
+to `docs/`. Since 0.1.10 they are part of Memory: a box of your words, under the project's rules
+(`Project.project_notes`, a line each, at most MOST_KEPT characters), given to the
 Orchestrator every turn (`told`) - no longer a knowledge of their own (0.1.9 kept them so, its
 pages in `.koloni/knowledge/project-notes/`; migration 0196 copied their lines in).
 
@@ -28,8 +28,8 @@ from app.workspace import in_scratch, secret_in_project
 TOPIC = "Project notes"
 MOST_KEPT = 4000  # characters of a project's Project notes, as a migration 0196 copied them in
 FULL = (
-    "the Project notes have at most {most:,} characters: take some lines out of them on Memory's "
-    "Told tab first"
+    "the Project notes have at most {most:,} characters: take some lines out of Memory's "
+    "Project notes box first"
 )
 HEAD = (
     "The Project notes: what the user kept from this project's earlier turns (fixed findings, "
@@ -284,7 +284,7 @@ def accept(session: Session, project_id: str, chosen: list[dict]) -> Project:
 
 
 def check(text: object) -> str | None:
-    """The Project notes as the user saves them on Memory's Told tab, tidied as the rules are."""
+    """The Project notes as the user saves them in Memory's Your words, tidied as the rules are."""
     try:
         return memory.check_rules(text, "Project notes", MOST_KEPT)
     except memory.Refused as exc:

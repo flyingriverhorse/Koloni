@@ -244,8 +244,8 @@ def test_ticks_name_lines_a_changed_offer_is_shown_again_and_a_bad_tick_waits_on
 
 def test_full_project_notes_refuse_and_the_offer_waits_on(make_client, wait_run, project_dir):
     """0.1.10: past MOST_KEPT characters an answer adds nothing - the user is told to take lines
-    out on Memory's Told tab - and the offer waits on; Memory's box holds what the user saves
-    there, tidied, refused past the same size."""
+    out of Memory's Project notes box - and the offer waits on; Memory's box holds what the user
+    saves there, tidied, refused past the same size."""
     client, _cid, _run_id, offer = _offered(make_client, wait_run, project_dir)
     full = "- " + "x" * (project_notes.MOST_KEPT - 2)
     with client.app.state.session_factory() as session:
@@ -253,7 +253,7 @@ def test_full_project_notes_refuse_and_the_offer_waits_on(make_client, wait_run,
         session.get_one(Project, pid).project_notes = full
         session.commit()
     refused = _say(client, offer, offer["lines"])
-    assert refused.status_code == 409 and "Told tab" in refused.text
+    assert refused.status_code == 409 and "Memory's Project notes box" in refused.text
     with client.app.state.session_factory() as session:
         assert session.get(NotesOffer, offer["id"]).status == "waiting"
     assert _kept(client, pid) == full
