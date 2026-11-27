@@ -88,7 +88,7 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('.role-runs')).toContainText('the first balanced model of your team guide')
     await editRole(page, 'Summarizer', 'Tools')
     await expect(page.locator('.role-tab')).toContainText(
-      '“asks”: it waits for your yes first, as the conversation’s permission level says.',
+      '“asks”: it waits for your yes on a card first, as the conversation’s permission level says - a new skill and a folder outside the project always.',
     )
     const agents = page.locator('.paged')
     await shot(page, `60d-agents-${theme}`)
