@@ -244,7 +244,13 @@ test('one layout whatever is open: the heading with Add, the key of the cells, t
   // no column beside: the heading, the key, the tabs, the tab open; in it its line, then the list (no form to add one
   // until asked)
   expect(container.querySelector('.agents-list, .agents-page, .composer-warning')).not.toBeInTheDocument()
-  expect(parts(page)).toEqual(['conv-head', 'cell-legend tools-key', 'tabs tools-tabs', 'tools-panel'])
+  expect(parts(page)).toEqual([
+    'conv-head',
+    'muted tools-sub',
+    'cell-legend tools-key',
+    'tabs tools-tabs',
+    'tools-panel',
+  ])
   // the key: each cell with its word, said once for the page
   expect(screen.getByRole('group', { name: 'What the cells say' })).toHaveTextContent(
     'runs without asking asks you first off: given to no agent changed: trust taken back',
@@ -285,7 +291,13 @@ test('one layout whatever is open: the heading with Add, the key of the cells, t
   expect(row('rea')).toHaveAttribute('aria-expanded', 'false')
   await userEvent.click(screen.getByRole('button', { name: 'Stop adding a server' }))
   expect(screen.queryByRole('region', { name: 'Start from a common server' })).toBeNull()
-  expect(parts(page)).toEqual(['conv-head', 'cell-legend tools-key', 'tabs tools-tabs', 'tools-panel'])
+  expect(parts(page)).toEqual([
+    'conv-head',
+    'muted tools-sub',
+    'cell-legend tools-key',
+    'tabs tools-tabs',
+    'tools-panel',
+  ])
 })
 
 test('a server’s switch turns it off for every agent and its row says so; its marks stay, and a refused switch says why', async () => {
@@ -497,9 +509,10 @@ test('slice 92: a server not yet trusted says on its card that every call asks, 
   expect(screen.getByRole('img', { name: 'watching: every call asks you' })).toHaveClass('cell-honey', 'cell-soft')
   // the tab says how many are watched
   expect(screen.getByRole('tab', { name: 'Servers 1 watching' })).toBeInTheDocument()
-  // one line in sight; the rest behind its ⓘ
-  expect(screen.getByText('Every call asks until you trust it.', { exact: false })).toBeVisible()
-  expect(screen.getByText(/at every level, Full auto too, and “Runs without asking” waits/)).not.toBeVisible()
+  // that every call asks is on its head; the rest behind the ⓘ beside its trust button
+  const why = screen.getByText(/at every level, Full auto too, and “Runs without asking” waits/)
+  expect(why).not.toBeVisible()
+  expect(screen.getByRole('button', { name: 'Trust this server' }).parentElement).toContainElement(why)
   // its tools are listed with the server's words, as for any server
   expect(screen.getByText('“Does scan.”')).toBeInTheDocument()
   // its trust is on its head: in sight with the card closed too
@@ -515,7 +528,7 @@ test('slice 92: a server not yet trusted says on its card that every call asks, 
   // one trusted (every server added before slice 92) says none of it
   render(<ToolsPage servers={[server()]} roles={[]} {...handlers()} />)
   expect(screen.getByRole('button', { name: /^rea/ })).toHaveTextContent(/^rea trustedrea-agents --stdio4 tools/)
-  expect(screen.queryByText('Every call asks until you trust it.', { exact: false })).toBeNull()
+  expect(screen.queryByText(/at every level, Full auto too, and “Runs without asking” waits/)).toBeNull()
   expect(screen.queryByRole('button', { name: 'Trust this server' })).toBeNull()
   expect(screen.getByRole('tab', { name: 'Servers' })).toBeInTheDocument()
 })

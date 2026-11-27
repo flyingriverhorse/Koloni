@@ -180,12 +180,7 @@ export function ToolsPage({
   return (
     <div className="memory-page tools-page">
       <div className="conv-head">
-        <div>
-          <h2>Tools</h2>
-          <p className="muted tools-sub">
-            What agents can do. Which role has which is on that role’s Tools tab; here, the tool itself.
-          </p>
-        </div>
+        <h2>Tools</h2>
         <AddMenu
           onServer={way => start(way)}
           onSkill={
@@ -197,6 +192,9 @@ export function ToolsPage({
           }
         />
       </div>
+      <p className="muted tools-sub">
+        What agents can do. Which role has which is on that role’s Tools tab; here, the tool itself.
+      </p>
       <ToolsKey />
       <div className="tabs tools-tabs" role="tablist" aria-label="Kinds of tools" onKeyDown={onTabKey}>
         {kinds.map(([id, label]) => (

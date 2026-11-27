@@ -149,15 +149,12 @@ function Trust({ server, read, onTrust }: { server: McpServer; read?: McpRead; o
             <span className="mono">{unpinned}</span> updates itself: trust covers future versions
           </span>
         )}
-        {/* What it runs stays in sight; why, and what watches it again, behind ⓘ. */}
-        <span className="muted provider-note">
-          Every call asks until you trust it.{' '}
-          <Hint doc={GUIDE.mcpTrust}>
-            Until you trust it, every call of its tools asks you on a card with what the server says of the tool, at
-            every level, Full auto too, and “Runs without asking” waits. Read its tools and what they say first. Another
-            command, another variable, or a reading that finds a new or changed tool watches it again.
-          </Hint>
-        </span>
+        {/* That every call asks is on its head; why, and what watches it again, behind ⓘ. */}
+        <Hint doc={GUIDE.mcpTrust}>
+          Until you trust it, every call of its tools asks you on a card with what the server says of the tool, at every
+          level, Full auto too, and “Runs without asking” waits. Read its tools and what they say first. Another
+          command, another variable, or a reading that finds a new or changed tool watches it again.
+        </Hint>
       </div>
       {/* What the reading found against the one before: names only - a tool's words before are not kept. */}
       {read && (
