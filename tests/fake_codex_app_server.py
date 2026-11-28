@@ -132,7 +132,9 @@ def native() -> None:  # noqa: C901
 
     def heard(steer: bool = False) -> dict:
         """KOLONİ's next line; a `turn/steer` is answered as it comes (89d, measured 25 Oct:
-        taken mid-command; "steer": "reject" refuses it, "late" answers after a second) and passed over, unless `steer`."""
+        taken mid-command; "steer": "reject" refuses it, "late" answers after a second,
+        "late_reject" refuses it after a second, "never" never answers it) and passed over,
+        unless `steer`."""
         while True:
             line = sys.stdin.readline()
             if not line:
@@ -142,10 +144,16 @@ def native() -> None:  # noqa: C901
                 return told
             record.setdefault("steers", []).append(told["params"])
             save()
-            if plan.get("steer") == "late":  # (taken into its turn; answered after a second)
+            if plan.get("steer") in ("late", "late_reject"):  # (answered after a second)
                 time.sleep(1)
-            if plan.get("steer") == "reject" or told["params"].get("expectedTurnId") != "turn_1":
-                say({"id": told["id"], "error": {"code": -32600, "message": "no such turn"}})
+            if plan.get("steer") == "never":
+                pass
+            elif (
+                plan.get("steer") in ("reject", "late_reject")
+                or told["params"].get("expectedTurnId") != "turn_1"
+            ):  # (C2, measured on 0.172: once its turn is over)
+                error = {"code": -32600, "message": "no active turn to steer"}
+                say({"id": told["id"], "error": error})
             else:
                 say({"id": told["id"], "result": {"turnId": "turn_1"}})
             if steer:

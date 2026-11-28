@@ -22,6 +22,7 @@ nav = [
   { "Everyday use" = [
     { "Chat and canvas" = "use/chat-and-canvas.md" },
     { "Chats" = "use/chats.md" },
+    { "Talking while agents work" = "use/talk-while-agents-work.md" },
     { "Permission levels" = "use/permissions.md" },
     { "Ready and approval cards" = "use/ready.md" },
     { "Decisions" = "use/decisions.md" },

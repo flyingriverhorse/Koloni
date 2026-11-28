@@ -1,7 +1,8 @@
 """89d B and C: words to an agent while it works. B - the Lead's message_agent goes into its
 Claude Code's or Codex's turn (their door, `steer`), as the Lead's words and never as the user's;
 Copilot's and agy's own sessions hear nothing, as before. C - the user's own word from the agent's
-window (POST /api/agents/{id}/tell), as theirs; one at a time; not to an agent that has finished."""
+window (POST /api/agents/{id}/tell), as theirs; one at a time; not to an agent that has finished.
+C2: what came of each - taken, not sent, unknown - is told to who sent it."""
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -13,13 +14,16 @@ import pytest
 from app.agent import (
     AGENT_STEERED,
     LEAD_TOLD,
+    MESSAGE_WENT,
     SENT_WHILE_IT_WORKS,
     STEERED,
     TURN_ENDING,
-    UNREAD_TOLD,
     USER_TOLD,
     ToolError,
 )
+from app.agent.talk_mixin import NO_REPLY
+from app.agent.words import STEER_UNKNOWN, WORD_MAYBE_UNREAD, WORD_NOT_SENT
+from app.delivery import NOT_SENT, TAKEN, UNKNOWN, Delivery
 from tests.test_backlog_auto import until
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
@@ -27,6 +31,8 @@ from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_spawn import begin, call, role_id, spawn, step
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
+QUOTED = '"use blue"'
+ECHOES = "2.1.332"  # (C2: the stand-in Claude Code's version, from which it echoes a line)
 LEADS = AGENT_STEERED.format(message='Message from Lead (the agent you work for):\n\n"use blue"')
 
 
@@ -83,9 +89,10 @@ def started(client, provider, project_dir):
 def test_the_leads_message_goes_into_claude_codes_turn_as_its_word_not_the_users(
     claude_app, wait_run, project_dir
 ):  # noqa: F811
-    client, provider, _model = claude_app(
+    client, provider, model = claude_app(
         [{"say": "working"}, {"await_steer": 10}, {"say": "done"}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
+        version=ECHOES,
     )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
@@ -97,29 +104,42 @@ def test_the_leads_message_goes_into_claude_codes_turn_as_its_word_not_the_users
     assert not [t for t in snap["tool_calls"] if t["name"] == "steer"]  # (read in its turn)
     (kept,) = on_record(client, cid, coder)  # on its record, as the Lead's, once
     assert (kept["content"], kept["delivered_at"] is not None) == ("use blue", True)
+    # C2: its echo, after this result - the Lead is told it was taken
+    took = f"KOLONİ: {MESSAGE_WENT[TAKEN].format(name='Coder', words=QUOTED)}."
+    assert [m["content"] for m in model.calls_of["Lead"][-1]].count(took) == 1
 
 
-@pytest.mark.parametrize("answers", [None, "late"])
+@pytest.mark.parametrize(
+    ("answers", "outcome"), [(None, TAKEN), ("late", TAKEN), ("late_reject", NOT_SENT)]
+)
 def test_the_leads_message_goes_into_codexs_turn_also_where_codex_answers_late(
-    native_app, wait_run, project_dir, monkeypatch, answers
+    native_app, wait_run, project_dir, monkeypatch, answers, outcome
 ):  # noqa: F811
     from app import model_native
 
-    monkeypatch.setattr(model_native, "STEER_SECONDS", 0.5)
-    client, provider, _model = native_app(
+    if answers:  # (its late answer comes after a second: past these; one in time, by far not)
+        monkeypatch.setattr(model_native, "STEER_SECONDS", 0.5)
+    client, provider, model = native_app(
         [{"say": "working"}, {"await_steer": True}, {"say": "done"}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
         **({"steer": answers} if answers else {}),
     )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
-    # (no answer within STEER_SECONDS: it may have reached its turn - sent, and on record)
-    assert message(client, run_id)[0] == "succeeded"
+    went = MESSAGE_WENT[outcome].format(name="Coder", words=QUOTED)
+    # C2: its answer in time is this result; one after STEER_SECONDS, a note when it comes
+    assert message(client, run_id) == (
+        "succeeded",
+        f"{went}. {NO_REPLY}" if answers is None else SENT_WHILE_IT_WORKS.format(name="Coder"),
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (steer,) = native_app.record()["steers"]
     assert steer["input"][0]["text"] == f"{STEERED}\n\n{LEADS}"
-    assert len(on_record(client, cid, coder)) == 1
+    (kept,) = on_record(client, cid, coder)  # (its no after STEER_SECONDS: put back, C2)
+    assert (kept["delivered_at"] is None) == (outcome == NOT_SENT)
+    noted = [m["content"] for m in model.calls_of["Lead"][-1]].count(f"KOLONİ: {went}.")
+    assert noted == (0 if answers is None else 1)
 
 
 def test_the_lead_is_told_where_claude_code_finished_before_it_read_its_message(
@@ -132,6 +152,7 @@ def test_the_lead_is_told_where_claude_code_finished_before_it_read_its_message(
         [{"say": "sorted by name"}, {"await_steer": 10}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
         linger=True,
+        echo="none",  # (C2: no echo of it by its result - unknown)
     )
     cid, run_id = started(client, provider, project_dir)
     at_work(client, cid)
@@ -145,8 +166,14 @@ def test_the_lead_is_told_where_claude_code_finished_before_it_read_its_message(
     assert message(client, run_id, words="leave tests/ alone")[0] == "succeeded"
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    told = UNREAD_TOLD.format(name="Coder", words='"leave tests/ alone"')
-    assert [m["content"] for m in model.calls_of["Lead"][-1]].count(told) == 1
+    went = MESSAGE_WENT[UNKNOWN].format(name="Coder", words='"leave tests/ alone"')
+    assert [m["content"] for m in model.calls_of["Lead"][-1]].count(f"KOLONİ: {went}.") == 1
+    (note,) = [t for t in snap["tool_calls"] if t["name"] == "steer"]  # (on the Coder's record)
+    sent = LEADS.replace('"use blue"', '"leave tests/ alone"')
+    assert (note["status"], note["result"]) == (
+        "failed",
+        STEER_UNKNOWN.format(name="Coder", words=sent),
+    )
 
 
 def test_a_cli_at_work_without_a_door_is_refused_as_before_and_one_that_does_not_take_it_too(
@@ -167,8 +194,8 @@ def test_a_cli_at_work_without_a_door_is_refused_as_before_and_one_that_does_not
     with pytest.raises(ToolError, match="tools of its own"):
         message(client, run_id)
 
-    async def no(_words):
-        return False
+    async def no(words):
+        return Delivery(words, NOT_SENT)
 
     runner._doors[coder.agent_id] = no  # (its turn ends as it is sent)
     handed = handing(runner, monkeypatch)
@@ -194,6 +221,7 @@ def test_the_users_word_goes_into_claude_codes_turn_as_theirs_and_not_once_it_fi
     client, provider, _model = claude_app(
         [{"say": "working"}, {"await_steer": 10}, {"say": "done"}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
+        version=ECHOES,
     )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
@@ -239,7 +267,7 @@ def test_the_users_word_one_at_a_time_and_never_into_a_cli_that_hears_nothing(
     async def slow(words):  # (a pipe that takes its time)
         heard.append(words)
         await asyncio.sleep(0.5)
-        return True
+        return Delivery(words, TAKEN)
 
     runner._doors[coder.agent_id] = slow
     with ThreadPoolExecutor(2) as pool:
@@ -251,8 +279,8 @@ def test_the_users_word_one_at_a_time_and_never_into_a_cli_that_hears_nothing(
     ) == [(204, None), (409, "can't be sent now: another message to Coder is on its way")]
     assert len(heard) == 1
 
-    async def no(_words):
-        return False
+    async def no(words):
+        return Delivery(words, NOT_SENT)
 
     runner._doors[coder.agent_id] = no  # (Claude Code's or Codex's turn, ending)
     said = client.post(path, json={"words": "use blue"}, headers=OWN)
@@ -265,6 +293,47 @@ def test_the_users_word_one_at_a_time_and_never_into_a_cli_that_hears_nothing(
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     seen = [m["content"] for m in model.calls_of["Coder"][-1]]
     assert seen.count(USER_TOLD.format(words='"and green"')) == 1
+
+
+@pytest.mark.parametrize("outcome", [TAKEN, NOT_SENT, UNKNOWN])
+def test_what_came_of_the_users_word_told_into_a_cli_turn_is_kept_to(
+    make_client, wait_run, project_dir, gate, outcome
+):
+    # C2, once its CLI shows it: taken - on its record as passed on; unknown - said in the chat,
+    # never sent again; not sent (its CLI's no after STEER_SECONDS) - put back, to be handed.
+    client, _model = make_client(
+        {"Lead": [spawn("Coder", "sort the list"), text("done")], "Coder": [gate.step(text("ok"))]}
+    )
+    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
+    gate.wait_partial()
+    runner = client.app.state.runner
+    coder = next(c for c in runner._ctxs.values() if c.name == "Coder")
+    sent = []
+
+    async def door(words):  # (written: what came of it is not known yet)
+        sent.append(Delivery(words))
+        return sent[-1]
+
+    runner._doors[coder.agent_id] = door
+    told = client.post(
+        f"/api/agents/{coder.agent_id}/tell", json={"words": "use blue"}, headers=OWN
+    )
+    assert told.status_code == 204, told.text
+    runner._doors.pop(coder.agent_id)
+    client.portal.call(sent[0].settle, outcome)
+    (kept,) = on_record(client, cid, coder.agent_id)
+    assert (kept["delivered_at"] is None) == (outcome == NOT_SENT)
+    said = [
+        m["content"]
+        for m in client.get(f"/api/conversations/{cid}").json()["messages"]
+        if m["role"] == "koloni"
+    ]
+    unknown = WORD_MAYBE_UNREAD.format(name="Coder", words='"use blue"')
+    assert said.count(unknown) == int(outcome == UNKNOWN)
+    late_no = WORD_NOT_SENT.format(name="Coder", words='"use blue"')  # (never lost silently)
+    assert said.count(late_no) == int(outcome == NOT_SENT)
+    gate.release()
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
 
 
 def test_the_lead_reads_what_the_user_told_a_sub_agent_as_the_users_word(
@@ -319,8 +388,8 @@ def test_only_the_agent_it_works_for_writes_into_its_turn_and_each_counts_to_the
     )
     gate.wait_partial()
 
-    async def took(_words):
-        return True
+    async def took(words):
+        return Delivery(words, TAKEN)
 
     for name in ("Coder", "Lead"):  # both CLIs at work, with a door into their turn
         runner._ctxs[ctxs[name].agent_id] = replace(ctxs[name], model=SimpleNamespace(native=True))

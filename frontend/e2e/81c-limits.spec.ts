@@ -135,8 +135,8 @@ test('a turn whose Lead runs on a provider past its limit asks first, and goes o
 }) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('hello from the limits spec')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('hello from the limits spec')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
   // A price, and a day's limit on Local under what that turn spent.
   expect(
@@ -150,8 +150,8 @@ test('a turn whose Lead runs on a provider past its limit asks first, and goes o
   expect(
     (await request.patch(`/api/providers/${await local(request)}`, { headers: OWN, data: { day_limit: 0.01 } })).ok(),
   ).toBe(true)
-  await page.getByLabel('Message').fill('one more past the limit')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('one more past the limit')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const card = chat.getByRole('group', { name: /^Over Local's limit of 0\.01 USD a day/ })
   await expect(card).toContainText(/spent today\)\. Send it anyway\?/)
   await shot(page, '81c-over-limit')

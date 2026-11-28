@@ -10,6 +10,7 @@ import pytest
 
 from app import model_native
 from app.agent import MAX_WHAT, REPORT_SCHEMA, _handed_findings
+from app.delivery import UNKNOWN
 from app.model_cli import CMD_ACTS_ON, MAX_SHIM_LINE
 from app.model_native import ClaudeNativeClient, schema_errors
 from tests.test_agent_talk import message
@@ -199,6 +200,7 @@ async def test_a_report_handed_back_before_a_steered_turn_is_kept(tmp_path):
             tmp_path,
             [{"say": "working"}, {"await_steer": 5}, {"say": "done"}],
             structured=[GOOD],
+            echo="after",  # (C2: echoed after its result, a turn taken on it)
             second_turn_on_steer=True,
         ),
     )
@@ -227,7 +229,7 @@ async def test_a_report_handed_back_before_a_steered_turn_is_kept(tmp_path):
         on_live=lambda door: door and doors.append(door),
         report_schema=REPORT_SCHEMA,
     )
-    assert await trying is True and record(tmp_path)["handed"] == ["allow"]
+    assert (await trying).outcome == UNKNOWN and record(tmp_path)["handed"] == ["allow"]
     assert [one for one in items if one.get("type") == "structured_report"] == [
         {"type": "structured_report", "report": GOOD}
     ]

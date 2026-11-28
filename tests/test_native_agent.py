@@ -249,13 +249,13 @@ def test_codex_reaches_other_agents_and_the_user_through_koloni(native_app, wait
         "read_backlog",
         "add_task",
         "change_task",
-        "assess_task",
-        "offer_away",
+        *("assess_task", "offer_away"),
         *("run_checks", "read_status"),  # (0.1.9; notify only where the project notifies, 0.1.8)
         "post_note",
         "read_notes",
         "remember",
-        "recall",
+        *("recall", "stop_agent", "agents_at_work", "ask_advisor", "note_decision"),  # (0.1.11)
+        "suggest_preference",
         "recall_output",
     ]
     assert [reported(r["content"][0]["text"]) for r in seen["results"]] == [

@@ -38,6 +38,24 @@ made on auto (or fusion), "picked" is the model it picks, said with "picked_why"
     {"koloni": "read_notes", "args": {}}              a call to KOLONİ's MCP server, for real
     {"request": "userInput.request", "params": {}}    a JSON-RPC request of its own
     {"pause": s} / {"error": "message"} / {"exit": 3, "stderr": ".."}
+    {"event": "assistant.usage", "data": {...}}       any event of its session, as it is ("agent":
+                                                      with that agentId, never said to start)
+    {"task": "koloni-checker", "mode": "sync", "steps": [...], "result": "its report"}
+                                                      its task tool (0.1.11, measured on 1.0.114):
+                                                      asked as any tool; once let through, a
+                                                      sub-agent of its own ("agent": its agentId,
+                                                      default "agent-<call>") runs "steps" - each
+                                                      event, hook and request of them with that
+                                                      agentId (a hook's input names it, its type
+                                                      and its parent; its sessionId the agent's) -
+                                                      between subagent.started (toolCallId the
+                                                      task call's, "started_call": false none,
+                                                      or another named) and subagent.completed
+                                                      ("failed": subagent.failed); then the
+                                                      task call ends with "result". "args": more
+                                                      of its arguments; "as": the agentName and
+                                                      agentType its start says (default the
+                                                      task's).
 
 A step with "unasked" runs without a permission request; "twice": the same request is
 sent again under a new request id; "no_complete": a rejected tool is never said to be done;
@@ -203,6 +221,9 @@ def expect(method: str) -> dict:
 
 
 SID = plan.get("session_id", "s1")  # (the session's: the one it goes on in, once resumed)
+# The sub-agents of its own at work (its task tool), the innermost last, each with its type: the
+# events of the innermost carry its agentId, its hooks name it (measured on 1.0.114, 27 Nov 2026).
+AGENTS: list[dict] = []
 
 
 def event(kind: str, data: dict) -> None:
@@ -216,6 +237,7 @@ def event(kind: str, data: dict) -> None:
                     "timestamp": "2026-10-24T00:00:00Z",
                     "type": kind,
                     "data": data,
+                    **({"agentId": AGENTS[-1]["id"]} if AGENTS else {}),
                 },
             },
         }
@@ -369,6 +391,14 @@ def invoke(hook_type: str, more: dict) -> dict:
     """Ask the client's hook, as Copilot does (a request of its own); its answer, kept."""
     number, session_id = next(numbers), plan.get("hook_session", SID)
     given = {"cwd": str(cwd), "sessionId": session_id, "timestamp": int(time.time() * 1000), **more}
+    if AGENTS:  # (a sub-agent's: its own id as its input's sessionId, measured)
+        given = {
+            **given,
+            "sessionId": AGENTS[-1]["id"],
+            "agentId": AGENTS[-1]["id"],
+            "agentType": AGENTS[-1]["type"],
+            "parentAgentId": session_id,
+        }
     send(
         {
             "id": number,
@@ -477,7 +507,8 @@ def pre_tool(call: str, name: str, arguments: object) -> tuple[str | None, objec
     decision = output.get("permissionDecision")
     return (
         decision if decision in ("allow", "deny", "ask") else None,
-        output.get("modifiedArgs", arguments),
+        # (a sub-agent's command is not modified: measured on 1.0.114, C6)
+        arguments if AGENTS else output.get("modifiedArgs", arguments),
         str(output.get("permissionDecisionReason") or ""),
     )
 
@@ -582,14 +613,46 @@ def tool(
     )
 
 
-for number, action in enumerate(plan.get("script", [])):
+def flat(script: list) -> list:
+    """The script with each task's steps between its begin and its end, which share one dict."""
+    steps: list = []
+    for one in script:
+        if "task" in one:
+            mark = {"task_of": one}
+            steps += [{"task_begin": mark}, *flat(one.get("steps", [])), {"task_end": mark}]
+        else:
+            steps.append(one)
+    return steps
+
+
+skipped = None  # (a task refused: its steps, to its end, never run)
+after_idle: list[dict] = []  # (C2: the user.message of a send it takes after its idle)
+for number, action in enumerate(flat(plan.get("script", []))):
     call = f"call_{number}"
+    if skipped is not None:
+        skipped = None if action.get("task_end") is skipped else skipped
+        continue
     event("model.call_start", {"turnId": str(number), "model": plan.get("model", "auto")})
     if "say" in action:
         event(
             "assistant.message",
             {"messageId": f"m{number}", "content": action["say"], "toolRequests": []},
         )
+    elif "await_send" in action:
+        # A session.send while its turn runs (1.0.114, 27 Nov 2026: with mode "immediate" it is
+        # taken into the running work): answered with its message's id; "sent" on record. C2,
+        # measured: then a user.message naming that id, before its idle - "taken": "after_idle"
+        # after it (a turn of its own), false never.
+        told = expect("session.send")
+        record.setdefault("sent", []).append(told.get("params"))
+        save()
+        send({"id": told["id"], "result": {"messageId": f"sent{number}"}})
+        said = {"content": told["params"].get("prompt"), "messageId": f"sent{number}"}
+        taken = action.get("taken", True)
+        if taken is True:
+            event("user.message", said)
+        elif taken == "after_idle":
+            after_idle.append(said)
     elif "shell" in action:
 
         def run(action=action) -> None:
@@ -789,6 +852,63 @@ for number, action in enumerate(plan.get("script", [])):
     elif "exit" in action:
         sys.stderr.write(action.get("stderr", "") + "\n")
         sys.exit(action["exit"])
+    elif "event" in action:
+        # ("agent": as a sub-agent's of its own, one never said to start)
+        ghost = [{"id": action["agent"], "type": ""}] if "agent" in action else []
+        AGENTS.extend(ghost)
+        event(action["event"], action.get("data", {}))
+        del AGENTS[len(AGENTS) - len(ghost) :]
+    elif "task_begin" in action:
+        mark = action["task_begin"]
+        task, mark["call"] = mark["task_of"], call
+        # (its arguments as measured on 1.0.114, C5: `name` its own must)
+        given = {
+            "description": task.get("description", "Look it over"),
+            "prompt": task.get("prompt", "Read hello.py and say what it prints."),
+            "agent_type": task["task"],
+            "name": task["task"],
+            **({"mode": task["mode"]} if "mode" in task else {}),
+            **task.get("args", {}),
+        }
+        event("tool.execution_start", {"toolCallId": call, "toolName": "task", "arguments": given})
+        decision, _ran, _why = pre_tool(call, "task", given)
+        hooked_task = {"kind": "hook", "toolName": "task", "toolArgs": given, "hookMessage": "?"}
+        if decision != "ask" or not permitted(call, hooked_task, task):
+            event(
+                "tool.execution_complete",
+                {"toolCallId": call, "success": False, "error": {"message": "rejected"}},
+            )
+            skipped = mark
+            continue
+        named = task.get("started_call", call)
+        AGENTS.append({"id": task.get("agent", f"agent-{call}"), "type": task["task"]})
+        event(
+            "subagent.started",
+            {
+                **({"toolCallId": named} if named else {}),
+                "agentName": task.get("as", task["task"]),
+                "agentType": task.get("as", task["task"]),
+                "agentDisplayName": task["task"],
+                "agentDescription": "",
+                "executionMode": "sync",
+                "model": plan.get("model", "auto"),
+            },
+        )
+    elif "task_end" in action:
+        task = action["task_end"]["task_of"]
+        event(
+            "subagent.failed" if task.get("failed") else "subagent.completed",
+            {"agentName": task["task"]},
+        )
+        AGENTS.pop()
+        event(
+            "tool.execution_complete",
+            {
+                "toolCallId": action["task_end"]["call"],
+                "success": True,
+                "result": {"content": task.get("result", "its report")},
+            },
+        )
 
 event(
     "assistant.usage",
@@ -801,4 +921,6 @@ for info in plan.get("usage_info", []):
 for checkpoint in plan.get("usage", []):
     event("session.usage_checkpoint", checkpoint)
 event("session.idle", {"aborted": True} if plan.get("aborted") else {})
+for said in after_idle:
+    event("user.message", said)
 expect("never")  # a headless server stays until it is ended

@@ -14,10 +14,12 @@ messages.
   `rg`, `gci | gc`), is asked about at every level, Full auto too. A script that opens a secret file
   without naming it (it builds the name, say) is not caught. Only Docker and Copilot's sandbox hide secret
   files from commands; KOLONİ's own commands on this machine, Claude Code, Codex and agy do not.
-- When it runs **Native**, Codex runs the commands its own rules count as safe (a read of `.env`, or of a
-  file outside the project) without asking KOLONİ, at every level; KOLONİ records them after they ran, so
-  no card stands in their way. agy reading with its own tools has no hook: its reads, of a secret file
-  too, are not asked about at any level.
+- When it runs **Native**, Codex asks KOLONİ before its commands - a read of `.env` too (measured on 27 Nov
+  2026 with Codex 0.172.0: it asked before both `Get-Content readme.txt` and `Get-Content .env`; this guide
+  said it ran its own safe commands unasked, and older versions were not measured again). A command an
+  allow rule of Codex's own covers
+  still runs without asking; KOLONİ records it after it ran, so no card stands in its way. agy reading with
+  its own tools has no hook: its reads, of a secret file too, are not asked about at any level.
 - A command you approve can still print, encode or send a secret it was given.
 - An agent's request for a key on a hidden card is not available to CLIs working with their own tools.
 - A branch deleted because it held a secret you gave still has its commits in git's reflog until git
@@ -91,6 +93,11 @@ messages.
 - With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
   failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
   started" at the same 11 minutes.
+- Codex opens no sub-agents of its own: KOLONİ switches its `multi_agent` feature off and sets
+  `agents.enabled=false`. Codex 0.172.0 still opened one with the first alone; with both it had no such
+  tool (measured on 27 Nov 2026 with its app-server, which **One session per agent** and **Native** use).
+  Where KOLONİ runs `codex exec` - its web search, and a Codex that runs the old way - it gets the same
+  switch, not measured there; nor is the key measured on a Codex older than 0.172.0.
 - Codex run **Native** with **Sign-in: Its own for KOLONİ** goes on in its thread from the topic's
   previous turn. That is built on measurements of Codex 0.164 and tested with a stand-in only, not yet
   tried with a real Codex. On Codex 0.164 a new, empty KOLONİ folder also answered **read-only** when
@@ -101,8 +108,63 @@ messages.
 - GitHub Copilot CLI's tokens and AI credits run as a session are counted from its usage checkpoint, as
   in **Native**; measured with `copilot -p` (CLI 1.0.103), not yet seen in a live session.
 - Copilot's thinking levels on a model server of your own are not measured.
+- A role run inside GitHub Copilot CLI (**Run inside the CLI**) is built on measurements of Copilot
+  1.0.114 (27 Nov 2026: the roles it is given, its task tool's arguments, its hooks, requests and
+  events for a sub-agent's tools and commands, KOLONİ's tool bridge shared with it). Its writes with
+  Copilot's own file tools (create, edit, apply_patch) were not seen - it wrote with PowerShell - and
+  are asked as the Orchestrator's are. Copilot does not run its commands where KOLONİ puts the
+  Orchestrator's, in the project folder: where they run is taken as not known, so its git reads ask
+  at **Ask** and its git lines go to the judge at **Full auto** (and more of its commands may ask). The role runs on the
+  Orchestrator's model (a model of the role's own is not given), a turn that goes on in its kept
+  session is given the roles anew (not measured that Copilot takes them so), and a Copilot on its
+  older protocol is offered no role, with nothing said of it. A role that may list folders but not
+  read files is not run inside Copilot (its one tool for both reads files too); one that does not
+  run commands may not delete a file. Its tokens are counted in the turn - the larger of Copilot's
+  own count for the turn and its model calls' sum, since whether the first holds the role's is not
+  measured - but its AI credits only as Copilot's session count says them.
 - An agy model whose name ends in its level takes no other level. Only a name ending in `-low` was seen
   to refuse one; the other endings are read the same way, not measured.
+- A word sent while a CLI works (**Send now**, an agent's Tell box) goes into its running turn on
+  Claude Code (a second user line; 2.1.332), Codex (`turn/steer`; 0.172) and GitHub Copilot CLI run
+  **Native** (`session.send` with mode "immediate"; 1.0.114) - each measured on 27 Nov 2026. agy
+  takes it only after its turn (1.5.18): an agy agent's box sends your word to the Orchestrator, and
+  an agy Orchestrator reads it in one more run of the same turn. A CLI run as a session reads it at
+  its next run too. That a CLI Orchestrator wakes for each of its agents' ends is not done: it reads
+  their reports once all are back (each wake would be a run of its CLI).
+- What came of a word written into a CLI's turn - taken, not sent, unknown - is read from the CLI's
+  own signs, measured on 27 Nov 2026 with short turns and tested with stand-ins only, not yet in a
+  long live turn: Claude Code's echo of the line before its result (`--replay-user-messages`; the
+  echo names no id of KOLONİ's, so two words alike in one turn are matched oldest first), Codex's
+  answer to `turn/steer`, Copilot's `user.message` naming the id its send was answered with, before
+  its idle. Only Codex's "no active turn to steer" (-32600) is read as not sent; any other no of a
+  CLI's is unknown. An unknown word of Send now, Tell or an agent's message is never sent again: one
+  Claude Code takes in one more turn after its result is still said unknown (that turn is read to
+  its end), and one Copilot would take after its idle is not read (its run has ended); a Change of
+  a decision or an answer is given again from the agent's next step. Claude Code is asked for its
+  echo only from 2.1.332 on, the version it was measured on (`--version`, asked at each run), and
+  not for a prompt over 8 MB (pictures): a word steered into such a turn is unknown.
+- `message_agent`'s **leave** and **now** are the API Orchestrator's alone (as `spawn_agent`'s
+  background); others send a reply. Whether an agent at work read a message left for it, or its work
+  ended first, is looked at every half second and kept in memory only: KOLONİ restarted meanwhile,
+  the message stays on the agent's record unread and nobody takes it up. A Claude Code, Codex or
+  Copilot agent at work is handed a message left for it (**leave**) with its next KOLONİ tool result,
+  else in a turn of its own once its run ends; agy is out of reach while it works, as before, and
+  takes a message up only once it has finished. Where the Orchestrator's turn ends before a message
+  is taken up, it is told on its own record - which no step reads any more.
+- Talking while agents work: the Orchestrator's steps that answer your word are refused KOLONİ's
+  Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and any MCP
+  server's tool; a CLI Orchestrator's own tools are only told so. While it answers your word the
+  Orchestrator waits for no room among the
+  agents at work: it is counted at work in the project and on its provider (who comes next waits for
+  it), but a provider let work at one at once gets one more request beside its agents' then, and the
+  turn may have one more at work than the chat's setting until its next wait. Whether you look at a
+  chat is what its page says (its view on screen, its tab seen, its window focused): a page that has
+  not said yet - one of an older build - counts as looking, and no desktop notice comes then.
+- The line over the chat says the Orchestrator's step from the plan it shows (`update_plan`, or a
+  Codex Orchestrator's own); Claude Code's own to-do list is not read, so a Claude Code Orchestrator
+  shows no step. `ask_advisor` and `note_decision` have not been tried with a live model yet; what
+  `read_pr_feedback` reads is as `gh` gave it on 27 Nov 2026 (`gh pr view --json` for reviews,
+  comments and checks; `gh api` for the comments on lines, the first 100).
 
 ## Git
 
@@ -164,6 +226,11 @@ messages.
   `rsync --delete`, `robocopy /MIR`, `mail`, `ssh host 'command'`.
 - At Full auto, the harm check sees honest commands only; a command written to hide what it does is not
   seen. See [Security model](../security/model.md).
+- A command that writes into `.idea/` without naming it is not seen: KOLONİ puts back files that steer
+  later turns after a command, but does not look into `.idea/`, which a JetBrains IDE rewrites itself.
+- Below Full auto, a `git` read whose folder KOLONİ does not know - Claude Code's PowerShell or Monitor,
+  and many of Copilot's commands - is judged as run at the project's top, where it runs unasked; at Full
+  auto it goes to the judge.
 - [Full auto's judge](../use/permissions.md#full-autos-judge) is a net, not a wall:
     - It is a model's decision: it can call a risky command fine, and then the command runs, as it did
       at Full auto before the judge.
@@ -227,6 +294,21 @@ messages.
       KOLONİ's own PowerShell, so a CLI's `del src\app.py` is a card. A plain delete beside any
       command that is not one (`rm -rf build; npm install`), git's work where the project is not its
       repository's top folder, and a Windows short name (`ENV~1`) are cards too.
+    - Since 0.1.11 it decides [a plain push of your feature branch](../use/permissions.md#a-push-of-your-feature-branch)
+      to its origin: a "fine" pushes with no card. Its words since 0.1.11 ("D2") count such a push as
+      ordinary work, and pushes were among the cases [measured on 28 Nov
+      2026](../use/permissions.md#full-autos-judge); a push it calls risky waits on its card (never
+      refused: one you asked for quotes you). A bare `git push` (and `origin HEAD`) pushes the branch checked out as it runs: KOLONİ looks again just before it runs, but a
+      switch of the project's branch by your own hand in that moment is not seen. The judge is not
+      told the branch's name, only the line and what the agent did before it. Before it is asked,
+      and again after its fine, KOLONİ asks origin what it holds and which branch is its default, as
+      the push would - a network request each time, and origin's own time limit. A
+      push that changes git's settings (`git push -u`, a branch made to track one) makes the next push
+      of that turn a card; so does a turn begun below Full auto, a push of more than 50 commits, an
+      origin that holds none of the branch, `main`, `master` or its default branch, and any
+      `pre-push` or `reference-transaction` hook - yours too: a repository with husky or Git LFS
+      gets a card for every push. Each Full auto turn in a repository begins with a few more git
+      calls (what a push goes by is read then).
     - Its short way for ordinary work is a small table (test runners, compilers and checkers, local
       git, `npm run`): other everyday commands - an install, a build tool it does not list - are each
       asked about.
@@ -351,7 +433,9 @@ messages.
 
 - Canvas positions are worked out from the record each time and are not saved.
 - At phone width, the top bar wraps to two lines.
-- Desktop notifications are on Windows only.
+- Desktop notifications on macOS (terminal-notifier, else `osascript`) and on Linux (`notify-send`, only with
+  `DISPLAY` or `WAYLAND_DISPLAY` set) are shown as herdr shows them and are tested with stand-ins only: not yet
+  seen on a Mac or a Linux desktop. A text that starts with a dash is shown after a space.
 
 ## Systems
 

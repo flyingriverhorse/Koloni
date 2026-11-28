@@ -2,8 +2,8 @@ import { expect, test, type Page } from './fixtures'
 import { chatSheet, openFreshConversation, openTurns } from './helpers'
 
 async function ask(page: Page, text: string) {
-  await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill(text)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('a command is asked for, runs once, and shows its real output and exit code', async ({ page }) => {

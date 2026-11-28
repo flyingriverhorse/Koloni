@@ -506,6 +506,7 @@ class BeforeMixin:
                 session.scalar(
                     select(Message.content)
                     .where(Message.run_id == ctx.run_id, Message.role == "user")
+                    .order_by(Message.created_at, literal_column("messages.rowid"))
                     .limit(1)
                 )
                 or ""

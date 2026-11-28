@@ -349,8 +349,9 @@ function Rules({
         </button>
       </Row>
       {open && (
-        // (Saved rule by rule: Enter in a field or on a box of theirs sends nothing of the section's Save.)
-        <div id="rules-without-asking" className="set-rules" onKeyDown={noSubmit}>
+        // (Saved rule by rule: Enter in a field or on a box of theirs sends nothing of the section's Save. No control of
+        // its own - its fields' Enter stops here on its way to the form.)
+        <div id="rules-without-asking" role="presentation" className="set-rules" onKeyDown={noSubmit}>
           <ProjectSites projectId={projectId} onCount={setSiteCount} />
           <ProjectRules projectId={projectId} chat={chat} sites={siteCount} />
         </div>

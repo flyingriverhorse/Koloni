@@ -777,17 +777,6 @@ class TopicPatch(BaseModel):
     title: str = Field(max_length=200)
 
 
-class SpokenIn(BaseModel):
-    """What a message asks of the lead's answer when the user listens to it (slice 32a)."""
-
-    model_config = ConfigDict(extra="forbid")
-    # A language tag as the browser's voices give it: "en-US", "tr-TR", "en-GB-x-rp".
-    # (The page holds the same pattern: voice.ts LANGUAGE_TAG.)
-    language: str = Field(pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,4}$")
-    # How the user wants it said, in their own words.
-    style: str | None = Field(None, max_length=300)
-
-
 class GeminiVoiceOut(BaseModel):
     """Reading aloud with Gemini (slice 32e): whether a key is saved - never the key."""
 
@@ -818,22 +807,6 @@ class GeminiSayIn(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
     voice: str | None = None
     style: str | None = Field(None, max_length=300)
-
-
-class MessageIn(BaseModel):
-    content: str
-    # Asked for: the lead ends its answer with a line to say aloud, taken off into `spoken`.
-    spoken: SpokenIn | None = None
-    # Which piece of work the message goes on with: a topic of this conversation by its
-    # id, or a new one. With neither, the topic the user was last in.
-    topic_id: str | None = None
-    new_topic: bool = False
-    # The user's word to start it though the project is over this month's budget.
-    over_budget: bool = False
-    # The files added to it (slice 85b), by id: this conversation's, not sent before.
-    attachments: list[str] = Field(default=[], max_length=10)  # attachments.MAX_FILES
-    # "Save these to the project too" (slice 23): into docs/attachments/, no card.
-    save_to_project: bool = False
 
 
 class AttachmentOut(Out):
@@ -1718,9 +1691,8 @@ class AskedModel(BaseModel):
     goes to, or the summariser that made a note of what a turn found."""
 
     provider_name: str
-    # None: KOLONİ itself, no model - its note of a flaky test (k-onceki-1, H: such a note made
-    # its project's memory list fail).
-    model_id: str | None
+    model_id: str | None  # (None: KOLONİ itself, its note of a flaky test - k-onceki-1, H)
+    quote: str | None = None  # (suggest_preference: the user's words it was kept from, masked)
 
 
 class FindingOut(BaseModel):
@@ -1914,13 +1886,6 @@ class AnswerLanguage(BaseModel):
         return language_name(value)
 
 
-class TellIn(BaseModel):
-    """The user's own word to an agent while it works (89d C)."""
-
-    model_config = ConfigDict(extra="forbid")
-    words: str = Field(min_length=1, max_length=4000)
-
-
 class SummaryIn(BaseModel):
     """The user's words for an agent's working state, in the place of its summary."""
 
@@ -2007,10 +1972,10 @@ class BoardConversation(BaseModel):
     conversation_id: str
     title: str
     agents: list[BoardAgent]
-    # Its agents' changes that wait for the user's decision (a merge card in its chat), and its
-    # copies kept for Take in that hold a file.
+    # Its agents' changes waiting for the user's decision (merge cards), kept copies holding one.
     merges_pending: int
     turn: BoardTurn | None  # its last turn; None before its first
+    unseen: bool = False  # herdr's: its last turn ended after its page last had it on screen
     # The folder it is in (None: a chat with none): every chat's board tags another's (B-72).
     project_id: str | None = None
 
@@ -2417,11 +2382,6 @@ class SnapshotOut(BaseModel):
     older_from: str | None = None
 
 
-class PostMessageOut(BaseModel):
-    message: MessageOut
-    run: RunOut
-
-
 def _words(value: str, most: int, what: str, empty: bool = False) -> str:
     """A kind of work or a team's name: one printable line, tidy spacing, 1 to `most` long
     (`empty`: or none, said elsewhere)."""
@@ -2733,7 +2693,7 @@ class RoleOut(Out):
     mcp: list[str]
     # The skills (their names) its agents are given.
     skills: list[str]
-    # 89g: also offered to a Claude Code Lead as one of its own sub-agents.
+    # 89g: also offered to a Claude Code or Copilot Lead as one of its own sub-agents.
     inside_cli: bool
     # K-bilgi: the knowledge it uses ("full": an expert in it), with each one's topic and project.
     knows: list[KnowsOut] = Field(validation_alias="knows_shown")

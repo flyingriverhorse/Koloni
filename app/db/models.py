@@ -289,9 +289,9 @@ class Conversation(Base):
     )
     created_at: Mapped[datetime] = mapped_column(default=now)
     updated_at: Mapped[datetime] = mapped_column(default=now)
-    # When the user put it away (its list's "Archived" part); None: it is not. Nothing of
-    # it goes: a trigger's turn leaves it there, the user's own message brings it back.
+    # Put away ("Archived", None: not): a trigger's turn leaves it there, a user's message not.
     archived_at: Mapped[datetime | None] = mapped_column(default=None)
+    seen_at: Mapped[datetime | None] = mapped_column(default=None)  # its page last had it on screen
 
     # Slice 48's switch, as the API still says it: on is "delegates".
     @property
@@ -1348,7 +1348,7 @@ class Role(Base):
     # (its whole guide at each step); "map": where its guide is. Replaced whole, not changed in
     # place (a JSON field changed in place is not seen).
     knows: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
-    # 89g: also offered to a Claude Code Lead as one of its own sub-agents (`--agents`): cheaper,
+    # 89g: also offered to a Claude Code or Copilot Lead as one of its own sub-agents: cheaper,
     # but no agent of KOLONİ's - it stops only with its Lead. Off unless the user turns it on.
     inside_cli: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(default=now)
@@ -1639,15 +1639,6 @@ class LimitReading(Base):
     read_at: Mapped[datetime] = mapped_column()
 
 
-class Flag(Base):
-    """A switch of the whole app that outlives a restart, or one of its
-    settings (Gemini's voice: its key, which no answer carries, model and voice; app.api.voice)."""
-
-    __tablename__ = "flags"
-    name: Mapped[str] = mapped_column(String(40), primary_key=True)
-    value: Mapped[str] = mapped_column(String(200))
-
-
 class Event(Base):
     __tablename__ = "events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -1783,3 +1774,6 @@ class AwayRun(Base):
     # What its chat had spent at Go away: not counted to its money (`app.away.spent`).
     spent_before: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
+
+
+from app.db.turn_models import Flag  # noqa: E402,F401

@@ -57,8 +57,8 @@ for (const theme of ['light', 'dark'] as const) {
     })
     expect(set.ok()).toBe(true)
     await page.getByRole('button', { name: 'Canvas', exact: true }).click()
-    await page.getByLabel('Message').fill(`what does hello.py print? (${theme})`)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill(`what does hello.py print? (${theme})`)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
 
     const node = page.locator('.react-flow__node-agent')
     // (How full its context is, its window says under Details: its node is three lines - the user's, 5 Nov. Opened from

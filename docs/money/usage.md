@@ -16,7 +16,9 @@ The page reads from the top:
   has a monthly budget; the plan's part is the plan window used most, as the CLIs last said it. With nothing
   priced it says "no money was counted". Under it: **Messages**, **Tokens sent**, **Tokens written** and
   **Cost**, with **set prices**. **Messages** says how many agents worked in them and, apart, KOLONİ's own
-  requests outside a message: "12 agents", "1 request by KOLONİ itself".
+  requests outside a message: "12 agents", "1 request by KOLONİ itself". The Orchestrator's
+  `ask_advisor` is such a request of KOLONİ's in its turn: under the advisor's model, and in the
+  turn's spend that the line over the chat says.
 - **This month's budget** as ten cells, each a tenth of the budget: honey as it fills, a red-orange rim on what
   is left from 80%, all red-orange once it is over, with the amount, the share used and the days left in words beside them. Once all are full, new work waits
   for your word (see [A project's monthly budget](#a-projects-monthly-budget)).

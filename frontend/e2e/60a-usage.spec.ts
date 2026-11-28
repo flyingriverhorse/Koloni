@@ -27,8 +27,8 @@ for (const theme of ['light', 'dark'] as const)
   }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
-    await page.getByLabel('Message').fill(`hello from the ${theme} usage page`)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill(`hello from the ${theme} usage page`)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(
       page.getByRole('region', { name: 'Chat' }).getByText('Hello! Ask me to read or change a file.'),
     ).toBeVisible()

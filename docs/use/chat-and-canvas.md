@@ -29,8 +29,10 @@ unread and how many things wait for you.
 
 ### Writing a message
 
-- While agents work, **Send** becomes **Queue**: your message waits and runs after the current work.
-  A queued message can be removed. **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
+- While agents work, **Send** becomes **Send now** (Enter): your message goes into the turn at work and
+  the Orchestrator answers it in that turn. **After this turn**, beside it, queues it as before: it waits
+  and runs after the current work. A queued message can be removed. See
+  [Talking while agents work](talk-while-agents-work.md). **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
   runs, it stays in the chat as "Not sent: KOLONİ restarted", with **Send** to send it now.
 - **Stop everything**, in the top bar on every page, stops every turn in every chat and holds what
   starts by itself: the To-do tasks waiting in a chat's queue, and work while you're away. It asks first, saying
@@ -98,6 +100,10 @@ unread and how many things wait for you.
   every task of a story is done, **Story done? - "…"** (**Close the story** / **Add a task**). Above the
   message box, **N wait** lists the chat's queue - the task at work, those waiting with **Remove** - and
   "+ your message goes first when you send one".
+- While a turn runs with agents at work, a plan of the Orchestrator's or something that waits for you,
+  one line over the chat says so: "3 agents at work · step 3 of 6 · 1 waits for you · ≈ 0.40 USD". A
+  click opens **At work in this turn**, each agent with **Stop** and **Message**. See
+  [Talking while agents work](talk-while-agents-work.md#the-line-over-the-chat).
 - At the foot of a turn that did something, once it is over, one line sums it up at the right, such as "2
   agents · 3 files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and
   known cost.
@@ -146,7 +152,9 @@ as this folder's default** keep the list.
 ## The canvas
 
 Every agent is a small box of at most three lines: its name and model, its state, and what it did,
-counted. The window icon at the right of its name opens its window. An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
+counted. The window icon at the right of its name opens its window. An agent at work that an agent opened has
+**Stop** (it alone stops, its work kept for **Take in**) and **Message** (its window, at its Tell box) beside it
+([Talking while agents work](talk-while-agents-work.md#stop-and-message-on-one-agent)). An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
 (where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Where the box is
 narrow, the tier goes first, then the tokens, then the time; what it does is cut last. Its tools, commands and files are in the Inspector and its window (below). Lines show work
 handed to a sub-agent, agents that talked, findings handed on, and an agent waiting for a file another
@@ -221,6 +229,12 @@ and, in the chat, the Orchestrator's name over its turn. No agent's window opens
 - its **Changes**, **Earlier work** and **Sub-agents**;
 - **Details**, folded: its model and who chose it, its times, how full its context is, **Compact now** and
   its working state, its tools, **Copy raw**, and **Every step as recorded** (the raw list of every call).
+
+While the agent works, its window's head has **Stop** and **Message** (for an agent the Orchestrator or
+one of its agents opened), and a Tell box at its foot sends your word into its work. An agy agent's box
+says it can't hear messages while it works, and sends your word to the Orchestrator. An Orchestrator
+that shows its plan has it under **Plan (its own words)**. See [Talking while agents
+work](talk-while-agents-work.md#stop-and-message-on-one-agent).
 
 ![The Reviewer's agent window: who asked it what, its report and numbers, what it did in plain steps](../images/agent-window.png)
 

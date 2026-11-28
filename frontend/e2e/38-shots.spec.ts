@@ -150,8 +150,8 @@ for (const theme of ['light', 'dark'] as const) {
     await snap('usage-1024')
     await page.setViewportSize({ width: 1440, height: 900 })
     await rail(page, 'Canvas').click()
-    await page.getByLabel('Message').fill('edit the greeting')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill('edit the greeting')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect((await openTurns(page)).locator('.turn-row').getByText('waits for you')).toBeVisible({
       timeout: 20_000,
     })

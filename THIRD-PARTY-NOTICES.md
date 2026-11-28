@@ -2,14 +2,14 @@
 
 This file lists the third-party software and assets that KOLONİ ships or runs for the user, with each one's licence, its copyright lines and the licence texts. KOLONİ's own licence, AGPL-3.0-or-later, is in [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
-Generated on 26 November 2026 by `scripts/notices.py` from the installed versions: `frontend/node_modules` and the backend `.venv` (Windows, Python 3.12). Licence texts and copyright lines are copied from the licence files in the installed packages; the declared licence is the `license` of the package's own `package.json`, or the `License-Expression` / `License` / classifier of its `METADATA`. To make it again, after a dependency changes and before a release: `.venv\Scripts\python.exe scripts\notices.py` (or `.venv/bin/python scripts/notices.py`).
+Generated on 28 November 2026 by `scripts/notices.py` from the installed versions: `frontend/node_modules` and the backend `.venv` (Windows, Python 3.12). Licence texts and copyright lines are copied from the licence files in the installed packages; the declared licence is the `license` of the package's own `package.json`, or the `License-Expression` / `License` / classifier of its `METADATA`. To make it again, after a dependency changes and before a release: `.venv\Scripts\python.exe scripts\notices.py` (or `.venv/bin/python scripts/notices.py`).
 
 - **Frontend (bundled)**: the `dependencies` of `frontend/package.json` and everything they bring in at run time, from `frontend/package-lock.json`. This is a superset of the bundle: a few Node-only parts are listed although the browser build does not use them (for example `@antfu/install-pkg`, `package-manager-detector`, `tinyexec`, `import-meta-resolve`, and d3-dsv's command-line `commander`, `iconv-lite`, `safer-buffer`, `rw`). Type-only packages (`@types/*`, `csstype`) and the dev tools are not listed, except `vite` and `rolldown`: the build puts their small runtime helpers (the module-preload helper, `rolldown-runtime-*.js`) into the bundle. `elkjs` is not shipped (see Check).
 - **Backend (Python)**: the `[project] dependencies` of `pyproject.toml` (with `uvicorn[standard]`) and what they require on this machine, from each package's `Requires-Dist`. The dev extra (`pytest`, `ruff`, `ty`, ...) is not listed.
 - A package that appears twice is installed in two versions; each is listed.
 - Each licence text is printed once, under **Licence texts**, without its copyright lines; each package names the text it uses and shows its own copyright lines.
 
-Counts: Frontend (bundled) 189, Fonts 2, Backend (Python) 30, Assets in the repository 3.
+Counts: Frontend (bundled) 189, Fonts 2, Backend (Python) 30, Assets in the repository 4.
 
 ## Frontend (bundled)
 
@@ -2436,6 +2436,12 @@ Copyright (c) 2025 models.dev
 Licence file `frontend/public/drawio/LICENSE`: text [L2](#l2).
 
 _No copyright line in the licence file._
+
+### herdr 0.9.5
+
+- Licence: `Apache-2.0` (github.com/herdrdev/herdr)
+- Apache-2.0: no NOTICE file in the package.
+- The macOS notice command shape in `app/web.py` (`_desktop_argv`: terminal-notifier, else `/usr/bin/osascript` with the words as `on run argv` arguments) follows herdr's (github.com/herdrdev/herdr, Apache-2.0); no file of it is shipped. Its licence is the Apache-2.0 text under Licence texts.
 
 ## Licence texts
 

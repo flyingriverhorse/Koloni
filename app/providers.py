@@ -129,12 +129,10 @@ NOT_WATCHED: dict[tuple[str, str], tuple[str, ...]] = {
     ("copilot_cli", "native"): (),
     ("agy_cli", "native"): (),
     ("codex_cli", "native"): (
-        # At "untrusted" (`CodexNativeClient._converse`) its known-safe commands run unasked:
-        # a .env, the home folder (B-301's note in `_native_arguments`).
-        # shortcut: said also for a role that may not run commands (`_no_shell`), where it reads
-        # with KOLONİ's tools - the safe side; leave it out there if that misleads.
-        "reading secret files (.env, keys): its read-only commands run without asking",
-        "reading files outside the project, the same way",
+        # At "untrusted" (`CodexNativeClient._converse`): 0.172.0 asked before reads of readme.txt
+        # and .env (measured 27 Nov 2026); older versions were not measured again.
+        # shortcut: said also for a role that may not run commands (`_no_shell`) - the safe side.
+        "commands its own allow rules cover: they run without asking",
         # Its own web search asks nothing at any level (`AgentRunner._approve`'s canary
         # shortcut), where KOLONİ's search is asked below Full auto.
         "its own web searches are not asked about (nor checked for the planted key)",

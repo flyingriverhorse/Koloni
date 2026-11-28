@@ -14,20 +14,20 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
-from app import ledger, project_map, proof, proof_style, risk_judge
-from app.cards import card_reason, rule_kept_off
+from app import ledger, project_map, proof, proof_style, push_judge, risk_judge
+from app.cards import PLANTED, PLANTED_READ, PLANTED_SAYS, card_reason, rule_kept_off
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
     MODEL_HEAD,
     MODEL_TAIL,
-    PLANTED,
     OutputMask,
     _program,
     _words,
     applies_patch,
     danger,
     for_model,
+    harms,
     held_back,
     is_allowed,
     names_secret,
@@ -152,13 +152,12 @@ def refused_by_rule(judgement: dict) -> str:
 
 
 def _gate_open(mode: str, check: bool, judgement: dict | None, judge: bool, line: str) -> bool:
-    """Whether what the check of the user's words said still holds: while the chat is at Full auto
-    and the project's check is on (`check`, §8) - else its card (the security review of K-yargic).
-    Full auto's judge's "risk" and K5's quote ("said", an ask) have none - but a risk "fine" on a
-    line the list asks of (`line`, K3): it holds while the chat is at Full auto and `judge` (the
-    project's judge on, what it names still where it is written: `risk_judge.on_disk`)."""
+    """Whether what the check of the user's words said still holds: at Full auto with the project's
+    check on (`check`, §8) - else its card (the security review of K-yargic). Full auto's judge's
+    "risk" and K5's "said" have none - but a risk "fine" on a line the list asks of (`line`: K3's,
+    a push's): only at Full auto and `judge` (its switch on, `risk_judge.on_disk` as written)."""
     kind = judgement.get("kind") if judgement is not None else None
-    if kind == "risk" and danger(line, False):
+    if kind == "risk" and harms(line, False):
         return mode == "full_auto" and judge
     return kind in ("risk", "said") or mode == "full_auto" and check
 
@@ -512,22 +511,23 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
     imported = [(cwd, False)] * own + [(one, reach.startup_only) for one in _COPY_PATH] * path
 
     def plants(rel: str) -> str | None:
+        """Why `rel` stops the line's rule: its program, or (N9) a file it may read or load."""
         if places is None:
             found = proof_style.wrote_program(root, cwd, program, [rel])
-        else:
-            found = proof_style.planted_in(root, places, anywhere, rel)
-        return (
-            found
-            or next(
-                (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only))),
-                None,
-            )
-            or setting(rel)
-        )
+        elif found := proof_style.planted_in(root, places, anywhere, rel):
+            # (an install folder, or yarn's `.yarn` - its release, its unplugged installs - is what
+            # it runs; any other place of a runner's is a file it reads or loads: `.npmrc`)
+            code = PurePosixPath(found).name.casefold() in (*proof_style.INSTALLS, "venv", ".yarn")
+            return (PLANTED if code else PLANTED_READ).format(place=found)
+        module = (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only)))
+        if found := found or next(module, None):
+            return PLANTED.format(place=found)
+        return PLANTED_READ.format(place=read) if (read := setting(rel)) else None
 
     held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])
-    place = next((place for rel in held if (place := plants(rel))), None)
-    return PLANTED.format(place=place) if place else None
+    said = [one for rel in held if (one := plants(rel))]
+    # (a program an agent wrote is said first, whichever write came first: it is what runs)
+    return next((one for one in said if one.startswith(PLANTED_SAYS[0])), next(iter(said), None))
 
 
 # Y1: cmd.exe's word for a bare name it did not find - under KOLONİ only on PATH (W1, as under
@@ -713,14 +713,15 @@ class CommandRunner:
         reads = await asyncio.to_thread(
             reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel
         )
+        moved = await asyncio.to_thread(push_judge.moved, judgement, planned.command)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
             check, judge = project.full_auto_judge and project.judge_words, project.full_auto_judge
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
-            # (K3's R2: a "fine" holds where what it names is still where it was - in a copy: no)
-            on = judge and (where is None and risk_judge.on_disk(ws.root, judged))
+            # (K3's R2: a "fine" holds where what it names is where it was, a push's branch too)
+            on = judge and (where is None and risk_judge.on_disk(ws.root, judged)) and not moved
             gate = _gate_open(conversation.permission_mode, check, judgement, on, judged)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
@@ -1202,15 +1203,14 @@ class CommandRunner:
         KOLONİ does not run it; the record is completed when the CLI reports the end.
         `always`: asked about at every level, whatever was allowed before - as one that
         names a secret file always is. `held`: as `command_out`'s; `web_off`: as `run`'s.
-        `reads`: it only reads (`reads_here`), so below Full auto it is not asked. `cwd`:
-        where the CLI says it runs, on the record as KOLONİ's own commands' is ("." for
-        the root), so that the card is judged the same when it is read again. What it
-        prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
-        screen and the record - the CLI's own model has read it already. `judgement`: as
-        `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too.
-        `why`: KOLONİ's own reason for its card, for the family it is counted in (`card_reason`)
-        - never the reason the CLI gave in words of its own, shown on its card all the same.
-        `park`: as `run`'s - (False, its id) once it is parked."""
+        `reads`: it only reads (`reads_here`), so below Full auto it is not asked. `cwd`: where the
+        CLI says it runs, on the record as KOLONİ's own commands' is ("." for the root), so that the
+        card is judged the same when it is read again. What it prints comes from the CLI, hidden
+        there (`AgentRunner._observe_command`) for the screen and the record - the CLI's own model
+        has read it already. `judgement`, `disposable`, `park`: as `run`'s - one refused or parked
+        is (False, its id); a push's "fine" lapses where it moved (`push_judge.moved`). `why`:
+        KOLONİ's reason for its card (`card_reason`), never the CLI's words, shown on it as well."""
+        moved = await asyncio.to_thread(push_judge.moved, judgement, command)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
@@ -1225,7 +1225,7 @@ class CommandRunner:
             ).one()
             # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
             judged = with_cwd(command, cwd)
-            gate = _gate_open(mode, judge and words, judgement, judge, judged)
+            gate = _gate_open(mode, judge and words, judgement, judge and not moved, judged)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)

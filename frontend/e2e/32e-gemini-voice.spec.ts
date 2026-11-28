@@ -83,8 +83,8 @@ test('with a key saved Auto-read has Gemini read the answer a sentence a request
   await openFreshConversation(page)
   const chat = chatOf(page)
   await chat.getByRole('button', { name: 'Auto-read' }).click()
-  await page.getByLabel('Message').fill('how is the total worked out?')
-  await chat.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('how is the total worked out?')
+  await chat.getByRole('button', { name: 'Send', exact: true }).click()
   // Each asked for once the one before it sounds: all three, so each was played.
   await expect
     .poll(() => asked, { timeout: 20_000 })

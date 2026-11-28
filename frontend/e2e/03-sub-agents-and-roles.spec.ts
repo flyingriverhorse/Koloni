@@ -2,8 +2,8 @@ import { expect, test, type Page } from './fixtures'
 import { openFreshConversation, openAgentFold, projectSettings, saveSettings, windowFromPanel } from './helpers'
 
 async function ask(page: Page, text: string) {
-  await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill(text)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('the lead hands a review to a Reviewer and its report comes back', async ({ page }) => {

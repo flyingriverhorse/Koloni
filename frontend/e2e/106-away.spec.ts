@@ -42,7 +42,7 @@ test('the work goes on To-do with a Go away line; Away works it through until I�
   const line = page.locator('.composer-status')
   await expect(line).toContainText(/Away · To-do (\d of 2|2 of 2 looked at)/, { timeout: 30_000 })
   await expect(line).toContainText('Away · To-do 2 of 2 looked at', { timeout: 30_000 })
-  await expect(page.getByLabel('Message')).toHaveAttribute('placeholder', 'Write to come back…')
+  await expect(page.getByLabel('Message', { exact: true })).toHaveAttribute('placeholder', 'Write to come back…')
 
   // Work's Ready for you shows the same (0.1.10): the night's report as it goes.
   await rail(page, 'Work').click()

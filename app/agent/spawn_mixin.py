@@ -43,7 +43,7 @@ from app.agent.cards import (
     _then,
     _unasked,
 )
-from app.agent.ctx import Ctx, _NobodyToAsk, _through_stops, _Watch, announce
+from app.agent.ctx import Ctx, _NobodyToAsk, _through_stops, announce
 from app.agent.merge import _merge_file
 from app.agent.summary import (
     _SLASH,
@@ -92,7 +92,6 @@ from app.db.models import (
 from app.limits import another_account, has_room
 from app.limits import window as limit_window
 from app.model_client import EFFORTS, ModelClient, ModelUnavailable, ToolCallRequest
-from app.model_native import claude_tools, inside_name
 from app.proof import PROOF_CALL
 from app.providers import (
     TIERS,
@@ -106,7 +105,6 @@ from app.providers import (
 )
 from app.recipes import model_refused
 from app.roles import (
-    can_change_things,
     chat_teams,
     closed,
     effective_tools,
@@ -829,68 +827,6 @@ class SpawnMixin:
             if not closed(r, teams, named)
         ]
 
-    def _inside_roles(
-        self: "AgentRunner",
-        ctx: Ctx,
-        offered: list[dict],
-        withheld: tuple[str, ...],
-        watch: "_Watch",
-    ) -> dict[str, dict]:
-        """89g: the roles the user lets run inside Claude Code (`Role.inside_cli`), of those
-        this agent may open now (as spawn_agent lists them: `_offered`), as `--agents` takes
-        each - its line, its instructions, its tools (capped by this agent's) as Claude Code's
-        own, and its model where it runs on its Lead's provider. Nothing else of the role's
-        or the user's goes. Each is put on `watch`, where `_approve` holds it to its tools.
-        shortcut: of two roles offered by one name (`inside_name`) only the first is; the other
-        is opened as an agent of KOLONİ's only. None where a spawn_agent of this agent's would
-        be asked about every time, or could not go a level deeper, nor in a job done while the
-        user is away (whose cost nothing here would hold).
-        shortcut: its sub-agents count toward no limit of the turn's (`spawn_max_agents`, a
-        role's steps and tokens): they are its Lead's turn; count them if that is seen to matter."""
-        if (
-            "spawn_agent" not in {tool["function"]["name"] for tool in offered}
-            or ctx.run_id in self._away_jobs
-        ):
-            return {}
-        given: dict[str, dict] = {}
-        with self._factory() as session:
-            own = settings_of(session, session.get_one(Conversation, ctx.cid))
-            if own.spawn_approval == "always" or self._level(ctx) + 1 > own.spawn_max_depth:
-                return {}
-            door, named = self._door(session, ctx), self._names_past(session, ctx)
-            closed_here = self._closed_here(ctx)
-            for role in list_roles(session):
-                name = inside_name(role.name)
-                capped = [t for t in role.tools if t in ctx.tools]
-                tools = claude_tools(capped, withheld)
-                # (No tools at all would be every tool to Claude Code: such a role is not offered.
-                # Nor, under a Lead that hands code on, one that would change things: its Bash
-                # would write in the Lead's folder, past any diff - it is opened as KOLONİ's.)
-                if (
-                    not role.inside_cli
-                    or not tools
-                    or name in given
-                    or closed(role, door, named)
-                    or ("write" in withheld and can_change_things(capped))
-                ):
-                    continue
-                # shortcut: a model on another provider than its Lead's is not given; the Lead's is.
-                model = (
-                    role.model_id
-                    if role.provider_id and (role.provider_id == ctx.provider_id)
-                    else None
-                )
-                if model is None and closed_here:
-                    continue  # (B-385: it would run on its Lead's model, closed to agents)
-                given[name] = {
-                    "description": role.description or shown_name(role.name),
-                    "prompt": role.instructions or role.description or role.name,
-                    "tools": tools,
-                    **({"model": model} if model else {}),
-                }
-                watch.roles[name] = (shown_name(role.name), tools)
-        return given
-
     # --- sub-agents ----------------------------------------------------------
 
     async def _run_from_cli(
@@ -928,139 +864,6 @@ class SpawnMixin:
             waiting = session.get_one(Agent, ctx.agent_id).status in ("waiting", "blocked")
         if waiting:
             self._set_agent(ctx.cid, ctx.agent_id, status="running")
-
-    async def _cli_call(
-        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
-    ) -> tuple[str, str]:
-        """`_run_from_cli`'s call. K-paralel-spawn (measured 27 Oct): Claude Code runs the
-        MCP calls of one message one after another, so its two spawn_agent calls ran one after
-        the other. A spawn_agent is answered as soon as `_see_through` says so - "proposed"
-        while its card waits for the user, "started" once it may start - and the CLI goes on;
-        what came of it comes later as a note, as a request not waited for does
-        (`team_requests`): with the CLI's next tool result (`_deliver`), or - its turn over -
-        in one step more, which `team_requests.woken` holds the turn open for until every one
-        is back. The call's own record still ends with the report. One refused before it is
-        proposed, or one its opener waits for (`_see_through`), is answered as it ends."""
-        if request.name != "spawn_agent" or ctx.answering or ctx.discussion:
-            return await self._run_call(ctx, call_id, request)
-        told = self._opening[call_id] = asyncio.get_running_loop().create_future()
-        work = asyncio.ensure_future(self._run_call(ctx, call_id, request))
-        try:
-            await asyncio.wait((work, told), return_when=asyncio.FIRST_COMPLETED)
-        except asyncio.CancelledError:
-            work.cancel()
-            raise
-        finally:
-            self._opening.pop(call_id, None)
-        if work.done() or not told.done():
-            return await work
-        with self._factory() as session:
-            child_id, name = session.execute(
-                select(Agent.id, Agent.name).where(Agent.tool_call_id == call_id)
-            ).one()
-        later = asyncio.ensure_future(self._comes_later(ctx, child_id, name, work))
-
-        def settled(done: asyncio.Future) -> None:
-            if done.cancelled():  # stopped before its first step, it never awaited the work
-                work.cancel()
-            elif done.exception() is not None:  # (retrieved: whoever dropped it, it is said)
-                log.warning(
-                    "agent %s: the report of %s was not left for it: %r",
-                    ctx.agent_id,
-                    name,
-                    done.exception(),
-                )
-
-        later.add_done_callback(settled)
-        self._answers_out.setdefault(ctx.agent_id, []).append(later)
-        self._later_work.setdefault(ctx.run_id, []).append((ctx.agent_id, child_id, ctx.cid, work))
-        self._lend_slot(ctx)
-        return "succeeded", told.result()
-
-    async def _comes_later(
-        self: "AgentRunner",
-        ctx: Ctx,
-        child_id: str,
-        name: str,
-        work: "asyncio.Future[tuple[str, str]]",
-    ) -> tuple[str, str, str]:
-        """What came of a sub-agent its CLI opener did not wait for, left for it as a note:
-        (who, what it is told, the note's id), as `team_requests.woken` reads it.
-
-        Whose word it is goes by where the text came from, never by what it says: KOLONİ's
-        own only where the sub-agent never ran and the text is KOLONİ's fixed wording with
-        nothing attached (the user's no, an internal error). Anything else - a report, and a
-        no with other leads' reports after it (`_spawn`) - is the sub-agent's note, handed as
-        data (`_from`), under a short KOLONİ word where the sub-agent did not finish."""
-        try:
-            status, said = await work
-        except Exception as exc:  # (a bug of the call's: its opener hears of it, not nothing)
-            log.warning("agent %s: spawn_agent %s failed: %r", ctx.agent_id, child_id, exc)
-            status, said = "failed", INTERNAL
-        await self._take_slot_back(ctx)
-        opener = self._ctxs.get(ctx.agent_id, ctx)
-        with self._factory() as session:
-            child = session.get(Agent, child_id)
-            ran = child is None or child.started_at is not None
-            fixed = (
-                said == INTERNAL
-                or child is not None
-                and said == SPAWN_REJECTED.format(role=child.role_name)
-            )
-        if status != "succeeded" and not ran and fixed:
-            said = SPAWN_ENDED.format(name=name, status=status, said=said)
-            return name, said, self._send(ctx, opener, said, delivered=False, koloni=True)
-        if status != "succeeded":
-            self._send(
-                ctx,
-                opener,
-                SPAWN_ENDED_SEE.format(name=name, status=status),
-                delivered=False,
-                koloni=True,
-            )
-        return (
-            name,
-            said,
-            self._send(replace(ctx, agent_id=child_id), opener, said, delivered=False),
-        )
-
-    def _cancel_later(self: "AgentRunner", run_id: str, agent_id: str | None = None) -> list[tuple]:
-        """Stop the sub-agents CLI openers did not wait for - of one opener, or of the whole
-        turn: nothing of them outlives what opened them. Returns them, for `_stopped_later`."""
-        kept, ending = [], []
-        for one in self._later_work.pop(run_id, []):
-            (ending if agent_id in (None, one[0]) else kept).append(one)
-        if kept:
-            self._later_work[run_id] = kept
-        for one in ending:
-            one[3].cancel()
-        return ending
-
-    async def _stopped_later(self: "AgentRunner", ending: list[tuple]) -> None:
-        """Wait for those `_cancel_later` stopped; one still open on record is `cancelled`
-        the way any agent's work ends (`_set_agent`: what it held is let go)."""
-        await asyncio.shield(asyncio.gather(*(one[3] for one in ending), return_exceptions=True))
-        with self._factory() as session:
-            rows = {
-                agent_id: (run_id, status)
-                for agent_id, run_id, status in session.execute(
-                    select(Agent.id, Agent.run_id, Agent.status).where(
-                        Agent.id.in_([one[1] for one in ending])
-                    )
-                )
-            }
-        for _opener, child_id, cid, _work in ending:
-            if child_id not in rows:
-                continue
-            run_id, status = rows[child_id]
-            # B-313: nor does a card of its own wait at Ready for you after it (a command) - of
-            # one stopped; one that finished is left as it ended.
-            if status != "completed":
-                with contextlib.suppress(Exception):
-                    self._interrupt_open_calls(run_id, cid, child_id)
-            if status not in AGENT_TERMINAL:
-                with contextlib.suppress(Exception):
-                    self._set_agent(cid, child_id, status="cancelled", ended_at=now())
 
     async def _stopped_in_copy(self: "AgentRunner", child: Ctx) -> None:
         """B-405 (live): Stop - the turn's, Stop everything's, its budget's - while an agent works
@@ -2960,24 +2763,6 @@ class SpawnMixin:
                 declined = LEAD_DECLINED.format(why=lead_why[0])
             return "denied", declined + await self._declined(ctx, child)
         return None
-
-    async def _see_through_run(self: "AgentRunner", ctx: Ctx, child: Ctx) -> tuple[str, str | None]:
-        """`_see_through`: the sub-agent's work, in its place among the agents at work."""
-        async with self._working(child, queued=True):
-            self._set_agent(ctx.cid, child.agent_id, status="running", started_at=now())
-            if why := await self._candidate_copy(child):
-                return "failed", why
-            try:
-                ended, error = await self._run_child(child)
-            except asyncio.CancelledError:
-                # B-405: Stop (the turn's, Stop everything's) in its work in a copy.
-                await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
-                raise
-            if ended == "completed" and child.agent_id in self._candidates:
-                # K-evrim: measured as its last act, its place still held - a card
-                # for the command waits as for any command of its own.
-                self._scored[child.agent_id] = await self._measure(child)
-            return ended, error
 
     def _see_through_finished(
         self: "AgentRunner",

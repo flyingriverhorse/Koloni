@@ -63,6 +63,7 @@ async def test_codex_is_asked_to_search_and_only_that(searcher):
     assert off == [one for one in CodexSearch.DISABLED if one != "code_mode_host"]
     assert {"shell_tool", "unified_exec", "apps", "plugins", "hooks", "memories"} <= set(off)
     assert "web_search='disabled'" not in argv  # (a model step's: never a search's)
+    assert argv[argv.index("agents.enabled=false") - 1] == "-c"  # B-304: no sub-agents
 
 
 @pytest.mark.anyio

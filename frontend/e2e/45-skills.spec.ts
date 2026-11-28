@@ -76,8 +76,8 @@ test('a skill is added on the Tools page and given to a role on its row there, a
   // The Lead proposes one: a card with what it holds, and nothing is kept before the yes.
   await rail(page, 'Canvas').click()
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('add the plain skill')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('add the plain skill')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Add this skill?')).toBeVisible()
   await expect(chat.getByText('licence unknown')).toBeVisible()
   await expect(chat.getByText(/Given to: Coder\./)).toBeVisible()

@@ -32,7 +32,7 @@ for (const theme of ['light', 'dark'] as const) {
 
     // Kept: read again from the server after a reload.
     await page.reload()
-    await page.getByLabel('Message').waitFor()
+    await page.getByLabel('Message', { exact: true }).waitFor()
     await open(page)
     await expect(window(page).getByLabel('Team 1').locator('option:checked')).toHaveText('Docs')
     await expect(window(page).getByLabel('Recipe for Docs').locator('option:checked')).toHaveText(
@@ -43,8 +43,8 @@ for (const theme of ['light', 'dark'] as const) {
     // The Lead asks for a Coder: Docs runs Feature (84b-2), whose first step is the Spec writer's, so it is refused
     // and the chat says why: at the turn's end its steps fold, and the first refusal's reason stays in sight under the
     // fold's line (waited for once the turn is over, not while it runs).
-    await page.getByLabel('Message').fill('make farewell')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill('make farewell')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     await expect(chat.locator('details.turn-steps > summary')).toHaveText(/^Completed \d+ steps.*\d+ failed/, {
       timeout: 20_000,

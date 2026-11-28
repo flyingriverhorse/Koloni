@@ -36,6 +36,7 @@ from app.model_native import CodexNativeClient
 from app.model_session import ClaudeSessionClient
 from app.roles import BUILTIN_ROLES, RAN, WHO_SPLITS
 from app.tools import OPENED_TOGETHER, SERVING_TOOLS
+from app.tools_at_work import AT_WORK_TOOLS as AT_WORK  # (the turn tools: 0.1.11)
 from app.workspace import Workspace, WorkspaceError
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -179,7 +180,7 @@ def without_memory(tools):
     before the web tools, which came later still (slice 18c), show (slice 39),
     open_room (slice 29b-2), add_skill (slice 45), the backlog's tools (slice 52),
     ask_folder (slice 75), ask_secret (slice 91), offer_away (slice 106), recall_output
-    (K-gecmis-zengin) and command_output / stop_command (0.1.8)."""
+    (K-gecmis-zengin), command_output / stop_command (0.1.8) and the turn tools (0.1.11)."""
     later = (
         *NEW_TOOLS,
         "web_search",
@@ -197,12 +198,13 @@ def without_memory(tools):
         "offer_away",
         "recall_output",
         *SERVING_TOOLS,
-        *("run_checks", "read_status"),  # (0.1.9)
+        *("run_checks", "read_status", *AT_WORK),  # (0.1.9; the turn tools: 0.1.11)
     )
     if tools and isinstance(tools[0], str):
         return [name for name in tools if name not in later]
     kept = json.loads(json.dumps([t for t in tools if t["function"]["name"] not in later]))
     for tool in kept:
+        tool["function"].get("parameters", {}).get("properties", {}).pop("background", None)
         if tool["function"]["name"] == "run_command":
             # A command that keeps running came later (slice 42b): one more input, no other word.
             tool["function"]["parameters"]["properties"].pop("keep_running", None)
@@ -900,7 +902,7 @@ def test_a_flaky_test_koloni_noted_is_read_in_the_memory_list(mem):
     listed = mem.client.get(f"/api/projects/{mem.pid}/memory")
     assert listed.status_code == 200, listed.text
     (note,) = [one for one in listed.json()["journal"] if one["origin"] == "auto"]
-    assert note["noted_by"] == {"provider_name": "KOLONİ", "model_id": None}
+    assert note["noted_by"] == {"provider_name": "KOLONİ", "model_id": None, "quote": None}
     assert kept.summariser(note["noted_by"]) == "KOLONİ"
 
 
@@ -2050,10 +2052,8 @@ def cli_memory(cli_app, kind, script, project_dir, wait_run, **plan):
     assert "Sign every commit." in document["instructions"]
     assert '- "the port is 8790" (written by the user on ' in document["instructions"]
     # (every agent's: K-gecmis-zengin - and after them a session's command_output / stop_command)
-    assert [t for t in seen["tools"] if t not in SERVING_TOOLS][-3:] == [
-        *NEW_TOOLS,
-        "recall_output",
-    ]
+    kept = [t for t in seen["tools"] if t not in (*SERVING_TOOLS, *AT_WORK)]
+    assert kept[-3:] == [*NEW_TOOLS, "recall_output"]
     return snap, seen, client.get(f"/api/projects/{pid}/memory").json(), client
 
 

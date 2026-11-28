@@ -16,12 +16,14 @@ how they hang together.
 
 **Chat**
 : One conversation with the Orchestrator, in a project. Each chat has its own permission level, and
-  other folders can join it, read only or read & write. While agents work, a new message waits in a
-  queue. See [Chat and canvas](../use/chat-and-canvas.md).
+  other folders can join it, read only or read & write. While agents work, **Send now** puts a new
+  message into the turn at work, and **After this turn** keeps it in a queue for a turn of its own. See
+  [Chat and canvas](../use/chat-and-canvas.md) and [Talking while agents work](../use/talk-while-agents-work.md).
 
 **Turn**
-: Everything that happens for one message: the Orchestrator's answer, the agents it opened, their
-  tools, commands and changes. The canvas draws one turn at a time, from what really happened.
+: Everything that happens for one message, and for those you send into it with **Send now**: the
+  Orchestrator's answer, the agents it opened, their tools, commands and changes. The canvas draws one
+  turn at a time, from what really happened.
   See [Chat and canvas](../use/chat-and-canvas.md).
 
 ## Who does the work

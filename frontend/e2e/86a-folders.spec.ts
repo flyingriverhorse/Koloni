@@ -9,7 +9,7 @@ test('KOLONİ opens with no setup page; a plain chat is given no file tools; a f
 }) => {
   // 1. A start, whatever is there: no "Open a project" page, the chat's box and the folder button.
   await page.goto(LINK)
-  await expect(page.getByLabel('Message')).toBeVisible()
+  await expect(page.getByLabel('Message', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Folder: / })).toBeVisible()
   await expect(page.getByLabel('Project folder')).toHaveCount(0)
 

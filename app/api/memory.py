@@ -3,14 +3,17 @@ forward, and set the standing rules. Every change here is the user's own - so ev
 that changes something takes only a request that says it comes from the app's own page
 (`require_own_origin`). Reading is open."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app import earlier, koloni, project_notes, views
+from app import earlier, koloni, preference_words, project_notes, views
 from app import memory as kept
 from app.agent import announce_memory
 from app.api.deps import get_session, require_own_origin
-from app.db.models import Memory, Project
+from app.db.models import Memory, Message, Project
 from app.schemas import (
     MemoryApproveIn,
     MemoryIn,
@@ -23,6 +26,7 @@ from app.schemas import (
     RulesIn,
     RulesOut,
 )
+from app.serialize import message_out
 
 router = APIRouter(prefix="/api", tags=["memory"])
 
@@ -256,4 +260,53 @@ async def correct(
         changes.pop("text", None)
     return _done(
         request, session, project, lambda: kept.correct(session, project.root_path, record, changes)
+    )
+
+
+# --- New preferences from your words (suggest_preference, the user's setting, 28 Nov) ----------
+
+
+class FromWordsOut(BaseModel):
+    # "add": your own sentence is added at once, with Undo in the chat (the default); "ask": a card.
+    mode: Literal["add", "ask"]
+
+
+@router.get("/preferences/from-words", response_model=FromWordsOut)
+def read_from_words(session: Session = Depends(get_session)):
+    return {"mode": preference_words.mode(session)}
+
+
+@router.put(
+    "/preferences/from-words",
+    response_model=FromWordsOut,
+    dependencies=[Depends(require_own_origin)],
+)
+def set_from_words(body: FromWordsOut, session: Session = Depends(get_session)):
+    """The user's setting, for every project: what the Orchestrator does with a preference you
+    state - add your sentence at once, or ask you first."""
+    preference_words.choose(session, body.mode)
+    session.commit()
+    return {"mode": preference_words.mode(session)}
+
+
+@router.post(
+    "/preference-lines/{message_id}/undo",
+    status_code=204,
+    dependencies=[Depends(require_own_origin)],
+)
+async def undo_preference_line(
+    message_id: str, request: Request, session: Session = Depends(get_session)
+):
+    """Undo on KOLONİ's "Added to your preferences: …" line: exactly that line out of Your
+    preferences, the chat's line marked undone - only from the app's own page."""
+    message = session.get(Message, message_id)
+    if message is None:
+        raise HTTPException(404, "no such line")
+    try:
+        preference_words.undo(session, message)
+    except kept.Refused as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    session.commit()
+    request.app.state.bus.emit(
+        message.conversation_id, message.run_id, "message.completed", message_out(message)
     )

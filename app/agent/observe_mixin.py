@@ -29,7 +29,7 @@ from app.agent.merge import (
     _put_back,
     _restore,
 )
-from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, IN_THE_PROJECT, STEERED, UNFINISHED
+from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, IN_THE_PROJECT, UNFINISHED
 from app.changes import DELETED_SHA
 from app.commands import (
     MAX_STORED_OUTPUT,
@@ -56,13 +56,6 @@ HANDS_CODE_WROTE = (
     "Your own command changed {paths} - yours, as the Orchestrator, not a sub-agent's. It is "
     "kept, on record as yours; but the Orchestrator hands code on here: have a helper make "
     "changes to files - call spawn_agent with role Coder and the whole task."
-)
-
-# K-fikir-okunmamis: the agent that sent a message is told, where the turn it was sent into
-# ended before it read it.
-UNREAD_TOLD = (
-    "KOLONİ: {name} finished its turn before it read your message ({words}); it is on "
-    "its record, read if it is gone on with."
 )
 
 # A tool of a CLI's own that it said it started and never said it ended.
@@ -776,9 +769,6 @@ class ObserveMixin:
         if kind == "structured_report":  # (89p, 93-B6: `ClaudeNativeClient._control`)
             await self._observe_report(ctx, transcript, item)
             return
-        if kind == "steer_unread":  # (89d: its turn ended on what `steer` sent it)
-            self._observe_unread(ctx, transcript, item)
-            return
         await self._observe_use(ctx, transcript, watch, phase, item, kind)
 
     async def _observe_report(
@@ -806,30 +796,6 @@ class ObserveMixin:
             self._schema_reports[ctx.agent_id] = item["report"]  # (what `_found` reads)
             if item["report"]["report"].strip():  # (else its words stand: `report_line`)
                 await transcript.on_text(item["report"]["report"].strip())  # (its last word)
-
-    def _observe_unread(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", item: dict
-    ) -> None:
-        """`_observe`: its turn ended before it read what `steer` sent it (89d)."""
-        words = str(item.get("text") or "").removeprefix(f"{STEERED}\n\n")
-        self._note(
-            ctx,
-            transcript,
-            "steer",
-            {},
-            "failed",
-            f"{ctx.name or ctx.role} finished before it read: {words}",
-        )
-        by = self._steered_by.pop(ctx.agent_id, None)
-        if by is not None and by[1] == words and (sender := self._ctxs.get(by[0])):
-            # (B: the agent that sent it is not left believing it was acted on.)
-            self._send(
-                sender,
-                sender,
-                UNREAD_TOLD.format(name=ctx.name or ctx.role, words=quoted(by[2][:200])),
-                delivered=False,
-                koloni=True,
-            )
 
     async def _observe_use(
         self: "AgentRunner",
@@ -883,10 +849,12 @@ class ObserveMixin:
             name = re.sub(r"[^A-Za-z0-9_-]", "_", f"{item.get('server')}__{item.get('tool')}")
             said = _as_dict(item.get("arguments"))
             # 89g: one of the roles offered to it: which, on its record beside what it asked
-            # - by KOLONİ only: one the model wrote into its own input is not kept.
+            # - by KOLONİ only: one the model wrote into its own input is not kept. (Claude
+            # Code's Agent names it subagent_type, Copilot's task agent_type: `OwnAgents`.)
             given = {key: value for key, value in said.items() if key != "koloni_role"}
             asked = watch.asked_other.pop(use_id, None)
-            if role := watch.roles.get(str(given.get("subagent_type"))):
+            kind = "agent_type" if item.get("server") == "copilot" else "subagent_type"
+            if role := watch.roles.get(str(given.get(kind))):
                 given = {**given, "koloni_role": role[0]}
             if asked and (role or "koloni_role" in said):
                 self._set_call(ctx.cid, asked, arguments=json.dumps(given))

@@ -36,6 +36,8 @@ import { judgeWordsOf } from './levels'
 import { Earlier } from './Earlier'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { ChatStoryStrip } from './StoryStrip'
+import { AtWorkLine } from './AtWorkLine'
+import { PreferenceAsk } from './PreferenceAsk'
 import { DecidedLine } from './DecidedLine'
 import { toFront } from '../shell/move'
 import { testsRun } from '../shell/sections/afterChangeWords'
@@ -588,6 +590,7 @@ export function ChatPanel() {
         <WidthEdge open={open} />
         <ChatTabs tab={tab} handoffs={handoffs} notes={notes} count={count} onHide={toggle} />
         <ChatStoryStrip conv={conv} tab={tab} />
+        <AtWorkLine conv={open ? conv : null} />
         {/* Decided for you, in one line: Ready for you says each (karar defteri). */}
         <DecidedLine conv={conv} />
         {/* The tab's own content scrolls in what the tabs and the message box leave (base.css .chat-pane). */}
@@ -598,6 +601,8 @@ export function ChatPanel() {
       </div>
       {/* The Orchestrator's question, just over the message box (0.1.5). */}
       <AskCard conv={conv} open={open} tab={tab} onAnswer={app.answerQuestion} />
+      {/* suggest_preference: a line for your preferences from your own words, yours to Add. */}
+      <PreferenceAsk conv={conv} open={open} />
       {/* 0.1.8: the chat's To-do queue, over the box: what waits, and that your message goes first. */}
       <ChatTodoQueue conv={conv} open={open} />
       {/* Open, under the chat; closed, the small box's one line - the same box, the same draft. */}
@@ -606,13 +611,18 @@ export function ChatPanel() {
         unseen={unseenOn(chosen)}
         running={conv !== null && activeRun(conv) !== null}
         permissionMode={conv?.conversation.permission_mode ?? 'ask'}
-        onSend={async (content, fresh, overBudget, files) => {
+        onSend={async (content, fresh, overBudget, files, now) => {
           // Auto-read of a short summary: the Lead is asked for the line to say, in the language and manner chosen.
-          await useApp
-            .getState()
-            .send(content, { ...topicOf(fresh), ...spokenOf(), ...(overBudget && { over_budget: true }), ...files })
+          const why = await useApp.getState().send(content, {
+            ...topicOf(fresh),
+            ...spokenOf(),
+            ...(overBudget && { over_budget: true }),
+            ...files,
+            ...(now && { now: true }),
+          })
           // Writing into a trigger's topic was chosen for that one message.
           setInto(null)
+          return why
         }}
         topic={goesTo}
         other={other}

@@ -16,7 +16,9 @@ way, and where that ends.
   sending data off the machine) is a courtesy for honest commands, not a wall: a command written to hide
   what it does is not seen. [Full auto's judge](../use/permissions.md#full-autos-judge), on by default,
   also asks a small model about each command that list does not stop - since 0.1.10 a delete in the
-  project, git work thrown away and a stop by name too, which the list asked of before - and refuses one
+  project, git work thrown away and a stop by name too, which the list asked of before, and since
+  0.1.11 [a plain push of your feature branch](../use/permissions.md#a-push-of-your-feature-branch) to
+  its origin (never `main`, `master` or origin's default branch, never forced) - and refuses one
   it finds risky, or puts it on a card. It catches more, and it is a net, not a wall either: a model can call a risky command fine, and
   then it runs. Use Full auto only for work you are ready to let run.
 - For a wall against a deliberate attacker on your own account, run agents' commands in Docker, or run
@@ -134,10 +136,26 @@ of these is a wall: a script in the job reaches your repository as you could. Se
 ## Files that steer later turns
 
 Some files change what agents, git or your editor do later, by themselves. Writing them asks at every
-level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vscode/`, `.husky/`,
-`.mcp.json`, commit-hook settings (`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's
-`.pth` files in `site-packages`, and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except
-at Full auto. On Windows, device names (`CON`, `COM1`) and file streams (`a.txt:x`) are never written.
+level: `.claude/`, `.codex/`, `.gemini/`, `.copilot/`, `.git/`, `.github/`, `.vscode/`, `.idea/`,
+`.devcontainer/` (and `.devcontainer.json`), `.husky/`, `.gitmodules`, `.cargo/`, `.mvn/`, Gradle's wrapper
+(`gradle-wrapper.properties`, `gradle-wrapper.jar`), `.bazelrc`, `.bazelversion`, `.mcp.json`,
+commit-hook settings (`.pre-commit-config.yaml`, `lefthook.yml`, `.lintstagedrc`), Python's `.pth` files
+in `site-packages`, and `.koloni/`. `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` ask too, except at Full
+auto. So does setting git's settings (`git config` with a value), and since 0.1.11 a `git remote` that
+changes `origin` - `add`, `set-url`, `remove` / `rm`, `rename`, `set-head`, `set-branches` -, where a
+push of your feature branch goes ([Full auto's judge](../use/permissions.md#a-push-of-your-feature-branch));
+another remote's (`git remote add upstream …`) does not. A project's own `gradlew` or `mvnw` does not:
+`./gradlew test` is ordinary work. One written
+without being named is put back after the command - but in `.idea/`, which a JetBrains IDE rewrites
+itself: there only a write or a command that names it asks. On Windows, device names (`CON`, `COM1`) and
+file streams (`a.txt:x`) are never written.
+
+An approved `git submodule add`, `set-url` or `set-branch` may write `.gitmodules`, and the `git
+submodule` verbs that write git's config (`add`, `init`, `sync`, `set-url`, `set-branch`, `deinit`,
+`update --init`) may change `.git/config`. Any other `git submodule` line (`foreach …`, `status`) has a
+change to `.git/config` put back - the command it runs could set a program git runs (`core.fsmonitor`).
+A line with a git command that runs one it is handed - `git submodule foreach`, `git rebase -x`, `git
+bisect run`, `git difftool -x`, `git grep -O`, `git filter-branch` - has every such write put back.
 
 ## Secrets
 
@@ -224,6 +242,24 @@ What is not framed:
   KOLONİ names its own (`koloni_…`, `cli_…`) gets an id of its own when it is recorded.
 - **MCP servers** you have not trusted ask before every call. But a server itself runs with your rights,
   outside KOLONİ's cards.
+- **A word sent into a turn at work** (Send now) is taken only from the app's own page: from anywhere
+  else it is refused, and an agent's message is never read as yours. It enters only the turn of the
+  chat it was written in, never a job while you're away; it does not make a turn yours that was not.
+  The Orchestrator's steps that answer it are refused Write files, Edit files, Diagram pictures, Run
+  commands, a skill's script, Web requests and any MCP server's tool (Remember and the To-do's tools
+  stay: they wait for your OK). **Stop** on one agent is yours from the app's
+  own page; the Orchestrator's `stop_agent` stops only an agent it opened itself in this turn, never
+  KOLONİ's own checks. A background agent's desktop notice says only its name and how it ended
+  ([Talking while agents work](../use/talk-while-agents-work.md)).
+- **The Orchestrator's own tools beside its agents** (0.1.11). `agents_at_work` reads only this turn's
+  agents; their last words come back quoted, cut and masked. `ask_advisor` sends the Orchestrator's
+  summary, question and last steps to another model - by default on another provider -, masked, with
+  no tools, three times a turn at most; its answer is quoted as data, never an order. `note_decision`
+  only adds a row to Decided for you, its words masked and cut; the row changes nothing, and its **OK**
+  and **Change** are yours alone, from the app's own page - a Change puts no word of the
+  Orchestrator's into a message of yours. `read_pr_feedback` only reads, with your own `gh`, a pull
+  request of the project's own repository; what reviewers and checks wrote is framed as data, masked
+  and cut, and there is no way to reply with it.
 
 ## Where protection ends
 
@@ -258,9 +294,11 @@ What is not framed:
   command the CLI reports. Everything but your own words reaches it marked as an agent's data, but text
   written to steer a model can still sway one.
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
-  about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
-  safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its
-  own tools reads without asking. Copilot on
+  about at every level. Exceptions: when it runs **Native**, Codex runs a command an allow rule of its
+  own covers without asking KOLONİ (0.172.0 asked before a read of `.env`, measured 27 Nov 2026; older
+  versions, said to run their own safe commands unasked, were not measured again); agy reading with its
+  own tools reads without asking.
+  Copilot on
   its newer protocol (1.0.114 on) asks nothing of a command it counts as read-only, a read of a secret
   among them: KOLONİ's own hook makes it ask before every tool, and a tool that still ran without KOLONİ
   being asked stops the turn. A script

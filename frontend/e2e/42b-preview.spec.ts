@@ -20,8 +20,8 @@ async function stopServing(page: Page, id: string) {
 
 async function start(page: Page, words: string) {
   const chat = chatOf(page)
-  await page.getByLabel('Message').fill(words)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill(words)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('Run this command?')).toBeVisible({ timeout: 20_000 })
   await expect(chat.getByText('keeps running, serves a page')).toBeVisible()
   // (no rule covers a server: it is asked every time)
@@ -119,8 +119,8 @@ for (const theme of ['light', 'dark'] as const)
 test('a page an agent shows is previewed in Workspace, by its sandbox and Run once', async ({ page }) => {
   test.setTimeout(60_000)
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('show the game')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('show the game')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   // (opened by itself on it, its folder opened)
   const view = viewOf(page)
   await expect(view.getByRole('tab', { name: 'index.html' })).toHaveAttribute('aria-selected', 'true', {
@@ -140,8 +140,8 @@ test('K-39-betik: a page’s script is asked about - Run once, Always run in thi
 }) => {
   test.setTimeout(60_000)
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('show the game')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('show the game')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const view = viewOf(page)
   await expect(view.getByRole('tab', { name: 'index.html' })).toHaveAttribute('aria-selected', 'true', {
     timeout: 20_000,

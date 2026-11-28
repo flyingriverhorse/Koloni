@@ -160,7 +160,11 @@ def conversation(messages: list[dict]) -> list[dict]:
     """The conversation as a CLI's prompt holds it: without the files its model is sent as
     they are (`files`, KOLONİ's own paths) - a CLI is given those its own way (slice 85c:
     `claude_content`, `image_copies`)."""
-    return [{k: v for k, v in m.items() if k != "files"} for m in messages if m["role"] != "system"]
+    return [
+        {k: v for k, v in m.items() if k not in ("files", "steered")}
+        for m in messages
+        if m["role"] != "system"
+    ]
 
 
 def claude_content(prompt: str, messages: list[dict]) -> str | list[dict]:
@@ -1163,6 +1167,15 @@ class CodexCliClient(CliStepClient):
         "in_app_browser",
         "in_app_local_automation",
     )
+    # B-304: none of its own sub-agents, here and Native (`CodexNativeClient._native_arguments`).
+    # Measured 27 Nov 2026 (Codex 0.172.0, app-server, gpt-6-luna): with `multi_agent` off (a
+    # deprecated v1 switch: its models take multi-agent v2) it still opened one when asked - a
+    # second thread, `collabAgentToolCall` items; with `agents.enabled=false` too it had no such
+    # tool. Both are given: an older Codex reads the feature.
+    # shortcut: the key on a Codex before 0.172.0 is not measured; one that refuses it says so as
+    # it starts - drop it there then. Nor is it measured with `codex exec`: step by step (where no
+    # tool of its own runs without its code-mode host anyway) and its search.
+    NO_AGENTS = ("-c", "agents.enabled=false")
     # Measured 4 Nov 2026 (R182): one stderr line for each refused attempt. (Not stdout's
     # `error` item "Code Mode is unavailable because code-mode host is disabled", which every
     # run writes as it starts: no attempt.)
@@ -1214,6 +1227,7 @@ class CodexCliClient(CliStepClient):
         ]
         for feature in self.DISABLED:
             arguments += ["--disable", feature]
+        arguments += self.NO_AGENTS
         arguments += ["-c", "web_search='disabled'"]  # (not `CodexSearch`'s: its own arguments)
         # The user's own MCP servers would be tools KOLONİ neither approves nor records.
         for name in self._own_mcp_servers():
@@ -1345,6 +1359,7 @@ class CodexSearch(_Searches, CodexCliClient):
         for feature in self.DISABLED:
             if feature != "code_mode_host":
                 arguments += ["--disable", feature]
+        arguments += self.NO_AGENTS
         for name in self._own_mcp_servers():
             arguments += ["-c", f"mcp_servers.{name}.enabled=false"]
         arguments += codex_skills_off(self._env)
@@ -1413,3 +1428,26 @@ class ClaudeSearch(_Searches, ClaudeCliClient):
     def _read(self, stdout: str) -> tuple[object, int | None, int | None]:
         result = next((e for e in reversed(_events(stdout)) if e.get("type") == "result"), {})
         return (None if result.get("is_error") else result.get("result")), None, None
+
+
+def since_its_last_word(messages: list[dict]) -> list[dict]:
+    """What a session it goes on in has not seen: what came after its last answer (but the
+    results of that answer's tool calls, which it was handed then, and the user's words it read
+    steered into its turn: `steered`). [] where it has none, or nothing came since: then it
+    starts anew."""
+    talk = [m for m in messages if m["role"] != "system"]
+    last = next(
+        (at for at in range(len(talk) - 1, -1, -1) if talk[at]["role"] == "assistant"), None
+    )
+    if last is None:
+        return []
+    new = talk[last + 1 :]
+    while new and new[0]["role"] == "tool":
+        new = new[1:]
+    return [one for one in new if not one.get("steered")]
+
+
+# How Claude Code's shell tools begin the result of a command that failed.
+# shortcut: from its tool results as known, not measured here (no CLI in tests); measure it
+# on the next live run if a failed command still says "no exit code reported".
+CLAUDE_EXIT = re.compile(r"(?:Error: )?Exit code (-?\d+)\b")

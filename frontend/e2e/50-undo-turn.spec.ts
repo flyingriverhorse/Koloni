@@ -14,8 +14,8 @@ test('a message’s changes are undone from ↺ beside it, and the conversation 
   const chat = page.getByRole('region', { name: 'Chat' })
 
   // A turn that changes hello.py, approved.
-  await page.getByLabel('Message').fill('flip the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('flip the greeting')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await chat.getByRole('button', { name: 'Approve' }).click()
   await expect(chat.getByText('Updated the greeting in hello.py.')).toBeVisible()
   expect(hello()).not.toBe(before)
@@ -36,8 +36,8 @@ test('a message’s changes are undone from ↺ beside it, and the conversation 
   await expect(undo).toHaveCount(0)
 
   // Another turn; then the conversation is put back to before it, from Recent. The chat stays.
-  await page.getByLabel('Message').fill('flip the greeting once more')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('flip the greeting once more')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await chat.getByRole('button', { name: 'Approve' }).click()
   await expect(chat.getByText('Updated the greeting in hello.py.')).toHaveCount(2)
   expect(hello()).not.toBe(before)

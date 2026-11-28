@@ -118,7 +118,7 @@ test('a project’s chat says it in one line - no box -, and Ready for you opens
   })
   render(<WaitingList state={inProject} on={on} onDecidePlan={vi.fn()} known={known} />)
   expect(screen.queryByRole('region', { name: /Decided for you/ })).toBeNull()
-  expect(screen.getByText('While you were away, 5 things were decided for you in this project.')).toBeInTheDocument()
+  expect(screen.getByText('5 things were decided for you in this project.')).toBeInTheDocument()
   const asked = vi.fn()
   window.addEventListener(OPEN_DECISIONS, asked)
   await userEvent.click(screen.getByRole('button', { name: 'Open in Ready for you' }))
@@ -129,12 +129,8 @@ test('a project’s chat says it in one line - no box -, and Ready for you opens
 
 test('the line counts what was decided and what waits besides, and is not there where nothing was decided', () => {
   useApp.setState({ board: null })
-  expect(decidedSentence(3, 2)).toBe(
-    'While you were away, 3 things were decided for you in this project and 2 wait for you here.',
-  )
-  expect(decidedSentence(1, 1)).toBe(
-    'While you were away, 1 thing was decided for you in this project and 1 waits for you here.',
-  )
+  expect(decidedSentence(3, 2)).toBe('3 things were decided for you in this project and 2 wait for you here.')
+  expect(decidedSentence(1, 1)).toBe('1 thing was decided for you in this project and 1 waits for you here.')
   const quiet = convState({ conversation, runs: [run('r', 'running')] })
   const { container } = render(<DecidedLine conv={quiet} />)
   expect(container).toBeEmptyDOMElement()
@@ -168,7 +164,7 @@ test('OK takes it off; Change sends your choice while the agent is at work; else
   expect(ok).toHaveBeenCalledWith('slow')
 })
 
-test('Change is offered where a CLI at work hears it, and sent while it works; not into Copilot’s or agy’s own (89d, B-164)', async () => {
+test('Change is offered where a CLI at work hears it, and sent while it works; not into agy’s own (89d, B-164)', async () => {
   const providers = [
     { name: 'Claude', kind: 'claude_cli' },
     { name: 'Copilot', kind: 'copilot_cli' },
@@ -197,7 +193,6 @@ test('Change is offered where a CLI at work hears it, and sent while it works; n
   const at = (provider_name: string, provider_mode: string) =>
     render(<WaitingList state={cli(provider_name, provider_mode)} on={on} onDecidePlan={vi.fn()} known={known} />)
   for (const [name, mode] of [
-    ['Copilot', 'native'],
     ['agy', 'reads'],
     ['agy', 'native'],
   ]) {
@@ -208,6 +203,7 @@ test('Change is offered where a CLI at work hears it, and sent while it works; n
   }
   for (const [name, mode] of [
     ['Copilot', 'session'],
+    ['Copilot', 'native'], // (0.1.11: its word goes into its running turn, measured on 1.0.114)
     ['Claude', 'native'],
   ]) {
     const { rerender, unmount } = at(name, mode)

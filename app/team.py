@@ -30,7 +30,6 @@ from app.providers import (
     list_providers,
     mode_of,
     resolved,
-    works_with_own_tools,
 )
 from app.roles import LEAD, LEAD_KIND, shown_name
 
@@ -525,15 +524,13 @@ def _in_the_way(
     )
 
 
-def _role_list(role: Role | None, by_entry: dict, by_id: dict, held: set) -> tuple[list, list]:
+def _role_list(role: Role | None, by_entry: dict, by_id: dict) -> tuple[list, list]:
     """For `would_run`: the role's list of models as it may be tried now, and why the rest not."""
     preferred, dropped = [], []  # (the role's list as it may be tried now, and why the rest not)
     for one in (role.models if role else None) or []:
         entry = by_entry.get(one["provider_id"])
         if entry is None:
             dropped.append("a model of the role's list is not in the team guide")
-        elif one["provider_id"] in held:
-            dropped.append(f"{entry.name} works with tools of its own, which nobody watches")
         elif (refused := not_listed(by_id[entry.provider_id], one["model_id"])) is not None:
             dropped.append(refused.to_agent.split(":")[0])
         elif closed_to_agents(by_id[entry.provider_id], one["model_id"]):  # (B-385)
@@ -547,7 +544,6 @@ def would_run(
     session: Session,
     role: Role | None,
     conversation: Conversation | None,
-    unattended: bool = False,
     tools: Iterable[str] | None = None,
     tier: str | None = None,
     step: Providers | None = None,
@@ -566,11 +562,10 @@ def would_run(
     the guide is the most there ever is. It also says what stands in the way now: of the
     role's own model (`refused`, `cannot_open`), and of a pick (`cannot_pick`).
 
-    What its caller knows of the agent goes into that: `unattended`, a turn nobody
-    watches, and `tools`, what the agent will really have (never more than its opener may hand on).
-    Left out: a turn the user watches and the role's own tools, which is what the table
-    shows. A tier's model that could not run under them is passed over, and so (B-301) is a
-    provider not the role's own that could not: the next one in the user's order is taken.
+    What its caller knows of the agent goes into that: `tools`, what the agent will really
+    have (never more than its opener may hand on). Left out: the role's own tools, which is what
+    the table shows. A tier's model that could not run under them is passed over, and so (B-301)
+    is a provider not the role's own that could not: the next one in the user's order is taken.
     `step`: the clients, where the agent is a recipe's step - a provider it would work in the
     project itself on (`only_in_project`) is passed over too, as `_propose` refuses it."""
     provider, model_id, source = resolved(session, role, conversation)
@@ -592,9 +587,6 @@ def would_run(
         if (why := _in_the_way(role, step, has, mode, by_id[entry.provider_id]))
     }
     would = Would(provider, model_id, source, entries, None, blocked)
-    # With nobody watching no CLI at work with tools of its own runs at all
-    # (`AgentRunner._cannot_be_held`): a tier does not land on one.
-    held = {one.id for one in providers if unattended and works_with_own_tools(one)}
     # What stands in a tier's way (81c).
     past = {e.name: why for e in whole if (why := over_limit(session, by_id[e.provider_id]))}
     used = {e.name: why for e in whole if (why := plan_used(session, by_id[e.provider_id]))}
@@ -605,7 +597,7 @@ def would_run(
         if (why := looked.get(e.provider_id))
     }
     by_entry = {e.provider_id: e for e in whole}
-    preferred, dropped = _role_list(role, by_entry, by_id, held)
+    preferred, dropped = _role_list(role, by_entry, by_id)
     would = replace(
         would,
         past_limit=past,
@@ -615,9 +607,8 @@ def would_run(
         says_blocked=role is None or role.name != LEAD,
         preferred=tuple(preferred),
     )
-    among = replace(would, pick_from=[e for e in entries if e.provider_id not in held])
     # The role's list first, where the opener gave no tier (the Lead's tier wins, as today).
-    first, passed = among._with_room(preferred) if preferred and tier is None else (None, [])
+    first, passed = would._with_room(preferred) if preferred and tier is None else (None, [])
     if tier is None:
         passed = [*dict.fromkeys(dropped), *passed]
     if first:
@@ -631,7 +622,7 @@ def would_run(
             moved=f"{'; '.join(passed)}: {why}" if passed else why,
         )
     wanted = tier_for(role, tier) if source != "role" else None
-    found, moved = among.pick(wanted) if wanted else (None, None)
+    found, moved = would.pick(wanted) if wanted else (None, None)
     if not found and moved:
         moved += (
             ": the conversation's model" if source == "conversation" else ": the default provider"
@@ -655,7 +646,7 @@ def would_run(
         # and why said (`moved`). The role's own model is the user's rule: kept, and refused.
         fit = [
             e
-            for e in among.pick_from
+            for e in would.pick_from
             if e.name not in blocked
             and e.name not in past
             and e.name not in used
@@ -698,7 +689,7 @@ def would_run(
             ),
         )
         # (An agent that picks may still pick one that is open: it is told so, the user not.)
-        refused = ClosedToAgents(said, said + (PICK_AN_OPEN_ONE if among.pick_from else ""))
+        refused = ClosedToAgents(said, said + (PICK_AN_OPEN_ONE if would.pick_from else ""))
     return replace(would, refused=refused, cannot_open=cannot)
 
 

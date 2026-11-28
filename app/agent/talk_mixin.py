@@ -14,6 +14,7 @@ from sqlalchemy import func, literal_column, select, update
 from app import (
     backlog,
     board,
+    command_wait,
     copies,
     git,
     injection,
@@ -26,12 +27,14 @@ from app import (
     topics,
     views,
 )
+from app.agent import message_modes
 from app.agent.cards import _changes_nothing
 from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
 from app.agent.words import CANT_UNDO, FROM, HANDED, LEADS_LATER, NOT_HEARD
 from app.api.recipes import agents_of
 from app.command_runner import longest_seconds
+from app.command_wait import COMMAND_OUTPUT_SCHEMA
 from app.db.models import (
     Agent,
     BoardPost,
@@ -44,6 +47,7 @@ from app.db.models import (
     ShownFile,
     now,
 )
+from app.delivery import NOT_SENT, TAKEN, UNKNOWN
 from app.discussion import MEMORY_HEAD
 from app.providers import list_providers
 from app.roles import LEAD, ORCHESTRATOR, closed, list_roles, pickable, team_roles, tools_off
@@ -54,7 +58,6 @@ from app.tools import (
     ATTACHMENTS_PROPERTY,
     ATTACHMENTS_UNREAD,
     CAN,
-    COMMAND_OUTPUT_SCHEMA,
     FOLDER_PROPERTY,
     MAX_MESSAGE_CHARS,
     ON_BRANCH_PROPERTY,
@@ -78,11 +81,25 @@ if TYPE_CHECKING:
 
 # 89d B: a message of the agent it works for, into a CLI's turn (a user line): not the user's.
 AGENT_STEERED = "{message}\n\n(An agent's words, passed on by KOLONİ - not the user's.)"
+NO_REPLY = "It does not reply unless it messages you; go on with your own work."
 SENT_WHILE_IT_WORKS = (
-    "sent while it works: written into {name}'s current turn - not yet that it read it; if it "
-    "finishes first, you are told. It does not reply unless it messages you; go on with your "
-    "own work."
+    "sent while it works: written into {name}'s current turn - not yet known that it took it; "
+    "you are told once it is. " + NO_REPLY
 )
+# C2: what came of a message written into a CLI's turn, once its CLI shows it: its tool's result
+# where it is known by then (`_steer_message`), else KOLONİ's note to its sender (`_message_went`).
+# KOLONİ never sends one again.
+MESSAGE_WENT = {
+    TAKEN: "{name} took your message ({words}) into its turn: it is read in its turn",
+    NOT_SENT: (
+        "your message ({words}) did not reach {name}'s turn: it is handed to {name} at its next "
+        "step, if it takes one"
+    ),
+    UNKNOWN: (
+        "{name}'s turn ended before it showed it took your message ({words}): it may not have "
+        "read it; it is not sent again"
+    ),
+}
 
 # A Claude Code's or Codex's door that did not take it: its turn is over, or about to be.
 TURN_ENDING = "{name}'s turn is ending; try again once it has finished"
@@ -192,6 +209,9 @@ class TalkMixin:
         command_id = args.get("id")
         if not isinstance(command_id, str) or not command_id.strip():
             raise ToolError("missing required argument: id")
+        waits = command_wait.until_of(args) if name == "command_output" else None
+        if (later := self._command_later_of(ctx, command_id.strip())) is not None:  # (Task 8)
+            return await self._command_later_call(ctx, name, later, args.get("since"), waits)
         command = self.commands.server(ctx.cid, command_id.strip())
         if name == "stop_command":
             return await self.commands.stop_own(command, ctx.agent_id)
@@ -206,7 +226,15 @@ class TalkMixin:
         if command.tool_call_id is None:
             raise ToolError("no earlier output of this conversation has that id")
         self._recallable_call(ctx, command.tool_call_id)
-        return self.commands.output_of(command, since)
+        if waits is None:
+            return self.commands.output_of(command, since)
+        seen = await command_wait.waited(  # (in what it may read: kept, its secrets hidden)
+            lambda: self.commands.live_outputs(ctx.cid).get(command.id),
+            *waits,
+            since,
+            lambda: command_wait.kept_output(self._factory, command.id),
+        )
+        return seen + self.commands.output_of(self.commands.server(ctx.cid, command.id), since)
 
     def _offered(
         self: "AgentRunner", ctx: Ctx, tools, always: bool = False, show: bool = False
@@ -351,6 +379,7 @@ class TalkMixin:
             # K-dal-takim: only where it can be had - offered as it was elsewhere.
             for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
                 spawn["parameters"]["properties"]["on_branch"] = ON_BRANCH_PROPERTY
+        self._at_work_offered(ctx, schemas)  # (0.1.11: background, stop_agent)
         if (
             getattr(ctx.model, "collaborates", True)
             and not ctx.answering
@@ -533,7 +562,8 @@ class TalkMixin:
     async def _message(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """Give another agent a turn on a message, and return its reply. A name that no
         agent of this turn has may be that of an agent of an earlier turn of the topic:
-        the lead goes on with it (`_go_on`), which is opening an agent."""
+        the lead goes on with it (`_go_on`), which is opening an agent. C1: `how` "leave" or
+        "now" - its sender goes on (`message_modes`)."""
         to, body = args.get("to"), args.get("message")
         if not isinstance(to, str) or not to.strip():
             raise ToolError("missing required argument: to")
@@ -551,10 +581,30 @@ class TalkMixin:
         handed_files = self._named_files(ctx, args.get("attachments"))  # (slice 85b)
         reachable = self._reachable(ctx)
         match = next((m for m in reachable if m[0].name.casefold() == to.casefold()), None)
+        how, told = message_modes.how_of(self, ctx, args.get("how"))  # (C1)
         if match is None:
-            return await self._message_unknown(ctx, call_id, to, body, reachable)
+            status, result = await self._message_unknown(ctx, call_id, to, body, reachable)
+            earlier = message_modes.EARLIER.format(how=how) if how != "reply" else ""
+            return status, told + earlier + result
         target, kind = match
         self._within_limit(ctx)
+        if how != "reply":
+            return await message_modes.left(
+                self, ctx, call_id, target, kind, body, handed_files, how
+            )
+        status, result = await self._message_to(ctx, call_id, target, kind, body, handed_files)
+        return status, told + result
+
+    async def _message_to(
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        target: Ctx,
+        kind: str,
+        body: str,
+        handed_files: list,
+    ) -> tuple[str, str]:
+        """`_message` as a reply: past its reach and its limit."""
         if kind == "steer":  # (its files only once its CLI took the message)
             return await self._steer_message(ctx, target, body, handed_files)
         # shortcut: not with an earlier turn's agent gone on with (`_go_on`); hand them there
@@ -665,22 +715,47 @@ class TalkMixin:
         self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, files: list
     ) -> tuple[str, str]:
         """89d B: a message of the agent a CLI works for into the CLI's turn while it works
-        (`steer`, Claude Code's or Codex's door: `_reachable`) - as that agent's, `quoted()`,
-        never as the user's; on record in its conversation, with its `files`, once its CLI took
-        it. Its sender is told if its turn ends before it read it (`_observe`)."""
+        (`steer`, its CLI's door: `_reachable`) - as that agent's, `quoted()`, never as the
+        user's; on record in its conversation, with its `files`, once its CLI took it. C2: its
+        sender is told what came of it - in this result where it is known by now, else once it
+        is (`_message_went`); it is never sent again."""
         said = AGENT_STEERED.format(
             message=self._from(target, "", ctx.agent_id, ctx.name, "above", quoted(body))
         )
-        if why := await self.steer(target, said, kept=True):
+        sent = await self._steer_sent(target, said, kept=True)
+        if isinstance(sent, str):
             raise ToolError(
                 f"{target.name} cannot be messaged by you now: "
-                f"{self._not_taken(target, why, door=True)}"
+                f"{self._not_taken(target, sent, door=True)}"
             )
-        self._steered_by[target.agent_id] = (ctx.agent_id, said, body)
         self._hand_files(ctx, files, target.agent_id)
-        self._send(ctx, target, body, delivered=True)
+        note = self._send(ctx, target, body, delivered=True)
         self._channel(ctx, ctx.agent_id, target.agent_id, "note", body)
+        if sent is not None and sent.outcome is not None:  # (known by now: Codex answers at once)
+            went = MESSAGE_WENT[sent.outcome].format(name=target.name, words=quoted(body[:200]))
+            return "succeeded", f"{went}. {NO_REPLY}"
+        if sent is not None:
+            sent.then(lambda outcome: self._message_went(ctx.agent_id, target, body, note, outcome))
         return "succeeded", SENT_WHILE_IT_WORKS.format(name=target.name)
+
+    def _message_went(
+        self: "AgentRunner", sender_id: str, target: Ctx, body: str, note: str, outcome: str
+    ) -> None:
+        """C2: what came of a message steered into a CLI's turn, once known - told to the agent
+        that sent it while it is at work (B: never left believing it was acted on). Taken is
+        only said from its next step on (`_nudge`): a note would wake it for a step of its own.
+        Not sent (its CLI's no after STEER_SECONDS): its `note` is put back (`_put_back`)."""
+        if outcome == NOT_SENT:
+            self._put_back(target, note)
+        if (sender := self._ctxs.get(sender_id)) is None:
+            return
+        went = (
+            f"KOLONİ: {MESSAGE_WENT[outcome].format(name=target.name, words=quoted(body[:200]))}."
+        )
+        if outcome == TAKEN:
+            self._nudge(sender, went)
+        else:  # (a note, read as it comes: it may act on it)
+            self._send(sender, sender, went, delivered=False, koloni=True)
 
     @staticmethod
     def _not_taken(ctx: Ctx, why: str, door: bool) -> str:
@@ -700,7 +775,9 @@ class TalkMixin:
             result = f"{injection.NOTE}\n{result}"
         return status, result
 
-    def _within_limit(self: "AgentRunner", ctx: Ctx) -> None:
+    def _within_limit(self: "AgentRunner", ctx: Ctx, room: int = 1) -> None:
+        """Refused where the turn's messages between agents leave no `room` (C1: a message left
+        takes two - its note and the turn it may start, counted while it is to come: `_left`)."""
         with self._factory() as session:
             sent = session.scalar(
                 select(func.count())
@@ -710,7 +787,7 @@ class TalkMixin:
                     ChannelMessage.kind.in_(("message", "note")),
                 )
             )
-        if (sent or 0) >= MAX_MESSAGES_PER_TURN:
+        if (sent or 0) + len(self._left.get(ctx.run_id, ())) + room > MAX_MESSAGES_PER_TURN:
             raise ToolError(
                 f"limit of {MAX_MESSAGES_PER_TURN} messages between agents per turn "
                 "reached. Go on with what you know."
@@ -742,9 +819,21 @@ class TalkMixin:
         self.bus.emit(target.cid, target.run_id, "message.created", payload)
         return inbound_id
 
+    def _put_back(self: "AgentRunner", ctx: Ctx, note: str) -> None:
+        """C2: a message on its record as delivered that its CLI's turn said no to after
+        STEER_SECONDS: undelivered again - handed at its next step, or with its next KOLONİ
+        tool result (`_deliver`)."""
+        with self._factory() as session:
+            session.get_one(Message, note).delivered_at = None
+            session.commit()
+        self._notes[note] = ctx.run_id
+
     def _deliver(self: "AgentRunner", ctx: Ctx) -> list[str]:
         """Hand an agent the notes left for it and what is new to it on the turn's notebook;
-        returns them as it will read them."""
+        returns them as it will read them.
+        shortcut: an answer turn of the Orchestrator's (to an agent's message) is handed its notes
+        too - a word of the user's about an agent (`to_lead`) is then read there, and no step of
+        its own answers the user; keep that note for its own step if that is seen."""
         with self._factory() as session:
             # Not in a turn taken to answer or to speak: the notebook waits for its own work.
             handed = [] if ctx.answering else self._hand_notes(session, ctx)
@@ -754,6 +843,8 @@ class TalkMixin:
                 .where(Message.delivered_at.is_(None), Message.run_id == ctx.run_id)
                 .order_by(Message.created_at, literal_column("messages.rowid"))
             ).all()
+            if ctx.answering or ctx.discussion:  # (C1: a message left is its own work's to read)
+                waiting = [one for one in waiting if one.id not in self._left.get(ctx.run_id, ())]
             if not waiting and not handed:
                 return []
             names = dict(

@@ -13,8 +13,8 @@ test('an image the model names is not fetched until the user clicks its address'
   })
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('show me a picture')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('show me a picture')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const address = `${MODEL_URL}/pixel.png?carried=secret`
   const link = chat.getByRole('link', { name: address })
@@ -36,19 +36,19 @@ test('an image the model names is not fetched until the user clicks its address'
 
 test('a message written and not sent is there again after another page and a hidden chat', async ({ page }) => {
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('a thought not sent yet')
+  await page.getByLabel('Message', { exact: true }).fill('a thought not sent yet')
 
   await rail(page, 'Memory').click()
-  await expect(page.getByLabel('Message')).toHaveCount(0) // the chat is gone with the page
+  await expect(page.getByLabel('Message', { exact: true })).toHaveCount(0) // the chat is gone with the page
   await rail(page, 'Canvas').click()
-  await expect(page.getByLabel('Message')).toHaveValue('a thought not sent yet')
+  await expect(page.getByLabel('Message', { exact: true })).toHaveValue('a thought not sent yet')
 
   await page.getByRole('button', { name: 'Hide chat' }).click()
   // (closed, the chat is a small box: the draft is in its one line - slice 38e)
   await expect(page.getByRole('tab', { name: 'Chat' })).toBeHidden()
-  await expect(page.getByLabel('Message')).toHaveValue('a thought not sent yet')
+  await expect(page.getByLabel('Message', { exact: true })).toHaveValue('a thought not sent yet')
   await page.getByRole('button', { name: /^Chat\b/ }).click() // its closed line
-  await expect(page.getByLabel('Message')).toHaveValue('a thought not sent yet')
+  await expect(page.getByLabel('Message', { exact: true })).toHaveValue('a thought not sent yet')
 })
 
 test('a page of another origin on this machine cannot put the app in a frame', async ({ page }) => {

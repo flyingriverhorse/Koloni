@@ -65,8 +65,8 @@ test('the canvas under the settings: new work that came meanwhile is in view whe
   }
 
   // The lead takes a moment before it starts its two reviewers: by then the settings are open over the canvas.
-  await page.getByLabel('Message').fill('have both files reviewed slowly')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('have both files reviewed slowly')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await gear.click()
   await expect(page.getByRole('form', { name: 'Project settings' })).toBeVisible()
   await expect(agents).toHaveCount(3, { timeout: 15_000 })
@@ -128,11 +128,11 @@ for (const theme of ['light', 'dark'] as const) {
     const gear = page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' })
     const settings = page.getByRole('form', { name: 'Project settings' })
     // A message being typed is still there when the page closes: the canvas was only hidden under it.
-    await page.getByLabel('Message').fill('a message not sent yet')
+    await page.getByLabel('Message', { exact: true }).fill('a message not sent yet')
 
     await gear.click()
     await expect(settings).toBeVisible()
-    await expect(page.getByLabel('Message')).toBeHidden()
+    await expect(page.getByLabel('Message', { exact: true })).toBeHidden()
     for (const section of SECTIONS) {
       const row = settings.getByRole('button', { name: new RegExp(`^${section}`) })
       await row.click()
@@ -206,7 +206,7 @@ for (const theme of ['light', 'dark'] as const) {
     // The same ⚙ closes it, throwing away what was not saved; the message is still being typed.
     await gear.click()
     await expect(settings).toHaveCount(0)
-    await expect(page.getByLabel('Message')).toHaveValue('a message not sent yet')
+    await expect(page.getByLabel('Message', { exact: true })).toHaveValue('a message not sent yet')
     await gear.click()
     await settings.getByRole('button', { name: /^Limits and money/ }).click()
     await expect(settings.getByLabel('Stop the work on a message over this many tokens')).toHaveValue('')

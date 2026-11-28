@@ -47,8 +47,8 @@ interface Props {
   busy: boolean
   onOpen: () => void
   onSwitch: () => void
-  /** The page says a refusal; it never throws. */
-  onTrust: () => Promise<void>
+  /** The page says a refusal (`useTrust`), and holds `busy` while it trusts. */
+  onTrust: () => void
   /** Its editor, while it is open. */
   children: ReactNode
 }
@@ -123,16 +123,11 @@ function Trust({
   server: McpServer
   read?: McpRead
   working: boolean
-  onTrust: () => Promise<void>
+  onTrust: () => void
 }) {
-  const [trusting, setTrusting] = useState(false)
   const [seeing, setSeeing] = useState(false)
   const unpinned = unpinnedOf(server.command)
   const said = read ? 'Trust it again' : 'Trust this server'
-  const trust = () => {
-    setTrusting(true)
-    onTrust().finally(() => setTrusting(false))
-  }
   return (
     <>
       <div className="tools-bar tools-trust">
@@ -153,9 +148,9 @@ function Trust({
           type="button"
           className={`btn btn-small${read ? '' : ' btn-primary'}`}
           aria-label={`${said}: ${server.name}`}
-          disabled={trusting || working || server.read_at === null}
+          disabled={working || server.read_at === null}
           aria-describedby={unpinned ? `mcp-trust-note-${server.id}` : undefined}
-          onClick={trust}
+          onClick={onTrust}
         >
           {said}
         </button>

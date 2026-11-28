@@ -21,8 +21,8 @@ for (const theme of ['light', 'dark'] as const)
       headers: OWN,
     })
     expect((await level.json()).permission_mode).toBe('full_auto')
-    await page.getByLabel('Message').fill('fetch the page, k-web-komut')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill('fetch the page, k-web-komut')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
 
     const chat = page.getByRole('region', { name: 'Chat' })
     await expect(chat.getByText('Run this command?')).toBeVisible({ timeout: 20_000 })

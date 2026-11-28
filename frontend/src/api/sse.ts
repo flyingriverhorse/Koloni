@@ -1,4 +1,5 @@
 import { withKey } from './client'
+import { CLIENT, lookingAt, streamOpened } from './looking'
 
 export const EVENT_TYPES = [
   'run.started',
@@ -102,7 +103,9 @@ export function openEvents(
   onOpen: () => void,
   onLost: () => void,
 ): () => void {
-  const source = new EventSource(withKey(`/api/conversations/${conversationId}/events?after=${after}`))
+  // (This page's id, and whether it has the chat on screen as it opens: herdr's rule, `looking.ts`.)
+  const page = `client=${CLIENT}&looking=${lookingAt(conversationId)}`
+  const source = new EventSource(withKey(`/api/conversations/${conversationId}/events?after=${after}&${page}`))
   for (const type of EVENT_TYPES) {
     source.addEventListener(type, event => {
       const message = event as MessageEvent<string>
@@ -110,7 +113,10 @@ export function openEvents(
       onEvent(id, type, JSON.parse(message.data))
     })
   }
-  source.onopen = onOpen
+  source.onopen = () => {
+    streamOpened(conversationId)
+    onOpen()
+  }
   source.onerror = () => {
     source.close()
     onLost()

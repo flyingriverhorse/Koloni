@@ -137,10 +137,12 @@ def test_the_lead_asks_how_hard_the_first_fast_model_in_the_users_order(
         row["role"]: row
         for row in client.get("/api/roles/models", params={"conversation_id": cid}).json()
     }
-    assert rows["Lead"]["asks_how_hard"] == {"provider_name": "Fast", "model_id": "quick"}
+    # (`AskedModel.quote`: suggest_preference's alone, k-tercih)
+    asked = {"provider_name": "Fast", "model_id": "quick", "quote": None}
+    assert rows["Lead"]["asks_how_hard"] == asked
     lead = wait_run(client, cid, run_id)["agents"][0]
     assert (lead["asked_how_hard"], lead["chosen_why"]) == (
-        {"provider_name": "Fast", "model_id": "quick"},
+        asked,
         "hard: it needs care",
     )
     assert len(fast.calls) == 1

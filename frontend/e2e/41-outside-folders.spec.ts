@@ -18,8 +18,8 @@ test('a file outside the project is asked for, and its folder can be allowed for
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
 
-  await page.getByLabel('Message').fill('read the outside notes')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('read the outside notes')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   // Nobody named the folder: the agent's read waits for the user's word.
   await expect(
     chat.getByText(`Orchestrator wants to read ${path.join(OUTSIDE_DIR, 'notes.md')}, outside the project`),

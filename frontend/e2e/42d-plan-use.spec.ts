@@ -46,8 +46,8 @@ test('at 700 px the top bar shows the plans used beside a turn, all on the scree
     )
   }
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('say hello instead of hi')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('say hello instead of hi')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const bar = page.getByRole('banner')
   const use = bar.getByRole('button', {
     name: /^Plan use: .*Claude Code 42d 42% of 5 hours, Codex 42d 8% of 5 hours.*; open Usage$/,

@@ -11,9 +11,11 @@ import pytest
 
 from app import model_cli, model_native, raw
 from app.agent import UNASKED_BY_CLI as NOTE
+from app.delivery import NOT_SENT, TAKEN, UNKNOWN
 from app.model_client import ModelUnavailable
 from app.model_native import ClaudeNativeClient
 from app.workspace import SECRET_CARD
+from tests.conftest import scaled
 from tests.test_agent_writes import wait_status
 from tests.test_attachment_agents import FAKE_CLAUDE, answered, nothing, plan, record
 from tests.test_chat_flow import text
@@ -860,13 +862,21 @@ def test_its_account_and_its_transcripts_path_are_kept_nowhere(
 
 
 @pytest.mark.anyio
-async def test_a_steer_is_a_user_line_into_its_turn_and_none_after_it_ended(tmp_path):
+async def test_a_steer_it_echoes_in_its_turn_is_taken_and_none_after_it_ended_is_sent(
+    tmp_path, monkeypatch
+):
+    # C2: its echo before its result (--replay-user-messages, measured on 2.1.332): taken - and
+    # its run ends at that result, waiting for no turn on it (a wait would outlast the test).
+    monkeypatch.setattr(model_native, "LATE_SECONDS", 600.0)
+    script = [{"say": "working"}, {"await_steer": 5}, {"say": "done"}]
     client = ClaudeNativeClient(
-        launcher=FAKE_CLAUDE,
-        **plan(tmp_path, [{"say": "working"}, {"await_steer": 5}, {"say": "done"}]),
+        launcher=FAKE_CLAUDE, **plan(tmp_path, script, linger=True, version="2.1.332")
     )
-    took, usage, _said, items, steer = await steered(client, tmp_path)
-    assert took is True and usage.output_tokens == 30
+    took, usage, _said, _items, steer = await asyncio.wait_for(
+        steered(client, tmp_path), scaled(60)
+    )
+    assert took.outcome == TAKEN and usage.output_tokens == 30
+    assert "--replay-user-messages" in record(tmp_path)["argv"]
     assert record(tmp_path)["steered"] == [
         {
             "type": "user",
@@ -875,56 +885,60 @@ async def test_a_steer_is_a_user_line_into_its_turn_and_none_after_it_ended(tmp_
             "session_id": "default",
         }
     ]
-    assert not [item for _phase, item in items if item.get("type") == "steer_unread"]
-    assert await steer("too late") is False  # (its turn is over: nothing is written)
+    late = await steer("too late")
+    assert late.outcome == NOT_SENT  # (its turn is over: nothing is written)
     assert len(record(tmp_path)["steered"]) == 1
 
 
 @pytest.mark.anyio
-async def test_a_steer_after_its_last_word_is_read_through_to_the_turn_it_takes_on_it(tmp_path):
-    client = ClaudeNativeClient(
-        launcher=FAKE_CLAUDE,
-        **plan(
-            tmp_path, [{"say": "done"}, {"await_steer": 5}], second_turn_on_steer=True, linger=True
-        ),
-    )
-    took, usage, said, items, _steer = await steered(client, tmp_path, said_first=True)
-    assert took is True and "heard it late" in "".join(said)
-    assert usage.output_tokens == 35  # (both turns)
-    assert not [item for _phase, item in items if item.get("type") == "steer_unread"]
-
-
-@pytest.mark.anyio
-async def test_a_message_after_a_steer_is_not_taken_for_its_reading_and_its_turn_on_it_is_read(
+async def test_a_steer_it_echoes_only_after_its_result_is_unknown_and_its_turn_on_it_is_read(
     tmp_path,
 ):
-    # (Review M1: its last message, from a request made before the steer, came after it and
-    # was taken for its reading; the turn it took on the steer was cut off.)
+    # C2, measured: a line it did not take in its turn is echoed after its result, and one more
+    # turn taken on it - read on to that turn's end, this run's (never one nobody reads); no
+    # sign by its turn's end: unknown.
     client = ClaudeNativeClient(
         launcher=FAKE_CLAUDE,
         **plan(
             tmp_path,
-            [{"say": "working"}, {"await_steer": 5}, {"say": "done"}],
+            [{"say": "done"}, {"await_steer": 5}],
+            echo="after",
             second_turn_on_steer=True,
             linger=True,
         ),
     )
-    took, usage, said, _items, _steer = await steered(client, tmp_path)
-    assert took is True and "heard it late" in "".join(said)
-    assert usage.output_tokens == 35
+    took, usage, said, _items, _steer = await steered(client, tmp_path, said_first=True)
+    assert took.outcome == UNKNOWN and "heard it late" in "".join(said)
+    assert usage.output_tokens == 35  # (both turns)
 
 
 @pytest.mark.anyio
-async def test_a_steer_its_turn_ended_before_is_said_unread_and_its_work_stands(
-    tmp_path, monkeypatch
-):
+async def test_a_steer_it_never_echoes_is_unknown_and_its_work_stands(tmp_path, monkeypatch):
     monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
     client = ClaudeNativeClient(
-        launcher=FAKE_CLAUDE, **plan(tmp_path, [{"say": "done"}, {"await_steer": 5}], linger=True)
+        launcher=FAKE_CLAUDE,
+        **plan(tmp_path, [{"say": "done"}, {"await_steer": 5}], echo="none", linger=True),
     )
-    took, usage, _said, items, _steer = await steered(client, tmp_path, said_first=True)
-    assert took is True and usage.output_tokens == 30
-    assert ("completed", {"type": "steer_unread", "text": "use blue"}) in items
+    took, usage, _said, _items, _steer = await steered(client, tmp_path, said_first=True)
+    assert took.outcome == UNKNOWN and usage.output_tokens == 30
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("version", "longest"), [("2.1.332", 10), ("2.1.331", 2**23)])
+async def test_a_prompt_too_long_to_echo_or_an_older_cli_is_not_asked_for_it_a_steer_unknown(
+    tmp_path, monkeypatch, version, longest
+):
+    # (Its echo of the prompt could pass the line KOLONİ reads: pictures. Older than its echo was
+    # measured on, it is not asked for one.)
+    monkeypatch.setattr(model_native, "REPLAY_AT_MOST", longest)
+    monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
+    script = [{"say": "working"}, {"await_steer": 5}, {"say": "done"}]
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE, **plan(tmp_path, script, linger=True, version=version)
+    )
+    took, usage, _said, _items, _steer = await steered(client, tmp_path)
+    assert "--replay-user-messages" not in record(tmp_path)["argv"]
+    assert took.outcome == UNKNOWN and usage.output_tokens == 30
 
 
 @pytest.mark.anyio

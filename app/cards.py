@@ -21,6 +21,20 @@ from app.commands import (
 )
 from app.db.models import ToolCall
 
+# W2, W6: why a command is asked although a rule matches it - an agent wrote what it runs, or (N9)
+# a file it may read or load: a setting, manifest, lock or hook (`x.npmrc` the line does not name -
+# npm reads one it is pointed at), not its program. No rule is offered on its card (Y2): none would
+# cover it while that write stands.
+PLANTED = (
+    "an agent wrote its program ({place}): no rule covers a program an agent wrote, so none is "
+    "offered - run it once or reject it"
+)
+PLANTED_READ = (
+    "an agent wrote a file this line may read or load ({place}): no rule covers the line while "
+    "that write stands, so none is offered - run it once or reject it"
+)
+PLANTED_SAYS = (PLANTED.partition("(")[0], PLANTED_READ.partition("(")[0])
+
 # The families of why a card was asked, in KOLONİ's words (a parked card's why: `parked`).
 REASONS = {
     "delete": "Deletes or overwrites",

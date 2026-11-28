@@ -940,7 +940,7 @@ test('a suggested preference, under your preferences, is added by you or turned 
   render(<MemoryPage memory={projectMemory({ suggestions: [suggested] })} {...h} />)
   await tab('Told')
   const box = within(section('Your preferences')).getByRole('group', { name: 'Suggested for your preferences' })
-  expect(box).toHaveTextContent('Nothing enters your preferences unless you add it.')
+  expect(box).toHaveTextContent('A suggestion enters your preferences only when you add it.')
   expect(within(box).getByRole('article')).toHaveTextContent('the user wants short answers')
   expect(within(box).getByRole('article')).toHaveTextContent('noted by KOLONİ’s summariser (Fast · quick)')
   await userEvent.click(within(box).getByRole('button', { name: 'Add' }))

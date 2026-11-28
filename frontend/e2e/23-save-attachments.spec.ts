@@ -22,7 +22,7 @@ test('a pasted picture, ticked, is saved into docs/attachments/ and said under t
       await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'auto_edit' }, headers: OWN })
     ).ok(),
   ).toBe(true)
-  const box = page.getByLabel('Message')
+  const box = page.getByLabel('Message', { exact: true })
   // A paste as the browser makes one, from its own data: the machine's clipboard is not touched.
   await box.evaluate((element, png) => {
     const data = new DataTransfer()
@@ -34,7 +34,7 @@ test('a pasted picture, ticked, is saved into docs/attachments/ and said under t
   await expect(save).not.toBeChecked()
   await save.check()
   await box.fill('keep this picture, 23')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByText('Kept the picture.')).toBeVisible({ timeout: 20_000 })

@@ -33,8 +33,8 @@ test('design A: the side panel is a short report card, the agent window the whol
 }) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('review the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
 
   // The Reviewer, picked from its row in the chat: who asked what, its report, its changes, its numbers - no story.
@@ -116,8 +116,8 @@ test('an agent whose older messages were summarised in its turn has that line on
   ).toBe(true)
   try {
     await openFreshConversation(page)
-    await page.getByLabel('Message').fill('Fill the context.')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill('Fill the context.')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Chat' }).getByText('Summarised, and on.')).toBeVisible()
 
     await rail(page, 'Canvas').click()
@@ -161,8 +161,8 @@ test('B-157: at 1048 px, opened from its node while the inspector is open, the a
 }) => {
   await page.setViewportSize({ width: 1048, height: 760 })
   await openFreshConversation(page)
-  await page.getByLabel('Message').fill('review the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
   // Under 1200 px the inspector lies over the stage's right side, where a node clicked on the canvas stays - under it, a
@@ -197,8 +197,8 @@ test('B-157: at 1048 px the agent window stands wholly beside the inspector, and
   await page.setViewportSize({ width: 1048, height: 760 })
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('review the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('review the greeting')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
   await chat.getByRole('button', { name: /Reviewer.*Review hello\.py/ }).click()
   const inspector = page.getByRole('complementary', { name: 'Inspector' })

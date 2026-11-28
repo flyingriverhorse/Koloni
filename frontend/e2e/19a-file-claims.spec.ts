@@ -25,8 +25,8 @@ test('two agents want one file: the second waits for the first, the canvas says 
   await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
   await level(page, 'auto_edit')
 
-  await page.getByLabel('Message').fill('two coders share a file')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('two coders share a file')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   // The first Coder has written notes.txt and is still at work; the second reaches for the
   // same file. It is not refused: it waits, and its box says for whom and for which file.

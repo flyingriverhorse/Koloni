@@ -3,7 +3,7 @@
 **Chats** on the left rail opens the list of your chats: on top **Now**, what is at work and what waits
 for your word in every folder, and under it each chat with how it stands.
 
-![The Chats page: the heading Chats with one row of tools beside it - Search by name, All states, Last activity, New chat, From a GitHub issue…; under it the Now strip across the page with its cells, "Nothing at work; 1 thing waits for your word. Today 1 done. What waits is on Ready for you.", Go to Ready for you, and what the cells mean; under it the project folder with three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"](../images/chats.png)
+![The Chats page: the heading Chats with one row of tools beside it - Search by name, All states, Last activity, New chat, From a GitHub issue…; under it the Now strip across the page with its cells, "Nothing at work; 1 thing waits for your word. Today 1 done. 1 chat ended where you have not looked since. What waits is on Ready for you.", Go to Ready for you, and what the cells mean; under it the project folder with four chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Say hello" with a green cell and "Done · not seen · 1 agent · Local · fake-qwen · 138 tokens", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"](../images/chats.png)
 
 ## The list
 
@@ -34,6 +34,12 @@ same meanings - and has one line under the chat's name:
 | Green, full | **Done**, and what its last turn ran with: its agents, model and tokens |
 | Empty | **Stopped**, or **No turn yet** |
 
+A chat whose last turn ended - done, stuck or stopped - while you were not looking at it says so after
+how it ended: "Done · not seen", "Stuck: its last turn failed · not seen", "Stopped · not seen". It is seen
+once you open it, or once a turn of it ends while it is on screen in front of you (herdr's "done, not seen");
+a desktop notice about it does not count as seeing it. Every chat there was when you upgraded to 0.1.11
+counts as seen.
+
 What waits for your word in a chat is what [Ready for you](ready.md) lists for it, and **Show** goes by
 the same. A chat Ready for you has not read yet - or could not read - says what KOLONİ's list of the project's
 chats says, **Waits for your word** with nothing after it, until it is read or that chat's state changes. A chat whose
@@ -44,11 +50,13 @@ state is not read at all has no cell and no line: the page says nothing it does 
 **Now** is the strip across the top of the page, over every folder, and it stays in sight while you
 scroll the list:
 
-- a cell for each chat at work (one that waits for your word too, while another of its agents works),
-  each thing that waits for your word, and each chat whose last turn ended today stuck or done; hover a
-  cell, or let a screen reader say it, for its chat and its state;
-- one sentence that counts them - "2 chats at work; 2 things wait for your word. Today 1 stuck." The
-  number that waits is the top bar's pill's;
+- a cell for each thing that waits for your word, each chat whose last turn ended where you have not
+  looked since ("done · not seen", whatever the day), each chat at work (one that waits for your word too,
+  while another of its agents works), and each chat whose last turn ended today stuck or done - in that
+  order, what needs you most first (herdr's order); hover a cell, or let a screen reader say it, for its
+  chat and its state;
+- one sentence that counts them - "2 chats at work; 2 things wait for your word. Today 1 stuck. 1 chat
+  ended where you have not looked since." The number that waits is the top bar's pill's;
 - **Go to Ready for you**, Work's tab where what waits is answered;
 - what the cells mean.
 

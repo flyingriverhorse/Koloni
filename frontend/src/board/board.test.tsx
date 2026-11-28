@@ -41,6 +41,7 @@ const board: Board = {
       conversation_id: 'a',
       title: 'Docs',
       merges_pending: 0,
+      unseen: false,
       turn: null,
       agents: [
         agent({ holds: ['a.txt', 'docs/b.md'] }),
@@ -51,10 +52,11 @@ const board: Board = {
       conversation_id: 'b',
       title: 'Tests',
       merges_pending: 0,
+      unseen: false,
       turn: null,
       agents: [agent({ status: 'blocked', waiting_for: { agent_id: 'x', agent_name: 'Lead', path: 'a.txt' } })],
     },
-    { conversation_id: 'c', title: 'Old', merges_pending: 0, turn: null, agents: [] },
+    { conversation_id: 'c', title: 'Old', merges_pending: 0, turn: null, agents: [], unseen: false },
   ],
   conflicts: [
     {

@@ -29,7 +29,7 @@ const MODE_LABEL: Record<Mode, string> = {
 const NATIVE_ASKS: Partial<Record<ProviderKind, string>> = {
   claude_cli: 'asks before every tool it uses',
   agy_cli: 'asks before every tool it uses',
-  codex_cli: 'asks before each command and patch, but not those its own rules count as safe',
+  codex_cli: 'asks before each command and patch, but not those its own allow rules cover',
   copilot_cli: 'asks before each command, write and read',
 }
 // KOLONİ's tools in either way, from the agy version they were measured to reach (app/model_agy.py BRIDGE_FROM).

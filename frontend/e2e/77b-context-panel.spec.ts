@@ -38,7 +38,10 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(row).toContainText('12%')
     await expect(row).toContainText('120 / 1,000')
     // Inside the window, and clear of the floating chat's message box.
-    const [shown, box] = [(await panel.boundingBox())!, (await page.getByLabel('Message').boundingBox())!]
+    const [shown, box] = [
+      (await panel.boundingBox())!,
+      (await page.getByLabel('Message', { exact: true }).boundingBox())!,
+    ]
     expect(shown.y + shown.height).toBeLessThanOrEqual(720)
     expect(shown.y + shown.height <= box.y || shown.x >= box.x + box.width).toBe(true)
 

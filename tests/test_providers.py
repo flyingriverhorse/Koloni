@@ -158,7 +158,9 @@ def test_a_cli_says_which_rules_nobody_watches_in_each_way_it_runs_with_its_own_
     assert said["agy_cli"]["native"] == [] and len(said["agy_cli"]["reads"]) == 3
     assert any("web" in rule for rule in said["agy_cli"]["reads"])
     assert said["codex_cli"].keys() == {"native"}
-    assert any("secret files" in rule for rule in said["codex_cli"]["native"])
+    # (0.172.0 asked before a read of .env: what runs unasked is what its own allow rules cover)
+    assert any("allow rules" in rule for rule in said["codex_cli"]["native"])
+    assert not any("secret files" in rule for rule in said["codex_cli"]["native"])
     docker = {one["kind"]: one["not_watched_in_docker"] for one in shown}
     assert docker["openai_compat"] is None and docker["claude_cli"] == {"native": [ON_HOST]}
     assert docker["agy_cli"] == {"native": [ON_HOST], "reads": said["agy_cli"]["reads"]}

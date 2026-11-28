@@ -27,8 +27,11 @@ from pathlib import Path, PureWindowsPath
 
 from app import mcp_bridge
 from app.commands import _CLIMBS, only_looks
+from app.copilot_own_agents import APPROVE_ONCE, OwnAgents
+from app.delivery import NOT_SENT, Deliveries, Delivery, steer_asked
 from app.ledger import TESTS
 from app.model_cli import (
+    CLAUDE_EXIT,
     RESULT_TEXT,
     ClaudeCliClient,
     CliStepClient,
@@ -48,6 +51,7 @@ from app.model_cli import (
     image_copies,
     levels_of,
     own_error,
+    since_its_last_word,
 )
 from app.model_client import ModelUnavailable, OwnStop, count_of
 from app.model_session import (
@@ -108,8 +112,8 @@ has them. A refused command of your own is no reason to stop: read with those to
 # Called for everything Codex does with tools of its own: the event's phase
 # ("started" or "completed") and the item as Codex reported it.
 OnItem = Callable[[str, dict], Awaitable[None]]
-# 89d: words to a CLI while its turn runs; whether it took them (not that it read them).
-Steer = Callable[[str], Awaitable[bool]]
+# 89d: words to a CLI while its turn runs; what came of them, once known (C2: `app.delivery`).
+Steer = Callable[[str], Awaitable[Delivery]]
 # Handed the run's steer once its turn is under way, and None when it no longer is.
 OnLive = Callable[[Steer | None], None]
 STEER_SECONDS = 5.0
@@ -948,12 +952,12 @@ class CodexNativeClient(CliStepClient):
             # An answer from the user, or a whole sub-agent, can take a long time.
             "-c",
             f"mcp_servers.{SERVER}.tool_timeout_sec={TOOL_WAIT_SECONDS}",
-            # B-304: none of its own sub-agents, as step by step (`CodexCliClient.DISABLED`): they
-            # work past KOLONİ's records, and each would start a bridge of its own, which the
-            # tool server turns away. shortcut: the key as `features.apps` below, not measured
-            # live; measure it (K-cli-surface).
+            # B-304: none of its own sub-agents, as step by step: they work past KOLONİ's records,
+            # and each would start a bridge of its own, which the tool server turns away. The
+            # feature (an older Codex's) and `CodexCliClient.NO_AGENTS` (0.172.0's, measured).
             "-c",
             "features.multi_agent=false",
+            *CodexCliClient.NO_AGENTS,
             # The user's own skills are not an agent of KOLONİ's to use - nor its plugins' (B-312:
             # a Debugger read a plugin's SKILL.md), as Claude Code's `--setting-sources` and
             # step by step (`DISABLED`). shortcut: `plugins` among Codex 0.164's feature names,
@@ -976,11 +980,11 @@ class CodexNativeClient(CliStepClient):
             # to start or be ignored - measure it (K-cli-surface) before relying on it.
             *(("-c", "features.apps=false") if {"search", "fetch"} & set(withheld) else ()),
             # B-301: read-only for a role that may not run commands, no shell of its own at all:
-            # its read-only sandbox keeps writes, not reads, and its known-safe commands run
-            # unasked ("untrusted") - a .env, the home folder. It reads with KOLONİ's tools.
-            # shortcut: Codex 0.164 takes both names (`--disable shell_tool` / `unified_exec`
-            # measured), but that they take its shell away is not; a command that comes all
-            # the same ends the turn (`_converse`). Measure it live (K-cli-surface).
+            # its read-only sandbox keeps writes, not reads, and a command its own allow rules cover
+            # runs unasked (0.172.0 asked of `Get-Content readme.txt` and of `.env` at "untrusted":
+            # measured 27 Nov 2026). It reads with KOLONİ's tools. shortcut: Codex 0.164 takes both
+            # names (`--disable shell_tool` / `unified_exec` measured), but that they take its shell
+            # away is not; one that comes all the same ends the turn (`_converse`). Measure it live.
             *(
                 ("-c", "features.shell_tool=false", "-c", "features.unified_exec=false")
                 if _no_shell(withheld)
@@ -1026,8 +1030,8 @@ class CodexNativeClient(CliStepClient):
         `on_live`: given the run's `Steer` while its turn runs (Claude Code's and Codex's,
         89d), then None. `on_end`: given what ends its turn, with why (B-357: Stop on a command
         of its own, whose process KOLONİ does not hold).
-        `inside`: 89g, roles offered to Claude Code as sub-agents of its own, by the name each
-        is offered by (`inside_name`): what `--agents` takes of each.
+        `inside`: 89g, roles offered to Claude Code or Copilot as sub-agents of their own, by the
+        name each is offered by (`inside_name`): `--agents`, `OwnAgents.given`.
         `report_schema`: the shape its report is handed back in, for Claude Code (89p,
         `_control`); a CLI that is not told one reports in words.
         `skills`: its role's skills, by name, where KOLONİ keeps each - for a CLI that
@@ -1235,6 +1239,7 @@ class CodexNativeClient(CliStepClient):
                         no_shell=_no_shell(withheld),
                         resume=resumed,
                         keep=kept,
+                        **({"inside": inside} if inside else {}),
                     )
 
                 if isinstance(self, CopilotNativeClient) and under:
@@ -1586,6 +1591,7 @@ class CodexNativeClient(CliStepClient):
         broke: BaseException | None = None  # what answering a request of its own ended in
         started = False  # its turn is under way
         turn_id: object = None  # its turn's, while it runs: what a steer is sent into
+        deliveries = Deliveries()  # (C2: what is steered into it, till each is settled)
         numbers = itertools.count(4)  # (1 to 3: its start and its turn's)
         # Its thread's size (its last request's input) and window, as it last said them.
         size: dict[str, object] = {"used": None, "window": None}
@@ -1615,34 +1621,18 @@ class CodexNativeClient(CliStepClient):
             error = told.get("error")
             return {}, _brief(self._hide(str(_dict(error).get("message") or error)))
 
-        async def steer(text: str) -> bool:
-            """89d: `text` into its turn, as measured 25 Oct (`turn/steer`, mid-command); True:
-            Codex took it, or sent and not answered within STEER_SECONDS - which may have
-            reached its turn, as Claude Code's line still in the pipe is on its way - and not
-            yet that it read it. Never into a thread of its own agents', and never an error that
-            ends the run."""
+        async def steer(text: str) -> Delivery:
+            """89d: `text` into its turn, as measured 25 Oct (`turn/steer`, mid-command): taken
+            where Codex answers with its turn, not sent where it says no (C2: -32600 once its
+            turn is over) - `steer_asked`. Never into a thread of its own agents', and never an
+            error that ends the run."""
             if turn_id is None:
-                return False
-            # shortcut: one Codex refuses after STEER_SECONDS is called taken (and kept on
-            # record); wait longer if a slow answer is seen live.
-            try:
-                _, no = await asyncio.wait_for(
-                    ask(
-                        next(numbers),
-                        "turn/steer",
-                        {
-                            "threadId": thread_id,
-                            "expectedTurnId": turn_id,
-                            "input": [{"type": "text", "text": text, "text_elements": []}],
-                        },
-                    ),
-                    STEER_SECONDS,
-                )
-            except TimeoutError:
-                return True
-            except Exception:
-                return False
-            return no is None
+                return Delivery(text, NOT_SENT)
+            steering = {"threadId": thread_id, "expectedTurnId": turn_id}
+            input_ = [{"type": "text", "text": text, "text_elements": []}]
+            number = next(numbers)
+            request = ask(number, "turn/steer", {**steering, "input": input_})
+            return await steer_asked(deliveries, text, request, number, STEER_SECONDS)
 
         async def answer(request: dict) -> None:
             nonlocal heard, broke
@@ -1692,6 +1682,7 @@ class CodexNativeClient(CliStepClient):
                         if method is None:  # an answer to a request of KOLONİ's
                             number = message.get("id")
                             future = replies.get(number) if isinstance(number, int) else None
+                            deliveries.answered(number, message)  # (C2: a steer's, now)
                             if future is not None and not future.done():
                                 future.set_result(message)
                         elif "id" in message:  # a request of its own
@@ -1775,6 +1766,7 @@ class CodexNativeClient(CliStepClient):
                         return
                 await process.wait()
             finally:
+                deliveries.over()  # (C2: a steer it did not answer is unknown, not refused)
                 for future in replies.values():  # nothing more will answer them
                     if not future.done():
                         future.set_result({"error": {"message": "it ended"}})
@@ -1911,6 +1903,7 @@ class CodexNativeClient(CliStepClient):
             finally:
                 if on_live:
                     on_live(None)
+                deliveries.over()  # (C2: what it did not answer by now is unknown)
                 for task in (talking, *answering):
                     task.cancel()
                 with contextlib.suppress(BaseException):
@@ -2202,9 +2195,9 @@ class CodexSessionClient(CodexNativeClient):
     # and js_repl may send no item at all: for those the flags in `OFF` are the guard.
     # shortcut: by the item types of 0.164's protocol; one code mode sends around an MCP call is
     # not measured - it would end every session: add it here once seen live.
-    # shortcut: B-415 (live, 8 Nov, gpt-6-luna): a lead began collabAgentToolCall with
-    # multi_agent off - an item, not a request, so nothing to decline: the session still stops
-    # (its agents at work end its row, `_lead_ended`); measure which flag turns it off.
+    # B-415 (live, 8 Nov, gpt-6-luna): a lead began collabAgentToolCall with multi_agent off -
+    # an item, not a request, so nothing to decline: the session stops (`_lead_ended`). The flag
+    # that turns it off is `CodexCliClient.NO_AGENTS` (measured 27 Nov 2026, 0.172.0).
     ITEMS = frozenset(
         {
             "userMessage",
@@ -2495,27 +2488,6 @@ def forget_session(session: dict, runtime_root: Path) -> None:
     shutil.rmtree(home / "file-history" / number, ignore_errors=True)
 
 
-def since_its_last_word(messages: list[dict]) -> list[dict]:
-    """What a session it goes on in has not seen: what came after its last answer (but the
-    results of that answer's tool calls, which it was handed then). [] where it has none, or
-    nothing came since: then it starts anew."""
-    talk = [m for m in messages if m["role"] != "system"]
-    last = next(
-        (at for at in range(len(talk) - 1, -1, -1) if talk[at]["role"] == "assistant"), None
-    )
-    if last is None:
-        return []
-    new = talk[last + 1 :]
-    while new and new[0]["role"] == "tool":
-        new = new[1:]
-    return new
-
-
-# How Claude Code's shell tools begin the result of a command that failed.
-# shortcut: from its tool results as known, not measured here (no CLI in tests); measure it
-# on the next live run if a failed command still says "no exit code reported".
-CLAUDE_EXIT = re.compile(r"(?:Error: )?Exit code (-?\d+)\b")
-
 # Claude Code's own tools, by what they can do. Others are asked about in words.
 CLAUDE_WRITES = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 # (Monitor runs a command and reads what it prints: its init `tools` on 2.1.310.)
@@ -2553,6 +2525,9 @@ CLAUDE_NEVER = (
 START_SECONDS = 30.0
 # How long it may stay silent after a turn's end that came before it read a steer (`_control`).
 LATE_SECONDS = 30.0
+# C2: the longest prompt it is asked to echo (`--replay-user-messages`): half the line KOLONİ reads;
+# and the version its echo was measured on (27 Nov 2026): an older one is not asked for it.
+REPLAY_AT_MOST, REPLAY_FROM = 2**23, (2, 1, 332)
 # What of its init line is its own (where its memory, its socket and its session are):
 # kept nowhere.
 CLAUDE_OWN = frozenset({"memory_paths", "messaging_socket_path", "session_id"})
@@ -2590,7 +2565,7 @@ INSIDE_FROM = (2, 1, 311)
 # shortcut: the names are those of the constants above, not measured in an `--agents` tools
 # list (LS and NotebookRead may be gone from 2.1.311); and a role run so gets none of its skills,
 # MCP servers or expert's knowledge. Measure and give them once a live run shows the need.
-# Copilot's `customAgents`, agy's `--agent` and a Lead on an API model offer no role so (89g).
+# agy's `--agent` and a Lead on an API model offer no role so (89g); Copilot: `OwnAgents`.
 CLAUDE_OF = {
     "read_file": ("Read", "NotebookRead"),
     "list_dir": ("LS", "Glob"),
@@ -3002,6 +2977,10 @@ class ClaudeNativeClient(CodexNativeClient):
             {f"{PLUGIN}:{p.name}" for p in Path(plugin, "skills").iterdir()} if plugin else set()
         )
         own = await asyncio.to_thread(own_names, self._env) if plugin else set()
+        # C2: its echo of each user line it takes (`steer`) - not where the prompt's own echo could
+        # pass the line read (pictures), nor older than measured: what it is steered is unknown.
+        if len(json.dumps(prompt)) < REPLAY_AT_MOST and await self._from(REPLAY_FROM):
+            argv = [*argv, "--replay-user-messages"]
         try:
             process, job = await self._start(argv, shim, root, env)
         except OSError as exc:
@@ -3032,11 +3011,7 @@ class ClaudeNativeClient(CodexNativeClient):
         broke: BaseException | None = None  # what answering a request of its own ended in
         opened = False  # it took the hook and was given the prompt
         live = False  # its turn runs: a steer is read in it (89d)
-        # The words last steered into it, until it takes a turn on them; whether it said
-        # anything after they were written (its message ids are in no order: that it has is
-        # not that it read them, so a turn's end then is read on past all the same).
-        steered: str | None = None
-        after = False
+        deliveries = Deliveries()  # (C2: what is steered into it, till its echo or its result)
         late = False  # a turn has ended since: it may take one more on them
         measured: object = None  # 89j: the message of its own its context was last asked after
         measuring = itertools.count(1)
@@ -3096,28 +3071,22 @@ class ClaudeNativeClient(CodexNativeClient):
                 "session_id": "default",
             }
 
-        async def steer(text: str) -> bool:
-            """89d: `text` as a user line while its turn runs - measured 25 Oct: read and obeyed
-            in the same turn. True: written, which is not yet that it read it. Never an error
-            that ends the run."""
-            nonlocal steered, after
-            if not live:
-                return False
-            # (Before the write: a result read while it waits for the pipe is read on past.)
-            steered, after, written = text, False, False
+        async def steer(text: str) -> Delivery:
+            """89d: `text` as a user line while its turn runs (measured: read in that turn) - taken
+            where it echoes it before its result (C2). Never an error that ends the run."""
+            sent = Delivery(text, NOT_SENT)
             try:
                 async with asyncio.timeout(STEER_SECONDS):
                     async with writing:
-                        stdin.write((json.dumps(prompt_line(text)) + "\n").encode())
-                        written = True
-                        await stdin.drain()
+                        sent = deliveries.sent(text) if live else sent
+                        if sent.outcome is None:  # (open before the write: its echo may come)
+                            stdin.write((json.dumps(prompt_line(text)) + "\n").encode())
+                            await stdin.drain()
             except TimeoutError:
                 pass  # (written, it waits for room in the pipe: it is on its way)
             except Exception:
-                written = False
-            if not written:
-                steered = None
-            return written
+                deliveries.settle(sent, NOT_SENT)  # (its pipe is gone)
+            return sent
 
         async def answer(number: object, request: dict) -> None:
             nonlocal heard, broke
@@ -3178,8 +3147,6 @@ class ClaudeNativeClient(CodexNativeClient):
                 limited, \
                 own_word, \
                 live, \
-                steered, \
-                after, \
                 late, \
                 measured, \
                 handed, \
@@ -3189,6 +3156,8 @@ class ClaudeNativeClient(CodexNativeClient):
                     heard = time.monotonic()
                     written = raw.decode("utf-8", errors="replace")
                     lines = _events(written)
+                    if deliveries.echoed(lines):  # (C2: its echo of a line of KOLONİ's, `steer`)
+                        continue  # (not its stream's: the prompt again, and long)
                     # What it and KOLONİ say to each other is kept nowhere: its answer to
                     # `initialize` can say whose account it is, a hook where its transcripts are.
                     # Nor where its own memory, socket and session are (its init line).
@@ -3225,15 +3194,6 @@ class ClaudeNativeClient(CodexNativeClient):
                             )
                             measures.add(task)
                             task.add_done_callback(measures.discard)
-                        if (
-                            line.get("type") == "assistant"
-                            and steered is not None
-                            and not line.get("parent_tool_use_id")
-                        ):
-                            if late:
-                                steered = None  # it took a turn on them
-                            else:
-                                after = True
                         for event in translate(line):
                             kind, item = event.get("type"), _dict(event.get("item"))
                             if kind == "model":
@@ -3263,6 +3223,7 @@ class ClaudeNativeClient(CodexNativeClient):
                                     for key in told
                                 }
                                 live = False  # (a steer now could start a turn nobody reads)
+                                unread = deliveries.over()  # (C2: not echoed by now: unknown)
                                 if event.get("more"):
                                     # Its sub-agent works on in the background, and it will
                                     # take another turn on its report (B-136).
@@ -3271,13 +3232,11 @@ class ClaudeNativeClient(CodexNativeClient):
                                 usage = told
                                 if event.get("structured") is not None:  # (89p: the last kept)
                                     handed = event["structured"]
-                                if steered is not None and not late:
-                                    # shortcut: not measured - a steer it did not read in its
-                                    # turn may start one more: read on to its end, or to
-                                    # LATE_SECONDS of silence (every steered run's end waits
-                                    # so). Read in its turn or dropped stays unknown until its
-                                    # own word on a user line (--replay-user-messages) is
-                                    # measured live (89d).
+                                if unread and not late:
+                                    # C2, measured 27 Nov 2026: a line it did not echo before
+                                    # its result it echoes after it, and takes one more turn on:
+                                    # that turn is read on to its end (or LATE_SECONDS of
+                                    # silence) - this run's, never one nobody reads.
                                     earlier, late = told, True
                                     continue
                                 if report_schema is not None and await hand_back(True):
@@ -3393,6 +3352,7 @@ class ClaudeNativeClient(CodexNativeClient):
         finally:
             if on_live:
                 on_live(None)
+            deliveries.over()  # (C2: what it did not echo by its end is unknown)
             if opened and usage is None:
                 # A turn not finished (Stop, say) is asked to stop first; ended below if not.
                 with contextlib.suppress(Exception):
@@ -3448,8 +3408,6 @@ class ClaudeNativeClient(CodexNativeClient):
             )
             failed.failure = classed(limited, own_word)
             raise failed
-        if steered is not None and not after:  # (no error: its work is done; it is on record)
-            await on_item("completed", {"type": "steer_unread", "text": steered})
         sent, made = usage.get("input_tokens"), usage.get("output_tokens")
         return SessionResult(
             sent if isinstance(sent, int) else None,
@@ -3953,8 +3911,6 @@ RECORD_SECONDS = 300.0
 NO_SANDBOX = (
     "Copilot cannot sandbox commands on this machine: secret files are not hidden from them"
 )
-# KOLONİ's answers to a permission request: this once, never for the session or for good.
-APPROVE_ONCE = {"kind": "approve-once"}
 # The most a kept Copilot session may hold before it is not gone on in (`session_cap`): the
 # price step of its models (models.list's maxPromptTokens, 100,000 for claude-haiku-5.5 whose
 # session window is 872,000) - one 553,000-token message cost 34.6 AI credits (23 Nov 2026).
@@ -4145,10 +4101,9 @@ HEADLESS = ["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
 # Its own tools a session is given (`availableTools`): its shell and what goes with it, and
 # its file tools (apply_patch: non-Claude models' only one, B-389/B-393; a name a model does
 # not have is no error, measured on 1.0.105), each asked about as a command, a write or a
-# read. Not grep or glob (a
-# search reads a secret's lines with no card for the file), web_fetch or web_search, sql,
-# skill, its workflow tools, nor task and its agent tools (sub-agents in sessions of their
-# own, whose events are not read here).
+# read. Not grep or glob (a search reads a secret's lines with no card for the file),
+# web_fetch or web_search, sql, skill, its workflow tools or its agent tools; task only where
+# roles are given it as agents of its own (`OwnAgents.given`).
 # shortcut: the tools Copilot 1.0.91 reports (measured 24 Oct 2026; no write_powershell
 # then); check the list again after an update of Copilot's (K-cli-surface).
 COPILOT_TOOLS = [
@@ -4833,11 +4788,12 @@ class CopilotNativeClient(CodexNativeClient):
         effort: str | None,
         bridge_config: Path | None = None,
         denied: tuple[str, ...] | None = None,
-        on_live: OnLive | None = None,  # (never called: its session.send while busy waits, 89d)
+        on_live: OnLive | None = None,  # (its door while its turn runs: `steer`)
         read_only: bool = False,
         no_shell: bool = False,  # (read-only its shell is not among availableTools at all)
         resume: str | None = None,
         keep: bool = False,  # (Codex's: a session of Copilot's is kept by its home, `_kept_turn`)
+        inside: dict[str, dict] | None = None,  # (roles as agents of its own: `OwnAgents`)
     ) -> SessionResult:
         """Copilot headless for one turn, started and ended as Codex's app-server is
         (`CodexNativeClient._converse`): one session that asks before it acts
@@ -4861,9 +4817,10 @@ class CopilotNativeClient(CodexNativeClient):
         permits: set[int] = set()  # the ids of KOLONİ's answers to its permission requests
         numbers = iter(range(1, 10**9))
         asked: set[str] = set()  # the tool calls it asked about
+        own = OwnAgents(asked, call_tool)  # (its own sub-agents, KOLONİ's roles)
         answered: set[tuple[str, str]] = set()  # (tool call, kind) already answered
         heredocs = _ShellPatches()  # (B-389: its commands that were patches)
-        translate = self._translator(asked, heredocs)
+        translate = own.translator(self._translator(asked, heredocs), heredocs.ours)
         names: dict[str, str] = {}  # its tool calls' names, by id
         hooked = False  # protocol 4: every tool of its own asked through KOLONİ's hook
         session: str | None = None
@@ -4902,9 +4859,9 @@ class CopilotNativeClient(CodexNativeClient):
                 stdin.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
                 await stdin.drain()
 
-        async def ask(method: str, params: dict) -> tuple[dict, str | None]:
-            """What it answered, and why it said no (None: it did not)."""
-            number = next(numbers)
+        async def ask(method: str, params: dict, number: int = 0) -> tuple[dict, str | None]:
+            """What it answered, and why it said no (None: it did not). `number`: its id."""
+            number = number or next(numbers)
             replies[number] = loop.create_future()
             await send({"id": number, "method": method, "params": params})
             told = await replies[number]
@@ -4924,8 +4881,9 @@ class CopilotNativeClient(CodexNativeClient):
             busy.add(key)
             try:
                 await kept  # (what it did before it asked is on record first, as it was heard)
-                result = await self._permit(
-                    request, use_id, root, asked, answered, on_item, call_tool, heredocs, new_shell
+                told, asking = own.held(data, on_item, call_tool)  # (a sub-agent's: its task's)
+                result = await own.gate(data, request, use_id, on_item) or await self._permit(
+                    request, use_id, root, asked, answered, told, asking, heredocs, new_shell
                 )
                 if result["kind"] == "reject":
                     busy.discard(use_id)  # it may never say a rejected tool is done
@@ -4975,10 +4933,11 @@ class CopilotNativeClient(CodexNativeClient):
             try:
                 while (message := await _framed(stdout)) is not None:
                     heard = time.monotonic()
-                    method, params = message.get("method"), _dict(message.get("params"))
+                    method, params = message.get("method"), own.hooked(_dict(message.get("params")))
                     if method is None:  # an answer to a request of KOLONİ's
                         number = message.get("id")
                         future = replies.get(number) if isinstance(number, int) else None
+                        deliveries.answered(number, message)  # (C2: a steer's, now)
                         if future is not None and not future.done():
                             future.set_result(message)
                         elif "error" in message or (
@@ -5027,14 +4986,10 @@ class CopilotNativeClient(CodexNativeClient):
                                 }
                             )
                         continue
-                    # Only its session's events are kept (never an answer: session.create's
-                    # names where its home is).
-                    # shortcut: another session's events are dropped, unread; none is
-                    # expected while its task and agent tools are left out (COPILOT_TOOLS).
-                    # Read them if those tools are ever given.
-                    # shortcut: and a resumed one's only from its prompt on - whether
-                    # session.resume replays its earlier events is not measured; none of them is
-                    # this turn's.
+                    # Only its session's events are kept (never an answer: session.create's names
+                    # where its home is); its own sub-agents' come in it (`OwnAgents`).
+                    # shortcut: a resumed one's only from its prompt on - whether session.resume
+                    # replays its earlier events is not measured; none of them is this turn's.
                     if (
                         method != "session.event"
                         or (session and params.get("sessionId") != session)
@@ -5044,6 +4999,8 @@ class CopilotNativeClient(CodexNativeClient):
                     event = _dict(params.get("event"))
                     feed("stdout", json.dumps(event, ensure_ascii=False), (server.key,))
                     kind = event.get("type")
+                    if own.apart(event):  # (a sub-agent's words, usage, idle: not its Lead's)
+                        continue
                     if kind == "session.usage_checkpoint":
                         # Measured on 1.0.103 `-p` (5 Nov 2026) and headless on 1.0.114 (23 Nov):
                         # the session's total so far, a resumed one counted on - so the last one
@@ -5064,7 +5021,7 @@ class CopilotNativeClient(CodexNativeClient):
                         records.put_nowait(("item.completed", compacted))
                         continue
                     if kind == "permission.requested":
-                        data = _dict(event.get("data"))
+                        data = {**_dict(event.get("data")), "agentId": event.get("agentId")}
                         if data.get("resolvedByHook"):
                             # KOLONİ gives it no hooks: one of its own decided, unasked.
                             broke = broke or OwnStop(
@@ -5092,6 +5049,8 @@ class CopilotNativeClient(CodexNativeClient):
                         answering.add(task)
                         task.add_done_callback(answering.discard)
                         continue
+                    if kind == "user.message":  # (C2: one steered in, taken into its work)
+                        deliveries.took(key=_dict(event.get("data")).get("messageId"))
                     if kind == "session.idle" and sent:
                         if _dict(event.get("data")).get("aborted"):
                             failure = failure or "its turn was aborted"
@@ -5138,6 +5097,7 @@ class CopilotNativeClient(CodexNativeClient):
                         return
                 await process.wait()
             finally:
+                deliveries.over()  # (C2: a steer it did not answer is unknown, not refused)
                 for future in replies.values():  # nothing more will answer them
                     if not future.done():
                         future.set_result({"error": {"message": "it ended"}})
@@ -5199,6 +5159,19 @@ class CopilotNativeClient(CodexNativeClient):
                 no = "it went on in another session than the one asked"
             return made, no
 
+        door = on_live or (lambda _door: None)  # (`steer` while its turn runs)
+        deliveries = Deliveries()  # (C2: what is steered into it, till each is settled)
+
+        async def steer(text: str) -> Delivery:
+            """89d: `text` into its running work, `mode` "immediate" as its own client sends it
+            (measured 27 Nov 2026, 1.0.114: taken in that work; with none, after its turn) -
+            taken where its user.message names the id it answered with before its idle (C2:
+            `steer_asked`). Never an error that ends the run."""
+            number = next(numbers)
+            asked = {"sessionId": session, "prompt": text, "mode": "immediate"}
+            request = ask("session.send", asked, number)
+            return await steer_asked(deliveries, text, request, number, STEER_SECONDS, "messageId")
+
         async def talk() -> None:
             nonlocal unasked, started, failure, session, sent, hooked, not_resumed
             reading = asyncio.ensure_future(read())
@@ -5249,7 +5222,7 @@ class CopilotNativeClient(CodexNativeClient):
                         # Protocol 4: KOLONİ's preToolUse hook asks of every tool of its own.
                         **({"hooks": True} if hooked else {}),
                     }
-                    given = _grouped(flat) if hooked else flat
+                    given = own.given(_grouped(flat), inside) if hooked else flat
                     if resume is None:
                         made, no = await ask("session.create", given)
                     else:
@@ -5268,12 +5241,14 @@ class CopilotNativeClient(CodexNativeClient):
                 if no is not None:
                     failure = failure or no
                     return
+                door(steer)
                 await reading
                 if idle and self.on_limits and not server.ended:
                     await said_quota()
             except (BrokenPipeError, ConnectionResetError):
                 return  # it is gone: how it ended is said below
             finally:
+                door(None)
                 reading.cancel()
                 with contextlib.suppress(BaseException):
                     await asyncio.shield(asyncio.wait({reading}, timeout=2))
@@ -5307,6 +5282,7 @@ class CopilotNativeClient(CodexNativeClient):
                         f"{self.label} sent what KOLONİ cannot read: {exc}"
                     ) from None
         finally:
+            deliveries.over()  # (C2: what it did not show taken by now is unknown)
             for task in (talking, *answering):
                 task.cancel()
             with contextlib.suppress(BaseException):
@@ -5331,7 +5307,7 @@ class CopilotNativeClient(CodexNativeClient):
             broke, server, unasked, failure, idle, complaint, process, reported, usage, picked_why
         )
         return replace(
-            result,
+            own.with_calls(result),  # (its own sub-agents' spend: `OwnAgents.with_calls`)
             session={"id": session} if hooked and session else None,
             context_window=window,
             context_used=size["info"] if size["info"] is not None else size["call"],

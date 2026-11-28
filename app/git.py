@@ -2794,10 +2794,9 @@ def holding(project: Path, tip: str, paths: Iterable[str], needles: Sequence[byt
 def held_since(
     project: Path, start: str, tip: str, needles: Sequence[bytes], branch: str | None = None
 ) -> bool:
-    """D2: whether any commit from `start` to `tip` - the agents' own steps, which a branch kept
-    after its squash keeps - holds one of `needles` (bytes) in its message or a file it wrote
-    (`holding`); with `branch`, any its reflog still names too (one amended away). Fails
-    closed: where git does not list them, it counts as holding one."""
+    """D2: whether a commit from `start` to `tip` (the agents' steps a squashed branch keeps; a root
+    commit's files too) holds one of `needles` (bytes) in its message or a file it wrote (`holding`)
+    - with `branch`, one its reflog names (amended away). Fails closed: unlisted, it holds one."""
     if not needles:
         return False
     git, _folder = repository(project)
@@ -2848,6 +2847,7 @@ def held_since(
             *UNASKED,
             "diff-tree",
             "--no-commit-id",
+            "--root",
             "-m",
             "-r",
             "-z",

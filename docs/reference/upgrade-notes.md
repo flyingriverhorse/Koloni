@@ -18,6 +18,36 @@ put one back in place of `runtime/data/koloni.db`.
 
 Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
 
+### 0.1.11
+
+At its first start the database is upgraded by two migrations, 0197 and 0198, after KOLONİ copies it to
+`runtime/data/backups/`. Neither deletes anything of yours.
+
+| Migration | What it does to your data |
+|---|---|
+| 0197 | A table for the decisions the Orchestrator notes for you under **Decided for you** (`note_decision`). Going back drops it. |
+| 0198 | Each chat keeps when you last looked at it ("Done · not seen"). Every chat there is at the upgrade counts as seen. Going back drops the column. |
+
+- **The Orchestrator adds preferences from your words.** **New preferences from your words** (Settings ›
+  The app › Agents) starts at **Add them, tell me**: a plain rule you state ("from now on write commits
+  in Turkish") goes into Your preferences at once, and the chat says so with **Undo**. Choose **Ask me
+  first** to have each one on a card (see [Who writes what](../memory.md#who-writes-what)).
+- **Check what I said first runs fewer commands.** Where its box works, a line of your preferences no
+  longer lets a command run - it can only stop one -, and an earlier turn's message no longer runs a
+  push, a pull request or a merge: of your messages only this turn's do, **Send now** included (this
+  project's rules still can). Such a command waits on its card (see [Check what I said first](../use/permissions.md#check-what-i-said-first)).
+- **At Full auto the judge decides a plain push of your feature branch.** In a chat you watch at **Full
+  auto** with the judge on, a plain push of the branch you have checked out to its own origin goes to the
+  judge instead of a card: **fine** pushes it, **risky** gives its card - never a refusal. A push to
+  `main`, a force push and any other push keep their cards (see [A push of your feature
+  branch](../use/permissions.md#a-push-of-your-feature-branch)). The judge reads new words, "D2" (see
+  [Full auto's judge](../use/permissions.md#full-autos-judge)).
+- **More files ask at every level.** Writing `.devcontainer/` or `.devcontainer.json`, `.gitmodules`,
+  `.cargo/`, `.mvn/`, Gradle's wrapper, `.bazelrc` or `.bazelversion` asks at every level, Full auto too,
+  and so does a `git remote` that changes `origin` (`add`, `set-url`, `remove`, `rename`, `set-head`,
+  `set-branches`). Where an agent did this unasked at Full auto, it now waits on a card (see [Files that
+  steer later turns](../security/model.md#files-that-steer-later-turns)).
+
 ### 0.1.10
 
 0.1.10 makes KOLONİ smaller: Board, triggers, the Observer, the Office and 3D previews, rooms, the

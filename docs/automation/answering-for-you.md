@@ -49,8 +49,8 @@ away](overnight.md#questions-and-approvals).
 What it answered shows under **Decided for you** on the [Ready for you](../use/ready.md) page, the
 project's whole list: who decided, what the Orchestrator chose, and why. Press **OK** to keep it, or
 **Change →** to give another answer while the agent that asked still works. If the answer cannot be
-undone any more, the row says why. The chat says it in one line at its top, "While you were away, 3
-things were decided for you and 2 wait for you.", with **Open in Ready for you**. See
+undone any more, the row says why. The chat says it in one line at its top, "3 things were decided
+for you in this project and 2 wait for you here.", with **Open in Ready for you**. See
 [Decisions](../use/decisions.md). A chat with no folder keeps its own **Decided for you while you were
 away** box, with the same **OK** and **Change →**.
 
@@ -63,6 +63,11 @@ without a card, or did not run, on a line of yours: "Coder ran … without askin
 Full auto alone does not let it open a sub-agent for you; of KOLONİ's own cards only the step limit's
 is decided while you're away. An Orchestrator on a CLI answers at Full auto only where **When you're away** is set
 to **The Orchestrator answers what it safely can**.
+
+A decision the Orchestrator took without a card - a library, an approach - it can note for you with
+`note_decision` (0.1.11): it is in the same list, "Orchestrator · Decided: …" with its reason, until
+your **OK**; **Change** takes your own words. See
+[Talking while agents work](../use/talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
 
 ## The same question again
 

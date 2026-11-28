@@ -52,7 +52,8 @@ interface Props {
     fresh: boolean,
     overBudget?: boolean,
     files?: { attachments: string[]; save_to_project: boolean },
-  ) => Promise<void>
+    now?: boolean,
+  ) => Promise<string | null | void>
   /**
    * The topic the next message goes on with; 'new' when there are turns but no topic of
    * the user's to go on with; null in a conversation with no turn yet (nothing is said).
@@ -108,7 +109,7 @@ interface Props {
 
 /**
  * What the empty box says. While the Orchestrator's question is open in the open chat, on its Chat tab, that it is
- * answered on its card and a message sent now is queued (0.1.4); closed, the chat's line says what it asks, and the
+ * answered on its card and a message sent now goes into the turn (0.1.11); closed, the chat's line says what it asks, and the
  * Talk and Notes tabs, over which the same box stands, do not show it.
  */
 function placeholderOf(
@@ -119,13 +120,28 @@ function placeholderOf(
   running: boolean,
   away: boolean,
 ): string {
-  if (!compact && tab === 'Chat' && conv && leadQuestion(conv)) return 'Answer the question above, or queue a message…'
+  if (!compact && tab === 'Chat' && conv && leadQuestion(conv))
+    return 'Answer the question above, or write to the Orchestrator…'
   // (☾ Away: a message of yours ends it.)
   if (away) return 'Write to come back…'
-  if (running) return 'Queue a message for after this turn…'
+  if (running) return 'Write to the Orchestrator - it reads it in this turn…'
   return projectId
     ? 'Ask about this project or request a change…'
     : 'Ask anything - pick a folder with the folder button to work on files'
+}
+
+/** `send`'s call: without the word, as before - two arguments; with files, four; sent now (D2), five. */
+function sendWith(
+  onSend: Props['onSend'],
+  content: string,
+  fresh: boolean,
+  overBudget: boolean,
+  added: { attachments: string[]; save_to_project: boolean } | undefined,
+  now: boolean,
+) {
+  if (now) return onSend(content, fresh, overBudget || undefined, added, true)
+  if (added) return onSend(content, fresh, overBudget, added)
+  return overBudget ? onSend(content, fresh, true) : onSend(content, fresh)
 }
 
 export function Composer({
@@ -188,6 +204,8 @@ export function Composer({
   const { save, setSave } = useSave(conv)
   const links = linksIn(text)
   const canSend = sendable(text, files.length, sending || going)
+  // D2: where a message sent now waits in the queue instead, why (the server's words).
+  const [queued, setQueued] = useState<{ key: string; said: string } | null>(null)
   const { noted, setPasted, asPlain, caret } = usePasted(key, draft, input)
 
   function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
@@ -224,7 +242,8 @@ export function Composer({
     })
   }
 
-  async function send(overBudget = false) {
+  /** `now` (D2, 0.1.11): while a turn runs, into it - Send now, Enter's - else After this turn, into the queue. */
+  async function send(overBudget = false, now = running) {
     if (!canSend) return
     // A fence that opens the task starts a line of its own: one after "do this: " would be no fence.
     const task = text.trim()
@@ -236,14 +255,11 @@ export function Composer({
     setSending(true)
     setError(null)
     setOver(null)
+    setQueued(null)
     try {
-      // (Without the word, sent as before: two arguments; with files, four.)
       const added = files.length ? { attachments: files.map(one => one.id), save_to_project: save } : undefined
-      await (added
-        ? onSend(content, fresh, overBudget, added)
-        : overBudget
-          ? onSend(content, fresh, true)
-          : onSend(content, fresh))
+      const why = await sendWith(onSend, content, fresh, overBudget, added, now)
+      if (typeof why === 'string') setQueued({ key: from, said: `Queued: ${why}` })
       // Only what was sent is cleared: words written meanwhile stay. (The files go with their message.)
       if (useApp.getState().drafts[from] === draft) useApp.getState().setDraft(from, '')
       setFreshIn(null)
@@ -401,7 +417,13 @@ export function Composer({
             running={running}
             canSend={canSend}
             onSend={() => void send()}
+            onLater={() => void send(false, false)}
           />
+          {queued?.key === key && (
+            <div role="status" className="composer-queued muted">
+              {queued.said}
+            </div>
+          )}
         </div>
         <ComposerBelow
           hidden={compact}
@@ -713,7 +735,10 @@ function SlashMenu({
   )
 }
 
-/** The box's one row (0.1.5): 📎, the level's comb (Plan first is in its menu), then Auto-read, Dictate and Send (Queue while a turn runs). */
+/**
+ * The box's one row (0.1.5): 📎, the level's comb (Plan first is in its menu), then Auto-read, Dictate and Send - while a
+ * turn runs (D2, 0.1.11) Send now, Enter's, into the turn, and After this turn, into the queue.
+ */
 function ComposerBar(p: {
   hidden: boolean
   attach: ReactNode
@@ -730,8 +755,9 @@ function ComposerBar(p: {
   running: boolean
   canSend: boolean
   onSend: () => void
+  onLater: () => void
 }) {
-  const say = p.running ? 'Queue' : 'Send'
+  const say = p.running ? 'Send now' : 'Send'
   return (
     <div className="composer-bar" hidden={p.hidden}>
       {p.attach}
@@ -749,10 +775,21 @@ function ComposerBar(p: {
       <span className="composer-actions">
         <AutoRead />
         {p.dictate}
+        {p.running && (
+          <button
+            type="button"
+            className="btn composer-later"
+            title="After this turn: it waits in the queue and starts its own turn"
+            disabled={!p.canSend}
+            onClick={p.onLater}
+          >
+            After this turn
+          </button>
+        )}
         <button
           type="button"
           className="btn btn-primary composer-send"
-          title={say}
+          title={p.running ? 'Send now: the Orchestrator reads it in this turn' : say}
           disabled={!p.canSend}
           onClick={p.onSend}
         >

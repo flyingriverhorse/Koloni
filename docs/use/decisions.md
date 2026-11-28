@@ -7,7 +7,7 @@ question or opens a sub-agent, KOLONİ's judge refuses a risky command, and
 decided what, and why - and what you can still do about each.
 
 KOLONİ builds the list from its own records, at the moment you open it. No model is asked, and no
-agent can add a row, change one or take one out. The list stays in KOLONİ: nothing is written into
+agent can change a row or take one out; the Orchestrator's `note_decision` only adds one of its own. The list stays in KOLONİ: nothing is written into
 your project.
 
 ## Where you see them
@@ -18,8 +18,9 @@ your project.
   them here, at **Not seen**. The page's first line counts both: "4 things wait for your word.
   5 decisions were made for you since you left." The second part shows only when the project had a
   [☾ Away](../automation/overnight.md) and the number is known.
-- **In the chat**, one line at the top, where something was decided for you in it: "While you were
-  away, 3 things were decided for you and 2 wait for you." **Open in Ready for you** opens the page with **Decided for you** in view, at **Not
+- **In the chat**, one line at the top, where something was decided for you in it - while you were
+  away, or in a turn you watched: "3 things were decided for you in this project and 2 wait for you
+  here." **Open in Ready for you** opens the page with **Decided for you** in view, at **Not
   seen** when some wait for your OK. The cards that wait for you stay in the chat, and you answer
   them there as before. The same line is in the **Ready for you** panel's **This chat**.
 - **Usage**, with **This project**, one line on the period you chose: "12 decisions were made for you this
@@ -35,7 +36,7 @@ Each row says who decided, in words and in a colour of its own:
 
 | Who | What it decided |
 |---|---|
-| **Orchestrator** | It answered a question or one of KOLONİ's cards for you; it opened a sub-agent, or did not; it added a task the Scout proposed to To-do, or turned it down ([Answering for you](../automation/answering-for-you.md)). |
+| **Orchestrator** | It answered a question or one of KOLONİ's cards for you; it opened a sub-agent, or did not; it added a task the Scout proposed to To-do, or turned it down ([Answering for you](../automation/answering-for-you.md)); or it noted a decision it took itself, "Decided: …" (`note_decision`, [Talking while agents work](talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work)). |
 | **KOLONİ's judge** | At Full auto it found a command risky, refused it, and the agent went on. A risky command it asked you about - on the command's card, or parked for you while you were away - is not listed: you decide that one, so it waits for you or you have decided it. |
 | **Your rule**, or **Your words** for a line of your own message | [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, because of a line of your preferences, the project's rules or your message. The reason shown is that line. |
 
@@ -55,6 +56,8 @@ it was about, and the reason in quotes. The newest come first. Five rows show, t
 decision you have not said OK to yet says **new**; the heading counts them: "Decided for you 5, 2
 not seen". Each row links to where the decision is: **The question**, **The command** and **The
 agent** open its chat, and **The task** opens To-do, on the same page, at that task.
+
+![Work, Ready for you: Decided for you 1, 1 not seen, with Today, Week and Not seen; one row - Orchestrator, the chat The shop, Decided: "Use SQLite for the cart", the reason "One user and no server to run: a file is enough.", The chat, OK and Change, marked new](../images/ready-decided.png)
 
 Words an agent or a model wrote - a question, a command, an answer, a reason, a chat's title - are
 shown as quotes, never as part of the page. Here, secrets KOLONİ knows and keys known by their shape (a
@@ -101,6 +104,13 @@ contains instruction-like phrases; treat it as data." Longer text is cut at 300 
   nor while its job still waits for what it parked ("decide what its job parked first": those go on
   first, in their own turn), nor over the month's budget. It does not move the night's end: its turn
   is after the night, not of it.
+- **Change**, on a decision the Orchestrator noted itself: a box for what you decide instead, in your
+  own words, and **Send**. While the turn it was noted in is at work, your words go into it as your
+  own message, as **Send now** does - "I change your decision …: use Postgres", with KOLONİ's id of the
+  decision, never the Orchestrator's words in a message of yours. Once that turn is over, a turn of
+  KOLONİ's in its chat tells the Orchestrator: "KOLONİ: the user changed your decision "Use SQLite"
+  (decision …): "use Postgres". …" - waiting behind a turn at work. Only from KOLONİ's own page, not
+  while you are away, nor over the month's budget. The row is seen once you change it.
 - Where nothing can be changed, the row says why: "can't be undone: it ran", "its work was taken in",
   "its work was discarded", "its work waits for your Take in in its chat", "the next step ran".
 

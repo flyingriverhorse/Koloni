@@ -37,6 +37,7 @@ const talk = (id: string, title: string, over: Partial<BoardConversation> = {}):
   title,
   agents: [],
   merges_pending: 0,
+  unseen: false,
   turn: null,
   ...over,
 })

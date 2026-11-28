@@ -279,6 +279,13 @@
   color: var(--text);
 }
 
+/* D3 (0.1.11): why an agent's own Stop was refused, under its head. */
+.node-stop-why {
+  flex-basis: 100%;
+  color: var(--del);
+  font-size: var(--text-meta);
+}
+
 /* Where findings handed on leave and come in (slice 84c), and where a team's line meets its card
    (K-shared-bagli, its door drawn by the line): only the line shows. */
 .react-flow__handle.found-handle,

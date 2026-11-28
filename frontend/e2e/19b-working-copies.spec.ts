@@ -29,8 +29,8 @@ test('two agents work in copies of their own: nothing is in the project until yo
   await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
   await level(page, 'ask')
 
-  await page.getByLabel('Message').fill('two coders in their own copies')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByLabel('Message', { exact: true }).fill('two coders in their own copies')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   // Agents that may change things are asked about before they open, at this level.
   for (const _ of [1, 2]) await chat.getByRole('button', { name: 'Open agent' }).first().click()
 

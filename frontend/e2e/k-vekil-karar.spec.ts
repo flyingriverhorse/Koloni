@@ -33,8 +33,8 @@ for (const theme of ['light', 'dark'] as const) {
       .toBe('lead')
 
     // A Coder to open (asked at this level), then its question: both the Lead's to answer.
-    await page.getByLabel('Message').fill('vk: greet while I am away')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByLabel('Message', { exact: true }).fill('vk: greet while I am away')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     // (To look at, not waiting: the pill says "2 decided" - or, where other chats of the run wait, how many do;
     // the chat says it in one line, and so does the panel's This chat.)
@@ -42,7 +42,7 @@ for (const theme of ['light', 'dark'] as const) {
     // (K1: the project's count - other chats of the project may have theirs - read with its board, every 5 s)
     await expect(pill).toHaveText(/^(\d+ decided|\d+ waits?)$/, { timeout: 20_000 })
     await expect(chat.locator('.decided-line')).toHaveText(
-      /^While you were away, \d+ things were decided for you in this project\. Open in Ready for you$/,
+      /^\d+ things were decided for you in this project\. Open in Ready for you$/,
       { timeout: 15_000 },
     )
     await pill.click()

@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 
 from app import copies, koloni
 from app.agent.cards import (
+    _asked_about,
     _changes_nothing,
     _hands_back,
     _links_in_copy,
@@ -31,8 +32,12 @@ from app.agent.words import (
     FINDING_KINDS,
     IN_THE_PROJECT,
     NATIVE_NEEDS_A_FOLDER,
+    STEER_UNKNOWN,
+    STEERED,
 )
-from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now
+from app.copilot_own_agents import copilot_tools, with_own_calls
+from app.db.models import Agent, Conversation, Provider, Run, ToolCall, Topic, now, settings_of
+from app.delivery import UNKNOWN, Delivery
 from app.limits import CLI_HOMES
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, ToolCallRequest
 from app.model_native import (
@@ -43,14 +48,17 @@ from app.model_native import (
     USED_INSIDE,
     ClaudeNativeClient,
     CodexNativeClient,
+    CopilotNativeClient,
     Steer,
+    claude_tools,
     copilot_home,
     forget_session,
+    inside_name,
 )
 from app.model_session import SessionResult
 from app.project_view import ProjectView
 from app.project_view import standing as standing_files
-from app.roles import LEARN, LOOKUP, can_change_things
+from app.roles import LEARN, LOOKUP, can_change_things, closed, list_roles, shown_name
 from app.team import NATIVE_NEEDS_TOOLS, closed_to_agents, reads_only
 from app.tools import READ_TOOLS, WRITE_TOOLS
 from app.workspace import Outside, Workspace, WorkspaceError, opened
@@ -207,6 +215,86 @@ class NativeMixin:
             return ctx.cid, None
         return ctx.cid, owner if await self._working_copy(ctx, owner) is not None else None
 
+    def _inside_roles(
+        self: "AgentRunner",
+        ctx: Ctx,
+        offered: list[dict],
+        withheld: tuple[str, ...],
+        watch: "_Watch",
+        copilot: bool = False,
+    ) -> dict[str, dict]:
+        """89g: the roles the user lets run inside Claude Code (`Role.inside_cli`) - or, where
+        `copilot`, inside GitHub Copilot CLI (0.1.11, `OwnAgents`) - of those this agent may open
+        now (as spawn_agent lists them: `_offered`), as `--agents` takes each - its line, its
+        instructions, its tools (capped by this agent's) as the CLI's own, and on Claude Code its
+        model where it runs on its Lead's provider. Nothing else of the role's or the user's goes.
+        Each is put on `watch` with its tools as `approve` is asked of them, where `_approve` holds
+        it to those. Copilot's is given what says whether it is asked about before it opens, as
+        its task comes (`asks`: `_inside_asks`, `OwnAgents.gate`).
+        shortcut: of two roles offered by one name (`inside_name`) only the first is; the other
+        is opened as an agent of KOLONİ's only. None where a spawn_agent of this agent's would
+        be asked about every time, or could not go a level deeper, nor in a job done while the
+        user is away (whose cost nothing here would hold).
+        shortcut: its sub-agents count toward no limit of the turn's (`spawn_max_agents`, a
+        role's steps and tokens): they are its Lead's turn; count them if that is seen to matter."""
+        if (
+            "spawn_agent" not in {tool["function"]["name"] for tool in offered}
+            or ctx.run_id in self._away_jobs
+        ):
+            return {}
+        given: dict[str, dict] = {}
+        with self._factory() as session:
+            own = settings_of(session, session.get_one(Conversation, ctx.cid))
+            if own.spawn_approval == "always" or self._level(ctx) + 1 > own.spawn_max_depth:
+                return {}
+            door, named = self._door(session, ctx), self._names_past(session, ctx)
+            closed_here = self._closed_here(ctx)
+            for role in list_roles(session):
+                name = inside_name(role.name)
+                capped = [t for t in role.tools if t in ctx.tools]
+                if copilot:
+                    tools, held = copilot_tools(capped, withheld)
+                else:
+                    tools = held = claude_tools(capped, withheld)
+                # (No tools at all would be every tool to its CLI: such a role is not offered.
+                # Nor, under a Lead that hands code on, one that would change things: its Bash
+                # would write in the Lead's folder, past any diff - it is opened as KOLONİ's.)
+                if (
+                    not role.inside_cli
+                    or not tools
+                    or name in given
+                    or closed(role, door, named)
+                    or ("write" in withheld and can_change_things(capped))
+                ):
+                    continue
+                # shortcut: a model on another provider than its Lead's is not given; the Lead's is.
+                # (Nor any on Copilot: `OwnAgents`.)
+                model = (
+                    role.model_id
+                    if role.provider_id and role.provider_id == ctx.provider_id and not copilot
+                    else None
+                )
+                if model is None and closed_here:
+                    continue  # (B-385: it would run on its Lead's model, closed to agents)
+                given[name] = {
+                    "description": role.description or shown_name(role.name),
+                    "prompt": role.instructions or role.description or role.name,
+                    "tools": tools,
+                    **({"model": model} if model else {}),
+                    **({"asks": partial(self._inside_asks, ctx, capped)} if copilot else {}),
+                }
+                watch.roles[name] = (shown_name(role.name), held)
+        return given
+
+    def _inside_asks(self: "AgentRunner", ctx: Ctx, tools: list[str]) -> bool:
+        """Whether a role with these tools, run inside Copilot (`_inside_roles`), is asked about
+        before it opens - as spawn_agent's is (`_asked_about`), at the chat's setting and level as
+        its task comes, not as the turn began: a card at Ask for one that changes things."""
+        with self._factory() as session:
+            conversation = session.get_one(Conversation, ctx.cid)
+            approval = settings_of(session, conversation).spawn_approval
+            return _asked_about(approval, conversation.permission_mode, tools)
+
     async def _native_work(
         self: "AgentRunner", ctx: Ctx, info: ModelInfo, hold: "_Hold"
     ) -> tuple[str, str | None]:
@@ -332,11 +420,18 @@ class NativeMixin:
             model = cast(CodexNativeClient, self._model_of(ctx))
             # B-151: Claude Code's skills go in its instructions as `run_native` gives them.
             claude = isinstance(model, ClaudeNativeClient) and model.command == "claude"
-            inside = self._inside_roles(ctx, offered, withheld, watch) if claude else {}
+            # 89g: roles as sub-agents of its own - Claude Code's, and Copilot's (0.1.11).
+            copilot = isinstance(model, CopilotNativeClient)
+            inside = (
+                self._inside_roles(ctx, offered, withheld, watch, copilot)
+                if claude or copilot
+                else {}
+            )
             # 27 / 93-C3: the session it may go on in, and keeps the one it leaves (not in a
             # discussion, whose history is the shared place's).
             keeps = getattr(model, "resumes", False) and not ctx.discussion
             history = self._history(told, offered, skills=not claude)
+            self._steered_marks(ctx, history)  # (D2: not sent again to a session it goes on in)
             kept = self._cli_session(ctx) if keeps else None  # (after it: notes handed now)
             self._slow(ctx, arm=True)  # (K-yavas: its model is asked until its run ends)
             usage = await model.run_native(
@@ -368,7 +463,7 @@ class NativeMixin:
                 planted=self._planted(ctx.run_id),
                 skills={skill.name: skill.folder for skill in self._skills(ctx)},
                 skills_told=self._skills_told(told, False) if claude else "",
-                on_live=partial(self._native_work_door, ctx),
+                on_live=partial(self._native_work_door, ctx, transcript),
                 on_end=lambda end: setattr(watch, "end", end),
                 # 89p: its findings come back in their schema, not to be read out of its words.
                 **({"report_schema": REPORT_SCHEMA} if _hands_back(ctx) and findings else {}),  # pyrefly: ignore[bad-argument-type]  # (its own keyword)
@@ -378,6 +473,8 @@ class NativeMixin:
                 keep=keeps,
                 level=level,
             )
+            usage = with_own_calls(usage)  # (Copilot's own sub-agents' spend, its turn's)
+            self._heard(ctx)  # (D2)
             self._slow_off(ctx)  # (what follows may wait for the user)
             left = usage.session
             self._window_said(ctx, model, usage.context_window)
@@ -685,12 +782,30 @@ class NativeMixin:
         notes = self._deliver(ctx) + self._no_longer_given(ctx)
         return status == "succeeded", "\n\n".join([output, *notes])
 
-    def _native_work_door(self: "AgentRunner", ctx: Ctx, door: Steer | None) -> None:
-        """`_native_work`'s `on_live` (89d: `steer`)."""
+    def _native_work_door(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", door: Steer | None
+    ) -> None:
+        """`_native_work`'s `on_live` (89d: `steer`): what its CLI showed no sign of taking by
+        its turn's end is on its record (C2: unknown, `app.delivery`)."""
         if door is None:
             self._doors.pop(ctx.agent_id, None)
-        else:
-            self._doors[ctx.agent_id] = door
+            return
+
+        async def steer(text: str) -> Delivery:
+            sent = await door(text)
+            sent.then(lambda outcome: self._steer_unknown(ctx, transcript, text, outcome))
+            return sent
+
+        self._doors[ctx.agent_id] = steer
+
+    def _steer_unknown(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", text: str, outcome: str
+    ) -> None:
+        if outcome == UNKNOWN:
+            words = text.removeprefix(f"{STEERED}\n\n")
+            said = STEER_UNKNOWN.format(name=ctx.name or ctx.role, words=words)
+            # (on its last message: at its turn's end a new one would be an empty bubble)
+            self._note(ctx, transcript, "steer", {}, "failed", said, transcript.said())
 
     async def _native_work_puts_back(
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch"

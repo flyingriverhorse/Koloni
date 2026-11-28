@@ -41,8 +41,8 @@ switched off for every agent at once:
 
 A tool switched off here is given to no agent, whatever its role says. Claude Code's and Codex's own
 web tools switch off with **Search the web** and **Web requests**. While either is off, a command that
-reaches the internet (`curl`, `git clone`, an `https` address) asks you on a card at every level, Full
-auto too.
+reaches the internet (`curl`, `git clone`, an `https` address, bash's `/dev/tcp/`) asks you on a card at
+every level, Full auto too.
 
 ## Every tool, by group
 
@@ -72,7 +72,11 @@ for a role that uses knowledge, that knowledge's pages too
 A role with **Run commands** also gets two tools for a command that keeps running in the chat (a dev
 server), in a turn you watch: one reads what it printed since, the other stops it - only one the agent
 started itself. See
-[Preview](../use/chat-and-canvas.md#preview).
+[Preview](../use/chat-and-canvas.md#preview). Reading, it can first wait for a piece of text to be
+printed - "listening on", "passed" - up to 2 minutes (30 seconds unless it says), instead of spending a
+step on each look: it is told the line it was seen in, or that it was not seen in that time, or that
+the command ended first. It is a piece of text as printed, not a pattern, and it is looked for only in
+what the agent may read: a secret, hidden in the output, is never found.
 
 The Orchestrator, at its own work in a project, also has **run_checks**: KOLONİ's checks of its work
 now - the tests, the type and style checks, the Reviewer and the live try, as the turn's end runs
@@ -92,6 +96,21 @@ as data, with KOLONİ's note where it reads like orders. Its answer is at most 3
 lines are left out and a last line says how many. A sub-agent is not given it, nor a side of a
 comparison, nor an Orchestrator
 whose role has no To-do tools.
+
+While its agents work (0.1.11), the Orchestrator also has **stop_agent**: it stops one agent it opened
+in this turn with Open sub-agents, alone - its work so far kept for your **Take in**, nothing of it in the
+project; any other is refused ("… is not one you opened in this turn", "… has finished"). The
+Orchestrator of an API model may open an agent **in the background** (Open sub-agents with `background`)
+and run a command in the background (Run commands with `background`, where it has the two tools for a
+command that keeps running): it goes on at once and is told when each ends. Beside them it has
+**agents_at_work** (who of the turn is at work, since when, what each waits for and last said), **update_plan** (its
+plan shown to you, an API model's), **ask_advisor** (a second model's advice, three times a turn: your
+**Advisor model**, else another provider's), **note_decision** (a decision it took for you, a row of
+**Decided for you**), **suggest_preference** (your own sentence of the turn for Your preferences,
+added with **Undo**, or on a card you **Add** - as you set it) and, where `gh` is installed and the origin is on GitHub,
+**read_pr_feedback** (one pull request's reviews, comments and failing checks, read only). None is a
+sub-agent's. See
+[Talking while agents work](../use/talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
 
 A role needs at least one tool. Tools from MCP servers and skills are given to roles on the Tools page;
 see [MCP servers](mcp.md) and [Skills](skills.md).

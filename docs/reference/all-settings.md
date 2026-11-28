@@ -39,7 +39,7 @@ The sections before 0.1.10, and where they are now (Ctrl+K finds them by either 
 **Answer in**, **Steps an agent may take**, **Stuck after this many minutes with no progress**,
 **An unattended turn runs at most (hours)**, **Summarise a long context at (%)**, **Knowledge
 reads at most**, **KOLONİ's test runs at once**, **Test processes per run**, **Show experimental
-features** and **Judge model** (Agents; the step limit, the two unattended limits, knowledge's and the test runs' under
+features**, **Judge model**, **Advisor model** and **New preferences from your words** (Agents; the step limit, the two unattended limits, knowledge's and the test runs' under
 **More limits**),
 **Voice** (this browser's), and **Your data** (Export, Restore, kept working copies, Always blocked). See
 [Settings](../settings.md#the-app).

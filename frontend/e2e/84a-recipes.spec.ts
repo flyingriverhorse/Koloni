@@ -171,7 +171,7 @@ for (const theme of ['light', 'dark'] as const) {
     // Read again from the server: all of it kept.
     await page.goto('about:blank')
     await page.goto(LINK)
-    await page.getByLabel('Message').waitFor()
+    await page.getByLabel('Message', { exact: true }).waitFor()
     await recipesTab(page)
     await page.getByRole('button', { name: new RegExp(`^${NAME} ${theme}`) }).click()
     await expect(page.getByRole('button', { name: /^Build it/ })).toContainText('Coder')
@@ -323,7 +323,7 @@ test('or write it: the Lead’s model draws a draft that is saved by the user al
   // A team's default recipe: one of KOLONİ's, kept over a reload.
   expect((await request.post('/api/teams', { headers: OWN, data: { name: TEAM } })).ok()).toBe(true)
   await page.reload()
-  await page.getByLabel('Message').waitFor()
+  await page.getByLabel('Message', { exact: true }).waitFor()
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   // (Its foot is the open team's: opened from its row.)
   await page

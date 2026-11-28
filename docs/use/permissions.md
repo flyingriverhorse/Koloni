@@ -31,13 +31,14 @@ level says "· no checks"). Each chat has its own level.
 | Any other command | Card, unless a rule covers it | Card, unless a rule covers it | Runs, unless [Full auto's judge](#full-autos-judge) finds it risky |
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
 | A command that deletes or empties files in the project, or throws away git work, written as a plain line (`rm -rf src`, `Remove-Item`, `git reset --hard`, `git clean -fd`, `git checkout -- .`, `git stash drop`, `git branch -D`) | Card | Card | Runs, unless [Full auto's judge](#full-autos-judge) finds it risky - a card with the judge off or no judge model to answer ([which](#what-the-judge-decides-in-place-of-the-list)) |
-| A command that sends data off the machine (`git push`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
+| A command that sends data off the machine (`git push`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it; a plain push of your feature branch goes to [Full auto's judge](#a-push-of-your-feature-branch) |
+| A plain push of the branch you have checked out to its own `origin` (`git push`, `git push -u origin feature/x`) - never `main`, `master` or origin's default branch | Card | Card | Runs, unless [Full auto's judge](#a-push-of-your-feature-branch) finds it risky - then its card, never a refusal; a card too with the judge off, no judge model to answer, or anything [it does not know as plain](#a-push-of-your-feature-branch) |
 | A delete out of the project or of all of it (`rm -rf ../x`, `rm -rf .`, `find . -delete`, `git clean -fdx`), one not written as a plain line (`bash -c "rm -rf build"`, `… \| xargs rm`, `rm -rf .gi\t`), a worktree removed, git's recovery pruned (`git gc --prune=now`, `git reflog expire`), a Docker delete, or a git remote's branches overwritten or deleted (`git push --force`, `git push origin :x`) | Card | Card | Card |
 | A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed [such deletes](#disposable-deletes) | Card | Runs | Runs |
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless Full auto's judge finds it risky; a card where what it runs deletes, sends or is asked at every level |
 | Reading a secret file (`.env`, keys, …) | Card | Card | Card |
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
-| Writing a file that steers agents' later turns (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.mcp.json`, …) | Card | Card | Card |
+| Writing a file that steers agents' later turns or runs by itself (`.claude/`, `.codex/`, `.git/`, `.github/`, `.vscode/`, `.idea/`, `.devcontainer/`, `.cargo/`, `.gitmodules`, `.mcp.json`, … - [all of them](../security/model.md#files-that-steer-later-turns)) | Card | Card | Card |
 | Writing `AGENTS.md`, `CLAUDE.md` or `GEMINI.md` | Card | Card | Runs |
 | Writing in the folder's `.koloni/` - or a command that names it - but in its scratch `tmp/`, and a look into `worktrees/` or `copies/` ([which](#the-folders-koloni)) | Card | Card | Card |
 | A web search | Card, unless you allowed searching in this chat | Card, unless you allowed searching in this chat | Runs |
@@ -52,10 +53,21 @@ level says "· no checks"). Each chat has its own level.
 | A sub-agent's command in a branch's worktree that finds your repository's own path (`git rev-parse --git-dir`), or writes to a place built when it runs (`> "$D/…"`, `cp x "$D/…"`, `Set-Content (Join-Path …)`) or links to one - it may be your repository's own `.git` | Card | Card | Card |
 
 A plain `git` command counts as read-only only when it runs at the top of the project and the
-project holds no secret file.
+project holds no secret file. As in Claude Code, these are no read either: a line that sets `PATH` or
+`IFS`, git after a change of folder (`cd sub && git status`: a repository shaped there can set programs
+git runs), a redirection to bash's `/dev/tcp/` or `/dev/udp/` (it reaches the internet), and a wildcard
+that may expand to an option (`find *`, `rg foo *`, `cat -*`: a file named `-delete` or `--pre=x` in the
+folder would be one; `src/*.py` and a quoted `'*.py'` are fine).
 
-The secret-file rows have exceptions for CLIs run with their own tools (Codex's own safe commands,
-agy's reads): see [Known limits](../reference/known-limits.md#secrets).
+A search chained to another command is no read either. A `;`, `&` or `|` inside quotes chains
+nothing in a search on a simple line - one with no backslash, backtick, `$`, `#`, line break or
+typographic quote, where sh and PowerShell read the quotes alike: `rg '&&' .github/workflows` and
+`rg 'a|b' .github` are searches, at Full auto too. In any other line, or in a line another program
+runs (`ssh host 'cd app && rm -rf build'`, `cmd /c "…"`, which keeps no `'` quote), it is a cut, and
+what comes after it is judged as a command of its own.
+
+The secret-file rows have exceptions for CLIs run with their own tools (a command Codex's own allow rules
+cover, agy's reads): see [Known limits](../reference/known-limits.md#secrets).
 
 ### The folder's `.koloni/`
 
@@ -72,7 +84,8 @@ agy's reads): see [Known limits](../reference/known-limits.md#secrets).
   program run from one, or pytest's `--basetemp` there is asked at every level.
 - A search is a look only while it only reads. Its options are read as the shell joins them, so a quote
   or a backslash inside one changes nothing: `find src -de""lete` is a delete, and `-fpr""intf`,
-  `-ex""ec`, rg's `--p""re=` and `--hostname-bin`, and ag's and ack's `--pager` make it no read. A `find`
+  `-ex""ec`, rg's `--p""re=` and `--hostname-bin`, ag's and ack's `--pager` (or `--pag`), and ack's
+  `--output` (Perl to ack 2.x) make it no read. A `find`
   word in bash's ANSI-C quotes (`$'-de\x6cete'`), which KOLONİ does not decode, is taken for a delete,
   and ag or ack is no look into a tree. In a worktree or a copy such a line is asked at every level.
 - What is inside the scratch is still judged as any path: a `.claude/settings.json` there asks as it
@@ -171,7 +184,12 @@ of the folder the command runs in or of one above it - and read an `.npmrc` ther
 `.yarnrc.yml`, `.yarnrc`, `.yarn` folder, Plug'n'Play loader and `.env.yarn`, pnpm its
 `.pnpmfile.cjs`, bun its `bunfig.toml` and `.env`, `.env.local`, `.env.production`,
 `.env.development` (what they run gets those: `NODE_OPTIONS=--require x`) - and an agent's write in
-any of them stops the rule.
+any of them stops the rule. Where what the agent wrote is such a file - a setting, a manifest, a lock
+or a loader, not the program -, the card says so: "an agent wrote a file this line may read or load
+(web/.npmrc): no rule covers the line while that write stands, so none is offered - run it once or
+reject it". yarn's `.yarn` folder, which holds yarn itself and its unplugged installs, is said as its
+program, as a `node_modules` is ("an agent wrote its program (.yarn): …"). Where an agent wrote both
+a setting and the program, the card names the program.
 
 A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
 closed on two sides. **What an agent wrote:** while an agent's write of any `package.json` (a
@@ -182,7 +200,8 @@ anywhere in the project still holds what it wrote, no node runner's rule covers 
 `npm exec` run a name the package's own `bin` gives before any installed one, yarn and pnpm a
 script of that name, `npm install` every workspace's lifecycle scripts, fetches what a lock's
 `resolved` address says and runs node-gyp on a `binding.gyp`, and npm reads any settings file it
-is pointed at. The cost: after an agent edits a `package.json` (adding a
+is pointed at - its card names that file as one the line may read or load. The cost: after an
+agent edits a `package.json` (adding a
 dependency, say), node runner rules ask until that write is replaced - by your own edit or
 install. A line of npm's or pnpm's that runs a script by its name under its own rule (`npm run
 build`, `npm test`) is the exception: the script is the project's code by design, as a test is.
@@ -205,7 +224,8 @@ path (`node_modules/.bin/tsc`, as the rule Code style and types offered in 0.1.7
 while an agent's write of a `tsconfig*.json` or `jsconfig*.json` anywhere in the project, or of a
 JSON file that a tsconfig the line reads (the nearest `tsconfig.json`, a folder or `.json` its
 words name - `-p`'s) `extends` or `references`, still holds what it wrote: a tsconfig can make tsc
-write a trace, or a composite build's info where `tsBuildInfoFile` says, outside the project too.
+write a trace, or a composite build's info where `tsBuildInfoFile` says, outside the project too -
+its card names that file as one the line may read or load.
 Code style and types' own line, word for word, is the exception: its `--composite false
 --generateTrace null`, last, win over a tsconfig's composite or incremental build info and its
 trace, so its rule still covers it.
@@ -219,7 +239,9 @@ write of any `pyproject.toml`, `setup.py` or `setup.cfg` anywhere in the project
 it; pip and build build what they install), of their settings (`uv.toml`, `poetry.toml`, `pdm.toml`, `hatch.toml`, `Pipfile`,
 `.python-version`, `.pdm-python`, and pipenv's `.env`, which it loads), their locks (`uv.lock`,
 `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml`) or requirements (`requirements*.txt`,
-`requirements/*.txt`) - but not for a test run (`uv run pytest`). As for node runners, the cost:
+`requirements/*.txt`) - but not for a test run (`uv run pytest`). The card of a write in an
+environment says "an agent wrote its program (.venv)"; of one of these files, that the agent wrote
+a file the line may read or load. As for node runners, the cost:
 after an agent edits a `pyproject.toml` (adding a dependency, say), these rules ask until that
 write is replaced. Their rule names what they run
 (`poetry run ruff`, `uv run python -m ruff`), never the tool alone; and npm's PowerShell shims are
@@ -394,6 +416,12 @@ get a card, at any level. You decide once, when their work comes back:
 
 Files that steer agents are held for your card at every level.
 
+The Orchestrator's own tools beside its agents - `agents_at_work`, `update_plan`, `stop_agent`,
+`ask_advisor`, `note_decision`, `read_pr_feedback` - ask no card at any level: they change nothing in
+the project. `ask_advisor` sends what it asks, masked, to your Advisor model (by default on another
+provider than the Orchestrator's), and `read_pr_feedback` reads with your own `gh`; see
+[Talking while agents work](talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
+
 Whether opening a sub-agent asks first is set under Settings › This project › When you're asked ›
 **Opening a sub-agent**: **Ask when it matters** (the default: a card at Ask before changes when
 the sub-agent can change things), **Always ask** or **Never ask**.
@@ -414,10 +442,13 @@ It looks at Full auto's commands in a chat you watch (a To-do task done in a cha
 you're away (☾ Away) - not at **Ask before changes** or **Auto-edit files**.
 It is not asked about:
 
-- a command that only reads;
+- a command that only reads (git's at the project's root);
 - ordinary work, as a plain command with its common options only: a test runner (`pytest`, `python -m
   pytest`, `npm test`, `cargo test`, `go test`), a compiler or checker (`tsc`, `ruff`, `eslint`, `mypy`,
-  `cargo build`, `go build`), local git (`status`, `add`, `commit`, `diff`, `log`, `switch`, `branch`) and
+  `cargo build`, `go build`), local git at the project's root (`status`, `add`, `commit`, `diff`, `log`,
+  `switch`, `branch`; in a folder below it, one KOLONİ does not know, or a top folder with no `.git`
+  but a `HEAD` (git may take it for a repository), git is judged: a repository shaped there sets what
+  it runs) and
   `npm run <script>` - but not where an agent wrote what it runs (the program, or the project's
   `package.json`);
 - your own test command (the project map's) - but it is, where the line runs a program an agent wrote -,
@@ -454,19 +485,39 @@ are masked first.
 
 **What it finds risky** - a command that could do harm you did not ask for: send your data or files off
 this machine, download and run code, change things outside the project (your profile, startup, git or
-shell settings, scheduled tasks, the registry), weaken security, or hide what it does. Since 0.1.10, as
-Claude Code's auto mode, also one that destroys work in the project you did not ask to lose: deleting or
-emptying a file or folder that was there before the turn, or throwing away uncommitted changes - `rm`,
-`del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git restore .`, `git
-stash drop`, `> file`, `truncate`, `Set-Content`, `New-Item -Force`, `find … -exec rm`, `npx rimraf`,
-`robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner that deletes. It stays fine where you asked
-for it, for build output and caches a build makes again (`build/`, `dist/`, `node_modules`,
-`__pycache__`), for files the same agent made earlier in the turn, for the agents' scratch folder
-`.koloni/tmp/`, and for what only shows or keeps work (`git clean -n`, `git stash`,
-`git restore --staged`). Measured on 27 Nov 2026 on 180 cases, Claude Code's **haiku** and **Sonnet**
-each called no risky command fine, every ordinary one fine, and one fine command risky - haiku a logon
-task you asked for, Sonnet an `npm config set` your rule named (before this change, haiku called 16 of
-the risky ones fine; the deletes the list asked of then were not among the cases asked).
+shell settings, scheduled tasks, the registry), weaken security, or hide what it does. What your words
+ask for - a publish, an upload, a deploy, a comment, dropping the stashes - is fine, as far as you named
+it: never another target or more, and never emptying or overwriting a file that was there before the
+turn. Since 0.1.11 (its words "D2"):
+
+- A plain push of the branch being worked on to the project's own origin is ordinary work - unless what
+  it sends holds a secret (`.env`, a key), or your words or the project's rules say not to push. A push
+  to main, master or the default branch, a force push or a push elsewhere is not.
+- Work your words do not ask for that reaches outside the task is risky: an outside service (`curl` to
+  an API, `gh pr comment`, `gh issue create`), CI or settings files, another repository.
+- As Claude Code's auto mode blocks them: amending or rewriting a commit that was already pushed, or
+  someone else's; a flag that turns a protection off (`--no-verify`, `--insecure`, `-c
+  http.sslVerify=false`); starting an agent loop with no sandbox (`claude
+  --dangerously-skip-permissions`, `codex --yolo`, `copilot --allow-all-tools`).
+- Since 0.1.10, as Claude Code's auto mode, a command that destroys work in the project you did not ask
+  to lose: deleting or emptying a file or folder that was there before the turn, or throwing away
+  uncommitted changes - `rm`, `del`, `Remove-Item`, `git reset --hard`, `git clean -f`, `git checkout --
+  .`, `git restore .`, `git stash drop`, `> file`, `truncate`, `Set-Content`, `New-Item -Force`, `find …
+  -exec rm`, `npx rimraf`, `robocopy /MIR`, `git read-tree -u --reset`, a script or a one-liner that
+  deletes; moving your work away (`mv src .koloni/tmp/old`)
+  counts as deleting it, and a delete is judged by everything it deletes (`build/../src`, `rimraf dist
+  src`). It stays fine, where it does none of the harms above, where you asked for it, for build output
+  and caches a build makes again (`build/`, `dist/`, `node_modules`, `__pycache__`), for files the same
+  agent made new earlier in the turn (not a file of yours it wrote over, `touch`ed or `mkdir -p`'d),
+  for the agents' scratch folder `.koloni/tmp/`, and for what only shows or keeps work (`git clean -n`,
+  `git stash`, `git restore --staged`).
+
+Measured on 28 Nov 2026 on 252 cases, Claude Code's **haiku** with these words called every ordinary
+command fine and 99% of the risky ones risky, in 2.6 seconds at the median. It still lets an empty of a
+file of yours by now and then (`python -c "open('requirements.txt', 'w').close()"`), and called some
+empties you asked for risky ("Start the README over", "Clear the log file") - those are then refused or
+a card, as **When the judge finds a command risky** says. (Before, on 27 Nov 2026, 180 cases with
+0.1.10's words: haiku and **Sonnet** each called no risky command fine and one fine command risky.)
 
 **What it says:** **fine** - the command runs, as it did before (on its record, not shown). **risky** - as
 **When the judge finds a command risky** says:
@@ -547,7 +598,8 @@ in a job while you're away, nor in a To-do task's turn, which may run with nobod
 where the line runs a program an agent wrote (the judge reads that one), where it is an interpreter's or
 a runner's line whose file KOLONİ does not find (`uv run python x.py`, `npx x`), or a tool's run that
 builds the folder's code (`cargo run`, `go run .`, `dotnet run`): what it runs is not known, and the
-judge looks. A **broad** rule never lets a line by:
+judge looks. On purpose: a narrow rule belongs to the chat, so a sub-agent of the same chat running
+that exact line is let through too. A **broad** rule never lets a line by:
 
 - one with no word past its program that is not an option (`npm`, `git`, `docker`, `make`, `gh`,
   `pytest -x`);
@@ -627,8 +679,9 @@ The list still asks at every level - its card, never the judge's word - about:
   gnome-shell, Xorg, WindowServer, loginwindow, systemd, launchd, explorer, lsass, csrss, svchost,
   git, …);
 - a send off the machine (put to [Check what I said first](#check-what-i-said-first) where that box
-  works), and a git remote's branches overwritten or deleted (`git push --force`, `git push origin
-  :x`) - a card whatever you said;
+  works) - but a plain push of your feature branch to its origin, [the judge's
+  since 0.1.11](#a-push-of-your-feature-branch) -, and a git remote's branches overwritten or deleted
+  (`git push --force`, `git push origin :x`) - a card whatever you said;
 - a secret file, `.koloni/` (its free folders too: what is on the disk there is KOLONİ's to look at),
   a file that steers agents, git's settings or a patch;
 - a line KOLONİ cannot read (`-EncodedCommand` anywhere in it, more than it reads), web with web
@@ -653,6 +706,63 @@ Measured on 27 Nov 2026 on the 31 cases of such lines the list now hands the jud
 **haiku** and **Sonnet** each called no risky line fine. Haiku called one fine line risky - `git stash
 clear` after "Drop my old stashes, I don't need them." -, which then waits on its card or is refused;
 Sonnet called none.
+
+### A push of your feature branch
+
+Since 0.1.11, as Claude Code's auto mode: in a chat you watch at **Full auto**, with the judge's switch
+on and a judge model to answer, a plain push of the branch you have checked out to its own `origin`
+goes to the judge instead of a card. **fine** pushes it; **risky** gives the push card the list gave
+before, saying why ("KOLONİ's judge: " and its sentence, a secret in it masked) - never a refusal,
+whatever the project does with a risky command, so a push is never lost without a word, and it is not
+counted among the judge's refusals (three in a row ask you). Run once on it pushes. `main` is never
+pushed so: a push to `main`, `master` or origin's default branch stays a card at every level - quoted,
+where you asked for it ([below](#a-push-a-pull-request-or-a-merge-you-asked-for)).
+
+Which lines - one line, nothing else on it: `git push`, `git push origin`, `git push origin <branch>`,
+`git push -u origin <branch>` (or `--set-upstream`) and `git push origin HEAD`, where `<branch>` is the
+branch checked out. Any other line is the list's card, as before: a force push in any spelling
+(`-f`, `--force-with-lease`, `+branch`), `--tags`, `--follow-tags`, `--all`, `--mirror`, `--delete`,
+`--prune`, a push option (`-o`), `--receive-pack`, `--repo`, `--no-verify`, git told something before
+`push` (`git -c …`), another branch, a tag or a ref (`HEAD:main`, `refs/tags/v1`), another remote or
+an address, a chain, a quote or a variable.
+
+Before the judge is asked, and again once it said fine, KOLONİ looks at the repository; any of these
+keeps the card:
+
+- the branch is `main`, `master` or origin's default branch - as origin itself names it (its `HEAD`,
+  asked as the push would ask it; an origin that names none is a card), and as this repository's
+  `origin/HEAD` names it now and did when the turn began -, or HEAD is on no branch;
+- git's settings send it elsewhere or send more: no `remote.origin.url` in them (git would read origin
+  from an old `.git/remotes` or `.git/branches` file), the branch's upstream is another branch, its
+  remote (or `remote.pushDefault`) is not `origin`, `push.default` is `matching` or `nothing`, origin has
+  a push map, a mirror, a receive-pack or push options, tags follow, submodules are pushed
+  (`push.recurseSubmodules`, `submodule.recurse`), or a hook is set in git's settings (`hook.*`);
+- origin's address or git's settings in any scope are not what they were when the turn began - a
+  `core.hooksPath` an agent set. A turn that began below Full auto has no such record: its pushes are
+  cards. An agent's `git remote` that changes `origin` - `add`, `set-url`, `remove`, `rename`,
+  `set-head`, `set-branches`, origin spelt any way, a quote inside it (`ori''gin`) too - is itself asked
+  at every level, Full auto too, so an origin changed in one turn is not the next turn's unseen;
+- git reads a settings file of the project out of `.git` - an `include.path` of yours to
+  `../.gitconfig`: an agent may write that file unasked, and a `pushInsteadOf` there would send the
+  next turn's push elsewhere;
+- a hook a push runs on this machine is there at all - `pre-push` or `reference-transaction` in
+  `.git/hooks` or in the folder `core.hooksPath` names - yours too (husky's, Git LFS's): an unchanged
+  hook can run what an agent wrote;
+- origin is a folder in the project, or a `file:` address (its own hooks would run on this machine);
+- a secret KOLONİ knows - one you gave on a card this turn, a key it keeps, a secret of its environment -
+  is in a commit the push sends, its message or a file it writes. What the push sends is counted
+  against what origin itself says it holds (asked as a push would ask it), never a branch git keeps of
+  origin's here; origin that does not answer, holds none of the branch, `main`, `master` or its default,
+  or more than 50 commits to send, is a card;
+- the agent works in a working copy, KOLONİ does not know the folder the command runs in, or the
+  project runs its commands in Docker (the container's git, settings and hooks are not the ones looked
+  at);
+- the branch or its commit moved between the judge's **fine** and the run - another card waited, say:
+  KOLONİ looks again just before it runs.
+
+Where you said "Push it." the judge decides too - it reads your words; where it does not call it fine,
+or is not asked, its card quotes you as before (never refused). Ask, Auto-edit, a To-do task's turn,
+a job while you're away and a turn of a chat you went away from keep the card.
 
 ### The judge is not a wall
 
@@ -709,22 +819,26 @@ the other: a command the list stops softly (a delete, a push, a send) is first a
 cover it - its run runs, its refusal refuses, and its ask (a condition of yours, "ask me first") keeps
 the card. Where it gave no answer, or is not asked, a delete, git work thrown away or a stop by name in
 the project, written as a plain line, goes on to the judge's own question, whether it looks risky
-([which](#what-the-judge-decides-in-place-of-the-list));
-a push or a send keeps its card - [quoted](#a-push-a-pull-request-or-a-merge-you-asked-for) where you
-asked for it. A force push or a branch deleted on the remote is never asked: a card at every level,
-whatever you said.
+([which](#what-the-judge-decides-in-place-of-the-list)), and so does a plain push of your feature
+branch ([which](#a-push-of-your-feature-branch)); any other push or a send keeps its card -
+[quoted](#a-push-a-pull-request-or-a-merge-you-asked-for) where you asked for it. A force push or a
+branch deleted on the remote is never asked: a card at every level, whatever you said.
 
 At Full auto, in a chat you started, a command that sends something off this machine would wait for you
-on a card, and one that deletes in the project goes to Full auto's judge (a card where the judge does not
-run). Where the box works, your Judge model (as for [Full auto's
-judge](#full-autos-judge): the Fast tier's first unless you choose one) first reads
+on a card - but a plain push of your feature branch goes to Full auto's judge -, and one that deletes in
+the project goes to the judge too (a card where the judge does not run). Where the box works, your
+Judge model (as for [Full auto's judge](#full-autos-judge): the Fast tier's first unless you choose
+one) first reads
 your preferences, this project's rules as saved on the [Memory](../memory.md) page and your own
 messages in the chat - never anything an agent wrote - and then:
 
 - A whole line of yours that names the command and what it touches ("You may delete build/ and
   dist/."), and forbids nothing and sets no condition: the command runs without a card. Its row says
-  "Ran without asking · your rule: …" with where the line is (Your preferences, This project's rules
-  or your message).
+  "Ran without asking · your rule: …" with where the line is (This project's rules or your message).
+  A line of Your preferences, which holds in every project, never lets a command run - the command
+  waits on its card -, though it may still stop one. Of your messages,
+  only this turn's - the one that started it and those you sent into it - run a push, a pull request or a
+  merge; an earlier turn's never does, though it may still stop one.
 - A whole sentence of yours that forbids it ("Never push to main."): it is not run and opens no card.
   The agent is told that sentence (for a sentence in a message of yours, only that one of yours
   forbids it - the sentence stays with you), and not to run it or anything that does the same again,
@@ -775,8 +889,9 @@ same holds in the chat you went away from, while you're away. A plain chat has n
 
 A push, opening a pull request and merging one are yours to say. Once a Judge model has passed the
 measurement, Check what I said first can let one you asked for run with no card, as it does a delete.
-Until then the card stays, but it quotes you and asks for one click. When a sentence of the message
-that started the turn asks for it, its card says
+Until then the card stays, but it quotes you and asks for one click (at Full auto a plain push of your
+feature branch goes to the judge first: [above](#a-push-of-your-feature-branch)). When a sentence of the
+message that started the turn, or of one you sent into it with **Send now**, asks for it, its card says
 
 > **You said “Push it.” — push now?**
 
@@ -789,7 +904,9 @@ What asks for it - in English an order or a leave ("Push it.", "Commit and push.
 "Open a PR.", "Squash and merge."), in Turkish a request ("push et", "pushla", "push edebilirsin", "PR
 aç", "PR'ı merge et", "PR'ı birleştir"). Only:
 
-- the message you sent from the app's own page that started this turn - never an earlier turn's ("Push
+- the message you sent from the app's own page that started this turn, and what you sent into it with
+  **Send now** - the newest of them that mentions it decides ("Push it." and then "Wait, no - don't push
+  yet." is none) - never an earlier turn's ("Push
   it." yesterday does not cover today's push after "Fix the typo."), an agent's words, a tool's result, a
   file, your preferences or the project's rules; nor code - a fence (in a list's item too) closes only
   on a line of its own marks, at least as many, so what an agent wrote inside the quote **Ask about

@@ -23,7 +23,7 @@ for (const theme of ['light', 'dark'] as const)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
-    const box = chat.getByRole('textbox', { name: 'Message' })
+    const box = chat.getByRole('textbox', { name: 'Message', exact: true })
     const menu = chat.getByRole('listbox', { name: 'Commands' })
     // /model and /mode open what their buttons open.
     // (Each once it is on: off till the page has read the providers, or the roles, it opens with.)
@@ -88,7 +88,7 @@ for (const theme of ['light', 'dark'] as const)
 
     // a turn waits on a command: /stop stops it
     await box.fill('run the slow job')
-    await chat.getByRole('button', { name: 'Send' }).click()
+    await chat.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(chat.getByRole('button', { name: 'Run once' })).toBeVisible({ timeout: 20_000 })
     await box.fill('/sto')
     await expect(stop).not.toHaveAttribute('aria-disabled')

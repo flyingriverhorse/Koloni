@@ -183,7 +183,8 @@ def test_an_agent_writes_a_note_and_goes_on(make_client, wait_run, project_dir):
         [],
     )
     offered = [t for t in model.tool_args if t is not None]
-    assert all(names(t)[-7:-5] == NOTEBOOK for t in offered)  # (recall_output, two more)
+    # (both, in that order, wherever the tools after them put them: 0.1.11's turn tools)
+    assert all([n for n in names(t) if n in NOTEBOOK] == NOTEBOOK for t in offered)
     a.release()
     wait_run(client, cid, run_id)
 

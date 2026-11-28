@@ -7,11 +7,20 @@ import pytest
 
 from app import raw
 from app.risk_judge import (
+    _BLOCKS,
+    _PUSH,
+    ASKED_FOR,
+    ASKED_FOR_D2,
     DESTRUCTIVE,
+    DESTRUCTIVE_C,
+    DESTRUCTIVE_D,
     EARLIER_CHARS,
+    GATE_PROMPT,
     MOST_COMMAND_CHARS,
     PROMPTS,
     WHY_CHARS,
+    WIDER,
+    WIDER_D,
     action,
     broad_rule,
     kept,
@@ -34,17 +43,63 @@ def test_prompt_marks_agent_text_as_data():
     assert "more bytes not shown" not in p
 
 
-def test_prompt_b_adds_only_the_projects_destructive_commands_and_the_gate_asks_it():
+def test_prompt_b_adds_only_the_projects_destructive_commands():
     # (K4: B won its measurement against A, the one before it - 27 Nov 2026, 180 cases, haiku
-    # and Sonnet - and is the gate's prompt; A stays to measure against)
+    # and Sonnet - and was the gate's prompt until D2; A stays to measure against)
     args = (SAID, CMD, ["git status"], None)
     a, b = prompt(*args, variant="A"), prompt(*args, variant="B")
-    assert prompt(*args) == b and DESTRUCTIVE not in a
+    assert prompt(*args) != b and DESTRUCTIVE not in a
     assert DESTRUCTIVE in b and b.replace(DESTRUCTIVE, "", 1) == a
     assert PROMPTS["B"].replace(DESTRUCTIVE, "", 1) == PROMPTS["A"]
     assert "`git reset --hard`" in DESTRUCTIVE and "`git clean -n`" in DESTRUCTIVE
     with pytest.raises(KeyError):
-        prompt(*args, variant="C")
+        prompt(*args, variant="E")
+
+
+def test_prompt_c_is_b_with_its_wider_harms_and_k4s_gaps_and_only_measured():
+    # (0.1.11: measured against B with the user's leave, never the gate's)
+    assert GATE_PROMPT != "C" and PROMPTS["C"] != PROMPTS["B"]
+    assert PROMPTS["C"].replace(WIDER + DESTRUCTIVE_C, DESTRUCTIVE, 1) == PROMPTS["B"]
+    for said in (
+        "`mv src .koloni/tmp/old` - counts as deleting it)",
+        " Fine, where it does none of the harms above: what the user asked",
+        "files this agent made new in this turn (see what it did before; not a user's file",
+    ):
+        assert said in DESTRUCTIVE_C and said not in DESTRUCTIVE, said
+    assert " Fine: " not in DESTRUCTIVE_C and "made itself" not in DESTRUCTIVE_C
+    assert "--dangerously-bypass-approvals-and-sandbox`" in WIDER and "{" not in WIDER
+    # (the reply it asks for is the same: `verdict` reads it)
+    asked = prompt(SAID, CMD, [], None, variant="C")
+    assert asked.rstrip().endswith('{"verdict": "fine" | "risky", "why": "<one sentence>"}')
+
+
+def test_prompt_d_says_first_what_was_asked_keeps_cs_push_and_blocks_and_only_measured():
+    # (0.1.11, C' after C's haiku run: asked-for work called risky, wider deletes let by)
+    assert (
+        GATE_PROMPT != "D"
+        and PROMPTS["D"].replace(WIDER_D + DESTRUCTIVE_D, DESTRUCTIVE, 1) == (PROMPTS["B"])
+    )
+    assert f"hide what it does.{ASKED_FOR} A plain push" in PROMPTS["D"]
+    assert _PUSH in WIDER and _PUSH in WIDER_D and _BLOCKS in WIDER and _BLOCKS in WIDER_D
+    assert "stays fine" in WIDER and "stays fine" not in WIDER_D
+    assert "where the user's words do not ask for it." in WIDER_D
+    assert DESTRUCTIVE_D.startswith(DESTRUCTIVE_C) and "(`build/../src`)" in DESTRUCTIVE_D
+    assert "{" not in WIDER_D + DESTRUCTIVE_D
+    asked = prompt(SAID, CMD, [], None, variant="D")
+    assert asked.rstrip().endswith('{"verdict": "fine" | "risky", "why": "<one sentence>"}')
+
+
+def test_prompt_d2_is_d_with_an_empty_or_an_overwrite_never_what_was_asked_and_the_gates():
+    # (0.1.11, after D's haiku run let three empties of an existing file by as asked-for work;
+    # the gate's since its measurement passed the thresholds - an empty itself is a card)
+    assert GATE_PROMPT == "D2" and ASKED_FOR_D2 != ASKED_FOR
+    assert prompt(SAID, CMD, [], None) == prompt(SAID, CMD, [], None, variant="D2")
+    assert PROMPTS["D2"].replace(ASKED_FOR_D2, ASKED_FOR, 1) == PROMPTS["D"]
+    assert ASKED_FOR_D2.startswith(ASKED_FOR[:-1] + ", and never emptying or overwriting a file")
+    assert ASKED_FOR_D2.endswith("`open(file, 'w')`) - that destroys it.")
+    assert "{" not in ASKED_FOR_D2
+    asked = prompt(SAID, CMD, [], None, variant="D2")
+    assert asked.rstrip().endswith('{"verdict": "fine" | "risky", "why": "<one sentence>"}')
 
 
 def test_prompt_says_cut_program():

@@ -32,7 +32,7 @@ Using a CLI through KOLONİ counts against your plan with that vendor.
 | System | State |
 |---|---|
 | Windows | Used and tested every day, with the real CLIs. |
-| Linux | The automatic tests run on every change. A clean install and daily use are less tested. There are no desktop notifications. |
+| Linux | The automatic tests run on every change. A clean install and daily use are less tested. Desktop notifications come through `notify-send` on a desktop (none on a server or over SSH); not yet tried on a real Linux desktop. |
 | macOS | Not tested yet. |
 | Docker | The image has been built and started; it is the newest and least tested way to run KOLONİ. |
 
