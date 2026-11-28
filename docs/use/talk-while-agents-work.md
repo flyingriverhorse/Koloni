@@ -146,9 +146,10 @@ words to the Orchestrator. A Claude Code, Codex or Copilot agent hears them in i
 
 When a background agent ends while nobody looks at its chat, KOLONİ shows a desktop notice -
 "Reviewer finished: 2 findings", "Coder stopped", "Tester failed" - where the project has
-**Desktop notifications** on (Settings › This project › Notifications). The notice holds only the
-agent's name and how it ended, never its words. So does a card or a question that starts to wait
-for you ("Coder asks you a question", "3 cards wait for you").
+**Show a desktop notification** on (Settings › This project › Notifications). The notice holds only the
+agent's name and how it ended, never its words. A card or a question that starts to wait for you
+gets a notice too ("Coder asks you a question", "3 cards wait for you") - also only while nobody looks
+at its chat.
 
 "Nobody looks" is herdr's rule: no page of KOLONİ's has the chat on screen with its tab seen and its
 window in front. A tab you hid, another window you went to, or another page of KOLONİ's open over

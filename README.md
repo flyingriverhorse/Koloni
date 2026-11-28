@@ -82,7 +82,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
   **Checked** under the answer says what passed and what did not. [What KOLONİ checked](docs/use/checked.md)
 - **Control**: cards for changes, commands, web and HTTP; a send off the machine, a force push and a
   delete out of the project or of all of it ask at every level (a send unless at Full auto **Check what I
-  said first** finds a line of yours that allows it); below Full auto a delete asks too, unless you let
+  said first** finds a line of yours that allows it; at Full auto the judge decides a plain push of
+  your feature branch); below Full auto a delete asks too, unless you let
   agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); at Full
   auto, **Full auto's judge** (a small model, on by default) looks at the rest - a plain delete in the
   project and git work thrown away too - and refuses one it finds risky - the agent goes on another way - or,
@@ -94,7 +95,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Knowledge and memory**: experts learn from docs, a public GitHub repository or a folder on
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve - one Memory page, with what the project knows and its sources, and one tool,
-  Recall, that looks in both. [Memory](docs/memory.md) · [Sources](docs/knowledge.md)
+  Recall, that looks in both; the Orchestrator keeps a rule you state for your preferences, from your own
+  words only. [Memory](docs/memory.md) · [Sources](docs/knowledge.md)
 - **Work**: one page of two tabs - **Ready for you**, what was done (the last ☾ Away's report), one list
   of what waits for your word and what was decided for you; and your **To-do**; the Chats, Memory, Tools, Usage and
   Settings pages say how each thing stands in the same honeycomb cells. [Ready for you](docs/use/ready.md)
@@ -110,7 +112,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too), its
   worktree in your project's `.koloni/worktrees/`, and merged or sent as a pull request from the card,
   carrying the agent's work alone; a push or a pull request you asked for in your message is one click on
-  a card that quotes you; a chat started from
+  a card that quotes you, and at Full auto, with the judge on, a plain push of your feature branch runs
+  on the judge's "fine"; a chat started from
   a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
 - **Money**: tokens and credits per run, plan meters for each CLI, and a monthly budget per project.
   [Usage and budgets](docs/money/usage.md)
@@ -179,7 +182,8 @@ The Docker image was built and run once. macOS: not yet. Details: [Install](docs
   `.mcp.json`, …) and commands that reach out of the project or off the machine ask at every level,
   with a few exceptions for CLIs run with their own tools ([Known
   limits](docs/reference/known-limits.md#secrets)); below Full auto every harmful or shell-wrapped
-  command asks too, and at Full auto Full auto's judge decides a plain delete in the project.
+  command asks too, and at Full auto Full auto's judge decides a plain delete in the project and a plain
+  push of your feature branch to its origin (a push it finds risky waits on its card).
 - A secret given on a card goes only into that command's environment, never into the chat, the
   record or the model. A branch holding that turn's secret is deleted, not merged.
 - An agent's git on its branch runs none of your repository's hooks, and a pull request never pushes

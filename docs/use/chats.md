@@ -37,7 +37,8 @@ same meanings - and has one line under the chat's name:
 A chat whose last turn ended - done, stuck or stopped - while you were not looking at it says so after
 how it ended: "Done · not seen", "Stuck: its last turn failed · not seen", "Stopped · not seen". It is seen
 once you open it, or once a turn of it ends while it is on screen in front of you (herdr's "done, not seen");
-a desktop notice about it does not count as seeing it.
+a desktop notice about it does not count as seeing it. Every chat there was when you upgraded to 0.1.11
+counts as seen.
 
 What waits for your word in a chat is what [Ready for you](ready.md) lists for it, and **Show** goes by
 the same. A chat Ready for you has not read yet - or could not read - says what KOLONİ's list of the project's
