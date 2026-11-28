@@ -93,6 +93,11 @@ messages.
 - With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
   failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
   started" at the same 11 minutes.
+- Codex opens no sub-agents of its own: KOLONİ switches its `multi_agent` feature off and sets
+  `agents.enabled=false`. Codex 0.172.0 still opened one with the first alone; with both it had no such
+  tool (measured on 27 Nov 2026 with its app-server, which **One session per agent** and **Native** use).
+  Where KOLONİ runs `codex exec` - its web search, and a Codex that runs the old way - it gets the same
+  switch, not measured there; nor is the key measured on a Codex older than 0.172.0.
 - Codex run **Native** with **Sign-in: Its own for KOLONİ** goes on in its thread from the topic's
   previous turn. That is built on measurements of Codex 0.164 and tested with a stand-in only, not yet
   tried with a real Codex. On Codex 0.164 a new, empty KOLONİ folder also answered **read-only** when
@@ -290,10 +295,10 @@ messages.
       command that is not one (`rm -rf build; npm install`), git's work where the project is not its
       repository's top folder, and a Windows short name (`ENV~1`) are cards too.
     - Since 0.1.11 it decides [a plain push of your feature branch](../use/permissions.md#a-push-of-your-feature-branch)
-      to its origin: a "fine" pushes with no card. Its prompt counts sending work off the machine as
-      risky, and no model was measured on pushes yet: expect some pushes to wait on their card
-      (never refused: one you asked for quotes you). A bare `git push` (and `origin
-      HEAD`) pushes the branch checked out as it runs: KOLONİ looks again just before it runs, but a
+      to its origin: a "fine" pushes with no card. Its words since 0.1.11 ("D2") count such a push as
+      ordinary work, and pushes were among the cases [measured on 28 Nov
+      2026](../use/permissions.md#full-autos-judge); a push it calls risky waits on its card (never
+      refused: one you asked for quotes you). A bare `git push` (and `origin HEAD`) pushes the branch checked out as it runs: KOLONİ looks again just before it runs, but a
       switch of the project's branch by your own hand in that moment is not seen. The judge is not
       told the branch's name, only the line and what the agent did before it. Before it is asked,
       and again after its fine, KOLONİ asks origin what it holds and which branch is its default, as

@@ -230,6 +230,12 @@ and, in the chat, the Orchestrator's name over its turn. No agent's window opens
 - **Details**, folded: its model and who chose it, its times, how full its context is, **Compact now** and
   its working state, its tools, **Copy raw**, and **Every step as recorded** (the raw list of every call).
 
+While the agent works, its window's head has **Stop** and **Message** (for an agent the Orchestrator or
+one of its agents opened), and a Tell box at its foot sends your word into its work. An agy agent's box
+says it can't hear messages while it works, and sends your word to the Orchestrator. An Orchestrator
+that shows its plan has it under **Plan (its own words)**. See [Talking while agents
+work](talk-while-agents-work.md#stop-and-message-on-one-agent).
+
 ![The Reviewer's agent window: who asked it what, its report and numbers, what it did in plain steps](../images/agent-window.png)
 
 *An agent's window, opened from the Inspector with **Open window**.*

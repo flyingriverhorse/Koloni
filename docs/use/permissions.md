@@ -819,23 +819,24 @@ the other: a command the list stops softly (a delete, a push, a send) is first a
 cover it - its run runs, its refusal refuses, and its ask (a condition of yours, "ask me first") keeps
 the card. Where it gave no answer, or is not asked, a delete, git work thrown away or a stop by name in
 the project, written as a plain line, goes on to the judge's own question, whether it looks risky
-([which](#what-the-judge-decides-in-place-of-the-list));
-a push or a send keeps its card - [quoted](#a-push-a-pull-request-or-a-merge-you-asked-for) where you
-asked for it. A force push or a branch deleted on the remote is never asked: a card at every level,
-whatever you said.
+([which](#what-the-judge-decides-in-place-of-the-list)), and so does a plain push of your feature
+branch ([which](#a-push-of-your-feature-branch)); any other push or a send keeps its card -
+[quoted](#a-push-a-pull-request-or-a-merge-you-asked-for) where you asked for it. A force push or a
+branch deleted on the remote is never asked: a card at every level, whatever you said.
 
 At Full auto, in a chat you started, a command that sends something off this machine would wait for you
-on a card, and one that deletes in the project goes to Full auto's judge (a card where the judge does not
-run). Where the box works, your Judge model (as for [Full auto's
-judge](#full-autos-judge): the Fast tier's first unless you choose one) first reads
+on a card - but a plain push of your feature branch goes to Full auto's judge -, and one that deletes in
+the project goes to the judge too (a card where the judge does not run). Where the box works, your
+Judge model (as for [Full auto's judge](#full-autos-judge): the Fast tier's first unless you choose
+one) first reads
 your preferences, this project's rules as saved on the [Memory](../memory.md) page and your own
 messages in the chat - never anything an agent wrote - and then:
 
 - A whole line of yours that names the command and what it touches ("You may delete build/ and
   dist/."), and forbids nothing and sets no condition: the command runs without a card. Its row says
   "Ran without asking · your rule: …" with where the line is (This project's rules or your message).
-  A line of Your preferences never lets a command run (your ruling, 28 Nov: what lasts in every project
-  unlocks nothing) - the command waits on its card -, though it may still stop one. Of your messages,
+  A line of Your preferences, which holds in every project, never lets a command run - the command
+  waits on its card -, though it may still stop one. Of your messages,
   only this turn's - the one that started it and those you sent into it - run a push, a pull request or a
   merge; an earlier turn's never does, though it may still stop one.
 - A whole sentence of yours that forbids it ("Never push to main."): it is not run and opens no card.
@@ -888,8 +889,9 @@ same holds in the chat you went away from, while you're away. A plain chat has n
 
 A push, opening a pull request and merging one are yours to say. Once a Judge model has passed the
 measurement, Check what I said first can let one you asked for run with no card, as it does a delete.
-Until then the card stays, but it quotes you and asks for one click. When a sentence of the message
-that started the turn asks for it, its card says
+Until then the card stays, but it quotes you and asks for one click (at Full auto a plain push of your
+feature branch goes to the judge first: [above](#a-push-of-your-feature-branch)). When a sentence of the
+message that started the turn, or of one you sent into it with **Send now**, asks for it, its card says
 
 > **You said “Push it.” — push now?**
 

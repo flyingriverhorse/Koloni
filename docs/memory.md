@@ -60,7 +60,7 @@ them ("1 240 / 4 000 characters").
 
 | Kind | Who writes it | Where you see it |
 |---|---|---|
-| **Your preferences** | You. One text, used in every project. | **Your words**, at the right |
+| **Your preferences** | You - and the Orchestrator, from your own sentences only ([how](#who-writes-what)). One text, used in every project. | **Your words**, at the right |
 | **This project's rules** | You. Kept in the folder's `.koloni/rules.md`, so they go into git with the project. | **Your words** |
 | **Project notes** | You, ticking lines on the **Add to Project notes?** card at the end of a turn. | **Your words**, under the rules |
 | **Facts** (the core) | You, or an agent's proposal that you approved. | **Facts**, at the left |
@@ -75,8 +75,10 @@ rules.md differs from what you saved here; Full auto's check goes by what you sa
 folder's text, with **Use the folder's rules here** to take it into the box. Full auto's
 [Check what I said first](use/permissions.md#check-what-i-said-first) reads the rules saved here.
 
-KOLONİ may also suggest a preference. It shows under **Your preferences** with a "suggested" tag
-and the buttons **Add** and **Reject**.
+KOLONİ may also suggest a preference: its summariser, from a finished message, and the Orchestrator,
+from your own words, where it does not add them at once ([how](#who-writes-what)). A suggestion shows
+under **Your preferences** with a "suggested" tag and the buttons **Add** and **Reject**. It is not
+kept until you press **Add**.
 
 ### Project notes
 
@@ -182,7 +184,9 @@ in its **⋯** menu.
 **Your words on a card become a fact.** When you ask for changes on a card and say why, that text
 is kept as a fact, shown as "said by you at a card, asking for changes".
 
-**Preferences and rules are yours alone.** No agent writes them.
+**This project's rules are yours alone.** No agent writes them. Nor does an agent write your
+preferences in its own words: only the Orchestrator keeps a line there, and only your own sentence, as
+below.
 
 **The Orchestrator keeps what you say about how you work.** When you say how you want work done from
 now on - a rule, not a request for this one task ("from now on don't ask me for X", "write commits in
