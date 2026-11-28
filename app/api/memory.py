@@ -294,7 +294,7 @@ def set_from_words(body: FromWordsOut, session: Session = Depends(get_session)):
     status_code=204,
     dependencies=[Depends(require_own_origin)],
 )
-def undo_preference_line(
+async def undo_preference_line(
     message_id: str, request: Request, session: Session = Depends(get_session)
 ):
     """Undo on KOLONİ's "Added to your preferences: …" line: exactly that line out of Your
