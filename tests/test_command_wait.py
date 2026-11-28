@@ -3,21 +3,27 @@ in what it may read (kept, secrets hidden), its server's or its background comma
 seen, the command ends, or its time is up."""
 
 import asyncio
+import json
 import subprocess
 import sys
 
 import pytest
+from sqlalchemy import select
 
 from app import command_wait
 from app.command_wait import UNTIL_MOST, WAIT_MOST, until_of, waited
+from app.db.models import Command
+from app.model_client import StepResult, ToolCallRequest
 from app.tools import ToolError
 from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
-from tests.test_background_command import later, on
+from tests.test_background_command import later, on, row_id
 from tests.test_background_spawn import tool_result
 from tests.test_chat_flow import start_in_mode, text
 from tests.test_command_output import LOG, SECRET, on_its_id, results
-from tests.test_keep_running import serve
+from tests.test_command_output import call as asks
+from tests.test_keep_running import serve, snap
+from tests.test_proof_background_scenarios import until
 from tests.test_spawn import begin, call, step
 
 
@@ -108,3 +114,68 @@ def test_it_waits_in_a_background_commands_output(make_client, wait_run, project
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     read = tool_result(model.calls_of["Lead"][3], "command_output-k1")
     assert read.startswith("Seen at character") and "in the line: tests passed" in read
+
+
+@pytest.mark.anyio
+async def test_what_it_printed_just_before_it_ended_is_looked_at_as_kept():
+    # (A test run prints "passed" and ends between two looks - or before the first: its record has it.)
+    kept = "running 3 tests\n3 passed\n"
+    seen = await waited(lambda: None, "passed", 5, None, lambda: kept)
+    assert seen == "Seen at character 18, in the line: 3 passed\n"
+    gone = await waited(lambda: None, "failed", 5, None, lambda: kept)
+    assert gone == "Not seen: it is no longer running.\n"
+
+
+def test_a_server_that_printed_it_and_ended_is_seen_in_its_record(
+    make_client, wait_run, project_dir
+):
+    executor = ScriptedExecutor([Script(["ready\n", "tests passed\n"], 0)])  # (it ends)
+    client, model = make_client([serve(), text("up")], executor=executor)
+    cid, run_id = start_in_mode(client, project_dir, "full_auto")
+    wait_run(client, cid, run_id)
+    (command,) = until(
+        lambda: [c for c in snap(client, cid)["commands"] if c["status"] != "running"]
+    )
+    model.steps.extend(
+        [asks("command_output", {"id": command["id"], "until": "passed"}, "o1"), text("read")]
+    )
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "passed?"}).json()
+    done = wait_run(client, cid, second["run"]["id"])
+    ((_, seen),) = results(done, "command_output")
+    assert seen.startswith("Seen at character") and "in the line: tests passed" in seen, seen
+
+
+def ended(client, tool, **more):
+    """A step that calls `tool` on the background command k1 once it has ended - read from its record."""
+
+    async def asked(on_delta):
+        while True:
+            with client.app.state.session_factory() as session:
+                over = session.scalar(
+                    select(Command.id).where(Command.status.not_in(["proposed", "running"]))
+                )
+            if over:
+                break
+            await asyncio.sleep(0.01)
+        given = json.dumps({"id": row_id(client), **more})
+        return StepResult("", [ToolCallRequest(f"{tool}-k1", tool, given)], 1, 1)
+
+    return asked
+
+
+def test_a_background_command_that_printed_it_and_ended_is_seen_in_its_record(
+    make_client, wait_run, project_dir
+):
+    executor = ScriptedExecutor([Script(["building...\n", "tests passed\n"])])  # (it ends)
+    client, model = make_client({"Lead": []}, executor=executor)
+    model.by_agent["Lead"] += [
+        later("make test"),
+        ended(client, "command_output", until="passed", timeout_seconds=5),
+        text("read it"),
+        text("read its end"),
+    ]
+    cid, run_id = begin(client, project_dir, mode="full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    read = tool_result(model.calls_of["Lead"][2], "command_output-k1")
+    assert read.startswith("Seen at character") and "in the line: tests passed" in read, read

@@ -8,6 +8,7 @@ would hand the agent (its output as it was kept, secrets hidden), after the agen
 import asyncio
 from collections.abc import Callable
 
+from app.db.models import Command
 from app.tools import ToolError, _fn
 
 UNTIL_MOST = 200  # characters of the text waited for
@@ -65,24 +66,42 @@ def until_of(args: dict) -> tuple[str, float] | None:
     return until, float(seconds)
 
 
-async def waited(read: Callable[[], str | None], until: str, seconds: float, since: object) -> str:
+async def waited(
+    read: Callable[[], str | None],
+    until: str,
+    seconds: float,
+    since: object,
+    kept: Callable[[], str] | None = None,
+) -> str:
     """Looks at `read()` - its output so far, None once it is no longer running - every LOOK
     seconds until `until` is in it after `since`, it ends, or `seconds` pass: what is said first -
-    never `until` itself (a secret the agent wrote is not said back, unhidden).
+    never `until` itself (a secret the agent wrote is not said back, unhidden). Ended, what it
+    printed is looked at once more as it was `kept` (on record): "passed", then its end, between
+    two looks - or before the first.
     shortcut: looked at, not woken by its output; wake on its next piece if a wait is felt."""
     start = since if isinstance(since, int) and not isinstance(since, bool) and since > 0 else 0
     loop = asyncio.get_running_loop()
     ends = loop.time() + seconds
     while True:
         text = read()
+        over = text is None
+        if over and kept is not None:
+            text = kept()
         at = -1 if text is None else text.find(until, min(start, len(text)))
         if at >= 0 and text is not None:
             first = text.rfind("\n", 0, at) + 1
             last = text.find("\n", at)
             line = text[first : last if last >= 0 else len(text)][:LINE_MOST]
             return f"Seen at character {at}, in the line: {line}\n"
-        if text is None:
+        if over:
             return "Not seen: it is no longer running.\n"
         if loop.time() >= ends:
             return f"Not seen in {seconds:g} s.\n"
         await asyncio.sleep(min(LOOK, max(0.0, ends - loop.time())))
+
+
+def kept_output(factory, command_id: str) -> str:
+    """A command's output on record - kept, its secrets hidden - once it no longer runs."""
+    with factory() as session:
+        command = session.get(Command, command_id)
+        return (command.output or "") if command is not None else ""

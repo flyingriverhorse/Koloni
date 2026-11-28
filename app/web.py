@@ -1014,8 +1014,10 @@ def desktop(title: str, text: str) -> None:
     argv = (
         [shell, "-NoProfile", "-NonInteractive", "-Command", _TOAST]
         if sys.platform == "win32"
-        else _desktop_argv(plain(title), plain(text)) or []
+        else _desktop_argv(plain(title), plain(text))
     )
+    if not argv:  # (gone since it was looked for: its program, its desktop)
+        raise WebError(NO_DESKTOP)
     try:
         done = subprocess.run(
             argv,
@@ -1034,7 +1036,7 @@ def desktop(title: str, text: str) -> None:
         raise WebError(
             f"the desktop notification was not shown (no answer within {TOAST_SECONDS:g} seconds)"
         ) from None
-    except (OSError, ValueError, IndexError) as exc:
+    except (OSError, ValueError) as exc:
         raise WebError(f"the desktop notification was not shown ({type(exc).__name__})") from None
     if done.returncode:
         shown_by = "PowerShell" if sys.platform == "win32" else os.path.basename(argv[0])

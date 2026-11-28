@@ -117,3 +117,11 @@ def test_a_program_that_fails_or_hangs_is_said_without_the_words(monkeypatch):
     )
     with pytest.raises(web.WebError, match=r"\(notify-send ended with 2\)"):
         web.desktop(TITLE, SAID)
+
+
+def test_a_program_gone_since_it_was_looked_for_is_said_as_none(monkeypatch):
+    started = system(monkeypatch, "linux", env={"DISPLAY": ":0"})
+    monkeypatch.setattr(web, "has_desktop", lambda: True)  # (there a moment ago)
+    with pytest.raises(web.WebError, match="not available on this system"):
+        web.desktop(TITLE, SAID)
+    assert started == []

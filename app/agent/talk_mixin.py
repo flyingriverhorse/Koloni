@@ -229,7 +229,10 @@ class TalkMixin:
         if waits is None:
             return self.commands.output_of(command, since)
         seen = await command_wait.waited(  # (in what it may read: kept, its secrets hidden)
-            lambda: self.commands.live_outputs(ctx.cid).get(command.id), *waits, since
+            lambda: self.commands.live_outputs(ctx.cid).get(command.id),
+            *waits,
+            since,
+            lambda: command_wait.kept_output(self._factory, command.id),
         )
         return seen + self.commands.output_of(self.commands.server(ctx.cid, command.id), since)
 

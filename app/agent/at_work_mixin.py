@@ -234,7 +234,10 @@ class AtWorkMixin:
         seen = ""
         if waits is not None:  # (in what it may read: kept, its secrets hidden)
             seen = await command_wait.waited(
-                lambda: self.commands.live_outputs(ctx.cid).get(command.id), *waits, since
+                lambda: self.commands.live_outputs(ctx.cid).get(command.id),
+                *waits,
+                since,
+                lambda: command_wait.kept_output(self._factory, command.id),
             )
         live = self.commands.live_outputs(ctx.cid).get(command.id)
         if live is None and seen:  # (over meanwhile: its record's, as it is now)
