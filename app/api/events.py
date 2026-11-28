@@ -69,8 +69,9 @@ async def looking(
     """herdr's rule (28 Nov 2026): whether the page `client` has the chat on screen now - a notice
     that something waits, or that a background agent ended, is shown only where nobody does. On
     screen, the chat is seen (`seen_at`: not "done · not seen")."""
-    request.app.state.bus.look(conversation_id, body.client, body.looking)
-    if body.looking and (chat := session.get(Conversation, conversation_id)) is not None:
+    held = request.app.state.bus.look(conversation_id, body.client, body.looking)
+    # (Seen only by a page that has its stream open: it says so again as the stream opens.)
+    if held and body.looking and (chat := session.get(Conversation, conversation_id)) is not None:
         chat.seen_at = now()
         session.commit()
 

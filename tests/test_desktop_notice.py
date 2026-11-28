@@ -125,3 +125,13 @@ def test_a_program_gone_since_it_was_looked_for_is_said_as_none(monkeypatch):
     with pytest.raises(web.WebError, match="not available on this system"):
         web.desktop(TITLE, SAID)
     assert started == []
+
+
+def test_on_linux_its_body_is_said_never_read_as_markup(monkeypatch):
+    # (A daemon that reads the body as markup would follow an agent's link or fetch its image.)
+    started = system(monkeypatch, "linux", found=("notify-send",), env={"DISPLAY": ":0"})
+    web.desktop("<b>KOLONİ</b>", 'see <a href="http://x/">here</a> <img src="http://x/i"> & "so"')
+    assert shown(started)[-2:] == [
+        "<b>KOLONİ</b>",  # (the summary is no markup)
+        'see &lt;a href="http://x/"&gt;here&lt;/a&gt; &lt;img src="http://x/i"&gt; &amp; "so"',
+    ]

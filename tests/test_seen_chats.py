@@ -36,20 +36,20 @@ def test_a_turn_that_ended_out_of_sight_is_not_seen_until_its_chat_is_looked_at(
     assert not unseen(client, pid, cid)  # (no turn yet)
     turn(client, cid, wait_run)  # (nobody has it open)
     assert unseen(client, pid, cid)
-    looked = {"client": "tab-1", "looking": True}
-    assert (
-        client.post(f"/api/conversations/{cid}/looking", json=looked, headers=OWN).status_code
-        == 204
-    )
+    looked, path = {"client": "tab-1", "looking": True}, f"/api/conversations/{cid}/looking"
+    assert client.post(path, json=looked, headers=OWN).status_code == 204
+    assert unseen(client, pid, cid)  # (no page of that id has its stream open: nothing seen)
+    hidden = opened(client.app.state.bus, cid, "tab-1")
+    assert client.post(path, json=looked, headers=OWN).status_code == 204
     assert not unseen(client, pid, cid)
-    hidden = opened(client.app.state.bus, cid, "tab-1", looking=False)  # (open, its tab hidden)
+    hidden.looking = False  # (open, its tab hidden)
     turn(client, cid, wait_run)
     assert unseen(client, pid, cid)
     hidden.looking = True  # (on screen as its next turn ends: seen as it ends)
     turn(client, cid, wait_run)
     assert not unseen(client, pid, cid)
     away = {"client": "tab-1", "looking": False}  # (saying it is not looked at sees nothing)
-    client.post(f"/api/conversations/{cid}/looking", json=away, headers=OWN)
+    client.post(path, json=away, headers=OWN)
     assert not unseen(client, pid, cid)
 
 

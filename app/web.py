@@ -15,6 +15,7 @@ allowed to do afterwards.
 import asyncio
 import contextlib
 import contextvars
+import html
 import http.client
 import ipaddress
 import json
@@ -970,6 +971,7 @@ def _desktop_argv(title: str, text: str) -> list[str] | None:
     a dash (no option of the program's).
     shortcut: as herdr runs them (terminal-notifier, osascript, notify-send), not measured here -
     try each on a Mac and a Linux desktop before saying more of them."""
+    # (The commands' shape is herdr's, Apache-2.0: see THIRD-PARTY-NOTICES.md.)
     title, text = (f" {w}" if w.startswith("-") else w for w in (title, text))
     if sys.platform == "darwin":
         if notifier := shutil.which("terminal-notifier"):
@@ -983,7 +985,9 @@ def _desktop_argv(title: str, text: str) -> list[str] | None:
     if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         return None  # (no desktop to show it on: a server, an SSH session)
     sender = shutil.which("notify-send")
-    return [sender, "--app-name", "KOLONİ", "--", title, text] if sender else None
+    # (A daemon may read its body as markup: an agent's <a href> or <img src> is said, not used.)
+    body = html.escape(text, quote=False)
+    return [sender, "--app-name", "KOLONİ", "--", title, body] if sender else None
 
 
 def has_desktop() -> bool:
