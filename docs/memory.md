@@ -60,7 +60,7 @@ them ("1 240 / 4 000 characters").
 
 | Kind | Who writes it | Where you see it |
 |---|---|---|
-| **Your preferences** | You - and the Orchestrator, from your own sentences only ([how](#who-writes-what)). One text, used in every project. | **Your words**, at the right |
+| **Your preferences** | You - and the Orchestrator, from your own words ([how](#who-writes-what)). One text, used in every project. | **Your words**, at the right |
 | **This project's rules** | You. Kept in the folder's `.koloni/rules.md`, so they go into git with the project. | **Your words** |
 | **Project notes** | You, ticking lines on the **Add to Project notes?** card at the end of a turn. | **Your words**, under the rules |
 | **Facts** (the core) | You, or an agent's proposal that you approved. | **Facts**, at the left |
@@ -184,9 +184,8 @@ in its **⋯** menu.
 **Your words on a card become a fact.** When you ask for changes on a card and say why, that text
 is kept as a fact, shown as "said by you at a card, asking for changes".
 
-**This project's rules are yours alone.** No agent writes them. Nor does an agent write your
-preferences in its own words: only the Orchestrator keeps a line there, and only your own sentence, as
-below.
+**This project's rules are yours alone.** No agent writes them. Into your preferences the Orchestrator
+adds by itself only your own sentence, as below; a line a model worded enters only on your **Add**.
 
 **The Orchestrator keeps what you say about how you work.** When you say how you want work done from
 now on - a rule, not a request for this one task ("from now on don't ask me for X", "write commits in

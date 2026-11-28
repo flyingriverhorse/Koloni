@@ -34,8 +34,8 @@ At its first start the database is upgraded by two migrations, 0197 and 0198, af
   first** to have each one on a card (see [Who writes what](../memory.md#who-writes-what)).
 - **Check what I said first runs fewer commands.** Where its box works, a line of your preferences no
   longer lets a command run - it can only stop one -, and an earlier turn's message no longer runs a
-  push, a pull request or a merge: only this turn's messages do, **Send now** included. Such a command
-  waits on its card (see [Check what I said first](../use/permissions.md#check-what-i-said-first)).
+  push, a pull request or a merge: of your messages only this turn's do, **Send now** included (this
+  project's rules still can). Such a command waits on its card (see [Check what I said first](../use/permissions.md#check-what-i-said-first)).
 - **At Full auto the judge decides a plain push of your feature branch.** In a chat you watch at **Full
   auto** with the judge on, a plain push of the branch you have checked out to its own origin goes to the
   judge instead of a card: **fine** pushes it, **risky** gives its card - never a refusal. A push to

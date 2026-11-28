@@ -13,8 +13,8 @@ Qoder is no longer run since 0.1.8: see [Qoder is no longer supported](../models
 
 ## A version that was not measured
 
-KOLONİ records which versions of each CLI it was measured with: the last column of the table, the
-versions whose whole use of the CLI's protocol was checked. A newer version is never refused. KOLONİ
+KOLONİ records the versions of each CLI that its use of the CLI's protocol was measured with: the
+last column of the table. A newer version is never refused. KOLONİ
 tries it once; if it answers as expected it runs, with a note that this version was not measured with
 KOLONİ. If not, it runs the old way: with KOLONİ's tools, and the CLI's own tools off.
 

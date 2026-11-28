@@ -53,8 +53,8 @@ KOLONİ's own words, as they appear on screen.
   since 0.1.9): at Full auto, before a delete, a push or a send waits for you on a card - or a delete
   in the project, or a plain push of your feature branch, goes to Full auto's judge -, a fast model
   reads your own words, and the command runs without a card only where a line of yours names it - never
-  a force push. A line of your preferences can only stop a command, and only this turn's messages run a
-  push, a pull request or a merge. Until a model has passed its
+  a force push. A line of your preferences can only stop a command, and of your messages only this
+  turn's run a push, a pull request or a merge. Until a model has passed its
   measurement, a push, a pull request or a merge you asked for gets a card that quotes you instead, one
   click. See [Permission levels](../use/permissions.md#check-what-i-said-first).
 
