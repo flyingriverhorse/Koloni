@@ -2,6 +2,15 @@
 
 KOLONİ's own words, as they appear on screen.
 
+**Advisor model**
+: A model the Orchestrator may ask for advice on a hard choice (`ask_advisor`, at most 3 times a turn).
+  You choose it in Settings › The app › Agents. See [Talking while agents
+  work](../use/talk-while-agents-work.md#what-the-orchestrator-has-while-its-agents-work).
+
+**After this turn**
+: A button of the message box while a turn runs: your message waits in the queue and starts a turn of
+  its own. See **Send now**.
+
 **Agent**
 : One worker in a turn: a role running on a model. The canvas draws each agent as a small box: its
   name and model, its state, and what it did. Its tools, commands and files are in the Inspector.
@@ -18,6 +27,11 @@ KOLONİ's own words, as they appear on screen.
 **Always run**
 : A button on a command's card. It keeps a rule for that chat, so the same kind of command runs
   without a card next time. See [Permission levels](../use/permissions.md).
+
+**Background agent**
+: An agent the Orchestrator of an API model opened in the background: the Orchestrator goes on at once
+  and reads the agent's report when it comes. See [Agents in the
+  background](../use/talk-while-agents-work.md#agents-in-the-background).
 
 **Branch (a team's)**
 : A git branch `koloni/<name>` that the Orchestrator can give a team's work. It starts from your folder
@@ -37,8 +51,10 @@ KOLONİ's own words, as they appear on screen.
 **Check what I said first**
 : Full auto's judge's question of your words (its box in Settings › This project › When you're asked,
   since 0.1.9): at Full auto, before a delete, a push or a send waits for you on a card - or a delete
-  in the project goes to Full auto's judge -, a fast model reads your own words, and the command runs
-  without a card only where a line of yours names it - never a force push. Until a model has passed its
+  in the project, or a plain push of your feature branch, goes to Full auto's judge -, a fast model
+  reads your own words, and the command runs without a card only where a line of yours names it - never
+  a force push. A line of your preferences can only stop a command, and of your messages only this
+  turn's run a push, a pull request or a merge. Until a model has passed its
   measurement, a push, a pull request or a merge you asked for gets a card that quotes you instead, one
   click. See [Permission levels](../use/permissions.md#check-what-i-said-first).
 
@@ -56,9 +72,10 @@ KOLONİ's own words, as they appear on screen.
 **Decided for you**
 : Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
   card waited the project's minutes (Settings › This project › When you're asked › **When you're
-  away**); and the commands **Check what I said first** ran, or did not run, on a line of yours.
-  The project's whole list is on Work's Ready for you tab, with OK and Change; a chat says it in one
-  line: [Decisions](../use/decisions.md).
+  away**); the decisions the Orchestrator took without asking and noted, "Decided: …" (their
+  **Change** takes your own words); the commands KOLONİ's judge refused; and the commands **Check what
+  I said first** ran, or did not run, on a line of yours. The project's whole list is on Work's Ready
+  for you tab, with OK and Change; a chat says it in one line: [Decisions](../use/decisions.md).
 
 **Discussion**
 : Several agents talking one question through in rounds, with nobody changing anything meanwhile.
@@ -175,6 +192,11 @@ KOLONİ's own words, as they appear on screen.
   tools in its name, which suggests at most three follow-up tasks, each with the words it came
   from; on the canvas that is a small box under the turn. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
 
+**Send now**
+: The message box's first button (Enter) while a turn runs: your message goes into the turn at work,
+  and the Orchestrator reads it in this turn. See [Send now and After this
+  turn](../use/talk-while-agents-work.md#send-now-and-after-this-turn).
+
 **Skill**
 : A folder with a `SKILL.md` and its files, in the form Claude Code reads. You add skills on the
   Tools page and give them to roles.
@@ -230,8 +252,9 @@ KOLONİ's own words, as they appear on screen.
   [Topics](../memory.md#topics) and [Doing tasks in a chat](../automation/todo.md#doing-tasks-in-a-chat).
 
 **Turn**
-: Everything that happens for one message: the Orchestrator's answer, the agents it opened, their
-  tools, commands and changes. The canvas draws one turn at a time.
+: Everything that happens for one message, and for those you send into it with **Send now**: the
+  Orchestrator's answer, the agents it opened, their tools, commands and changes. The canvas draws one
+  turn at a time.
 
 **Where the work is**
 : The panel the git button in the top bar opens ("⑂ main · 4 changed"): your branch, the agents' copies

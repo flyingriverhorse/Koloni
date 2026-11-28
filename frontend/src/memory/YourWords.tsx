@@ -113,8 +113,10 @@ function Suggested({
         {/* (What Add does is read before it is clicked: in sight, the rest behind the "?".) */}
         <span className="tag">suggested</span> Added, it is told to every agent in every project as your instruction.{' '}
         <Hint doc={GUIDE.memoryKinds}>
-          What KOLONİ’s summariser took for a preference of yours from a finished message. Nothing enters your
-          preferences unless you add it.
+          What KOLONİ’s summariser took for a preference of yours from a finished message, or what the Orchestrator
+          suggested from your own words. A suggestion enters your preferences only when you add it. At New preferences
+          from your words: Add them, tell me, the Orchestrator adds a plain rule of yours itself, and its chat says so
+          with Undo.
         </Hint>
       </div>
       {records.map(record => (

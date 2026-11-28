@@ -150,6 +150,13 @@ without being named is put back after the command - but in `.idea/`, which a Jet
 itself: there only a write or a command that names it asks. On Windows, device names (`CON`, `COM1`) and
 file streams (`a.txt:x`) are never written.
 
+An approved `git submodule add`, `set-url` or `set-branch` may write `.gitmodules`, and the `git
+submodule` verbs that write git's config (`add`, `init`, `sync`, `set-url`, `set-branch`, `deinit`,
+`update --init`) may change `.git/config`. Any other `git submodule` line (`foreach …`, `status`) has a
+change to `.git/config` put back - the command it runs could set a program git runs (`core.fsmonitor`).
+A line with a git command that runs one it is handed - `git submodule foreach`, `git rebase -x`, `git
+bisect run`, `git difftool -x`, `git grep -O`, `git filter-branch` - has every such write put back.
+
 ## Secrets
 
 - Secret files (`.env`, keys, …) are opened only on your **Allow once**, and searches skip them.
