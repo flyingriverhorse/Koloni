@@ -989,7 +989,7 @@ them, the line says "Tests not run: you stopped the check".
 
 ### How many run at once
 
-![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under More limits with the other limits; below them, the Show experimental features switch, off, and the Judge model: Fast tier's first (now: fake-qwen)](../images/settings-app-test-runs.png)
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under More limits with the other limits; below them, the Show experimental features switch, off, the Judge model: Fast tier's first (now: fake-qwen), the Advisor model: Another provider's than the Orchestrator's, and New preferences from your words: Add them, tell me](../images/settings-app-test-runs.png)
 
 KOLONİ's own test runs queue: **Settings › The app › More limits › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
