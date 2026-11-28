@@ -1,0 +1,4897 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A local agent workspace: a chat beside a canvas, real agents, evidence.">
+      
+      
+      
+        <link rel="canonical" href="https://koloni.skyulf.com/manual/use/checked/">
+      
+      
+      
+        <link rel="prev" href="../workspace/">
+      
+      
+        <link rel="next" href="../plan-first/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="zensical-0.0.74">
+    
+    
+      
+        <title>Checked - KOLONİ</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/koloni.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KOLONİ" class="md-header__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KOLONİ
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Checked
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KOLONİ" class="md-nav__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    KOLONİ
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Getting started
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quick start
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ in 5 minutes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Install
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/why-koloni/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Why KOLONİ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Everyday use
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Everyday use
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chat-and-canvas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chat and canvas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../talk-while-agents-work/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Talking while agents work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Permission levels
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ready and approval cards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Decisions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Working copies and Take in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Checked
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Checked
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#when-it-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When it runs
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When it runs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#for-one-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        For one chat
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Which tests
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Which tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#from-your-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From your CI
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saved-by-koloni" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Saved by KOLONİ
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Asking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-the-tests-fail" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When the tests fail
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When the tests fail">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#not-this-turns-flaky-tests-and-failures-from-before" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Not this turn's: flaky tests and failures from before
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-last-green-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The last green state
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-bug-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A bug fix
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-stronger-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A stronger model
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documents-diagrams-data-and-slides" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Documents, diagrams, data and slides
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Documents, diagrams, data and slides">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pages
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-test-for-the-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A test for the change
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Coverage
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The review
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documents-read-against-your-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Documents read against your request
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-live-try" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The live try
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checks-on-asking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checks on asking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-long-it-waits" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How long it waits
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How long it waits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-many-run-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How many run at once
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-the-canvas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        On the canvas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-each-line-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What each line means
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plan-first/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan first
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Compare
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Attachments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../voice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Voice
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../command-palette/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command palette (Ctrl+K)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Agents
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Agents
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/which-way/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Which way to work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/teams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teams
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/step-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Step limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipes and candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipe-cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe cookbook
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/discussions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Discussions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Models
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Models
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Providers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up an API provider
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a local model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Copilot on your GitHub account
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tiers and Agents may use
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/subscription-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Subscription rules
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tools
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Tools
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/built-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ's tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP servers and trust
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Skills
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Memory
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What the project knows
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../knowledge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sources to look things up in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automation
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Automation
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/todo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  To-do
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/overnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Work while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/answering-for-you/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Answering for you
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Money and quota
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Money and quota
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage and budgets
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/cost/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Keeping costs down
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Settings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backup-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Backup and update
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Troubleshooting and FAQ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_13">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Examples
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/team-web-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A web app with a team
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/overnight-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A job while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/candidates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Picking the best of several candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mcp-safely/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Adding an MCP server safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/teach-an-expert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teaching an expert
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_14">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/all-settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Every setting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLIs
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe, role and skill formats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/folders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Folder layout
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Glossary
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/known-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Known limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/upgrade-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Upgrade notes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security and privacy
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_15">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Security and privacy
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/privacy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data and privacy
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reporting a problem
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Developers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_16">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Developers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/from-source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Run from source
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/verify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tests and verify
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Contributing (DCO)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/licenses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Licenses
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#when-it-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When it runs
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When it runs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#for-one-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        For one chat
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Which tests
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Which tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#from-your-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From your CI
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saved-by-koloni" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Saved by KOLONİ
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Asking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-the-tests-fail" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When the tests fail
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When the tests fail">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#not-this-turns-flaky-tests-and-failures-from-before" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Not this turn's: flaky tests and failures from before
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-last-green-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The last green state
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-bug-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A bug fix
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-stronger-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A stronger model
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documents-diagrams-data-and-slides" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Documents, diagrams, data and slides
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Documents, diagrams, data and slides">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pages
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-test-for-the-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A test for the change
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Coverage
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The review
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documents-read-against-your-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Documents read against your request
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-live-try" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The live try
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checks-on-asking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checks on asking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-long-it-waits" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How long it waits
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How long it waits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-many-run-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How many run at once
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-the-canvas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        On the canvas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-each-line-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What each line means
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="checked">Checked<a class="headerlink" href="#checked" title="Permanent link">&para;</a></h1>
+<p>A turn that changed code does not end on the model's word. Before the Orchestrator's answer
+ends the turn, KOLONİ runs the project's tests once on the work as it now stands. Under the
+answer a <strong>Checked</strong> section says what ran, how it went, and what was not checked. KOLONİ
+writes it from its own records, not from the model's words, and no model is asked for it.</p>
+<p>It works the same for every model and CLI.</p>
+<p><img alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (1 lines, 1 files); Not checked: a test for the change switched off for this project" src="../../images/checked-section.png" /></p>
+<p><a href="../../diagrams/proven-finish.svg"><img alt="Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides, config files and scripts, the project's own code style and type checks and pages (console, width, accessibility), a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; apart from them, a sub-agent's own tests before its work is taken in; and where Settings sets each part" src="../../diagrams/proven-finish.svg" /></a></p>
+<p><em>What KOLONİ checks at a turn's end, and where you set each part. (<a href="../../diagrams/proven-finish.svg">full size</a>)</em></p>
+<p>In order, the first check that sends work back ends the pass, and the Orchestrator's next answer is
+checked again:</p>
+<ol>
+<li><strong>The tests</strong> - the ones related to the change first, the whole suite after the answer
+   (<a href="#which-tests">Which tests</a>, <a href="#asking">Asking</a>, <a href="#how-long-it-waits">How long it waits</a>). What
+   is not this turn's - a flaky test, one failing before - is told apart
+   (<a href="#not-this-turns-flaky-tests-and-failures-from-before">Not this turn's</a>).</li>
+<li><strong>What it wrote besides code</strong> - documents, diagrams, data, slides, config files and scripts,
+   and the changed code by the project's own ruff, eslint, tsc and mypy
+   (<a href="#documents-diagrams-data-and-slides">Documents, diagrams, data and slides</a>), and, where you
+   ticked <strong>Pages</strong>, a changed page opened in KOLONİ's own browser at a phone's, a tablet's and a
+   desktop's width - its console, its width and its accessibility (<a href="#pages">Pages</a>).</li>
+<li><strong>A Reviewer's look</strong> at a big or security-touching change (<a href="#the-review">The review</a>); long
+   documents are read once against your request
+   (<a href="#documents-read-against-your-request">Documents read against your request</a>).</li>
+<li><strong>The live try</strong>, once a turn: a changed command-line tool is asked for its <code>--help</code>, and a big
+   change of screens is tried by a Tester on the chat's preview (<a href="#the-live-try">The live try</a>).</li>
+<li><strong>A test for the change</strong>, where you ticked it: asked once where code changed and no test
+   did (<a href="#a-test-for-the-change">A test for the change</a>).</li>
+</ol>
+<p>A failure goes back to the Orchestrator until it passes - while each round makes progress - or
+as many times as <strong>Fix rounds</strong> says (<a href="#when-the-tests-fail">When the tests fail</a>); then a stronger
+model tries, and failing work is
+never taken in (<a href="#a-stronger-model">A stronger model</a>). <strong>Checked</strong> under the answer says it all,
+line by line (<a href="#what-each-line-means">What each line means</a>), and the canvas's <strong>Checks</strong> node
+shows it (<a href="#on-the-canvas">On the canvas</a>). A recipe's turn follows the recipe's own <strong>Checks</strong>
+step (<a href="../../agents/recipes/#the-checks-step">The Checks step</a>).</p>
+<h2 id="when-it-runs">When it runs<a class="headerlink" href="#when-it-runs" title="Permanent link">&para;</a></h2>
+<ul>
+<li>After a turn in a project folder that changed a file. A turn that changed nothing, a plain
+  chat, a plan, and a side of a comparison get no Checked section - except a turn that changed
+  nothing right after one whose checks still failed: it says "Still failing as last checked - this
+  turn changed nothing" with those failing lines, and <strong>Fix it</strong> stays under the newest turn (not
+  once the turn they came from is undone - also after turns that said them again, and no Fix it
+  is offered for it then -, nor once this chat's checks are off; the canvas draws no Checks node
+  for it, as no check ran). A
+  change made only by a
+  command (<code>python -c "open(…).write(…)"</code>, <code>sed -i</code>, a heredoc to a file, a redirection into one</li>
+<li><code>cat a &gt; b</code>, <code>git show HEAD:f &gt; f</code>, not <code>2&gt;&amp;1</code> or <code>&gt; /dev/null</code> -, a formatter,
+  <code>black . &amp;&amp; pytest -q</code>, a test run that writes - <code>jest -u</code>, <code>pytest --snapshot-update</code>,
+  <code>--junitxml=a.py</code>, a coverage report that is a file, <code>--cov-report=html</code> -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
+  command of this turn may have changed files KOLONİ did not record: …", with "No review: changes
+  made by a command are not recorded". In a git project such commands count only where git lists
+  a file written since the first of them began, or one committed during the turn, and the line
+  names them ("… did not record: gen.py - python gen_it.py"): a <code>python main.py</code> that only
+  answered changes nothing. A tracked test file such a command deleted is said "Test removed", as
+  one deleted on record is. A turn whose commands only read or ran tests is still a turn that
+  changed nothing.</li>
+<li>Where the work now is: in the project, or in the Orchestrator's own working copy (a team's
+  branch, or a job while you're away). Work that waits in <strong>Ready for you</strong> is not part of it.</li>
+<li>Once, after the turn's work is in: the agents run only the tests near their change while
+  they work, and KOLONİ runs the whole test command at the end, like a pull request's CI - in a
+  turn you watch, the tests related to the change first and the whole suite after, in the
+  background (see <a href="#how-long-it-waits">How long it waits</a>).</li>
+<li>KOLONİ runs one such test run at a time across the app, unless Settings say more (see
+  <a href="#how-many-run-at-once">How many run at once</a>). A second turn that ends meanwhile waits for
+  the first. A run whose card waits for your yes holds up no other: it takes its turn once you
+  answer.</li>
+</ul>
+<p><strong>Settings › This project › When the work is done › After a change</strong> turns it on or off for the
+project:</p>
+<ul>
+<li><strong>Test and review</strong> (the default) runs the tests, and has a big or security-touching change
+  looked over by a read-only Reviewer (see <a href="#the-review">The review</a>).</li>
+<li><strong>Tests only</strong> runs the tests and nothing more.</li>
+<li><strong>Nothing</strong> runs nothing and sends nothing back. The Checked section still says that nothing
+  was checked, and names the last test run an agent made in the turn.</li>
+</ul>
+<p><img alt="Settings, This project, When the work is done: its sentence, After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, and Then a stronger model ticked; Check by kind of work is under its More" src="../../images/settings-checks.png" /></p>
+<p>The line under the choice says what it does in this project now, from its real state - for
+example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
+the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
+is read by a Reviewer (one more model request). Failing work goes back until it passes, while
+each round makes progress." It names
+each test command you set for a part on the project map ("npm test in web/"), then what KOLONİ
+saved for any other folder - and changes as you save one there. Before a
+test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.</p>
+<h3 id="for-one-chat">For one chat<a class="headerlink" href="#for-one-chat" title="Permanent link">&para;</a></h3>
+<p><img alt="The permission level's menu: Ask before changes, Auto-edit files, Full auto, Full auto's judge (on), Plan first, and Test and review changes switched on with its line, As the project: failing work goes back until it passes" src="../../images/level-menu-checks.png" /></p>
+<p><strong>Test and review changes</strong>, in the permission level's menu beside <strong>Plan first</strong>, turns it on
+or off for this chat only. Its line says what this chat's changes get: "As the project: runs
+python -m pytest -q after each change, then a Reviewer reads big or security changes. Failing work
+goes back to be fixed, up to 2 times.", "Off for this chat: nothing is tested or reviewed; each
+answer says “Not checked”.", or "On for this chat · the project's is Nothing: runs …" (on in a
+project at Nothing is Test and review for this chat). Its ⓘ leads here. Off, the level's button
+says "· no checks", no Checks node is drawn for its turns, the Checked section says "Not checked:
+off for this chat" and the Orchestrator's box "not checked · off for this chat". Other chats go
+on with the project's setting.</p>
+<p>It is free at every level. At <strong>Full auto</strong> with it off, the menu says so under it: "Full auto
+with no checks: nothing checks this chat's changes". A turn that runs a team's recipe follows
+the recipe's <strong>Checks</strong> step, not this switch: the project's setting, unless the recipe sets its own
+- a recipe you picked may check less, one the Orchestrator picked only adds checks
+(<a href="../../agents/recipes/#the-checks-step">The Checks step</a>).</p>
+<p>A project that had turned off the old <strong>Finish only when the tests pass</strong> switch is on
+<strong>Nothing</strong>, and Settings says so under the setting.</p>
+<h2 id="which-tests">Which tests<a class="headerlink" href="#which-tests" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Each part's test command from the project map (yours, or the map's guess), run in that part's
+   folder - the whole project's too, set on the map's first row (<strong>the whole project</strong>) where no
+   project file makes the root a part. It runs beside the other parts' commands, not instead of
+   them: where it runs every test, a Python part's tests run twice - in its own command and in the
+   whole project's. A part you set to no test is never guessed - the whole project set to no test
+   stops the guess (3-5) too. (0.1.7: <strong>Test before adding</strong> is gone, and the command you had in it
+   was not kept: write it here.)</li>
+<li>Otherwise the test command KOLONİ saved before (below).</li>
+<li>Otherwise a command KOLONİ guesses from each part's files, in any language: <code>python -m pytest
+   -q</code> (a <code>pyproject.toml</code>, <code>pytest.ini</code> or <code>tests/</code>), <code>npm test</code> (a test script in
+   <code>package.json</code>), <code>go test ./...</code> (<code>go.mod</code>), <code>cargo test</code> (<code>Cargo.toml</code>), <code>mvn test</code>
+   (<code>pom.xml</code>), <code>./gradlew test</code> or <code>gradle test</code> (<code>build.gradle</code>), <code>dotnet test</code> (a <code>.sln</code> or
+   <code>.csproj</code>), <code>bundle exec rspec</code> (a <code>Gemfile</code> and <code>spec/</code>), <code>composer test</code> or
+   <code>vendor/bin/phpunit</code> (<code>composer.json</code>), <code>mix test</code> (<code>mix.exs</code>), <code>swift test</code>
+   (<code>Package.swift</code>), <code>ctest --test-dir build</code> (<code>CMakeLists.txt</code>), <code>make test</code> (a <code>test:</code> target
+   in the <code>Makefile</code>).</li>
+<li>Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
+   there for (not while you're away).</li>
+<li>Otherwise KOLONİ asks the project's <strong>Fast</strong> tier's model once, in a turn you are there for,
+   where its tests are. KOLONİ shows it the project's parts and languages, its test files and the
+   start of its README, CONTRIBUTING and Makefile (never a secret file, nor one reached through a
+   link), with no tool. It answers with command lines, which are read as data. The request shows
+   in Usage. It is asked again only when the project's parts change; until then the commands it
+   named are tried again. With no Fast-tier model the section says so.</li>
+</ol>
+<p>A line an agent ran (4) or the model named (5) is tried only if it is one of the commands in 3,
+or <code>pytest</code>, <code>npx vitest run</code>, <code>npx jest</code>, <code>yarn test</code>, <code>pnpm test</code>, <code>bun test</code>, <code>tox</code>, <code>nox</code> or
+<code>ctest</code> - with at most <code>-q</code> or <code>-v</code> after it, in a folder of the project. Any other line (more options, a wrapper, a chain) is never run: the look's row says
+how many it named that were not tried.</p>
+<p>A guessed command is tagged <strong>guessed</strong>. If nothing can be found, the section says "No test
+command: nothing was run"; after the look found no tests at all, "No tests in this project".</p>
+<h3 id="from-your-ci">From your CI<a class="headerlink" href="#from-your-ci" title="Permanent link">&para;</a></h3>
+<p>Where the project has GitHub Actions workflows (<code>.github/workflows/*.yml</code>), KOLONİ reads their
+lint, typecheck and test lines - <code>ruff</code>, <code>eslint</code>, <code>mypy</code>, <code>ty check</code>, <code>tsc</code>, <code>pytest</code>, <code>vitest</code> and
+the like, each in its step's <code>working-directory</code> (or the job's or workflow's <code>defaults.run</code>). Each
+line must be one plain command of at most 500 characters: a line that chains, pipes, redirects
+or substitutes (<code>pytest; curl …</code>, <code>npm test &amp;&amp; …</code>, <code>cd web &amp;&amp; npm test</code>, <code>pytest $(…)</code>) is not
+taken. It never takes an e2e step, nor a step with a <code>${{ … }}</code> expression, a secret or an install
+in it, one whose <code>shell:</code> is another language, or one whose folder is outside the project. The
+workflow files are read with limits - at most 50 files, 256 KB each and 1 MB in all, no links, no
+YAML aliases; a file past them is not read. What was left out is said beside the lines it offers
+or runs ("e2e not run: …", "CI step Tests: not run: not a plain command", "CI file not read: …");
+where no line is taken, nothing of the CI is said.</p>
+<p>It asks once a project: the section lists them - "CI commands found: ruff check app, python -m
+pytest -q - not run until you approve them once (Run these)" - and <strong>Run these</strong> approves exactly
+the lines that row shows.</p>
+<p><img alt="The Checked section offering the CI's line: CI commands found: python -m pytest -q - not run until you approve them once (Run these), with the Run these button under it" src="../../images/checked-ci-offer.png" />
+ If the workflow files changed since, or another turn offered other lines,
+nothing is approved and they are offered again after the next change. From the next change on they are the turn's test run, one line each, said "(from
+CI)". Until you approve them they are not run - at <strong>Full auto</strong> and while you're away too. A
+change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
+commands not used: a workflow changed in this turn"). Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
+level says. An approved line runs as your own command does: <code>make test</code>, <code>npm test</code> or <code>tox</code> run
+the project's own Makefile, package scripts or tox file, whatever they hold.</p>
+<p>A line is offered only in a form that checks. One that changes files (<code>ruff check --fix</code>, <code>ruff
+format</code>, <code>eslint --fix</code>, <code>tsc --build</code>, a test run's <code>-u</code> or <code>--junitxml=…</code>), downloads or installs
+(<code>npx</code>, <code>uv run --with</code>, <code>mypy --install-types</code>), sends (<code>--pastebin</code>), does not end by itself
+(<code>ruff server</code>, <code>--watch</code>), runs code of its own beside the tool (<code>pylint --init-hook</code>, <code>pytest -p
+x</code>, <code>go test -exec</code>) or runs a file in place of the tool by its name (<code>./pytest</code>, <code>lint.cmd</code>,
+<code>python -m lint</code>) is not, and its step says why: "CI step Fix: not run: it changes files".</p>
+<p>A file git tracks that changed while one of KOLONİ's own runs went on is said: "Changed while
+KOLONİ's run of ruff check . went on: calc.py". The end check's runs - the related tests, then the
+whole suite, in the turn or gone on after the answer - are looked at against one look taken before
+the first of them, on one row. It may be a run's doing (a check that formats, a test that rewrites
+a data file) - or yours, saved in your editor meanwhile, or another chat's: KOLONİ never puts it
+back by itself. <strong>Put back</strong> on that row does, for each file still as the run left it: as it was
+when the run started. One changed before the run comes back byte for byte; one that was as
+committed comes back from its commit through git's own filters, so its line ends are git's (CRLF
+where <code>core.autocrlf</code> is on) - <code>git diff</code> shows nothing, though the bytes may differ from before
+the run. One changed again since is not put back, and says so. Each turn's <strong>Put back</strong> is for its
+own run - its tip says "as they were before this turn's run" -, so an older turn's puts back only
+what is still as its run left it. While a test run of the turn still
+goes on, Put back waits ("put back once it ends"). A file the run made that git does not track (a
+report, a cache), and one an agent wrote on record meanwhile, are not listed; nor is a secret file
+(<code>.env</code>, a key) - KOLONİ keeps no copy of one, so putting it back is yours. What Put back keeps
+goes once nothing of the run waits, and after three days.</p>
+<h3 id="saved-by-koloni">Saved by KOLONİ<a class="headerlink" href="#saved-by-koloni" title="Permanent link">&para;</a></h3>
+<p>The first time a guessed command really runs tests (its runner counted some that passed or
+failed), KOLONİ saves it as this project's test command for that folder, with no question. The
+section says "Saved as this project's test command - change it in Settings". A guess that ran no
+test, or no test tool, is never saved, and a command of yours is never replaced.</p>
+<p>Settings › This project › When the work is done shows each saved command under <strong>Found by KOLONİ</strong> as
+soon as it is saved, where it came from and when. <strong>Forget it</strong> clears them; they are found again
+at the next change. A saved command runs as the project's for this check only, and below <strong>Full
+auto</strong> on a card until you say <strong>Always</strong> on it (see <a href="#asking">Asking</a>). Agents do not get to run
+it unasked. To make it yours, set it as a part's test command on the project map.</p>
+<p>Where KOLONİ reads a count from the runner's summary (pytest, jest, vitest, go, cargo, dotnet,
+Maven, Gradle, RSpec, PHPUnit), the line gives it. Any other runner is judged by its exit code
+alone, and the line says so: "Tests passed (by exit code, no count)". Coloured output -
+<code>--color=yes</code> in the project's pytest settings, or <code>FORCE_COLOR</code> where KOLONİ was started - is
+read as plain: its counts still show, a run that only skipped tests is no pass, a failure it prints
+is one even where its exit is hidden, and a guessed command whose coloured run really ran tests is
+saved like any other.</p>
+<p>A turn whose changes are all documents, slides, diagrams or data runs no tests and says so.
+A change to a configuration file (<code>requirements.txt</code>, <code>package.json</code>, a CI workflow, a
+<code>Makefile</code>) counts as code: the tests run.</p>
+<h2 id="asking">Asking<a class="headerlink" href="#asking" title="Permanent link">&para;</a></h2>
+<p>KOLONİ's test run is asked about as the Orchestrator's own command would be:</p>
+<ul>
+<li>Your own command (a part's test command you set on the project map) runs without a card.</li>
+<li>A guessed command at <strong>Ask before changes</strong> or <strong>Auto-edit files</strong> waits on one command card.
+  Your yes holds for the rest of the turn, for that command in that folder only: the same command
+  in another part of the project is asked again. At <strong>Full auto</strong>, or under an <strong>Always run</strong>
+  rule, it runs by itself.</li>
+<li>A command KOLONİ saved (see <a href="#saved-by-koloni">Saved by KOLONİ</a>) is not a
+  leave of yours: at <strong>Ask before changes</strong> and <strong>Auto-edit files</strong> it waits on a card like a
+  guess. <strong>Always</strong> on that card (or on the guess's card before it was saved) keeps it as yours
+  for that very line in this project: from then on it runs without a card, in every chat, and
+  while you're away. An <strong>Always run</strong> rule you gave another command's card (<code>python -m pytest</code>)
+  lets it run without a card in that chat only. <strong>Forget it</strong> forgets that too. At <strong>Full auto</strong>
+  it runs by itself.</li>
+<li>While you're away (a job of <strong>Away</strong>) a guessed
+  command is not run: the section says "Tests not run: a guessed command, you were away", and the
+  job finishes. Nor is a saved command you have not said <strong>Always</strong> to: "Tests not run: a saved
+  command no Always rule covers, you were away". Your own command still runs. A To-do task's turn in a
+  chat asks as any turn of that chat does (a chat's To-do queue waits while you're away).</li>
+</ul>
+<p>The run shows in the turn like any command, as KOLONİ's own. The Orchestrator does not see it
+in its history: it is told the result when the tests fail.</p>
+<h2 id="when-the-tests-fail">When the tests fail<a class="headerlink" href="#when-the-tests-fail" title="Permanent link">&para;</a></h2>
+<p>The Orchestrator is told that the tests failed, with the end of their output, and goes on to fix
+what fails, by itself or with an agent that writes code. It is told never to delete or skip a
+test to make it pass. Then KOLONİ runs the tests again.</p>
+<p>How often is <strong>Settings › This project › When the work is done › Fix rounds</strong> - one count with the
+Reviewer's findings and the other checks:</p>
+<ul>
+<li><strong>Until it passes</strong> (the default): it goes back while each round makes progress. It stops - and
+  says why - where a round changed nothing (the same tests failing, or the same blocking findings
+  by who found them and the file each names, two rounds in a row), at the turn's token limit or
+  the project's monthly budget, or after 20 rounds at most: "Sent back to fix: round 3 (until it
+  passes, 3 failing → 1)", "Stopped after round 4: no progress in two rounds - you decide (Fix
+  it)". An answer to a round that changes nothing is no progress either.</li>
+<li><strong>1 to 10</strong>: at most that many rounds; after them the turn ends, and the section says "Still
+  failing after 2 fix rounds: you decide (Fix it)".</li>
+</ul>
+<p>A project still on the old default, 2, moved to Until it passes with 0.1.6; a number you had chosen
+is kept. <strong>Fix it</strong>, on the newest turn, sends a new message that asks for the fix. Nothing starts
+until you click it.</p>
+<p>Rounds never stack: where a recipe of the turn has already run its own test-and-fix rounds to
+the end (a recipe's <strong>Test it</strong> back to <strong>Fix it</strong>), KOLONİ does not send the Orchestrator round
+again on top of them. A recipe's review loop that ran out leaves KOLONİ's own rounds. The section says "Still failing
+after the recipe's fix rounds: you decide (Fix it)".</p>
+<p>The check before a sub-agent's work is taken in is a separate check with its own two rounds: the
+tests that sub-agent wrote or changed, only those (<code>test_x.py</code>, <code>x.test.ts</code>, <code>x_test.go</code>,
+<code>FooTest.java</code>, <code>FooTests.cs</code>, Rust's <code>tests/*.rs</code>, <code>x_spec.rb</code> …) - each part's test command
+narrowed to them (<code>python -m pytest -q tests/test_new.py</code>), in its working copy. Those tests are
+the sub-agent's own code, so they run by themselves only at <strong>Full auto</strong>, or where every part's
+command is yours (yours on the map, or a saved one an <strong>Always</strong> rule covers). Otherwise - KOLONİ's
+guess at <strong>Ask before changes</strong> or <strong>Auto-edit files</strong> - the card shows the command, "not run",
+and waits for your <strong>Run the test</strong>; nothing is taken before. While you are away a guess never
+runs them (the work is taken as without a test, said "not run"); your own command runs there. A sub-agent that wrote no test is added with no test before (its card says "No tests of
+its own to run before it is added"). A part whose test command cannot run just those files is
+not run, and the card and Checked say which and why ("web/: its test command (npm test) cannot
+run just these files (its test script is not vitest or jest alone) - not run") - beside a pass
+of the other parts, never hidden in it. Tests that ran none (pytest's "no tests collected",
+vitest's "No test files found") are a note, not a pass. Where the sub-agent changed its part's
+<code>package.json</code> test scripts or <code>.npmrc</code>, they are not run (they would run instead of yours). The check at
+the turn's end runs every test. A turn can have both.</p>
+<h3 id="not-this-turns-flaky-tests-and-failures-from-before">Not this turn's: flaky tests and failures from before<a class="headerlink" href="#not-this-turns-flaky-tests-and-failures-from-before" title="Permanent link">&para;</a></h3>
+<p>Before a failure goes back, KOLONİ tells what is not this turn's:</p>
+<ul>
+<li><strong>Flaky.</strong> The failing tests run once more, alone. One that passes then failed in the full run
+  and passed alone: "Flaky: <code>test</code> failed in the full run and passed alone (noted in this
+  project's memory)". It is not sent back. The project's memory gets a note on it, "Failed in a
+  full run and passed alone (date); seen 2 times", counting each time. A run alone that ran no
+  test (it only collected them, say) tells nothing: no test is called flaky by it.</li>
+<li><strong>Failing before.</strong> What still fails runs on the code as it was before the turn: a throwaway
+  copy of the work with each file the turn changed written back byte for byte as it was. Tests that fail there
+  too were failing before: "1 were failing before this turn, 1 new". Only the new ones go back,
+  and the Orchestrator is told the others are not its to fix. The copy is deleted after, its
+  linked folders (<code>.venv</code>, <code>node_modules</code>) let go of first, never emptied.</li>
+<li><strong>A lint, format or type check failing before.</strong> A line such as <code>ruff format --check .</code>,
+  <code>ruff check .</code>, <code>eslint .</code>, <code>mypy app</code> or <code>tsc --noEmit</code> - from your CI or your own - that fails
+  only on files the turn did not change (by the file each finding names: <code>old.py:1:3</code>, "Would
+  reformat: old.py") runs once on the old code too. Where each finding - every line that reads
+  like a problem, an error or a code such as <code>TS5023</code>, as many times - is there as well: "Were
+  failing before this turn: old.py (from CI: ruff format --check .)" - not sent back, and no
+  stronger model is called for it. A file the turn changed named anywhere in the output, a
+  finding the old code does not have (a type error the turn caused in a file it did not touch, a
+  config option it broke), output that names no file, or a name that is no file of the project:
+  the turn's, as before.</li>
+<li>Where a command of the turn may have changed the project (one that is not a test run and not a
+  mere read), what it changed is not on record: "Not checked against the old code: a command
+  changed the project this turn …", and every failure counts as new.</li>
+<li>A run that would ask its card again is not run again: "… not re-run alone or on the old code:
+  it would ask again".</li>
+<li>A test's name comes from what the run printed, and KOLONİ runs these lines without asking - so
+  only a plain name goes on one: letters, digits, <code>_ - . / \ :</code> and <code>[ ]</code>, inside the folder (no
+  leading <code>-</code>, <code>/</code> or drive, no <code>..</code>). Any other is not run again, and it counts as new: "Not
+  re-run alone or on the old code: an unusual test name (…)". The same holds for a bug fix's new
+  test file.</li>
+<li>A command whose last run by KOLONİ, in an earlier turn, failed and passes now: "1 were failing
+  at the last run (date), 0 now".</li>
+</ul>
+<h3 id="the-last-green-state">The last green state<a class="headerlink" href="#the-last-green-state" title="Permanent link">&para;</a></h3>
+<p>When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped
+ones - as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
+failure unless the Orchestrator's answer says why - in one sentence that says it removed, deleted,
+dropped or skipped them and names the tests (test, tests, skip, xfail; for more skipped ones, skip
+or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a
+failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
+3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
+new counts are the green state from then on. Fewer tests are put down to something outside the
+turn only where KOLONİ can show it, test by test: the green run listed each of its passes by name
+and this run does too (pytest with <code>-v</code>; jest and vitest list files, not tests, so theirs never
+add up), and every test missing now lives in a file the turn did not touch in any way - nor did
+any of these happen:</p>
+<ul>
+<li>a command of the turn that may write files ran, in the project or in a recipe's copy (a script,
+  <code>sed -i</code>, <code>git rm … &amp;&amp; git commit</code>, <code>git mv</code> - a test run alone writes nothing);</li>
+<li>it changed what decides which tests run (a <code>conftest.py</code>, <code>pytest.ini</code>, <code>pyproject.toml</code>,
+  <code>setup.cfg</code>, <code>tox.ini</code>, <code>package.json</code>, a Makefile, a Vitest, Jest or Cypress config or setup, a
+  Python file in a tests folder not named as a test, the script the test command runs);</li>
+<li>it touched a test file at all - changed, made, deleted or renamed one, or anything in a tests
+  folder (a new spec's <code>.only</code> switches the others off, wherever they are; a test added to a file
+  is the turn's too, with tests deleted by hand elsewhere);</li>
+<li>a change on KOLONİ's record since that green run took lines out of a test file.</li>
+</ul>
+<p>Then it is said and not sent back, "Tests went from 48 to 45 (3 removed) - not this turn's
+change", and the new counts are the green state: tests deleted by hand, a pull, another branch
+checked out. Anything less sure is the turn's, as a turn's own removal always is: a test file it
+touched in any way, a runner that lists no names, names that do not add up to the drop; more
+skipped tests are the turn's too (no runner here lists what it skipped by name). Not seen: a test
+generated from data the turn changed elsewhere - a parametrize list built from the app's data, a
+flag a <code>skipif</code> reads - lives in a file it did not touch, and its drop reads as outside. A whole
+suite that goes on after the answer is held to the green run too: a drop of the turn's is said on
+its Checked as failed, and the green state stays where it was. Where the rounds end with no test
+failing but fewer run, or more skipped, the line says so: "Still fewer tests, or more skipped,
+after 2 fix rounds: you decide (Fix it)"; work in a copy is then not taken in, "Not taken in:
+fewer of its tests run, or more are skipped, after its fix rounds". Where the green run listed its
+passes, KOLONİ keeps those names (at most 5 000): a test that passed then and fails now is named,
+"Regression: <code>test</code> passed at the last green run and fails now" - never one added since. Where it
+listed none, the counts are kept and a failing test in a file the turn did not add is named "…
+(by file)".</p>
+<h3 id="a-bug-fix">A bug fix<a class="headerlink" href="#a-bug-fix" title="Permanent link">&para;</a></h3>
+<p>In a turn that fixes a bug (the request says fix, bug, broken, crash, error, hata, düzelt …) and
+adds a test beside a change of the code, the new test runs alone on the old code (a throwaway copy
+that keeps the new test). It must fail there: "The new test fails on the old code ✓"; one that
+passes there too is said - "The new test passes on the old code too: it may not catch the bug".</p>
+<p>In a recipe, the <strong>Reproduce it</strong> step must leave a test run of its own that failed - of a test
+file it wrote, where it wrote one: a test of that file named failing (by its file, or, where the
+runner names none - jest, go - by its name in that file). A run that failed because the file did
+not even load (a syntax error, collecting) shows no bug. One that did not is held, and the recipe stops at Ready for
+you: "Reproduce did not show a failing test: none of the tests it wrote failed (…)", or "… no test
+run of its own on record failed".</p>
+<h2 id="a-stronger-model">A stronger model<a class="headerlink" href="#a-stronger-model" title="Permanent link">&para;</a></h2>
+<p>When the <strong>Fix rounds</strong> are spent and a test still fails - until it passes: where a round made no
+progress, or after 20 -, KOLONİ hands the fix to the next stronger tier on the Models page (fast,
+then balanced, then strongest), the same role on that tier's model, for the same number of rounds
+(until it passes: while each of its rounds makes progress - "big-model's rounds stopped: no
+progress in two rounds" - and within the turn's 20 rounds in all, the first model's counted).
+Rounds stopped by the turn's token limit or the budget are not handed on, and a stronger model's
+stopped so tries no tier more. Each tier
+tries at most once a turn, and its model's use is always said: "Handed to <code>model</code> (Strongest)
+after 2 rounds by <code>model</code>". A tier whose provider is over its limit is skipped ("Strongest
+skipped: over its limit"), and none is tried where the project's month budget or the turn's
+token limit is spent. Switch it off in <strong>Settings › This project › When the work is done › Then a
+stronger model</strong>; then the work waits after the first model's rounds.</p>
+<p>Before the stronger model's rounds, KOLONİ looks at what is not this turn's: a flaky test and one
+that was failing before the turn are said, not handed on (see Not this turn's above). Then the
+stronger model first says what is wrong, in one line of its own, before it changes anything:</p>
+<ul>
+<li><strong>fix-incomplete</strong> - the fix is not finished: it goes on from the work as it is.</li>
+<li><strong>test-wrong</strong> - the test asks for something the request does not: it may change the test, only
+  with its reason in the request's words - never deleting or loosening one silently. The section
+  says "Test changed: <code>why</code>", and the Reviewer reads that change too.</li>
+<li><strong>approach-wrong</strong> - the way the work went cannot pass: where the work is in its own working
+  copy, what it changed there is dropped and the work starts again from the start state in a
+  fresh copy, the stronger model told only what was tried and why it failed - "Started over in a
+  fresh copy: <code>why</code>". Work already in the project (which KOLONİ never reverts), or on a branch of
+  its own, goes on from the work as it is, and the section says so.</li>
+</ul>
+<p>A line that only looks like a verdict - in the work itself, in a quote or a code block of its
+answer - is not one; with none, or two different ones, it goes on as fix-incomplete. A test-wrong
+without the request's own words in quotation marks goes on as fix-incomplete too.</p>
+<p>Each of its rounds is judged on the whole test run's own verdict, run to its end there and then -
+never one that goes on after the answer. A new test it adds is fine; a test it changed or deleted,
+or a file that steers the tests (a <code>conftest.py</code> that leaves one out), without a test-wrong is no
+pass: "Not a pass: <code>model</code> changed a test without leave (<code>file</code>)", and that test is not listed as
+one of the turn's new tests. A round whose work fails the project's own check before Take in stays
+in its copy: "Not taken in: <code>model</code>'s round - the project's check failed on it before Take in".
+Work its rounds make pass gets the look the failing tests held back, once, by the same rule (a
+big or security-touching change): its Review line takes the place of "No review: the tests still
+fail"; a hold that stands keeps work in a copy out, as below.</p>
+<p>Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
+passes after the strongest tier (or none is set, or the switch is off), the work stays in its
+copy and the section says "Not taken in: 2 tests still fail after rounds by <code>A</code> and <code>B</code>", with
+what the stronger model found as one question to you, and two buttons on that line: <strong>Take in
+anyway</strong> and <strong>Fix it</strong>: your answer to the question starts a turn that goes on in the kept
+work's copy - what was done there holds - and it goes into the project at that turn's end when
+its tests pass. Once the kept work is taken in, Take in anyway goes, the line says "Taken in
+anyway." and <strong>Fix it</strong> asks for the fix as for work in the project; discarded, or gone on in a Fix
+it turn, both buttons go (after a reload as well). Taken in, discarded or gone on in a Fix it turn,
+the turn's line of where its work is ("Not in the project yet: …") is written anew.
+An Away job ends
+there, and its report lists it. Work that is already in the project (no copy) gets the stronger
+model's rounds, then the failing line: "Still failing after rounds by <code>A</code> and <code>B</code>". A recipe whose
+own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
+A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model yet: the user
+decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
+not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
+not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
+its fix rounds", with <strong>Take in anyway</strong> and <strong>Fix it</strong>. So is work in a copy whose check by kind
+of work (a page, a document, a config file, a script) still fails after its fix rounds: "Not taken
+in: KOLONİ's checks of what it wrote still fail after its fix rounds". A later pass of the
+same turn never lets that one go - it may not check the kind again (not judged, not run, out of
+time): <strong>Take in anyway</strong> or <strong>Fix it</strong>. Work held for its tests goes to Ready for you where the
+Orchestrator changes it in the same turn and KOLONİ's next pass runs every test command to a pass
+(one not run, timed out or still running keeps it out). Work stopped at the turn's token limit or
+the month's budget with tests failing stays out too. <strong>Fix it</strong> goes on in the kept work's
+copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
+change and the fix, by the same rule (a big or security-touching change gets the look), never
+the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
+That turn keeps the held turn's checks - never fewer than the tests and the review, whatever this
+chat's switch or the project's After a change say since; its old code, for "were failing before",
+is the project's, so the held work's own failure is never excused. The Reviewer sees the kept work as Take in shows it: what
+Take in leaves out is not in it, and a secret file, one holding a secret you gave on a card, or
+one that is not text is named, never shown.
+<strong>Take in anyway</strong> is your word: the work goes in as it is, with no look first.</p>
+<p>The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then
+<strong>Ready for you</strong>. Its card, or Full auto's own Take in, comes only after the Checked section - never
+for work the checks left failing. A fix round there sends the recipe back to work, as a wordless
+Ask for changes would: its own roles fix it in its copy, and its end checks it again. Unlike your Ask
+for changes, it gives the recipe's loops no rounds again: a review whose loop ran out runs once more,
+and what it finds then is left for you: the card names it and offers <strong>Fix the findings</strong>.</p>
+<h2 id="documents-diagrams-data-and-slides">Documents, diagrams, data and slides<a class="headerlink" href="#documents-diagrams-data-and-slides" title="Permanent link">&para;</a></h2>
+<p>Under <strong>Test and review</strong>, a turn that wrote documents, diagrams, data, slides, config files or
+shell scripts gets KOLONİ's checks of them, with no model and nothing installed: each file its own line under
+the answer. Which kind a file is, its ending says.
+They come after the tests and before the review. A turn that wrote only documents, slides,
+diagrams or data runs no tests ("No tests: only documents, slides, diagrams or data changed") and
+gets these checks; a config file or a script counts as code, and the tests run. Changed code also
+goes to the project's own ruff, eslint, tsc and mypy, where it has them (<strong>Code style and types</strong>,
+below). Under <strong>Tests only</strong>, <strong>Nothing</strong>, or where checks are off for the chat, they do not run.</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Checked</th>
+<th>Said, not failed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Code style and types (<code>.py</code>, <code>.js</code>, <code>.ts</code>, <code>.tsx</code>, <code>.vue</code> …)</td>
+<td>a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - <code>os</code> imported but unused") - a file it cannot parse too ("ruff invalid-syntax - …")</td>
+<td>the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command - the tool as a command's program there, never <code>pip install ruff</code> or <code>pytest -k mypy</code>); a tsconfig that names no files - itself or by what it <code>extends</code> (a solution's <code>references</code>) - or that extends a file outside the project, not there or more than 8 deep: tsc is not run on it; a file too large to compare in time ("not judged"); the tool's settings the turn changed ("ruff's settings changed this turn (pyproject.toml)"); a run that found none of the turn's files to check (ruff's "No Python files found", eslint's ignored file) - never "no problems"</td>
+</tr>
+<tr>
+<td>Documents (<code>.md</code>, <code>.docx</code>, <code>.txt</code>, <code>.rst</code>)</td>
+<td>a relative link or image that leads to no file (a site's page name, <code>guide</code> for <code>guide.md</code>, counts as found; a link in code does not count); a Word file that does not open</td>
+<td>an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (<code>- results</code>, <code>1. costs</code>) that no heading names, "Spelling: not checked"</td>
+</tr>
+<tr>
+<td>Diagrams (<code>.drawio</code>, <code>.svg</code>, <code>.mmd</code>, <code>.puml</code>)</td>
+<td>a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without <code>@startuml</code> … <code>@enduml</code> (or <code>@startmindmap</code> … <code>@endmindmap</code> and the like)</td>
+<td>labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid</td>
+</tr>
+<tr>
+<td>Data (<code>.csv</code>, <code>.tsv</code>, <code>.ipynb</code>)</td>
+<td>rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error</td>
+<td>cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read</td>
+</tr>
+<tr>
+<td>Scripts (<code>.sh</code>, <code>.bash</code>, <code>.ps1</code>, <code>.psm1</code>)</td>
+<td>a script that does not parse, with its shell's first complaint and line ("build.sh:4: does not parse - syntax error near unexpected token <code>fi'") - read by</code>bash -n` or PowerShell's own parser, never run</td>
+<td>no bash or no PowerShell here; a secret file, one over 1 MB, more than 20 a turn: not read</td>
+</tr>
+<tr>
+<td>Slides (<code>.pptx</code>)</td>
+<td>a file that does not open; a slide with no text and no picture</td>
+<td>the slides and how many have notes; "overflow and contrast: not checked"; <code>.odp</code> and <code>.key</code> are not read</td>
+</tr>
+<tr>
+<td>Config (<code>.json</code>, <code>.yaml</code>, <code>.yml</code>, <code>.toml</code>)</td>
+<td>a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes") - <code>NaN</code> or <code>Infinity</code> in a <code>.json</code> too, which npm's reader and <code>JSON.parse</code> break on; a <code>package.json</code> that is no object, or whose <code>name</code>, <code>version</code> or a script is no string; a <code>pyproject.toml</code> whose <code>[project]</code> has no name or whose <code>[tool.…]</code> is no table; a GitHub workflow (<code>.github/workflows/*.yml</code>) with no <code>on:</code> or no jobs, or a job with neither <code>runs-on</code> nor <code>uses</code>, or with no list of steps; a Compose file (<code>compose.yaml</code>, <code>docker-compose*.yml</code>) whose <code>services</code> is no mapping</td>
+<td>a secret file (<code>.env.json</code>, <code>secrets.yaml</code>) is never read, nor one whose name often holds a secret (<code>credentials.json</code>, <code>token.json</code>, <code>kubeconfig…</code>, <code>client_secret….json</code>); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (<code>!!python/name:</code>, <code>!reset</code>) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (<code>tsconfig.json</code>, <code>.vscode/*.json</code>; a comment after the last comma too), never a <code>package.json</code>; a key twice in a <code>.json</code> passes (JavaScript reads the last); a value a YAML tag cannot read (<code>!!int "x"</code>) is not checked, and never said back</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Code style and types</strong> runs the project's own tools - only where the project sets one up and
+has it installed here, never a download: ruff (<code>[tool.ruff]</code>, <code>ruff.toml</code>; the project's <code>.venv</code>,
+else one on PATH) and mypy (<code>[tool.mypy]</code>, <code>mypy.ini</code>; the <code>.venv</code>'s) on the changed <code>.py</code> files,
+eslint (its config and <code>node_modules/.bin/eslint</code>) on the changed scripts, and tsc
+(<code>tsconfig.json</code> and <code>node_modules/.bin/tsc</code>) on its project - eslint and tsc from the nearest
+folder up from a file that has them. Running one runs the project's code (an <code>eslint.config.js</code>
+is JavaScript), so it goes as the project's test command goes: at Full auto it runs; at Ask and
+Auto-edit it waits on a card - your yes covers that very line in that folder for the rest of
+the turn, and <strong>Always</strong> keeps that line (the program and its options, never the bare program:
+a line that adds another config, a plugin, parser or formatter, a plugin folder, <code>--fix</code>, a
+report or trace elsewhere, or tells tsc to build or write (<code>--incremental</code>, <code>--noEmit false</code>, <code>-b</code>)
+asks again); while you are
+away it is not run and its line says "needs your leave once". A program an agent wrote - this turn, or an earlier turn in an install
+folder (<code>node_modules</code>, <code>.venv</code>, <code>site-packages</code>), in the project or in a working copy, taken in or
+not, while the file still holds what it wrote - in any case of its name, or through a link, is never run and
+offers no card, nor one whose real place is outside the project, nor eslint or tsc where the turn wrote in a
+<code>node_modules</code> above the folder they run in (Node loads their packages from there too), nor a
+tool where the turn wrote a <code>node.cmd</code> or
+<code>python.exe</code> (a name a tool's shim runs bare) in the folder it runs in. A file's lines are
+compared with what it was before the turn only where a tool says a problem in it, within the 2
+minutes: one too large to compare in that time is said "not judged", never passed. It waits for KOLONİ's test-run slot (Settings › The
+app), so a type check never runs beside the whole test suite. tsc is told to write nothing outside the project
+(KOLONİ's own line, <code>--noEmit --incremental false --composite false --generateTrace null</code>: its command line wins
+over its tsconfig and what that extends) and mypy to keep its cache in the folder (<code>.mypy_cache</code>). In a
+recipe's copy it runs there - without the copy's own code first on its Python path, so a module
+an agent wrote there (<code>mypy/</code>) is never imported in place of the tool's own - and what it writes
+(a cache, a report) is put back - never taken in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
+sets none of them up, nothing at all is said of it.</p>
+<p>A deck, Word file or other file a command made (a script that writes a <code>.pptx</code>) is checked too,
+when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
+round, with the lines that failed (at most 20 named): one
+count with failing tests and the Reviewer's findings (<strong>Fix rounds</strong>), "(1 problem in what it
+wrote)" beside the round. Where the rounds are spent with it still there - or the Orchestrator
+answered one without changing anything - the section ends as for failing tests, "Still failing
+after 1 fix rounds: you decide (Fix it)", and work in a copy is not taken in (see
+<a href="#a-stronger-model">A stronger model</a>). A problem the file had before the turn is said, not sent back: the turn
+did not make it. A file KOLONİ cannot read (over 8 MB - or over 8 MB once its zip members or
+draw.io pages are inflated, all together, whatever size the file says they are; a deck of over
+1,000 slides - outside the project, an XML file that declares a DTD or entities in any encoding, a
+CSV field over the reader's limit) is said as not checked; one file gives at most 12 lines. Each kind can be switched off in <strong>Settings › This project
+› When the work is done › Check by kind of work</strong>; then its line says "Not checked: slides switched off
+for this project". Where the turn ended before the check, or changed such a file after it, the
+section says so instead of an old result. On the canvas, the Checks node shows each kind as one
+line: "documents · 2 ✓ · 1 ✗".</p>
+<p>A script is code too: the turn's tests run and the review reads it as before - <strong>Scripts</strong> only
+adds whether it parses. KOLONİ reads it as its shell would and runs nothing of it: a <code>.sh</code> or
+<code>.bash</code> file with <code>bash -n</code> (on Windows Git's bash, never WSL's), a <code>.ps1</code> or <code>.psm1</code> file with
+PowerShell's own parser - the script's text given on its input, never in a command line, the
+shell started with none of your variables in an empty folder of its own, 10 s (bash) or 20 s
+(PowerShell) at most, then stopped with all it started; its folder is removed after it. bash
+reads with <code>extglob</code> on. A <code>.sh</code> whose first line names another shell or language (<code>#!/bin/zsh</code>,
+<code>#!/usr/bin/env fish</code>, <code>python3</code>) is not bash's to read: "not checked: its first line says it is
+a zsh script" - one with no such line, or <code>sh</code>, <code>bash</code> or <code>dash</code>, is. What bash only warns of
+(a here-document ended by the file's end) is said as a note, never as a failure; where bash
+also fails, its error is said. A <code>using assembly</code>, <code>using module</code> or <code>#requires</code> statement that
+names modules or assemblies is left out before PowerShell reads it, so nothing is looked up or
+loaded; a script that would still make its parser look one up - a <code>using</code> it cannot take out (a
+comment between its words, a line continued with a backtick, any <code>using</code> but <code>using namespace</code>,
+an English "using" in a comment or a string too), an <code>Import-DscResource</code> - is not read: "not
+checked: it may load a module or an assembly (it names <code>using</code> or Import-DscResource)". KOLONİ
+looks at the whole text for these, none of it taken for a comment or a string first: only
+PowerShell's own parser knows where those end, and it is the very reader that would look the
+module up. A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
+PowerShell 7 here), a <code>Configuration</code> or PowerShell 7's own syntax (<code>??</code>, <code>&amp;&amp;</code>) is "not checked:
+it needs PowerShell 7". A <code>.sh</code> with Windows line endings (CR LF) is read as Git's bash reads it,
+and said: bash on Linux will not run it as it is. Where this machine has no bash or no
+PowerShell, its scripts are said as not checked.</p>
+<h3 id="pages">Pages<a class="headerlink" href="#pages" title="Permanent link">&para;</a></h3>
+<p>Off unless you tick <strong>Pages</strong> in <strong>Settings › This project › When the work is done › Check by kind of
+work</strong> (since 0.1.10; a project where you had ticked it keeps it). Unticked, a turn that wrote a
+page says "Not checked: pages switched off for this project". Ticked, a changed web page
+(<code>.html</code>) is opened in KOLONİ's own headless Chrome or Edge - the browser the
+agents' browser tools use, on this machine, never out on the internet - at 375, 768 and 1280 px
+(a phone, a tablet, a desktop). Console errors and a page wider than the screen (it scrolls
+sideways) are failed, and go back as a fix round with the first error: "index.html: 2 console
+errors at 375, 768, 1280 px - error: x is not defined", "index.html: wider than the screen at 375
+px". Where it passes: "index.html: no console errors at 375, 768, 1280 px". KOLONİ's browser
+never goes out: a load from outside this machine (a CDN's script, a web font) is no error of the
+page's, and the page is said to be checked without it; where such a script is missing, the page's
+own errors are a note, not sent back (they may come of it). The <code>favicon.ico</code> a browser asks every
+site for is not counted either. A missing file of the project's own is an error. A changed component or style (<code>.tsx</code>, <code>.jsx</code>, <code>.vue</code>,
+<code>.svelte</code>, <code>.css</code>, <code>.scss</code>) is looked at on the chat's preview, where one runs that serves the
+work (started from the Preview, or by an agent, where the work is); with none: "Pages not
+checked: no preview running". At most three pages a turn, two minutes in all. With no Chrome or
+Edge here: "Pages not checked: no Chrome or Edge here". Each page's screenshots, one a width, are
+kept for you in the project's <code>.koloni/tmp/checked/&lt;turn&gt;/</code> - never shown to a model; what reaches
+the Orchestrator of a page is only these lines, as data. <strong>Pages</strong> is switched off with the other
+kinds.</p>
+<p>At each width the page is also read for accessibility - by KOLONİ, in the page, with no model and
+nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). Each
+rule is judged by how many it finds in each read. Found in both, the fewer fail as below, named as
+the second read names them, however the rest of the page moves (a count going up, a clock, an
+image's address that rotates, controls that swap places); what one read finds more of - an image
+with no alt drawn as its data comes - and a rule found in one read only - a name put a moment late
+- are not judged, said by the rule: "accessibility not judged at 375 px for what changed after it
+loaded - images without alt text". Neither is sent back for what the page had not drawn yet nor
+passed for what it drew late. The
+notes (contrast and what it could not judge) are the second read's; a second read cut at its 3
+seconds leaves the width to the first. A change after the second read is not seen. What the read
+finds:</p>
+<ul>
+<li>an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
+  logo.png, hero.jpg". <code>alt=""</code> marks a picture as decoration, and one hidden from screen readers
+  (<code>aria-hidden</code>, <code>role="presentation"</code>) is not counted. An image of the page's own bytes (a
+  <code>data:</code> address) is named by its id, class or place: "an inline image (#hero)", "an inline image
+  (image 3)";</li>
+<li>a button, link or field with no name - no words of its own, <code>aria-label</code>, <code>aria-labelledby</code>,
+  <code>title</code>, label (its words, or the <code>alt</code> of an image in it), placeholder, a button's value or an
+  image's <code>alt</code> in it, and else the words of the CSS <code>::before</code> or <code>::after</code> of it or of what is
+  shown in it (<code>content: 'Menu'</code>; one with <code>display: none</code>, or an icon font's glyph, is no name):
+  "1 buttons, links or fields with no name at 375, 768, 1280 px -
+  input[type=email]#email". A control one can tab to counts whatever its size - an empty
+  <code>&lt;a href&gt;</code> is a tab stop with no name; any other (<code>tabindex="-1"</code>, inside <code>inert</code>) only where it
+  is drawn more than 1 px each way, as an image and a text are. A hidden or disabled one never
+  counts;</li>
+<li>a page hidden whole from screen readers (<code>aria-hidden</code> on <code>html</code> or <code>body</code>), and a control one
+  can tab to inside <code>aria-hidden</code> (a button, a link, a field, <code>tabindex</code> 0 or more, not disabled,
+  not inside <code>inert</code>): "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px -
+  button, a[href=/x]".</li>
+</ul>
+<p>These are failed and go back as a fix round, the page's words in them as data; the "no console
+errors" line stays with them.</p>
+<p>Contrast is a warning: said with its ratio, never sent back - a colour is the page's design, and a
+reading of it is not sure enough to send work back for. Text below the contrast WCAG 2 asks -
+4.5:1, or 3:1 for large text (24 px, or 18.66 px bold) - its colour over the backgrounds under it,
+up to the first opaque one (the page's white where there is none), any CSS colour: "3 texts below
+the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1)". Each colour, background,
+size and weight is named once, the lowest first. Its colour is <code>-webkit-text-fill-color</code> where
+that is set. Read with the light colour scheme (<code>prefers-color-scheme: light</code>, set before the page
+first loads), whatever this machine's is. What the read cannot judge is said, not sent back, never
+guessed:</p>
+<ul>
+<li>text with something drawn under it - an image, a gradient, gradient text (its fill
+  see-through), or a picture or a layer of another element over its words, drawn inside the
+  background found under it, or anywhere where none is (a positioned overlay, a hero image under
+  a dark layer, a fixed backdrop): "contrast not checked … on 2 texts with something drawn under
+  them". A fixed header or bottom bar counts only where it is at the page's top; a backdrop that
+  is hidden (<code>visibility: hidden</code>, <code>opacity: 0</code>), as a closed modal's is, not at all;</li>
+<li>a page whose colour scheme is dark only (<code>color-scheme: dark</code>): "contrast not checked … the
+  page's colour scheme is dark only" - its canvas is dark, not the white the rule reads under it;</li>
+<li>frames and shadow roots: counted, not read ("accessibility not read inside 1 frames or shadow
+  roots"); a closed shadow root is not seen at all;</li>
+<li>a page whose script took its body or its root away: "accessibility not read … the page has no
+  body" ("… no root"). One that moved its content out of the body is read all the same: the read
+  starts at the page's root;</li>
+<li>a page's first 2,000 elements are read (an inline <code>&lt;svg&gt;</code> counts as one, not its shapes), none
+  nested over 1,000 deep, for 3 seconds at most a width, and a text's words are compared with the
+  200 drawn elements over its box at most; past that: "accessibility checked only in part", with
+  which limit it met ("only its first 2000 elements are read", "nested over 1000 deep", "a text has
+  more than 200 drawn elements over it" …). A read cut at its 3 seconds is not read again: that
+  width stands on its first read.</li>
+</ul>
+<p>A page nested deeper still (some 1,600 elements, measured on Windows) crashes the browser's tab as it is
+drawn, before any read: "index.html: not checked: the page crashed the browser's tab", said at
+once, and the turn's next page is read in a new browser.</p>
+<p>The read goes through the browser's own getters, so a field named after one of the page's
+properties (<code>&lt;input name="parentElement"&gt;</code>) cannot steer it. Hidden and disabled elements are left
+out. A text's opacity (its own or a parent's), its shadow, an outline drawn by a parent's
+<code>::before</code> or <code>::after</code>, and a field's typed value are not looked at.</p>
+<h2 id="a-test-for-the-change">A test for the change<a class="headerlink" href="#a-test-for-the-change" title="Permanent link">&para;</a></h2>
+<p>Off unless you tick <strong>A test for the change</strong> in <strong>Settings › This project › When the work is done ›
+Check by kind of work</strong> (since 0.1.10). Unticked, a turn that changed code and no test says "Not
+checked: a test for the change switched off for this project". Ticked, it is asked under <strong>Test
+and review</strong> and <strong>Tests only</strong> alike. A turn that changed source code (a script of a language: <code>.py</code>, <code>.ts</code>, <code>.go</code>, ...) and no test
+is asked, once, for a test: "Not the end yet: <code>a.py</code> changed and no test did." The Orchestrator
+has one written - by an agent that writes code, or itself; for a bug fix, first a test that fails
+without the fix - and KOLONİ runs the tests again on it. Where no test fits (documents, settings, a
+one-off script), it says so in one line instead, and that line is quoted under the answer. The ask
+comes last, after the tests, the review and the live try, spends no fix round, and is made under <strong>Test and
+review</strong> and <strong>Tests only</strong>, never under <strong>Nothing</strong> or where checks are off for the chat. A
+turn of a recipe whose steps wrote a test (Bugfix's <strong>Reproduce it</strong>) is not asked. It works the
+same while you're away and at Full auto: the Orchestrator writes the test or gives its reason.</p>
+<p>A test is known by its name or folder: <code>test_a.py</code>, <code>a_test.go</code>, <code>a.test.ts</code>, <code>a.spec.js</code>, a file
+under <code>tests/</code> or <code>__tests__/</code>. A test file the turn deleted is said under the answer as "Test
+removed", failed, and under <strong>Test and review</strong> the Reviewer looks at it whatever the change's
+size: one removed to make the tests pass is a blocking finding.</p>
+<p>While they work, agents that write and run code are told to run only the tests near their change;
+KOLONİ runs the project's whole test command once, at the end. The Orchestrator is told so too.</p>
+<h2 id="coverage">Coverage<a class="headerlink" href="#coverage" title="Permanent link">&para;</a></h2>
+<p>Where the project already measures coverage, KOLONİ says what share of the turn's changed lines
+the tests ran: "Coverage: 72% of the changed lines are run by tests (pytest-cov)". It installs
+nothing; it uses what the project has:</p>
+<ul>
+<li><strong>pytest-cov</strong>, named in <code>pyproject.toml</code>, <code>setup.cfg</code> or a <code>requirements*.txt</code>, for a pytest
+  run;</li>
+<li><strong>Vitest's coverage</strong> (<code>@vitest/coverage-v8</code> or <code>@vitest/coverage-istanbul</code> in <code>package.json</code>)
+  for a vitest run, or an <code>npm test</code>, <code>pnpm test</code> or <code>yarn test</code> whose script runs vitest;</li>
+<li><strong>c8</strong>, in <code>package.json</code> and in the project's own <code>node_modules/.bin</code>, run as
+  <code>npx --no c8 …</code> around a node test run, which never downloads it.</li>
+</ul>
+<p>A part with a test command of its own (see Which tests) is measured from its own folder.</p>
+<p>Only the whole suite is measured, never the related tests run first, whether it ends before the
+answer or goes on after it (then the line comes when it ends). KOLONİ adds only report flags, and
+the report is written under the project's scratch folder (<code>.koloni/tmp/</code>), read there (up to
+20 MB) and deleted. The run keeps its own command everywhere: its line under the answer, its leave
+on your card (an approved command is approved with the flags too) and whether an earlier run of it
+still stands. Where the flags fail (the runner does not know them, a coverage threshold of the
+project's fails once coverage is on, or the run did not go for another reason than your no or your
+Stop), KOLONİ runs it again without them and says "Coverage: not measured (the flags failed)".
+Then it does not try them on that command again - "not measured (the flags failed before …)" -
+until the folder's coverage settings change (<code>pyproject.toml</code>, <code>setup.cfg</code>, <code>.coveragerc</code>,
+<code>package.json</code>, the Vitest config, ...) or KOLONİ starts again. A
+run that stood from earlier is not measured again; where it was KOLONİ's own measured run on the
+same work, its share is said again.</p>
+<p>Lines a test could run but none did go to the Reviewer, as data: "New lines no test runs: <code>a.py</code>
+3, 12-14". A turn with no Reviewer just shows the share.</p>
+<h2 id="the-review">The review<a class="headerlink" href="#the-review" title="Permanent link">&para;</a></h2>
+<p><img alt="The Checked section of a reviewed change: Tests passed: python check.py - 2 passed; Review: Reviewer (Local · fake-qwen) - MERGE, no findings; Not checked: a test for the change switched off for this project" src="../../images/checked-review.png" /></p>
+<p>Under <strong>Test and review</strong>, once the tests pass, a change of more than <strong>80 lines</strong> or <strong>3 files</strong> of code,
+config or screens - or one that touches security - is looked over by the <strong>Reviewer</strong>, an agent
+KOLONİ opens itself. A security touch is a path with a word like auth, login, session, token,
+secret, password, permission, crypto, cookie or cors as a whole word of a name in it (<code>auth.py</code>,
+<code>oauth2/</code>, <code>tokens.ts</code> - not <code>author.py</code> or <code>tokenizer.py</code>), a <code>.env</code>, <code>.pem</code> or <code>.key</code> file, a
+Dockerfile or a CI workflow, or an added line that runs a command (<code>subprocess</code>, <code>shell=True</code>,
+<code>os.system</code>, <code>child_process</code>), runs or loads code (<code>eval(</code>, <code>exec(</code>, <code>pickle.load</code>, <code>yaml.load(</code>),
+reaches the network (<code>fetch(</code>, <code>requests.</code>, <code>httpx.</code>, <code>socket.</code>), puts HTML in a page
+(<code>dangerouslySetInnerHTML</code>, <code>.innerHTML =</code>), or loosens a check or a file's rights
+(<code>verify=False</code>, <code>chmod</code>, <code>setuid</code>). Then the <strong>Security reviewer</strong> looks too, told to try to
+refute that the change is safe. Both may look at once. The whole change is read for these,
+also what does not fit in the diff the Reviewer is shown.</p>
+<ul>
+<li>They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
+  left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
+  the project they open - where the work is: in a recipe's turn, the recipe's copy, as KOLONİ's own
+  tests there; what their commands write there (a report, a cache, a file a test rewrites) is put back, never taken in - so is what KOLONİ's own test runs write there, one run at a time in a copy. What an agent's own command writes there (a Coder's test run) is that agent's work, and goes in with it. They get read tools only and no MCP server, whatever their role is
+  given: they change nothing. They may run two kinds of command, never asked about: one that only
+  reads (<code>git diff</code>, <code>cat a.py</code>, <code>ls src</code>), and the project's approved test command exactly as it
+  is set, in its folder - a part's test command you set on the map, a saved one an <strong>Always</strong>
+  rule covers, or a CI line you approved with <strong>Run these</strong>. Any other (<code>rm</code>, <code>pip install</code>, the
+  test command with an option added) is refused, and they are told which test commands they may
+  run; no card is ever opened for a Reviewer's command. One whose model is a CLI that works with
+  tools of its own is not opened ("Review not run: …"), as KOLONİ could not hold it to reading.</li>
+<li>For a change a user sees (a screen's file, a command's option) in a project with <code>docs/</code>, a
+  README or a CHANGELOG, they also check the docs: "Docs not updated for: …" is a suggestion,
+  blocking only where the project's own rules say docs must change with it.</li>
+<li>Each ends with <strong>MERGE</strong> (it may stand) or <strong>HOLD</strong> (it must change first) and its findings,
+  each blocking or a suggestion. Blocking findings go back to the Orchestrator as a fix round,
+  as failing tests do; KOLONİ runs the tests again, and the Reviewer looks again at the new
+  change - until MERGE with the tests passing, or the <strong>Fix rounds</strong> are spent. Then the section
+  lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; <strong>Fix it</strong>
+  sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
+  as data, never as your words. The findings are the rows of all its <strong>Findings</strong> sections - a
+  <code>## Findings</code> heading (or "## Findings (2)", "## Review findings") or a "Findings:" line, each
+  to the next heading of its level or above (a <code>### Blocking</code> or <code>### Suggestions</code> under
+  <code>## Findings</code> is part of it; after a "Findings:" line, any heading ends it). A line that starts
+  with <code>#</code> and no space, or an indented <code># comment</code>, is no heading. A fenced code block in it is
+  not read, and the section goes on after it - a code span at a line's start is no fence; a
+  label line in it (<code>Checked: ran pytest</code>) ends nothing. A "Findings:" line that
+  sums up - "Findings: 1 blocking" above the rows, "Findings: see above, nothing blocking."
+  closing the report - takes no row away; "Findings: none" says it found nothing where no
+  section has a row. A section quoted from an earlier look (indented four spaces, or after <code>&gt;</code>)
+  opens none: alone it is not read, and inside a section of this look's it ends nothing - its
+  rows are read with the rest. Rows nested under a section of its own are read; the
+  instruction's own row echoed back (<code>&lt;what&gt; | kind: &lt;kind&gt;</code>) is not.</li>
+<li>Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
+  chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks</li>
+<li>a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none
+  of the turn's <strong>sub-agents per turn</strong>: their bound is the Fix rounds, and the Orchestrator's
+  own sub-agents are counted without them.</li>
+<li>Where a look again cannot be had (it failed, it was refused, the turn's token limit), the hold
+  stands and says why: "Still on hold: Security reviewer could not look again (…) - you decide
+  (Fix it)".</li>
+<li>In a chat with teams the look is KOLONİ's, not a team's: no team's lead or door holds it, and
+  it gets no team's tools (their shared folder, a request for another team's work).</li>
+<li>The Orchestrator may answer the findings without changing anything: the turn ends there, and
+  the section says "Still on hold after round 1: not settled by the last look - you decide (Fix
+  it)" ("nothing changed" where KOLONİ checked again and found no change).</li>
+<li>A HOLD is a hold: one that marks no finding blocking, or writes its findings as prose, goes
+  back with its own words as the finding. The verdict is a line of its own (not one quoted, in a
+  code block - <code>`` or ~~~ - or indented as code):</code>Verdict: MERGE<code>,</code>Final verdict: HOLD<code>,</code>1. Verdict: HOLD<code>, a</code>## Verdict<code>heading or</code>Verdict:` with the word on the next line. Its first verdict word decides: HOLD,
+  REQUEST CHANGES, REJECT and BLOCK hold, unless a "not" or "no" stands just before it ("MERGE -
+  no reason to hold this back", "I'd not block: MERGE" merge); a MERGE negated or said not to be
+  ("do not MERGE", "MERGE is not possible yet", "MERGE? No - HOLD", "not ready to merge",
+  "MERGE is unsafe", "MERGE - blocked", "MERGE (blocked)") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
+  fixed", "MERGE only after the fix"); NEEDS CHANGES and FAIL hold, APPROVE and LGTM merge. A negation reaches no
+  further than a comma, a full stop or a dash: "No. HOLD until the test is fixed" holds. A
+  "Previous verdict" line is not this look's. Any HOLD wins; a report with no verdict is "Review
+  gave no verdict: not counted".</li>
+<li><strong>Stop this check</strong> ends a look that runs now too: "Review stopped by you - not checked".</li>
+<li>No look: a small change, <strong>Tests only</strong>, tests that still fail (they are fixed first - not those
+  that were failing before this turn: said, not sent back, they hold no look back), a turn
+  over its token limit, or a recipe whose own Review step looked already - rounds never stack.
+  A recipe without a Review step gets this review at its end.</li>
+</ul>
+<h3 id="documents-read-against-your-request">Documents read against your request<a class="headerlink" href="#documents-read-against-your-request" title="Permanent link">&para;</a></h3>
+<p>A turn that wrote more than <strong>80 lines</strong> of documents (<code>.md</code>, <code>.rst</code>, <code>.txt</code>, <code>.docx</code>...) and no
+code that is looked over has them read once by the Reviewer, against what you asked for: what
+your request asks for that they leave out or contradict - and, where it asks for sources, whether
+they are there. Its line is "Documents read: Reviewer (…) - MERGE, no findings" or "- HOLD, …";
+a blocking finding goes back as a fix round, as a review's does. It is read once a turn: after
+that round, the turn's end says "Still on hold after round 1: not settled by the last look - you
+decide (Fix it)" where the hold stood. Where code is looked over too, the Reviewer's brief takes
+the documents in: one look a turn in all.</p>
+<h2 id="the-live-try">The live try<a class="headerlink" href="#the-live-try" title="Permanent link">&para;</a></h2>
+<p>Under <strong>Test and review</strong>, once a turn, after the tests and the review, KOLONİ tries the change as
+a user would:</p>
+<ul>
+<li><strong>A command-line tool</strong> the turn changed - a script in <code>bin/</code>, a <code>bin</code> of <code>package.json</code>, a
+  console script of <code>pyproject.toml</code> - is asked for its <code>--help</code>, and nothing more: KOLONİ never
+  runs it plainly, as a deploy or a sync script would do its work. Only a script that answers
+  <code>--help</code> by itself is asked: a Python script that imports argparse, click, typer, docopt, fire
+  or optparse; a Node script that requires or imports commander, yargs, meow or cac; a shell
+  script with its own case for <code>--help</code> (<code>-h|--help)</code>, <code>"--help"</code>) - read outside its comments.
+  Another is "Not tried: … it does not answer --help".
+  Its line is KOLONİ's own command, asked about as an agent's would be (a card below Full auto
+  where one is asked). "Tried python 'bin/tool.py' --help: exit 0, 12 lines" passes; a <code>--help</code>
+  that fails (or runs on past 30 s) goes back as a fix round. A file name or a module that is not
+  plain (letters, digits, <code>_ . / -</code>, no part starting with <code>-</code>, no <code>..</code>) is never put on a line:
+  "Not tried: … an unusual name". A console script whose module does not run itself
+  (<code>if __name__ == "__main__"</code>) is said as not tried.</li>
+<li><strong>A big change of screens</strong> (more than 80 lines or 3 files of <code>.tsx</code>, <code>.jsx</code>, <code>.vue</code>, <code>.svelte</code>,
+  <code>.html</code>, <code>.css</code>...) is tried by the <strong>Tester</strong>, an agent KOLONİ opens itself as it opens the
+  Reviewer: it opens the chat's preview in KOLONİ's own browser, goes through what your request
+  changed - clicks, types, reads, takes screenshots - reads the console, and ends with MERGE or
+  HOLD and its findings: "Tried: Tester (…) on http://127.0.0.1:5173/ - HOLD, 2 findings, 1
+  blocking". A blocking finding goes back as a fix round; the try is not made again that turn. The
+  Tester gets what the Reviewer gets - its role's read tools, and commands that only read or are
+  the project's approved test command exactly, never a card - and its browser tools; it writes
+  nothing, and opens the preview it tries alone (that address, nothing else of this machine, no
+  file - nor do its pages load from elsewhere); its screenshots are shown to its model only where that model takes
+  images (else it is told so, and reads the page's text). Its spawn opens no card at any level.</li>
+<li><strong>With no preview running</strong>, KOLONİ starts the project's dev server itself - <code>npm run dev</code>
+  (else <code>npm start</code>) of the nearest <code>package.json</code> above the changed screens - on a free port
+  (<code>PORT</code>, for a server that reads it; no browser window of its own), as one of KOLONİ's own runs
+  (<strong>Settings › The app</strong>: with them all busy, "Not tried: KOLONİ's own runs fill the machine"),
+  and stops it after the try. Starting it is asked below Full auto, as any server is. A preview
+  runs in the project itself only: where the work waits in a working copy, "Not tried: the work
+  waits in a working copy…".</li>
+<li>Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
+  nobody watches (Away), or where the Tester's role has no browser tools. A To-do task's
+  turn is tried as the chat's other turns are.</li>
+</ul>
+<p>On the canvas the Tester is drawn in the Checks box (<a href="#on-the-canvas">On the canvas</a>); KOLONİ's own
+runs of the try (the <code>--help</code>, the dev server) are not counted as test runs there.</p>
+<h2 id="checks-on-asking">Checks on asking<a class="headerlink" href="#checks-on-asking" title="Permanent link">&para;</a></h2>
+<p>The Orchestrator can ask for these checks in the middle of its turn, with its <code>run_checks</code> tool, and
+wait for them. You use it in words: tie a step to a condition - "if the tests pass, commit it",
+"testler geçerse commit et", "if no problems are found, commit the branch". The Orchestrator is told
+to call <code>run_checks</code> first and take that step only when the answer is green; otherwise it fixes the
+work or tells you. It never assumes the condition holds.</p>
+<ul>
+<li><strong>What runs:</strong> the same pass as at the turn's end - the tests, the type and style checks, the
+  Reviewer's look and the live try -, on the work as it is then. The ask for a test comes at the
+  end only.</li>
+<li><strong>The end runs its own checks too:</strong> asking is an extra pass, never the end's. Whatever an answer
+  said, the turn's end runs its own checks - a test run KOLONİ made after the last change may
+  stand for it, as at any end (<a href="#which-tests">Which tests</a>); after a command that may have
+  written, such as a commit, they run again. What it found on asking stands for that answer only:
+  the end looks again for itself (a Reviewer's MERGE, the reviewers taken, the live try made on
+  asking are not the end's). Asking costs one more pass - its test runs and, where the change is
+  big, one more Reviewer. A call stopped half way counts toward the most below.</li>
+<li><strong>The answer's first line</strong> is KOLONİ's own: <code>CHECKS: green</code>, <code>CHECKS: red</code> or <code>CHECKS: not
+  complete</code>, whatever the tests printed. The Checked lines and where the work stands in git ("At
+  commit 3c4d5e6 on main; not committed: a.py.") follow fenced, as data - a test's summary or a
+  file's name says what it likes, each on one line of its own. A red answer adds what KOLONİ would
+  send back at the end, the failing output marked as data.</li>
+<li><strong>Green is strict:</strong> a test command of yours, or one KOLONİ saved, passed - never a guess -; no
+  line failed, even one failing before this turn; none was not run or still running; the Reviewer
+  does not hold; no test was deleted or loosened. Anything else that is not red is not complete:
+  only documents changed, no test command, a guessed command while you're away, a check that broke.
+  A turn that changed nothing - or whose checks are off - gets "KOLONİ found nothing of this turn to
+  check" and no test runs.</li>
+<li><strong>No fix round:</strong> a red answer is the tool's answer, not a round of <strong>Fix rounds</strong> - the turn's
+  end checks again and sends the work back as ever.</li>
+<li><strong>How long:</strong> each test command to its own limit - not the 2 minutes a turn you watch waits at
+  its end, and no whole suite goes on after the answer.</li>
+<li><strong>How often:</strong> each call runs a pass, at most <strong>Fix rounds</strong> + 1 times a turn - 3 at 2 rounds;
+  under <strong>Until it passes</strong> (the default) its ceiling of 20 rounds + 1, so 21. Asked again after
+  that, it runs nothing and answers <code>CHECKS: not complete</code>, saying "KOLONİ ran its checks 3 times
+  this turn, the most it runs on asking" - the turn's end checks the work.</li>
+<li><strong>One at a time:</strong> a second call while one runs is refused, and so is one while Ready for you's
+  own checks or its card are open; Ready for you does not start in the middle of one.</li>
+<li><strong>Who has it:</strong> the Orchestrator at its own work in a project - an API model's, and a CLI's
+  working with its own tools, over KOLONİ's bridge, as its other KOLONİ tools. Not a sub-agent, a
+  plan, a side of a comparison, an answer to a message, nor a chat with no folder.</li>
+</ul>
+<p>At <strong>Full auto</strong> a commit in the project runs without a card; a push still asks as the level says
+(<a href="../permissions/">Permission levels</a>). In the Checks box's panel such a pass is "Round 1 · asked by
+the Orchestrator" (<a href="#on-the-canvas">On the canvas</a>). Looking at your folder for it, KOLONİ runs no
+program your repository's settings name (a filter of <code>.gitattributes</code>).</p>
+<h2 id="how-long-it-waits">How long it waits<a class="headerlink" href="#how-long-it-waits" title="Permanent link">&para;</a></h2>
+<p>A long test suite does not hold up the answer. In a turn you watch, whose work is in the project
+itself, the end works like a pull request's CI:</p>
+<ol>
+<li>
+<p><strong>Related tests first.</strong> KOLONİ runs only the tests related to the files the turn changed,
+   and the answer waits for those. A failure goes back to the Orchestrator as above. They are
+   read from the test command itself, where its runner can name them:</p>
+<table>
+<thead>
+<tr>
+<th>Runner</th>
+<th>Related tests</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pytest</td>
+<td>the changed test files, and the test files named for a changed module (<code>test_greet.py</code> or <code>greet_test.py</code> for <code>greet.py</code>)</td>
+</tr>
+<tr>
+<td>vitest</td>
+<td><code>vitest related --run</code> with the changed files</td>
+</tr>
+<tr>
+<td>jest</td>
+<td><code>--findRelatedTests</code> with the changed files</td>
+</tr>
+<tr>
+<td>go</td>
+<td><code>go test</code> of the changed packages, where the command is <code>go test ./...</code></td>
+</tr>
+<tr>
+<td>cargo</td>
+<td><code>cargo test -p</code> each changed crate of a workspace</td>
+</tr>
+<tr>
+<td>dotnet</td>
+<td><code>dotnet test</code> of the one test project of the change</td>
+</tr>
+</tbody>
+</table>
+<p>The runner must be the command's first word or follow its launcher (<code>python -m</code>,
+<code>uv run</code>, <code>npx</code>, ...): <code>tox -e pytest</code> or <code>make pytest</code> gets no related step. Where none can
+be named (another runner, a change to a configuration file or to <code>conftest.py</code>, a command
+that names its own tests), there is no related step. A guessed command, or a saved one
+you have not said <strong>Always</strong> to, that would need its card has no related step either: one card
+per command.</p>
+<p>A test file named on the command line would get past what you left out of your tests, so
+where you left tests out there is no related step, only the whole suite: for pytest, an
+<code>--ignore</code>, <code>--ignore-glob</code> or <code>--deselect</code> (in the command or in <code>addopts</code>), a
+<code>norecursedirs</code>, or a <code>conftest.py</code> with <code>collect_ignore</code> or <code>pytest_ignore_collect</code>, and a
+command that picks or overrides pytest's config (<code>-c</code>, <code>--config-file</code>, <code>-o</code>, <code>--rootdir</code>,
+<code>-p</code>) or a <code>PYTEST_ADDOPTS</code> in the environment; for jest, a <code>testPathIgnorePatterns</code>. Test
+files under pytest's default <code>norecursedirs</code> (<code>build</code>, <code>dist</code>, <code>venv</code>, <code>node_modules</code>, a dot
+folder) are never named. pytest's <code>testpaths</code> are kept: only test files under them
+are named. vitest's <code>related</code> keeps the config's <code>exclude</code> itself. An <code>npm test</code> with a
+<code>pretest</code> script gets no vitest related step (it would skip the <code>pretest</code>).</p>
+</li>
+<li>
+<p><strong>Then the whole suite.</strong> After related tests it goes on in the background at once. Without
+   them the answer waits up to <strong>1 minute</strong> for it: one that ends by then is said, and a
+   failure goes back as above. One that runs on goes on after the answer. The section says
+   "Full tests running: <code>command</code> (2:14)", and the line over the message box says
+   "Full tests running… (2:14)". When it ends, its line is written again with the result.
+   A failure then offers <strong>Fix it</strong>: nothing starts by itself.</p>
+<p>If the related tests fail on the last round, the whole suite is not run: "Full tests not
+run: the related tests fail".</p>
+</li>
+</ol>
+<p>The whole suite's own limit is the project's <strong>Longest command</strong>, 10 minutes unless you raise it
+(up to 60, in <a href="../../settings/#commands-and-secrets">Settings › This project › When you're asked</a>).
+Past it the section says "Tests timed out after 10 min" (or the minutes you set).</p>
+<p><strong>Stop this check</strong>, under a suite running after the answer, stops it: what finished stays, and
+the line says "Full tests stopped by you at 1:02 - not checked" (counted from when it started),
+or "before they started" if it was still waiting for the machine. It works at every permission
+level. The canvas's Checks node has it too, in its <strong>⋯</strong> menu, also while the answer waits for
+the related tests (see <a href="#on-the-canvas">On the canvas</a>). Stopped while the answer still waits for
+them, the line says "Tests not run: you stopped the check".</p>
+<p><img alt="The Checked section after Stop this check: Full tests stopped by you at 0:00 - not checked" src="../../images/checked-stopped.png" /></p>
+<ul>
+<li>A newer turn that changes the same project and runs the same suite stops one still running in
+  the background, as a new push stops a pull request's old CI run: "Tests not finished: the
+  project changed, and a newer run took their place". A result that comes after the project
+  changed beneath it adds "- the project changed while they ran", and a pass then is not shown
+  as passed: a change on record (written, taken in or undone) or a command of any turn that may
+  have changed files.</li>
+<li>What the suite writes of the files that steer later work (<code>.vscode/</code>, <code>.claude/</code>, an
+  instruction file, <code>.koloni/</code>) is taken back when it ends, as for any command; after its turn,
+  with no card. What another turn wrote there meanwhile stays. Where its card asks you ("KOLONİ's
+  test run wrote <code>AGENTS.md</code> without naming it — taken back. Keep it?"), the section says "Full
+  tests waiting for your answer on a file the tests wrote: <code>command</code>" until you answer, with
+  no clock.</li>
+<li><strong>Stop everything</strong> and putting the chat away stop it too. If KOLONİ closes while it runs,
+  the next start says "Tests not finished: KOLONİ restarted".</li>
+<li>A job while you're away and a To-do task's turn have nobody waiting for
+  the answer, and their fix rounds need the result: they wait for the whole suite, up to the
+  project's <strong>Longest command</strong> (10 minutes unless you raise it), with no related step.</li>
+<li>A turn whose work is in its own working copy (a team's branch) cannot leave its tests running
+  after it: the copy is taken in or set aside when the turn ends. There KOLONİ waits at most
+  <strong>2 minutes</strong> for the tests, all of the turn's test commands together and another turn's run
+  before them. A longer run is stopped, and the section says "Tests not waited for: still
+  running at 2:00"; one that never got to start says "Tests not run" and why. Until the run
+  takes less than that again (for example, when an agent's run of the same command does), later
+  such turns say "Tests not run" and why, instead of waiting again.</li>
+<li><strong>Stop</strong> during the turn ends the turn as Stopped. The section says "Tests not finished:
+  stopped".</li>
+</ul>
+<h3 id="how-many-run-at-once">How many run at once<a class="headerlink" href="#how-many-run-at-once" title="Permanent link">&para;</a></h3>
+<p><img alt="Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under More limits with the other limits; below them, the Show experimental features switch, off, the Judge model: Fast tier's first (now: fake-qwen), the Advisor model: Another provider's than the Orchestrator's, and New preferences from your words: Add them, tell me" src="../../images/settings-app-test-runs.png" /></p>
+<p>KOLONİ's own test runs queue: <strong>Settings › The app › More limits › KOLONİ's test runs at once</strong> (1 unless you
+change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
+"Full tests waiting for another test run to end". <strong>Test processes per run</strong> (2 unless you change
+it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pytest-xdist's
+<code>-n auto</code>. The agents' own commands are not limited by either.</p>
+<h2 id="on-the-canvas">On the canvas<a class="headerlink" href="#on-the-canvas" title="Permanent link">&para;</a></h2>
+<p><img alt="A turn sent back twice: right of the Orchestrator's three Coders, an arrow into the dashed Checks · KOLONİ loop, its tag on the frame's top edge saying 3 looks · 2 fix rounds · on hold; in it Reviewer ×3 and Security reviewer ×3 with their earlier rounds as shadows behind them, ⇄, Coder · fix ×2, check.py 2 passed and three red dots at its foot; the frame amber, and the inspector beside it lists the tests, then Round 1, 2 and 3: who looked, MERGE or HOLD · 3 blocking, the first finding, fixed by Coder 4 and Coder 5, Still on hold after 2 fix rounds, with Fix it and Open the Checked section" src="../../images/checks-loop.png" /></p>
+<p>A checked turn has a <strong>Checks</strong> node. While KOLONİ's test run works, it shows the tool and how long it
+has run; once the turn is over, each line of the Checked section, with the runner's counts ("pytest ·
+214 ✓ · 2 ✗"), the related step's ("related tests · 12 passed"), and a whole suite running after the
+answer with its clock from its own start ("full tests · 2:14 …"), or "full tests · waiting for
+another test run to end", then its result or "full tests · stopped by you at 1:02 - not checked", and
+the coverage line where it was measured. It stands under the Orchestrator - or, where the
+Orchestrator opened agents of its own, under them, in their column.</p>
+<p>The agents KOLONİ's checks opened - the Reviewer and the Security reviewer, a look again, the live
+try's Tester, a stronger model's diagnosis and fixer - are drawn <strong>in</strong> it, not as agents of the
+Orchestrator's, each role once as a card of its own: then it is the <strong>Checks · KOLONİ</strong> box, right of
+the Orchestrator's work with an arrow from it, its title on its frame's top edge, the test runs short
+at its foot ("✓ related 19 · ✓ pytest 36"). Where KOLONİ sent the work back, the box is a loop,
+dashed as a recipe's "back, at most N rounds": the agents the Orchestrator opened to fix what was
+sent back are in it too ("Coder · fix"), the looks in a column ⇄ the fixes; each role is its latest
+agent, the earlier ones shadows behind it with a count (×3). Its title says the rounds - "⟲ 3 looks ·
+2 fix rounds · on hold", "✓ checked" -, or at work "● round 2 · looking…" ("· waits for you" where
+one of them asks you something: the card says it too); its foot a dot a round (red: it went back or
+held, green: passed, amber: at work, grey: it only asked for a test - no fix round). One look and nothing sent back is a plain box: no count, no
+shadows, no loop. Who is in it, and each round, is what KOLONİ wrote down as its checks went - each
+pass's tests, its looks and their verdicts, why it went back, and the agents its send-back had the
+Orchestrator open -, never guessed from the order agents were opened in: an agent of a
+discussion, or one written for KOLONİ's ask for a test (which is no fix round), stays the
+Orchestrator's; what a fixer opened under it is in the box with it; a stronger model's diagnosis is
+a card of its own kind, not a look. That record comes with the Checked section at the turn's end:
+while the turn works, the box holds the agents KOLONİ's own checks opened, and the Orchestrator's
+fixers join it then. A turn checked by an older version has its plain box of lines. The box's title
+and each card are buttons: Enter or Space opens its panel, or that agent's window.</p>
+<p><strong>Click the box</strong> for its panel on the right - the canvas stays as it is, the box's frame amber: <strong>Tests</strong>, the Checked
+section's test runs; then <strong>Round 1, 2, …</strong>: who looked (its name opens its window), what each said
+("MERGE", "HOLD · 3 blocking", "HOLD · 1 blocking - its report said MERGE"), the first blocking finding, and "→ fixed by Coder 4 · 3 files" - or,
+where the Orchestrator fixed it itself, what sent it back; under the last round why it was the last
+("Still on hold after 2 fix rounds: you decide (Fix it)", "Stopped after round 3: no progress").
+<strong>Fix it</strong> is the one under the answer (on the chat's latest turn), and <strong>Open the Checked section</strong> -
+once it is written - brings that section into view in the chat, the focus on it.</p>
+<p>The Orchestrator's own box gets one line: "● checking…" while a run goes on, "✓ checked · 1 round",
+"✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (the
+tests passed, a Reviewer or the Tester holds) or "not checked". In a recipe's turn the box is the
+frame's last part - inside it, right of the recipe's steps; the Orchestrator's line reaches the
+frame at its door only. The frame keeps the recipe's own steps and its own loop (a Tester's
+findings back to the Coder, a grey dashed line - KOLONİ's loop is red); KOLONİ's looks and the
+Coders of its send-back rounds are in the box ("Coder · fix ×2"). Where KOLONİ sent the work back
+for the tests alone, nothing looking, the loop's left end is the tests - "48 → 45 (3 removed)" ⇄
+Coder · fix -, and "⟲ 2 fix rounds · not taken in" where the work stayed in its copy for it. With
+nothing opened the box is plain and says "end of the recipe". A turn KOLONİ did not check has no
+Checks box: off for this
+chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's Checks
+step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
+<strong>Nothing</strong>, it says nothing of it - the Checked section does.</p>
+<p><img alt="A recipe's turn: the Orchestrator's line reaches the Web app frame at its door; in the frame the recipe's Coder, then, right of it with an arrow from it, the Checks · KOLONİ box - its Reviewer, MERGE, and check.py 2 passed at its foot - the frame's last part; the frame's line on to Ready for you" src="../../images/checks-recipe.png" /></p>
+<p><img alt="A check at work: the Orchestrator's box says checking…, and the Checks node's ⋯ menu offers Stop this check, Off for this chat and Open its log" src="../../images/checks-running.png" /></p>
+<p><img alt="A reviewed turn on the canvas: right of the Orchestrator, an arrow into the plain Checks · KOLONİ box with the Reviewer KOLONİ opened in it - MERGE - and check.py 2 passed at its foot" src="../../images/checks-reviewer.png" /></p>
+<p>Its <strong>⋯</strong> menu has <strong>Stop this check</strong> while one of its runs goes on - the same as under the
+answer, at every permission level: what ran stays, the rest says "not checked" -, <strong>Off for this
+chat</strong> (the level menu's <strong>Test and review changes</strong>, for the chat open now) and <strong>Open its log</strong>,
+the Orchestrator's window, whose record holds the runs.</p>
+<h2 id="what-each-line-means">What each line means<a class="headerlink" href="#what-each-line-means" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✓ Tests passed: <code>command</code> - <code>summary</code></td>
+<td>The command ended with exit code 0 and its output counted no failure.</td>
+</tr>
+<tr>
+<td>✓ Tests passed (by exit code, no count): <code>command</code></td>
+<td>Exit code 0 from a runner whose output KOLONİ reads no count from (an <code>npm test</code> that prints none).</td>
+</tr>
+<tr>
+<td>✓ Tests passed: <code>command</code> - run by <code>who</code> after the last change</td>
+<td>The Orchestrator ran the same command after the turn's last change, or a recipe's Tester did on the work that was then taken in, it passed, and no command that may change files (a formatter, a generator) ran after it. KOLONİ did not run it again.</td>
+</tr>
+<tr>
+<td>– Tests gave no verdict: <code>command</code> masks its exit</td>
+<td>The test line hides its exit code (piped into <code>tail</code>, or followed by <code>; true</code>) and its output counts no failure. This is not a pass.</td>
+</tr>
+<tr>
+<td>✗ Tests failed: <code>command</code> - <code>summary</code></td>
+<td>Any other exit code, or an exit code of 0 with a failure counted in its output.</td>
+</tr>
+<tr>
+<td>– Tests ran none: <code>command</code> collected no test</td>
+<td>The runner found no test: pytest's or unittest's exit code 5, "Ran 0 tests", jest's "No tests found", vitest's "No test files found". This is not a pass.</td>
+</tr>
+<tr>
+<td>– Tests skipped only: <code>command</code> - <code>summary</code></td>
+<td>Every test it found was skipped. This is not a pass.</td>
+</tr>
+<tr>
+<td>– Tests could not start: <code>why</code></td>
+<td>The program was not found, the command could not start, or KOLONİ's check itself broke. Nothing is sent back.</td>
+</tr>
+<tr>
+<td>– Tests not run: <code>why</code></td>
+<td>It was declined on its card, the web is off and it reaches the internet, you stopped it while the answer waited for it, or the turn ended first.</td>
+</tr>
+<tr>
+<td>– Tests timed out / not waited for</td>
+<td>It did not end in time. This is neither a pass nor a failure.</td>
+</tr>
+<tr>
+<td>✓ Related tests passed: <code>command</code> <code>files</code> - <code>summary</code></td>
+<td>The tests related to the changed files passed. The whole suite runs after them.</td>
+</tr>
+<tr>
+<td>… Full tests running: <code>command</code> (2:14)</td>
+<td>The whole suite goes on after the answer. Its line is written again when it ends.</td>
+</tr>
+<tr>
+<td>… Full tests waiting for another test run to end: <code>command</code></td>
+<td>It waits its turn: see How many run at once.</td>
+</tr>
+<tr>
+<td>– Full tests not run: the related tests fail</td>
+<td>The related tests still failed on the last round.</td>
+</tr>
+<tr>
+<td>– Full tests stopped by you at <code>m:ss</code> - not checked</td>
+<td>You stopped it. Nothing it had run is counted.</td>
+</tr>
+<tr>
+<td>– Tests not finished: <code>why</code></td>
+<td>Stopped, a newer run took its place, or KOLONİ restarted while it ran.</td>
+</tr>
+<tr>
+<td>– <code>…</code> - the project changed while they ran</td>
+<td>The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed.</td>
+</tr>
+<tr>
+<td>– Tests not run on the last change: <code>why</code></td>
+<td>A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. Kept work Fix it went on in, taken in at the turn's end, is no change after the run.</td>
+</tr>
+<tr>
+<td>– Still failing as last checked - this turn changed nothing</td>
+<td>The turn changed no file, right after a turn whose checks still failed: the failing lines below are that turn's, said again, and <strong>Fix it</strong> is offered under them.</td>
+</tr>
+<tr>
+<td>– No test command</td>
+<td>There was nothing to run; the line says where to set one: the project map's whole project's row or a part's (Settings › This project › This folder).</td>
+</tr>
+<tr>
+<td>– Were failing before this turn: <code>files</code> (from CI: <code>command</code>)</td>
+<td>A lint, format or type check failed only on files the turn did not change, and each of its findings is there on the old code too. Not sent back.</td>
+</tr>
+<tr>
+<td>– Sent back to fix: round 3 (until it passes, 3 failing → 1)</td>
+<td>Until it passes: the rounds sent back, and how many failed at the first and fail now.</td>
+</tr>
+<tr>
+<td>✗ Stopped after round 4: <code>why</code> - you decide (Fix it)</td>
+<td>Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.)</td>
+</tr>
+<tr>
+<td>– <code>model</code>'s rounds stopped: no progress in two rounds</td>
+<td>Until it passes, a stronger model's round left the same tests failing.</td>
+</tr>
+<tr>
+<td>– Sent back to fix: 1 of 2 rounds</td>
+<td>How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back.</td>
+</tr>
+<tr>
+<td>✗ Still failing after 1 fix rounds: you decide (Fix it)</td>
+<td>The Fix rounds were spent with a test still failing, or a problem KOLONİ's check by kind of work found (a page, a document, a config file …) - or the Orchestrator answered a round without changing anything, which ends its turn there. For a kind's problem, <strong>Fix it</strong> asks for it to be fixed, and the Orchestrator of that turn is told the problems as data.</td>
+</tr>
+<tr>
+<td>✗ Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it)</td>
+<td>As above, where no test fails but fewer ran, or more were skipped, than at the last green run.</td>
+</tr>
+<tr>
+<td>– Tests went from 48 to 45 (3 removed) - not this turn's change</td>
+<td>Fewer tests, or more skipped, than at the last green run, where nothing of the turn's could take them away (deleted by hand, a pull, a branch): said, the new counts the green state.</td>
+</tr>
+<tr>
+<td>✓ Review: Reviewer (<code>provider · model</code>) - MERGE, no findings</td>
+<td>The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first).</td>
+</tr>
+<tr>
+<td>✗ Review: Reviewer (<code>provider · model</code>) - HOLD, 2 findings, 1 blocking</td>
+<td>It held the change; each finding follows as "Blocking: …" or "Suggestion: …".</td>
+</tr>
+<tr>
+<td>✗ Review: Security reviewer (<code>provider · model</code>) - 1 blocking finding, though its verdict said MERGE</td>
+<td>A blocking finding holds the change, whatever its verdict word says.</td>
+</tr>
+<tr>
+<td>– Review: … in the part it saw (3000 of 15000 characters; not shown: …)</td>
+<td>The diff was cut: what it said is of that part only, never a pass.</td>
+</tr>
+<tr>
+<td>– Review gave no findings section: not counted</td>
+<td>Its report had no findings section: nothing was sent back.</td>
+</tr>
+<tr>
+<td>– Review gave no verdict: not counted (<code>role</code>, <code>provider · model</code>)</td>
+<td>Its report had no verdict line KOLONİ could read: nothing was sent back.</td>
+</tr>
+<tr>
+<td>✓ Documents read: Reviewer (<code>provider · model</code>) - MERGE, no findings · ✗ … - HOLD, 1 finding, 1 blocking</td>
+<td>The turn's long documents, read once against your request; a blocking finding goes back as a fix round.</td>
+</tr>
+<tr>
+<td>– No review: changes made by a command are not recorded</td>
+<td>The turn's only change was a command's: there is no diff for a Reviewer to read.</td>
+</tr>
+<tr>
+<td>– Changed while KOLONİ's run of <code>command</code> went on: <code>files</code></td>
+<td>A file git tracks changed while one of KOLONİ's own runs went on - by the run, or by you meanwhile. <strong>Put back</strong> (your click) restores each still as the run left it.</td>
+</tr>
+<tr>
+<td>– A command of this turn may have changed files KOLONİ did not record: <code>files</code> - <code>command</code></td>
+<td>A command (a <code>sed -i</code>, a formatter, a script) wrote files no record holds; in a git project the files git lists are named. The tests ran on them.</td>
+</tr>
+<tr>
+<td>– Review not run: <code>why</code></td>
+<td>It could not look: it failed, it was refused, or the turn's token limit was reached.</td>
+</tr>
+<tr>
+<td>– No review: a small change (12 lines, 1 files)</td>
+<td>Not big, and no security touch.</td>
+</tr>
+<tr>
+<td>– No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over</td>
+<td>Why no Reviewer looked.</td>
+</tr>
+<tr>
+<td>✗ Still on hold after 2 fix rounds: you decide (Fix it)</td>
+<td>The Fix rounds were spent with blocking findings left.</td>
+</tr>
+<tr>
+<td>✗ Still on hold: <code>role</code> could not look again (<code>why</code>) - you decide (Fix it)</td>
+<td>A look after a fix round could not be had: the hold stands.</td>
+</tr>
+<tr>
+<td>✓ <code>file</code>: 3 links, all found · <code>file</code>: 120 rows × 4 columns · <code>file</code>: 12 slides, 3 with notes</td>
+<td>A document, diagram, data file or deck KOLONİ checked and found right.</td>
+</tr>
+<tr>
+<td>✗ <code>file</code>: link to <code>target</code> not found · edge <code>id</code> points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty</td>
+<td>A problem in what the turn wrote: sent back as a fix round while Fix rounds are left.</td>
+</tr>
+<tr>
+<td>– <code>file</code>: … - so before this turn</td>
+<td>A problem the file already had - the same complaint on a line of the same text, where a line added above moved it: said, not sent back. The same complaint on a line the turn wrote is the turn's.</td>
+</tr>
+<tr>
+<td>– Not checked: <code>kind</code> switched off for this project</td>
+<td>Its kind is off in Check by kind of work.</td>
+</tr>
+<tr>
+<td>✓ <code>page</code>: no console errors at 375, 768, 1280 px</td>
+<td>A page the turn changed, opened in KOLONİ's own browser at each width.</td>
+</tr>
+<tr>
+<td>✗ <code>page</code>: 2 console errors at 375 px - <code>first</code> · <code>page</code>: wider than the screen at 375 px</td>
+<td>A page that logs errors, or scrolls sideways: sent back as a fix round.</td>
+</tr>
+<tr>
+<td>✗ <code>page</code>: 2 images without alt text · 1 buttons, links or fields with no name …</td>
+<td>The page is hard to use with a screen reader: sent back as a fix round.</td>
+</tr>
+<tr>
+<td>– <code>page</code>: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1)</td>
+<td>A warning: hard to read, said with its ratio - never sent back.</td>
+</tr>
+<tr>
+<td>✗ <code>page</code>: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden …</td>
+<td>A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round.</td>
+</tr>
+<tr>
+<td>– <code>page</code>: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body · … no root) · accessibility not judged at 375 px for what changed after it loaded - images without alt text</td>
+<td>What the accessibility read could not judge: said, not sent back.</td>
+</tr>
+<tr>
+<td>– <code>page</code>: not checked: the page crashed the browser's tab</td>
+<td>The browser could not draw the page (one nested some 1,600 deep crashes Chrome's tab, measured on Windows): said at once; the turn's next page is read in a new browser.</td>
+</tr>
+<tr>
+<td>– Pages not checked: no preview running · no Chrome or Edge here</td>
+<td>A component changed and no preview serves the work; or no browser to look with.</td>
+</tr>
+<tr>
+<td>✓ Tried <code>python 'bin/tool.py' --help</code>: exit 0, 12 lines</td>
+<td>A command-line tool the turn changed answered its <code>--help</code>.</td>
+</tr>
+<tr>
+<td>✗ Tried <code>line</code>: exit 2 · Tried <code>line</code>: it did not end in 30 s</td>
+<td>Its <code>--help</code> failed or ran on: sent back as a fix round.</td>
+</tr>
+<tr>
+<td>✓ Tried: Tester (<code>provider · model</code>) on <code>address</code> - MERGE, no findings · ✗ … - HOLD, 2 findings, 1 blocking</td>
+<td>The Tester went through the change on the chat's preview; a blocking finding goes back as a fix round.</td>
+</tr>
+<tr>
+<td>– Not tried: <code>why</code></td>
+<td>No live try: the tests still fail, nobody watches the turn, the tool does not answer <code>--help</code> or has an unusual name, no preview can run, the work waits in a working copy, KOLONİ's own runs fill the machine, or the Tester has no browser tools.</td>
+</tr>
+<tr>
+<td>– Try gave no verdict: not counted (Tester, <code>provider · model</code>)</td>
+<td>The Tester's report had no verdict line: nothing was sent back.</td>
+</tr>
+<tr>
+<td>– Not checked: <code>kinds</code> - the turn ended before KOLONİ's check / Not checked on the last change: <code>kinds</code></td>
+<td>The turn ended before these checks, or changed such a file after them.</td>
+</tr>
+<tr>
+<td>– Coverage: 72% of the changed lines are run by tests (<code>tool</code>)</td>
+<td>Of the turn's changed lines a test could run, the share the whole suite ran, by the project's own coverage tool.</td>
+</tr>
+<tr>
+<td>– Coverage: not measured (<code>why</code>)</td>
+<td>The flags failed (the run went again without them; not tried again till the coverage settings change), or no report was written or it could not be read.</td>
+</tr>
+<tr>
+<td>– New tests: <code>files</code></td>
+<td>The test files the turn added or changed.</td>
+</tr>
+<tr>
+<td>– No new test: the Orchestrator said “<code>line</code>”</td>
+<td>It was asked for a test and gave this reason instead (its first line).</td>
+</tr>
+<tr>
+<td>✗ Test removed: <code>path</code></td>
+<td>The turn deleted a test file that was there before it.</td>
+</tr>
+<tr>
+<td>– Not in this run: <code>name</code>'s work waits in Ready for you</td>
+<td>That work was not tested. It is still in its working copy.</td>
+</tr>
+<tr>
+<td>– Not checked: After a change is set to Nothing</td>
+<td>The project's setting.</td>
+</tr>
+<tr>
+<td>– Not checked: off for this chat</td>
+<td>This chat's <strong>Test and review changes</strong> is off.</td>
+</tr>
+<tr>
+<td>– Handed to <code>model</code> (Strongest) after 2 rounds by <code>model</code></td>
+<td>The Fix rounds were spent with a test still failing: the next stronger tier tries. Its model's use counts.</td>
+</tr>
+<tr>
+<td>– <code>model</code> says fix-incomplete: <code>why</code></td>
+<td>The stronger model's diagnosis, before it changed anything (fix-incomplete, test-wrong, approach-wrong).</td>
+</tr>
+<tr>
+<td>– Test changed: <code>why</code></td>
+<td>The stronger model changed a test, with its reason in the request's words. The Reviewer reads it, whatever the change's size.</td>
+</tr>
+<tr>
+<td>✗ Not a pass: <code>model</code> changed a test without leave (<code>files</code>)</td>
+<td>Its diagnosis was not test-wrong, yet it changed or deleted a test - or what says which tests run: a <code>conftest.py</code>, <code>pytest.ini</code>, <code>tox.ini</code>, <code>setup.cfg</code>, <code>pyproject.toml</code>, <code>package.json</code>, a Vitest, Vite, Jest, Karma, Mocha or Playwright config: the tests passing then is no pass, and the work stays as failing. <strong>Fix it</strong> asks for the fix, saying why in KOLONİ's own words (never the file names or output a model chose). <code>pytest.toml</code> and <code>.pytest.ini</code> count, and a Vitest workspace.</td>
+</tr>
+<tr>
+<td>✗ Not a pass: the Reviewer held <code>model</code>'s test change</td>
+<td>Its test-wrong change did not get the Reviewer's MERGE: the work stays as failing.</td>
+</tr>
+<tr>
+<td>✗ Not a pass: the Reviewer did not read <code>model</code>'s test change (<code>why</code>)</td>
+<td>Its test-wrong change needs a fresh MERGE from the Reviewer; the Reviewer could not look, gave no verdict, or the turn's token limit was reached: the work stays as failing.</td>
+</tr>
+<tr>
+<td>– Started over in a fresh copy: <code>why</code></td>
+<td>The stronger model said approach-wrong: the copy's changes were dropped and the work began again from the start state.</td>
+</tr>
+<tr>
+<td>– Strongest skipped: over its limit</td>
+<td>That tier's provider is past its limit of spend: it is not handed the fix.</td>
+</tr>
+<tr>
+<td>✗ Not taken in: 2 tests still fail after rounds by <code>A</code> and <code>B</code></td>
+<td>The work stays in its copy, with the stronger model's question: <strong>Take in anyway</strong> or <strong>Fix it</strong> with your answer.</td>
+</tr>
+<tr>
+<td>✗ Not taken in: on hold - a look's findings still stand after its fix rounds</td>
+<td>Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: <strong>Take in anyway</strong> or <strong>Fix it</strong> with your answer.</td>
+</tr>
+<tr>
+<td>✗ Not taken in: KOLONİ's checks of what it wrote still fail after its fix rounds</td>
+<td>Work in a copy (a recipe's, an Away job's, a branch turn's) whose page, document, config file or script still fails its check by kind of work stays there, at every level: <strong>Take in anyway</strong> or <strong>Fix it</strong> with your answer.</td>
+</tr>
+<tr>
+<td>Taken in anyway.</td>
+<td>You took the held work in as it was: said under the lines, not as a line of its own. <strong>Fix it</strong> now asks for the fix as for work in the project, where a line still fails; a turn that changes nothing after it says the work still fails.</td>
+</tr>
+<tr>
+<td>✗ Still failing after rounds by <code>A</code> and <code>B</code>: you decide (Fix it)</td>
+<td>The work is in the project already; the stronger models' rounds did not make it pass.</td>
+</tr>
+<tr>
+<td>– Not checked: this recipe's Checks step checks nothing</td>
+<td>The recipe's Checks step is set for the recipe with every check off.</td>
+</tr>
+<tr>
+<td>– Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: <code>kind</code> off in this recipe's Checks step</td>
+<td>The recipe's Checks step leaves that check off.</td>
+</tr>
+<tr>
+<td>✗ Checked only: this recipe's Checks step sends nothing back to fix - you decide (Fix it)</td>
+<td>The recipe's Fix rounds are 0: the tests failed and nothing went back.</td>
+</tr>
+<tr>
+<td>– CI commands found: <code>lines</code> - not run until you approve them once (Run these)</td>
+<td>The project's CI lint, typecheck and test lines, offered. <strong>Run these</strong> approves exactly these.</td>
+</tr>
+<tr>
+<td>– CI step <code>name</code>: not run: <code>why</code> / e2e not run: <code>name</code> / CI file not read: <code>file</code> - <code>why</code></td>
+<td>What of the CI is left out beside the lines it offers or runs: an e2e step, a line not plain, an install, a secret, another shell, a folder outside, a file past the limits.</td>
+</tr>
+<tr>
+<td>– CI commands not used: a workflow changed in this turn</td>
+<td>A workflow file changed in the turn: its lines wait for the next one.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright 2026 Murat H. Unsal · AGPL-3.0-or-later
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.code.copy","content.tabs.link","navigation.top","search.highlight"],"redirect":null,"search":"../../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      
+    
+  </body>
+</html>

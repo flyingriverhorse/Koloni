@@ -1,0 +1,4443 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A local agent workspace: a chat beside a canvas, real agents, evidence.">
+      
+      
+      
+        <link rel="canonical" href="https://koloni.skyulf.com/manual/use/permissions/">
+      
+      
+      
+        <link rel="prev" href="../talk-while-agents-work/">
+      
+      
+        <link rel="next" href="../ready/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="zensical-0.0.74">
+    
+    
+      
+        <title>Permission levels - KOLONİ</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/koloni.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KOLONİ" class="md-header__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KOLONİ
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Permission levels
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KOLONİ" class="md-nav__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    KOLONİ
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Getting started
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quick start
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ in 5 minutes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Install
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/why-koloni/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Why KOLONİ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Everyday use
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Everyday use
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chat-and-canvas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chat and canvas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../talk-while-agents-work/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Talking while agents work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Permission levels
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Permission levels
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-asks-at-each-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What asks at each level
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What asks at each level">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-folders-koloni" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The folder's <code>.koloni/</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cards" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The cards
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-rule-never-covers" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a rule never covers
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What a rule never covers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#known-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Known limits
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-command-is-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a command is read
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disposable-deletes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Disposable deletes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sub-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Sub-agents
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-autos-judge" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Full auto's judge
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Full auto&#x27;s judge">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-judge-decides-in-place-of-the-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the judge decides in place of the list
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-push-of-your-feature-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A push of your feature branch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-judge-is-not-a-wall" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The judge is not a wall
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-what-i-said-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Check what I said first
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Check what I said first">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-push-a-pull-request-or-a-merge-you-asked-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A push, a pull request or a merge you asked for
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plan-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Plan first
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-jobs-own-branch-while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A job's own branch while you're away
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-a-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Choosing a level
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ready and approval cards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Decisions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Working copies and Take in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../checked/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Checked
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plan-first/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan first
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Compare
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Attachments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../voice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Voice
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../command-palette/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command palette (Ctrl+K)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Agents
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Agents
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/which-way/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Which way to work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/teams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teams
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/step-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Step limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipes and candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipe-cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe cookbook
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/discussions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Discussions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Models
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Models
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Providers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up an API provider
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a local model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Copilot on your GitHub account
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tiers and Agents may use
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/subscription-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Subscription rules
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tools
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Tools
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/built-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ's tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP servers and trust
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Skills
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Memory
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What the project knows
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../knowledge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sources to look things up in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automation
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Automation
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/todo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  To-do
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/overnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Work while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/answering-for-you/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Answering for you
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Money and quota
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Money and quota
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage and budgets
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/cost/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Keeping costs down
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Settings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backup-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Backup and update
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Troubleshooting and FAQ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_13">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Examples
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/team-web-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A web app with a team
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/overnight-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A job while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/candidates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Picking the best of several candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mcp-safely/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Adding an MCP server safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/teach-an-expert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teaching an expert
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_14">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/all-settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Every setting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLIs
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe, role and skill formats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/folders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Folder layout
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Glossary
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/known-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Known limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/upgrade-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Upgrade notes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security and privacy
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_15">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Security and privacy
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/privacy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data and privacy
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reporting a problem
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Developers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_16">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Developers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/from-source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Run from source
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/verify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tests and verify
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Contributing (DCO)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/licenses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Licenses
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-asks-at-each-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What asks at each level
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What asks at each level">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-folders-koloni" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The folder's <code>.koloni/</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cards" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The cards
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-rule-never-covers" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What a rule never covers
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What a rule never covers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#known-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Known limits
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-command-is-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a command is read
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disposable-deletes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Disposable deletes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sub-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Sub-agents
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-autos-judge" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Full auto's judge
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Full auto&#x27;s judge">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-judge-decides-in-place-of-the-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the judge decides in place of the list
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-push-of-your-feature-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A push of your feature branch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-judge-is-not-a-wall" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The judge is not a wall
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-what-i-said-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Check what I said first
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Check what I said first">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-push-a-pull-request-or-a-merge-you-asked-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A push, a pull request or a merge you asked for
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plan-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Plan first
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-jobs-own-branch-while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A job's own branch while you're away
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-a-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Choosing a level
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="permission-levels">Permission levels<a class="headerlink" href="#permission-levels" title="Permanent link">&para;</a></h1>
+<p>The permission level decides what agents may do without asking you first. It stands in the message box's
+row as three comb cells and its name (<strong>Ask</strong> one cell, <strong>Auto-edit</strong> two, <strong>Full auto</strong> three): a click
+lists the levels, each with a line on what it does - Ask before changes: "Each file change and command waits
+for your card"; Auto-edit files: "Writes files at once (revertible); commands still ask"; Full auto: "Changes
+and commands run; only harmful or risky actions ask" - <strong>Plan first</strong>, and in a project's chat <strong>Test and
+review changes</strong> (<a href="../checked/#for-one-chat">what KOLONİ checks after a change</a>, on or off for this chat; off, the
+level says "· no checks"). Each chat has its own level.</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>In short</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ask before changes</strong></td>
+<td>Each file change and each command waits for your card.</td>
+</tr>
+<tr>
+<td><strong>Auto-edit files</strong></td>
+<td>File changes are written at once and can be reverted. Commands still ask.</td>
+</tr>
+<tr>
+<td><strong>Full auto</strong></td>
+<td>Changes and commands run without asking. Only harmful or risky actions still ask.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-asks-at-each-level">What asks at each level<a class="headerlink" href="#what-asks-at-each-level" title="Permanent link">&para;</a></h2>
+<p>"Card" means the agent stops and waits until you answer on a card in the chat.
+"Runs" means it goes ahead without asking.</p>
+<p><a href="../../diagrams/permissions.svg"><img alt="Permission and approval flow: what asks at each level, the card, Always run rules, the harm check and who may answer a card" src="../../diagrams/permissions.svg" /></a></p>
+<p><em>The levels at a glance; the table below has every case.</em></p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Ask before changes</th>
+<th>Auto-edit files</th>
+<th>Full auto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reading, listing or searching files in the project</td>
+<td>Runs</td>
+<td>Runs</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>Changing a file</td>
+<td>Card</td>
+<td>Runs</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>A command that only reads, such as <code>cat</code>, <code>ls</code> or <code>git status</code> (every path it names - an option's value (<code>--file=x</code>, <code>-Path:'x'</code>) and a name written in quoted pieces (<code>.e'nv'</code>) too - followed through links and junctions, inside the project and no secret file - else it is any other command)</td>
+<td>Runs</td>
+<td>Runs</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>Any other command</td>
+<td>Card, unless a rule covers it</td>
+<td>Card, unless a rule covers it</td>
+<td>Runs, unless <a href="#full-autos-judge">Full auto's judge</a> finds it risky</td>
+</tr>
+<tr>
+<td>A command that keeps running, such as a dev server</td>
+<td>Card, every time</td>
+<td>Card, every time</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>A command that deletes or empties files in the project, or throws away git work, written as a plain line (<code>rm -rf src</code>, <code>Remove-Item</code>, <code>git reset --hard</code>, <code>git clean -fd</code>, <code>git checkout -- .</code>, <code>git stash drop</code>, <code>git branch -D</code>)</td>
+<td>Card</td>
+<td>Card</td>
+<td>Runs, unless <a href="#full-autos-judge">Full auto's judge</a> finds it risky - a card with the judge off or no judge model to answer (<a href="#what-the-judge-decides-in-place-of-the-list">which</a>)</td>
+</tr>
+<tr>
+<td>A command that sends data off the machine (<code>git push</code>, <code>scp</code>, a <code>curl</code> that posts data, …)</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card, unless <a href="#check-what-i-said-first">Check what I said first</a> finds a line of yours that names it; a plain push of your feature branch goes to <a href="#a-push-of-your-feature-branch">Full auto's judge</a></td>
+</tr>
+<tr>
+<td>A plain push of the branch you have checked out to its own <code>origin</code> (<code>git push</code>, <code>git push -u origin feature/x</code>) - never <code>main</code>, <code>master</code> or origin's default branch</td>
+<td>Card</td>
+<td>Card</td>
+<td>Runs, unless <a href="#a-push-of-your-feature-branch">Full auto's judge</a> finds it risky - then its card, never a refusal; a card too with the judge off, no judge model to answer, or anything <a href="#a-push-of-your-feature-branch">it does not know as plain</a></td>
+</tr>
+<tr>
+<td>A delete out of the project or of all of it (<code>rm -rf ../x</code>, <code>rm -rf .</code>, <code>find . -delete</code>, <code>git clean -fdx</code>), one not written as a plain line (<code>bash -c "rm -rf build"</code>, <code>… \| xargs rm</code>, <code>rm -rf .gi\t</code>), a worktree removed, git's recovery pruned (<code>git gc --prune=now</code>, <code>git reflog expire</code>), a Docker delete, or a git remote's branches overwritten or deleted (<code>git push --force</code>, <code>git push origin :x</code>)</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed <a href="#disposable-deletes">such deletes</a></td>
+<td>Card</td>
+<td>Runs</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>A command handed to a shell (<code>cmd /c</code>, <code>powershell -c</code>, <code>sh -c</code>)</td>
+<td>Card, every time</td>
+<td>Card, every time</td>
+<td>Runs, unless Full auto's judge finds it risky; a card where what it runs deletes, sends or is asked at every level</td>
+</tr>
+<tr>
+<td>Reading a secret file (<code>.env</code>, keys, …)</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A command that names a secret file, or searches a folder that holds one</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>Writing a file that steers agents' later turns or runs by itself (<code>.claude/</code>, <code>.codex/</code>, <code>.git/</code>, <code>.github/</code>, <code>.vscode/</code>, <code>.idea/</code>, <code>.devcontainer/</code>, <code>.cargo/</code>, <code>.gitmodules</code>, <code>.mcp.json</code>, … - <a href="../../security/model/#files-that-steer-later-turns">all of them</a>)</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>Writing <code>AGENTS.md</code>, <code>CLAUDE.md</code> or <code>GEMINI.md</code></td>
+<td>Card</td>
+<td>Card</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>Writing in the folder's <code>.koloni/</code> - or a command that names it - but in its scratch <code>tmp/</code>, and a look into <code>worktrees/</code> or <code>copies/</code> (<a href="#the-folders-koloni">which</a>)</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A web search</td>
+<td>Card, unless you allowed searching in this chat</td>
+<td>Card, unless you allowed searching in this chat</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>A web request that only fetches a page (a plain GET)</td>
+<td>Card, unless you allowed that site</td>
+<td>Card, unless you allowed that site</td>
+<td>Runs</td>
+</tr>
+<tr>
+<td>Any other web request (one that sends data)</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A tool of an MCP server you have not trusted yet</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A tool of a trusted MCP server</td>
+<td>Card, unless the tool is set to run without asking</td>
+<td>Card, unless the tool is set to run without asking</td>
+<td>Card, unless the tool is set to run without asking</td>
+</tr>
+<tr>
+<td>A file outside the project</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A change in a folder added to the chat for reading only</td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A command that stops programs by their name (<code>taskkill /IM</code>, <code>pkill</code>, <code>killall</code>, <code>Stop-Process -Name</code>), or looks a process up and stops it</td>
+<td>Card</td>
+<td>Card</td>
+<td>In the project, runs unless Full auto's judge finds it risky (a card with the judge off or no judge model to answer); a card always for python, node, uvicorn, an agent's CLI, the terminal, shell or system KOLONİ stands on (WindowsTerminal, conhost, OpenConsole, powershell, pwsh, cmd, bash, explorer, lsass, csrss, svchost, wininit, winlogon, services), a filter, a wildcard, <code>kill -1</code> or a process looked up</td>
+</tr>
+<tr>
+<td>A sub-agent's command in its copy that names another agent's copy, a worktree of the project or a place above its copy (<code>../..</code>), or writes in or installs into the linked <code>node_modules</code>, <code>.venv</code> or <code>venv</code></td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+<tr>
+<td>A sub-agent's command in a branch's worktree that finds your repository's own path (<code>git rev-parse --git-dir</code>), or writes to a place built when it runs (<code>&gt; "$D/…"</code>, <code>cp x "$D/…"</code>, <code>Set-Content (Join-Path …)</code>) or links to one - it may be your repository's own <code>.git</code></td>
+<td>Card</td>
+<td>Card</td>
+<td>Card</td>
+</tr>
+</tbody>
+</table>
+<p>A plain <code>git</code> command counts as read-only only when it runs at the top of the project and the
+project holds no secret file. As in Claude Code, these are no read either: a line that sets <code>PATH</code> or
+<code>IFS</code>, git after a change of folder (<code>cd sub &amp;&amp; git status</code>: a repository shaped there can set programs
+git runs), a redirection to bash's <code>/dev/tcp/</code> or <code>/dev/udp/</code> (it reaches the internet), and a wildcard
+that may expand to an option (<code>find *</code>, <code>rg foo *</code>, <code>cat -*</code>: a file named <code>-delete</code> or <code>--pre=x</code> in the
+folder would be one; <code>src/*.py</code> and a quoted <code>'*.py'</code> are fine).</p>
+<p>A search chained to another command is no read either. A <code>;</code>, <code>&amp;</code> or <code>|</code> inside quotes chains
+nothing in a search on a simple line - one with no backslash, backtick, <code>$</code>, <code>#</code>, line break or
+typographic quote, where sh and PowerShell read the quotes alike: <code>rg '&amp;&amp;' .github/workflows</code> and
+<code>rg 'a|b' .github</code> are searches, at Full auto too. In any other line, or in a line another program
+runs (<code>ssh host 'cd app &amp;&amp; rm -rf build'</code>, <code>cmd /c "…"</code>, which keeps no <code>'</code> quote), it is a cut, and
+what comes after it is judged as a command of its own.</p>
+<p>The secret-file rows have exceptions for CLIs run with their own tools (a command Codex's own allow rules
+cover, agy's reads): see <a href="../../reference/known-limits/#secrets">Known limits</a>.</p>
+<h3 id="the-folders-koloni">The folder's <code>.koloni/</code><a class="headerlink" href="#the-folders-koloni" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>In <code>.koloni/</code></th>
+<th>A command naming it, or a write there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tmp/</code> - the agents' scratch</td>
+<td>Judged as any path: no card of <code>.koloni</code>'s, at every level</td>
+</tr>
+<tr>
+<td><code>worktrees/</code>, <code>copies/</code> - KOLONİ's worktrees and copies (<a href="../workspace/#where-copies-and-worktrees-are">where</a>)</td>
+<td>A look - <code>ls</code>, <code>cat</code>, a search, the Files window - is judged as any; a write, a delete or a program run there is a card at every level</td>
+</tr>
+<tr>
+<td>Everything else: <code>rules.md</code>, <code>settings.json</code>, <code>recipes/</code>, <code>knowledge/</code>, the teams' <code>shared/</code> folder</td>
+<td>Card at every level, Full auto too</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Each worktree and copy is one agent's work. That agent works in it as its own folder - by its full
+  path too (<code>cd C:/…/.koloni/worktrees/&lt;id&gt;/&lt;agent&gt;/tree</code>, Git Bash's <code>/c/…</code>) - with no card of
+  <code>.koloni</code>'s; any other agent, or a command at the project's root, only reads there. A write, a
+  <code>tee</code>, <code>cp</code> or <code>mv</code> into one, a file tool's write (also at Auto-edit and Full auto), a delete, a
+  program run from one, or pytest's <code>--basetemp</code> there is asked at every level.</li>
+<li>A search is a look only while it only reads. Its options are read as the shell joins them, so a quote
+  or a backslash inside one changes nothing: <code>find src -de""lete</code> is a delete, and <code>-fpr""intf</code>,
+  <code>-ex""ec</code>, rg's <code>--p""re=</code> and <code>--hostname-bin</code>, ag's and ack's <code>--pager</code> (or <code>--pag</code>), and ack's
+  <code>--output</code> (Perl to ack 2.x) make it no read. A <code>find</code>
+  word in bash's ANSI-C quotes (<code>$'-de\x6cete'</code>), which KOLONİ does not decode, is taken for a delete,
+  and ag or ack is no look into a tree. In a worktree or a copy such a line is asked at every level.</li>
+<li>What is inside the scratch is still judged as any path: a <code>.claude/settings.json</code> there asks as it
+  does anywhere, and a <code>git</code> line that names a free folder (<code>git add -f .koloni/tmp/x</code>) asks.</li>
+<li>A line that climbs from a free folder into the rest - <code>cat .koloni/tmp/../rules.md</code>, <code>cd
+  .koloni/worktrees; echo x &gt; ../rules.md</code>, a path built from where it stands - asks at every level, its
+  card saying "Climbs out of .koloni/tmp…".</li>
+<li>A delete is a card at Ask and Auto-edit as any delete is; at Full auto a plain delete inside <code>tmp/</code>
+  runs with no card - inside <code>worktrees/</code> or <code>copies/</code> it is a card.</li>
+<li>The teams' <code>shared/</code> folder is not free: who writes where there is the teams' own rule (<code>write_shared</code>
+  writes a team's folder only, and each file says who wrote it); agents read and write it with their
+  <code>read_shared</code> and <code>write_shared</code> tools.</li>
+</ul>
+<h2 id="the-cards">The cards<a class="headerlink" href="#the-cards" title="Permanent link">&para;</a></h2>
+<video src="../../videos/approval.webm" poster="../../videos/approval.jpg" controls muted loop playsinline preload="none" style="width: 100%; height: auto" aria-label="Video: at Ask before changes the Orchestrator asks to run python check.py, and Run once lets it run"></video>
+
+<p><em>An agent asks, you approve: <strong>Run once</strong> on its card, and the turn goes on.</em></p>
+<ul>
+<li><strong>A file change</strong> shows the diff, with <strong>Approve</strong> and <strong>Reject</strong>. After it is written you can
+  still <strong>Revert</strong> it.</li>
+<li><strong>"Run this command?"</strong> offers <strong>Run once</strong>, <strong>Always run …</strong> and <strong>Reject</strong>. <strong>Always run</strong>
+  keeps a rule for this chat, so the same kind of command runs without a card next time. Some
+  commands never get a rule; their card says "This command is asked every time." A rejected command
+  ends that one action, not the task. If you reject a command that writes a file or applies a patch,
+  the agent is told to make the change with its file tools instead, so it comes to you as a file change.</li>
+<li>A delete KOLONİ found disposable also offers <strong>Allow such deletes in this project</strong>
+  (see <a href="#disposable-deletes">Disposable deletes</a>).</li>
+<li><strong>"Search the web?"</strong> offers <strong>Search once</strong>, <strong>Always allow searching in this conversation</strong>
+  and <strong>Reject</strong>.</li>
+<li><strong>"Make this request?"</strong> offers <strong>Send once</strong>, <strong>Always allow GET to …</strong> (for that site) and
+  <strong>Reject</strong>.</li>
+<li><strong>"Read a secret file?"</strong> offers <strong>Allow once</strong> and <strong>Reject</strong>. There is no rule for secret files.</li>
+<li><strong>"Read outside the project?"</strong> offers <strong>Allow once</strong>, <strong>Allow reading this folder</strong>, <strong>Allow changes in
+  this folder</strong> and <strong>Reject</strong>.</li>
+<li>When an agent wants another folder, <strong>"Add a folder to this chat?"</strong> offers <strong>Add to this chat</strong>,
+  <strong>This time</strong> and <strong>Reject</strong>.</li>
+<li>An MCP tool asks with <strong>Allow</strong> and <strong>Reject</strong>.</li>
+</ul>
+<p>You can see and remove the rules you made under Settings › This project › When you're asked ›
+<strong>Runs without asking</strong> › <strong>Show the rules</strong>.</p>
+<h2 id="what-a-rule-never-covers">What a rule never covers<a class="headerlink" href="#what-a-rule-never-covers" title="Permanent link">&para;</a></h2>
+<p><strong>Always run</strong> is offered only for plain commands. It is never offered, and never matches, for:</p>
+<ul>
+<li>a command that is chained, piped or redirected, or handed to a shell or another program;</li>
+<li>a command that deletes or cannot be undone;</li>
+<li>a command that names a secret file, <code>.koloni/</code>, or a file that steers agents;</li>
+<li>an option after the rule's words that makes the program run another program, fetch code or
+  write outside the folder, alone or in a bundle (<code>pytest -qo …</code>): pytest's <code>--basetemp</code>, <code>-p</code>,
+  <code>--rootdir</code>, <code>--confcutdir</code>, <code>-o</code>, <code>-c</code>, and <code>--junitxml</code> outside the folder; go's <code>-exec</code>,
+  <code>-toolexec</code> and <code>-C</code>; cargo's <code>--config</code> and <code>--manifest-path</code>; gradle's <code>-I</code>, <code>-p</code> and <code>-b</code>;
+  npm's <code>--script-shell</code>, <code>--prefix</code>, <code>--package</code>, <code>--userconfig</code> and <code>--node-options</code>; make's
+  <code>SHELL=</code> and <code>-f</code>; tox's <code>-c</code>; maven's <code>-Dmaven.ext…</code>; uv's and pipx's <code>--with</code>, <code>-w</code>, <code>--from</code>,
+  <code>--spec</code>; ruff's <code>--config</code>, <code>--fix</code>, <code>--fix-only</code>, <code>--unsafe-fixes</code> and <code>--add-noqa</code>; mypy's
+  <code>--config-file</code>, <code>--python-executable</code> and <code>--install-types</code>, and its <code>--cache-dir</code>,
+  <code>--junit-xml</code> and <code>--…-report</code> outside the folder; eslint's <code>-c</code>, <code>--rulesdir</code>,
+  <code>--resolve-plugins-relative-to</code>, <code>--plugin</code>, <code>--parser</code>, <code>--fix</code>, <code>--init</code>, <code>--inspect-config</code>,
+  <code>--suppress-all</code>, <code>--suppress-rule</code>, <code>--prune-suppressions</code> and a <code>--format</code> other than its own
+  (<code>stylish</code>, <code>json</code>, <code>json-with-metadata</code>, <code>html</code>), and its <code>-o</code>, <code>--cache-location</code>,
+  <code>--cache-file</code> and <code>--suppressions-location</code> outside the folder - a long one in any spelling
+  (<code>--outputFile</code>); tsc's <code>--incremental</code>, <code>--composite</code>, <code>--noEmit false</code>, <code>--generateTrace</code>, <code>-b</code>
+  and <code>--build</code> (but <code>false</code> and <code>null</code>, which write nothing: <code>--incremental false</code>), and its <code>-p</code>,
+  <code>--outDir</code>, <code>--outFile</code>, <code>--tsBuildInfoFile</code>, <code>--declarationDir</code> and <code>--generateCpuProfile</code>
+  outside the folder - in any case (<code>--OUTDIR</code>, <code>--p</code>); an option or its value written in pieces a
+  shell joins (<code>fal""se</code>, <code>".."/x</code>), and a word of its own so (<code>make 'SHELL=/x'</code>, <code>SH""ELL=/x</code>); a
+  shell handed a line (<code>bash -c</code>). A rule for <code>python -m pytest</code> still covers
+  <code>python -m pytest -q tests</code>, <code>-p no:cacheprovider</code> (a plugin turned off) and <code>-o log_cli=true</code>,
+  but not <code>python -m pytest -p plugin</code>. Words after <code>--</code> are the script's own (<code>npm test --
+  --prefix x</code> is covered), and past a rule that names a runner's package (<code>npx tsc</code>) the words are
+  that tool's (<code>npx tsc -p tsconfig.json</code> is covered).</li>
+</ul>
+<p>Where one of your rules begins the line but such an option, or a node runner sent to another package or
+folder (below), keeps it off, the card says so, in KOLONİ's words: "your rule “npm exec tsc” does not cover
+this line: --globalconfig has it read a settings file, which can load code - run it once or reject it". It
+names an option only where that is npm's settings file (<code>--globalconfig</code>, <code>--userconfig</code>); any other is
+"an option past the rule's words".</p>
+<p>Below Full auto, a command that keeps running (a server) asks every time, even with a rule.</p>
+<p>Nor does a rule - or a yes you gave before - cover a command whose program, named by its path in
+the project (<code>node_modules/.bin/tsc</code>, <code>./scripts/check</code>), is one an agent wrote, or sits in an
+install folder (<code>node_modules</code>, <code>.venv</code>, <code>site-packages</code>) an agent wrote in - for a program in a
+<code>node_modules</code>, in one above it too, which Node loads its packages from -, while that file still
+holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
+program (web/node_modules): no rule covers a program an agent wrote, so none is offered - run it
+once or reject it"), with <strong>Run once</strong> and <strong>Reject</strong> alone - an <strong>Always run</strong> rule would not
+cover it either while that write stands -. A rule matches by its
+words in any folder, so the same line in another folder, or after an agent's write over the
+project's own install, would otherwise run what the agent wrote. Once your own install writes
+over it, the rule covers it again. A package runner finds its program by itself, so its rule
+(<code>npx tsc</code>, <code>npm exec tsc</code>, <code>yarn tsc</code>, <code>bun x tsc</code>, <code>corepack pnpm exec tsc</code>, <code>uv run ruff</code>,
+<code>python -m mypy</code>) is read the same way: npx, npm, pnpm, yarn and bun look in the <code>node_modules</code>
+of the folder the command runs in or of one above it - and read an <code>.npmrc</code> there, yarn its
+<code>.yarnrc.yml</code>, <code>.yarnrc</code>, <code>.yarn</code> folder, Plug'n'Play loader and <code>.env.yarn</code>, pnpm its
+<code>.pnpmfile.cjs</code>, bun its <code>bunfig.toml</code> and <code>.env</code>, <code>.env.local</code>, <code>.env.production</code>,
+<code>.env.development</code> (what they run gets those: <code>NODE_OPTIONS=--require x</code>) - and an agent's write in
+any of them stops the rule. Where what the agent wrote is such a file - a setting, a manifest, a lock
+or a loader, not the program -, the card says so: "an agent wrote a file this line may read or load
+(web/.npmrc): no rule covers the line while that write stands, so none is offered - run it once or
+reject it". yarn's <code>.yarn</code> folder, which holds yarn itself and its unplugged installs, is said as its
+program, as a <code>node_modules</code> is ("an agent wrote its program (.yarn): …"). Where an agent wrote both
+a setting and the program, the card names the program.</p>
+<p>A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; <code>corepack</code> before one) is
+closed on two sides. <strong>What an agent wrote:</strong> while an agent's write of any <code>package.json</code> (a
+package's in a <code>node_modules</code> too), any <code>.npmrc</code> or <code>x.npmrc</code>, <code>.yarnrc*</code>, <code>.yarn/</code>,
+<code>.pnpmfile.cjs</code>, <code>pnpm-workspace.yaml</code>, <code>bunfig.toml</code>, lock (<code>package-lock.json</code>,
+<code>npm-shrinkwrap.json</code>, <code>pnpm-lock.yaml</code>, <code>yarn.lock</code>, <code>bun.lockb</code>, <code>bun.lock</code>) or <code>binding.gyp</code>
+anywhere in the project still holds what it wrote, no node runner's rule covers a line - npx and
+<code>npm exec</code> run a name the package's own <code>bin</code> gives before any installed one, yarn and pnpm a
+script of that name, <code>npm install</code> every workspace's lifecycle scripts, fetches what a lock's
+<code>resolved</code> address says and runs node-gyp on a <code>binding.gyp</code>, and npm reads any settings file it
+is pointed at - its card names that file as one the line may read or load. The cost: after an
+agent edits a <code>package.json</code> (adding a
+dependency, say), node runner rules ask until that write is replaced - by your own edit or
+install. A line of npm's or pnpm's that runs a script by its name under its own rule (<code>npm run
+build</code>, <code>npm test</code>) is the exception: the script is the project's code by design, as a test is.
+yarn's and bun's <code>run</code> run a bin too, and npx's <code>test</code> is a package - those are not. <strong>Its own
+options:</strong> past the rule's words (up to <code>--</code> for npm; up to the verb that hands the rest on -
+<code>exec</code>, <code>dlx</code>, <code>x</code>, <code>run</code> - for pnpm, yarn and bun), a rule covers only options that change what
+the runner prints, where it fetches from or that it runs less: <code>--silent</code> / <code>-s</code>, <code>--quiet</code> /
+<code>-q</code>, <code>--loglevel</code>, <code>--color</code> / <code>--no-color</code>, <code>--offline</code>, <code>--prefer-offline</code>, <code>--no</code>,
+<code>--no-audit</code>, <code>--no-fund</code>, <code>--ignore-scripts</code>, <code>--frozen-lockfile</code>, <code>--immutable</code> - each but
+<code>--loglevel</code> and <code>--color</code> alone or <code>=true</code>: <code>--ignore-scripts=false</code>, or a <code>false</code> after it
+(<code>npm install --ignore-scripts false</code>, under an <code>npm install --ignore-scripts</code> rule too), runs the
+scripts again, and an option of the runner's written in pieces a shell joins
+(<code>'--ignore-scripts=false'</code>) is never harmless. Any other (<code>--globalconfig=x</code> - a settings file whose <code>node-options</code> loads code -,
+<code>--shell=</code>, <code>--node-gyp=</code>) and no rule covers the line or is offered for it. So <code>yarn tsc --noEmit</code> is offered none: use
+<code>yarn run tsc --noEmit</code>, or for npm <code>npm exec tsc -- --noEmit</code> (past <code>--</code>, tsc's own).</p>
+<p>A rule for tsc - <code>tsc</code>, <code>npx tsc</code>, <code>npm exec tsc</code>, <code>pnpm exec tsc</code>, <code>yarn tsc</code>, tsc named by its
+path (<code>node_modules/.bin/tsc</code>, as the rule Code style and types offered in 0.1.7) or its script
+(<code>node node_modules/typescript/lib/tsc.js</code>) - covers no line
+while an agent's write of a <code>tsconfig*.json</code> or <code>jsconfig*.json</code> anywhere in the project, or of a
+JSON file that a tsconfig the line reads (the nearest <code>tsconfig.json</code>, a folder or <code>.json</code> its
+words name - <code>-p</code>'s) <code>extends</code> or <code>references</code>, still holds what it wrote: a tsconfig can make tsc
+write a trace, or a composite build's info where <code>tsBuildInfoFile</code> says, outside the project too -
+its card names that file as one the line may read or load.
+Code style and types' own line, word for word, is the exception: its <code>--composite false
+--generateTrace null</code>, last, win over a tsconfig's composite or incremental build info and its
+trace, so its rule still covers it.</p>
+<p>For uv, poetry, pipenv, pdm, hatch and <code>python -m</code>, whose
+environment KOLONİ cannot always place, an agent's write in any <code>.venv</code>, <code>venv</code> or
+<code>site-packages</code> of the project does. For uv, uvx, poetry, pipenv, pdm, hatch, pip and pip3 - run
+as a module too (<code>python -m uv</code>, <code>py -m pip</code>), and <code>python -m build</code> - so does its
+write of any <code>pyproject.toml</code>, <code>setup.py</code> or <code>setup.cfg</code> anywhere in the project (they run its
+<code>[project.scripts]</code> and build the project first - a workspace member or a path dependency with
+it; pip and build build what they install), of their settings (<code>uv.toml</code>, <code>poetry.toml</code>, <code>pdm.toml</code>, <code>hatch.toml</code>, <code>Pipfile</code>,
+<code>.python-version</code>, <code>.pdm-python</code>, and pipenv's <code>.env</code>, which it loads), their locks (<code>uv.lock</code>,
+<code>poetry.lock</code>, <code>pdm.lock</code>, <code>Pipfile.lock</code>, <code>pylock.toml</code>) or requirements (<code>requirements*.txt</code>,
+<code>requirements/*.txt</code>) - but not for a test run (<code>uv run pytest</code>). The card of a write in an
+environment says "an agent wrote its program (.venv)"; of one of these files, that the agent wrote
+a file the line may read or load. As for node runners, the cost:
+after an agent edits a <code>pyproject.toml</code> (adding a dependency, say), these rules ask until that
+write is replaced. Their rule names what they run
+(<code>poetry run ruff</code>, <code>uv run python -m ruff</code>), never the tool alone; and npm's PowerShell shims are
+npm's own (<code>npx.ps1 tsc</code> is <code>npx tsc</code>). A runner's line sent to another package or folder of a
+monorepo - npm's and npx's <code>-w</code> / <code>--workspace</code> / <code>--workspaces</code> / <code>--ws</code> / <code>--prefix</code> / <code>-C</code>,
+pnpm's <code>--filter</code> / <code>-F</code> / <code>-r</code> / <code>--dir</code> / <code>-C</code> / <code>-w</code>, yarn's <code>workspace x</code> / <code>workspaces
+foreach</code> / <code>--cwd</code>, bun's <code>--filter</code> / <code>--cwd</code> - runs that package's own <code>bin</code> and scripts, which
+the folder's checks do not read: no rule covers it, and none is offered. Nor does a rule for <code>npm exec tsc</code> cover <code>npm exec tsc -c x</code> (<code>--call</code>: a shell line). <code>python -m x</code> (any Python: <code>python3.12</code>, <code>pythonw</code>, one
+named by its path) also imports what its folder holds before the standard library and the tool's
+own - so an agent's <code>.py</code> file, or package <code>__init__.py</code>, there stops its rule too, unless it runs
+with <code>-I</code> or <code>-P</code> (or <code>PYTHONSAFEPATH</code>); <code>python -m pytest</code> is the exception, since its tests
+import the project's code anyway. In a working copy every command's Python also reads the
+copy's root and its <code>src</code> first (KOLONİ puts them on <code>PYTHONPATH</code>), so there an agent's module in
+either stops a <code>python -m</code> rule, a <code>uv run</code> rule or a rule for a <code>.venv</code> console script
+(<code>.venv/Scripts/uvicorn.exe</code>) in any folder of the copy - and a <code>sitecustomize.py</code> or
+<code>usercustomize.py</code> there, which Python imports before anything it runs, stops <code>python -m pytest</code>
+too (not under <code>-E</code> or <code>-I</code>). <code>node &lt;script&gt;</code> with the script in an install folder
+(<code>node node_modules/typescript/bin/tsc</code>) is read as that program.</p>
+<p>On Windows, KOLONİ writes no file whose name, or a folder's in its path, ends in a dot or a space
+(<code>pyproject.toml.</code>, <code>uv.toml</code>): Windows drops those and would write <code>pyproject.toml</code>, while the
+record would name another file.</p>
+<h3 id="known-limits">Known limits<a class="headerlink" href="#known-limits" title="Permanent link">&para;</a></h3>
+<p>Always run rules are a convenience, not a security boundary: what a rule covers runs unasked; at
+Full auto KOLONİ's judge looks at what no rule names. What the rules above do not see:</p>
+<ul>
+<li>Files a command makes - <code>cp</code>, <code>mv</code>, <code>tar</code>, <code>Expand-Archive</code> into a settings file's name - are not
+  on record as an agent's writes, so they do not stop a rule; nor does a CLI's write of a <code>.env</code>
+  or <code>.npmrc</code> into the project from its working copy, nor an agent's delete of a setting that protected the project.</li>
+<li>tsc's <code>-p</code> naming any other file (<code>-p tsconfig.build</code>), and a tsconfig that extends a
+  package's config (<code>@scope/cfg</code>); ts-patch's tsconfig plugins; <code>vue-tsc</code>. Past a tsc rule,
+  <code>--init</code>, <code>--outDir out</code> (they write in the folder) and <code>-w</code> (it never ends).</li>
+<li>mypy's <code>--timing-stats F</code>, <code>--line-checking-stats F</code> and <code>--cache-map …</code>, which write where they
+  name; <code>ruff format .</code> and <code>ruff clean</code> under a <code>uv run ruff</code> or <code>python -m ruff</code> rule (they write
+  in the folder); eslint's <code>--mcp</code>, <code>--cache</code> and <code>--fix-dry-run</code>.</li>
+<li>pdm's <code>.pdm.toml</code>, <code>pdm_build.py</code> (pdm-backend loads it), poetry's <code>build.py</code> that its
+  manifest names, <code>pylock.&lt;name&gt;.toml</code>, <code>.python-versions</code>, <code>hatch_build.py</code>, a file named on
+  the line (<code>-r deps.txt</code>, <code>--config-file x</code>), node-gyp's <code>*.gypi</code>, bun's <code>.env.test</code>; pip named
+  with its version (<code>pip3.12</code>).</li>
+<li>make's <code>SHELL:=</code>, <code>SHELL+=</code> and <code>.SHELLFLAGS</code>, and its <code>--makefile=x</code>, <code>-C ../x</code> /
+  <code>--directory=x</code> and <code>--eval=…</code>, past a make rule.</li>
+<li>On macOS, a name its file system folds into a settings file's (<code>uv.lock</code> written with the
+  Kelvin sign, U+212A, for its <code>k</code>).</li>
+</ul>
+<p>On Windows, a command KOLONİ runs, a server it starts and an agent's CLI (started in the work's
+folder) find a program named bare - <code>node</code>, which an npm <code>.cmd</code> shim calls - on PATH only, never
+first in the folder they run in, where an agent could have written a <code>node.cmd</code> (git's own runs
+are started so too). So a batch file of yours that calls its neighbour by its bare name (<code>call
+helper.cmd</code>, an npm script <code>"t": "helper.cmd"</code>) does not find it under KOLONİ: call it as
+<code>.\helper.cmd</code>, or <code>%~dp0helper.cmd</code> inside a batch file - where cmd.exe says such a name "is not
+recognized" and the folder has it, the command's result says so too.</p>
+<h2 id="how-a-command-is-read">How a command is read<a class="headerlink" href="#how-a-command-is-read" title="Permanent link">&para;</a></h2>
+<p>KOLONİ reads an agent's command line the way its shell will run it, and judges every command it
+finds, not only the first word. A harm, an install or a write it finds anywhere is asked as it would
+be on a line of its own:</p>
+<ul>
+<li><strong>Groups</strong>: <code>(cd web &amp;&amp; npm ci)</code>, <code>{ npm ci; }</code>, <code>if exist x (npm ci) else (npm i)</code>, <code>for %a in (*) do (…)</code> and
+  PowerShell's script blocks (<code>if ($true) { npm ci }</code>, <code>ForEach-Object { … }</code>, <code>&amp; { … }</code>,
+  <code>Invoke-Command -ScriptBlock { … }</code>). A group whose brackets do not pair is always asked - but
+  brackets a heredoc writes, a comment holds (<code>echo done # 1) first step</code>), sh's <code>case … esac</code>
+  patterns and a group only printed in quotes (<code>echo "(npm ci)"</code>, <code>git commit -m "run (npm ci) first"</code>)
+  are no group.</li>
+<li><strong>Heredocs and comments</strong>: what a heredoc writes to a file and a comment run nothing; a stop in
+  code a heredoc or a pipe hands an interpreter (<code>python - &lt;&lt;'EOF'</code>, <code>echo "…" | python</code>), or that
+  <code>php -r</code>, <code>lua -e</code>, <code>R -e</code> or <code>julia -e</code> is handed, is asked.</li>
+<li><strong>Wrappers</strong>: a branch switch and a patch are read behind a wrapper (<code>time git switch main</code>,
+  <code>bash -c '…'</code>), cmd's <code>if "%a%"=="x" …</code> and <code>trap -- '…' EXIT</code> are read to the command they run.</li>
+<li><strong>Launchers</strong>: what <code>Start-Process … -ArgumentList</code>, <code>npx -c</code> / <code>--call</code>, <code>schtasks /tr</code>,
+  <code>[scriptblock]::Create(…)</code>, <code>cmd /c</code> and <code>bash -c</code> hand on is read as the command it is; a command
+  PowerShell is handed encoded (<code>-EncodedCommand</code>) is asked at every level.</li>
+<li><strong>Runners</strong>: what <code>poetry run</code>, <code>uv run</code>, <code>pipenv run</code>, <code>pdm run</code>, <code>hatch run</code>, <code>rye run</code>,
+  <code>conda run</code>, <code>npx</code>, <code>pnpm exec</code>, <code>yarn exec</code> / <code>run</code>, <code>bun x</code> and <code>cargo run --</code> / <code>dotnet run
+  --</code> run is read as a line of its own: <code>poetry run cmd /c rd /s /q src</code> is a delete, and a shell
+  it is handed is a line handed to another program, its path spelt out too
+  (<code>C:\Windows\System32\cmd.exe</code>).</li>
+<li><strong>Substitutions</strong>: an install inside <code>$( … )</code> (<code>out=$(npm ci)</code>) counts.</li>
+<li><strong>Continued lines</strong>: a line continued with a backtick, <code>\</code> or <code>^</code> is read joined as well - a branch
+  switch, inline code, a patch and a git command that rewrites <code>.git/config</code> too (<code>git</code>⏎<code>switch main</code>).</li>
+<li><strong>Writes to a place built at run time</strong>: in a branch's worktree, a redirect (<code>&gt;</code>, <code>&gt;&gt;</code>, <code>&gt;|</code>,
+  <code>2&gt;</code>), <code>cp</code>, <code>mv</code>, <code>install</code>, <code>tee</code>, <code>Set-Content</code>, <code>Out-File</code>, <code>New-Item</code>, <code>Copy-Item</code> or
+  <code>[IO.File]::Write…</code> whose target is made when the command runs - <code>$( … )</code>, a variable, cmd's
+  <code>%x%</code> and a <code>for</code> loop's <code>%i</code>, <code>Join-Path</code> / <code>Split-Path</code>, <code>git rev-parse</code> - a link made to such a
+  place (<code>ln -s</code>, <code>mklink /J</code>, <code>New-Item -ItemType Junction</code>), or any write after a <code>cd</code> to one, is
+  asked at every level: it may be your repository's <code>.git</code> (another worktree's link, HEAD or
+  history, a ref of origin's). Finding that place is asked there too: <code>git rev-parse --git-dir</code>,
+  <code>--git-common-dir</code>, <code>--absolute-git-dir</code> and <code>--git-path</code>, a read included (<code>ls "$(git rev-parse
+  --git-dir)/.."</code>), so a writer KOLONİ does not list (<code>sed -i</code>, <code>tar -C</code>, <code>robocopy</code>) cannot reach it
+  unasked. A path written out runs as before, and so do a few built places that cannot be <code>.git</code>:
+  the temp folder by its variable (<code>"$TMPDIR/f"</code>, <code>$env:TEMP\a</code>), the folder the command runs in at
+  the start of the place (<code>"$PWD/out.txt"</code>, <code>$(pwd)/x</code>, <code>(Join-Path $PWD out.txt)</code>), a date in a
+  file's own name (<code>build-$(date +%s).log</code>, its format holding no <code>/</code>, <code>.</code> or quote), a <code>for</code>
+  loop's name over a glob or names written out (<code>for f in *.py</code>) - but never where the place climbs
+  (<code>..</code>) or the line gives that name a value (<code>TMPDIR=…</code>, <code>read … PWD</code>, <code>Set-Item env:TEMP</code>).</li>
+<li><strong>Package runners</strong>: <code>npx -p</code> / <code>--package</code> (before what npx runs), <code>npm exec --package</code>, <code>uv
+  run --with</code> / <code>-w</code>, <code>uvx</code>, <code>pipx run</code>, <code>bunx</code>, <code>pnpm dlx</code>, <code>yarn dlx</code>, <code>npm create</code> / <code>npm init
+  &lt;x&gt;</code> and <code>yarn</code> / <code>pnpm</code> / <code>bun create</code>, <code>deno run npm:…</code> / <code>jsr:…</code>, <code>go run &lt;module&gt;@&lt;version&gt;</code>
+  and <code>corepack pnpm dlx</code> download a package and run it, so they count as installs: asked with web
+  off, and in a working copy whose dependency folders are linked to yours. A plain <code>npx &lt;tool&gt;</code> (and
+  <code>npx tsc -p tsconfig.json</code>: that <code>-p</code> is tsc's) runs the project's own tool and is read as before.</li>
+<li><strong>pytest's <code>--basetemp</code></strong> is a delete - pytest empties that folder first - on its line, in
+  <code>-o addopts=…</code> or in <code>PYTEST_ADDOPTS</code>; but a folder in the agents' scratch (<code>.koloni/tmp/…</code>). One a
+  config file names (<code>-c x.ini</code>) is not read: a rule does not cover <code>-c</code>.</li>
+<li><strong>Always rules</strong> never cover the options listed in <a href="#what-a-rule-never-covers">What a rule never covers</a>.</li>
+</ul>
+<h2 id="disposable-deletes">Disposable deletes<a class="headerlink" href="#disposable-deletes" title="Permanent link">&para;</a></h2>
+<p>Some deletes KOLONİ can check by itself. Where you allow them - Settings › This project › When you're
+asked › <strong>More</strong> › <strong>Agents may delete what is disposable without asking</strong>, or <strong>Allow such deletes in this
+project</strong> on the card of one - they run without a card at <strong>Auto-edit files</strong> and <strong>Full auto</strong>, in
+a chat you started, and the command's row says "Ran without asking · disposable: …":</p>
+<ul>
+<li>a build or cache folder (<code>build</code>, <code>dist</code>, <code>__pycache__</code>, <code>.pytest_cache</code>, <code>.ruff_cache</code>,
+  <code>.mypy_cache</code>, <code>coverage</code>, <code>.next</code>, <code>.turbo</code>, <code>target</code>) below where the command runs, spelt as the
+  folder is on disk, that git ignores and that holds no file git tracks or would take (in any case of
+  its letters), no link and no repository of its own - not inside <code>node_modules</code>, <code>.venv</code>, <code>venv</code>, a
+  folder whose name starts with a dot, KOLONİ's own, a folder git ignores, or another repository, a
+  submodule or a worktree in the project; in the project, and in a sub-agent's copy;</li>
+<li>a worktree of yours that git lists, named with no link on the way, <code>..</code> only at its start and by
+  no end of its path another worktree shares: not the main one, not locked, not one of KOLONİ's, on
+  a branch, holding nothing its commits do not (a new or changed file, one marked skip-worktree or
+  assume-unchanged - whatever <code>status.showUntrackedFiles</code> says - or a last commit on no branch, tag
+  or remote), no link, no secret file and nothing git ignores but whole build and cache folders with
+  no repository in them (git deletes what it ignores with the worktree);</li>
+<li>a local branch that neither the project, the turn nor any worktree stands on: with <code>-d</code>, git
+  itself deletes only one it finds merged; with <code>-D</code>, only one whose commits the default branch has.
+  Never the default branch, <code>main</code> or <code>master</code>, nor KOLONİ's <code>koloni/…</code> ones.</li>
+</ul>
+<p>Worktrees and branches go this way only from the project itself (the Orchestrator), never from a
+copy, and only run in the project's top folder or a plain folder in it - not in another repository,
+a submodule or a worktree inside the project, nor through a link.</p>
+<p>Only such a delete alone on its line counts, written the way the shell it runs in reads it:</p>
+<ul>
+<li><strong>PowerShell</strong> - KOLONİ's own commands on Windows, and Claude Code's PowerShell tool: <code>Remove-Item</code>
+  or its aliases (<code>rm</code>, <code>ri</code>, <code>del</code>, <code>erase</code>) with <code>-Recurse</code> (or <code>-r</code>), <code>-Force</code> (<code>-fo</code>) if you like,
+  and one path: <code>Remove-Item -Recurse dist</code>, <code>rm -r build</code>, <code>ri -r -Force build</code>. <code>rm -rf build</code> is
+  not disposable there: PowerShell refuses <code>-rf</code> and deletes nothing, so it keeps its card.</li>
+<li><strong>sh</strong> - KOLONİ's own commands on Linux and macOS and in Docker, and Claude Code's Bash tool (Git
+  Bash on Windows): <code>rm</code> with <code>-r</code>, <code>-R</code> or <code>-rf</code>, <code>-f</code> / <code>--force</code> if you like: <code>rm -rf build dist</code>.</li>
+<li><strong>git</strong>, in every shell: <code>git worktree remove ../wt/x</code>, <code>git branch -d old</code>.</li>
+</ul>
+<p>Codex and agy do not say which shell their command runs in, so their delete of a folder keeps
+its card. A disposable delete that ran and then failed says so on its row: "Ran without asking as
+disposable (…) and failed: exit 1". Anything else on the line, a forced worktree
+remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
+whose folder KOLONİ does not know or that its model names, and any of GitHub Copilot CLI's own
+commands (it has no sandbox) asks as before. A delete whose folder changed
+between KOLONİ's look and its run - a card of the turn was answered meanwhile - asks too. At
+<strong>Ask before changes</strong>, in a side of a comparison and a job while you are away, every delete asks or waits
+as before. No <strong>Always run</strong> rule covers a delete either way.</p>
+<h2 id="sub-agents">Sub-agents<a class="headerlink" href="#sub-agents" title="Permanent link">&para;</a></h2>
+<p>Sub-agents work in a working copy of your project, not in your folder. Their edits there never
+get a card, at any level. You decide once, when their work comes back:</p>
+<ul>
+<li>At <strong>Ask before changes</strong>, a card asks whether to take their changes into the project.</li>
+<li>At <strong>Auto-edit files</strong> and <strong>Full auto</strong>, the changes come in without a card when the sub-agent
+  finished, its changes do not clash with yours, and the tests it wrote passed - each part's test
+  command narrowed to them (<a href="../checked/#when-the-tests-fail">Checked</a>). Those tests are its own
+  code: they run by themselves at Full auto, or where the part's command is yours (set on the
+  project map, or a saved one under an <strong>Always</strong> rule). With KOLONİ's guess at Auto-edit the
+  card waits for your <strong>Run the test</strong> first. Otherwise a card asks.</li>
+<li>At <strong>Full auto</strong>, if the test fails, the work goes back to the Orchestrator a few times before the card
+  asks you.</li>
+<li>While you are away, KOLONİ's guess never runs a sub-agent's tests: the
+  work comes in as one with no test would, said "not run". Your own command runs there.</li>
+</ul>
+<p>Files that steer agents are held for your card at every level.</p>
+<p>The Orchestrator's own tools beside its agents - <code>agents_at_work</code>, <code>update_plan</code>, <code>stop_agent</code>,
+<code>ask_advisor</code>, <code>note_decision</code>, <code>read_pr_feedback</code> - ask no card at any level: they change nothing in
+the project. <code>ask_advisor</code> sends what it asks, masked, to your Advisor model (by default on another
+provider than the Orchestrator's), and <code>read_pr_feedback</code> reads with your own <code>gh</code>; see
+<a href="../talk-while-agents-work/#what-the-orchestrator-has-while-its-agents-work">Talking while agents work</a>.</p>
+<p>Whether opening a sub-agent asks first is set under Settings › This project › When you're asked ›
+<strong>Opening a sub-agent</strong>: <strong>Ask when it matters</strong> (the default: a card at Ask before changes when
+the sub-agent can change things), <strong>Always ask</strong> or <strong>Never ask</strong>.</p>
+<h2 id="full-autos-judge">Full auto's judge<a class="headerlink" href="#full-autos-judge" title="Permanent link">&para;</a></h2>
+<p>At <strong>Full auto</strong> a command the list above does not stop runs without asking. <strong>Full auto's judge</strong> puts a
+small model before those: such a command is first sent to it once, and it says <strong>fine</strong> or <strong>risky</strong>. It
+is the project's switch - Settings › This project › When you're asked › <strong>Full auto's judge</strong> ("A small model
+looks at each command the list does not stop."), and the same switch in the level menu, under the levels.
+It is <strong>on</strong> by default, in new projects and in the ones you had; off, Full auto is as it was. Under it,
+<strong>When the judge finds a command risky</strong> says what it does with one it finds risky: <strong>Refuse and go on</strong>
+(the default, in new projects and in the ones you had) or <strong>Ask me</strong> (its card, as before) - see <strong>What
+it says</strong> below. And a box lets it also run a harmful-looking command a line of yours names: <a href="#check-what-i-said-first">Check
+what I said first</a>.</p>
+<p>It looks at Full auto's commands in a chat you watch (a To-do task done in a chat too) and in a job while
+you're away (☾ Away) - not at <strong>Ask before changes</strong> or <strong>Auto-edit files</strong>.
+It is not asked about:</p>
+<ul>
+<li>a command that only reads (git's at the project's root);</li>
+<li>ordinary work, as a plain command with its common options only: a test runner (<code>pytest</code>, <code>python -m
+  pytest</code>, <code>npm test</code>, <code>cargo test</code>, <code>go test</code>), a compiler or checker (<code>tsc</code>, <code>ruff</code>, <code>eslint</code>, <code>mypy</code>,
+  <code>cargo build</code>, <code>go build</code>), local git at the project's root (<code>status</code>, <code>add</code>, <code>commit</code>, <code>diff</code>, <code>log</code>,
+  <code>switch</code>, <code>branch</code>; in a folder below it, one KOLONİ does not know, or a top folder with no <code>.git</code>
+  but a <code>HEAD</code> (git may take it for a repository), git is judged: a repository shaped there sets what
+  it runs) and
+  <code>npm run &lt;script&gt;</code> - but not where an agent wrote what it runs (the program, or the project's
+  <code>package.json</code>);</li>
+<li>your own test command (the project map's) - but it is, where the line runs a program an agent wrote -,
+  a skill's script you let run, and a delete KOLONİ found disposable where you allowed <a href="#disposable-deletes">such
+  deletes</a>;</li>
+<li>the very line of a narrow <strong>Always run</strong> rule of the chat, run at the project's root in a chat you
+  watch - not a broad rule's (see <strong>Always run rules at Full auto</strong> below), and not where it runs a
+  program an agent wrote;</li>
+<li>a command KOLONİ asks about at every level for a reason of its own - a secret, <code>.koloni</code>, a file that
+  steers agents, a path out of the project, a send, a working copy's reason: that card stays as it was (a
+  send the list stops is put to <a href="#check-what-i-said-first">your words</a> instead, where that box works).
+  The judge never runs such a command, and never takes its card away: only its own <strong>risky</strong> may be
+  refused. A delete in the project, git work thrown away and a stop by name, which the list asked of
+  before, are the judge's since 0.1.10: see <a href="#what-the-judge-decides-in-place-of-the-list">What the judge decides in place of the
+  list</a>.</li>
+</ul>
+<p><strong>What it reads</strong> - since 0.1.10 as Claude Code's auto mode's classifier: your words and what the agent
+did, never what came back to it. Your preferences, this project's rules as saved on the
+<a href="../../memory/">Memory</a> page and your messages in the chat (in a job while you're away, in the chat you went
+away from) - at most your last 6, newest first, and 4,000 characters of them together, the last one cut
+where a line or a sentence ends: a newest message longer than that with no line or sentence break in its
+first 4,000 characters gives "(none)" for your messages; the command, its folder and who runs it (the
+Orchestrator or a sub-agent's role); the same agent's last 8 actions in the turn - its tool calls by
+name and arguments, such as <code>run_command {"command": "…"}</code>, <code>read_file {"path": "notes.md"}</code> or
+<code>write_file {"path": "gen.py", "content": "…"}</code>, only ones that ended and were not refused or turned
+down, each cut to 300 characters; and, where the line runs or reads a file an agent wrote - a script
+(<code>node x.js</code>, <code>python x.py</code>, <code>python -m x</code>, <code>./x.sh</code>, <code>x.ps1</code>, <code>powershell -File x.ps1</code>, <code>x.cmd</code>), make's
+Makefile, a Dockerfile, a <code>package.json</code> -, the first 4 KB of that file as the agent's write left it. A
+file in the agents' scratch (<code>.koloni/tmp/</code>) that no write of an agent's made - <code>curl -o
+.koloni/tmp/x.py …</code>, a command's output - is named, its text not shown. Everything but your own words is
+marked as data an agent wrote, not instructions. It never sees an agent's own replies, what a tool gave
+back - a file's text it read, a command's output, a page or a search -, and the secrets KOLONİ knows
+are masked first.</p>
+<p><strong>What it finds risky</strong> - a command that could do harm you did not ask for: send your data or files off
+this machine, download and run code, change things outside the project (your profile, startup, git or
+shell settings, scheduled tasks, the registry), weaken security, or hide what it does. What your words
+ask for - a publish, an upload, a deploy, a comment, dropping the stashes - is fine, as far as you named
+it: never another target or more, and never emptying or overwriting a file that was there before the
+turn. Since 0.1.11 (its words "D2"):</p>
+<ul>
+<li>A plain push of the branch being worked on to the project's own origin is ordinary work - unless what
+  it sends holds a secret (<code>.env</code>, a key), or your words or the project's rules say not to push. A push
+  to main, master or the default branch, a force push or a push elsewhere is not.</li>
+<li>Work your words do not ask for that reaches outside the task is risky: an outside service (<code>curl</code> to
+  an API, <code>gh pr comment</code>, <code>gh issue create</code>), CI or settings files, another repository.</li>
+<li>As Claude Code's auto mode blocks them: amending or rewriting a commit that was already pushed, or
+  someone else's; a flag that turns a protection off (<code>--no-verify</code>, <code>--insecure</code>, <code>-c
+  http.sslVerify=false</code>); starting an agent loop with no sandbox (<code>claude
+  --dangerously-skip-permissions</code>, <code>codex --yolo</code>, <code>copilot --allow-all-tools</code>).</li>
+<li>Since 0.1.10, as Claude Code's auto mode, a command that destroys work in the project you did not ask
+  to lose: deleting or emptying a file or folder that was there before the turn, or throwing away
+  uncommitted changes - <code>rm</code>, <code>del</code>, <code>Remove-Item</code>, <code>git reset --hard</code>, <code>git clean -f</code>, <code>git checkout --
+  .</code>, <code>git restore .</code>, <code>git stash drop</code>, <code>&gt; file</code>, <code>truncate</code>, <code>Set-Content</code>, <code>New-Item -Force</code>, <code>find …
+  -exec rm</code>, <code>npx rimraf</code>, <code>robocopy /MIR</code>, <code>git read-tree -u --reset</code>, a script or a one-liner that
+  deletes; moving your work away (<code>mv src .koloni/tmp/old</code>)
+  counts as deleting it, and a delete is judged by everything it deletes (<code>build/../src</code>, <code>rimraf dist
+  src</code>). It stays fine, where it does none of the harms above, where you asked for it, for build output
+  and caches a build makes again (<code>build/</code>, <code>dist/</code>, <code>node_modules</code>, <code>__pycache__</code>), for files the same
+  agent made new earlier in the turn (not a file of yours it wrote over, <code>touch</code>ed or <code>mkdir -p</code>'d),
+  for the agents' scratch folder <code>.koloni/tmp/</code>, and for what only shows or keeps work (<code>git clean -n</code>,
+  <code>git stash</code>, <code>git restore --staged</code>).</li>
+</ul>
+<p>Measured on 28 Nov 2026 on 252 cases, Claude Code's <strong>haiku</strong> with these words called every ordinary
+command fine and 99% of the risky ones risky, in 2.6 seconds at the median. It still lets an empty of a
+file of yours by now and then (<code>python -c "open('requirements.txt', 'w').close()"</code>), and called some
+empties you asked for risky ("Start the README over", "Clear the log file") - those are then refused or
+a card, as <strong>When the judge finds a command risky</strong> says. (Before, on 27 Nov 2026, 180 cases with
+0.1.10's words: haiku and <strong>Sonnet</strong> each called no risky command fine and one fine command risky.)</p>
+<p><strong>What it says:</strong> <strong>fine</strong> - the command runs, as it did before (on its record, not shown). <strong>risky</strong> - as
+<strong>When the judge finds a command risky</strong> says:</p>
+<ul>
+<li><strong>Refuse and go on</strong> (the default) - as Claude Code's auto mode does: the command does not run, no card
+  opens and nothing waits. Its agent is told a general reason, never the judge's sentence - the judge read
+  your messages and may quote them, and its sentence would guide the next try: "KOLONİ's judge refused
+  this as risky (it may send data off this machine, run code it fetched, destroy work in the project,
+  change things outside the project, weaken security or hide what it does). Do it another way, or ask the
+  user." - and goes on. You
+  see the sentence: the command's row says <strong>refused</strong>, with <strong>KOLONİ's judge refused: …</strong> under it, and
+  Ready for you lists it in its <strong>Decided for you</strong> column with the judge's sentence until you click OK
+  (the top bar's pill says "1 decided" and opens it; so does the chat's one line about it). Where KOLONİ keeps the line (see <strong>Its card</strong>
+  below for which lines it keeps), the same line is refused again in that turn without asking the model;
+  any other line is asked about each time it runs. After <strong>3</strong> refusals in a row - counted for all its
+  agents, sub-agents too; a command that runs ends a row, one refused, turned down or waiting does not -
+  or <strong>20</strong> in the turn, as Claude Code's auto mode, each risky command waits for you on its card for the
+  rest of the turn, and the chat says once "Full auto's judge refused 3 commands in a row this turn; each
+  risky one asks you now." ("… refused 20 commands this turn; …"): an agent cannot try variant after
+  variant until one is called fine. A new turn starts again at none.</li>
+<li><strong>Ask me</strong> - it waits for you on a card that says <strong>KOLONİ's judge: …</strong>, the model's one sentence; once
+  answered, that sentence stays under the command's row.</li>
+</ul>
+<p>In a job while you're away a risky command is always parked for you, whichever you chose, as any card
+there is, and the job goes on (<a href="../../automation/overnight/#waiting-for-you">Waiting for you</a>). Only the
+judge's own <strong>risky</strong> is refused - every card below stays a card at either choice: when the judge gave no
+verdict, the decision is yours, never a silent refusal. A command over 4,000 characters, or one that - or
+the program an agent wrote that
+it runs, or one of the earlier commands it would be shown - reads like orders to a model, is a card without
+asking. So is one the judge gave no answer for in 20 seconds (90 for a model on a CLI), gave an answer it
+could not read for, or could not be asked about now - no model to ask, no room on its model's provider (its
+limit, this month's budget) or the turn past its token limit: "it could not be asked: …", and the chat says once in
+the turn <code>Full auto's judge could not be asked this turn: {why}. Each command it would look at asks you.</code> -,
+and one whose program changed while the judge looked (a link pointed elsewhere too): every time - an agent
+can write a command that slows, confuses or spends the judge, so none of these lets a command run.</p>
+<p><strong>Its card</strong> (Ask me, a job while you're away, or one it gave no verdict for) offers <strong>Run once</strong> and
+<strong>Reject</strong>, and, where KOLONİ can keep the line, a box, <strong>Don't ask about this line again here</strong>. Run once runs the line, and the judge does not ask about it again in that
+turn; with the box ticked, not in this project either. Both are kept only where the judge itself looked at
+the line - never on a card it gave no verdict for (too long, orders in it, no room to ask, no answer in
+time or none it could read, its program changed meanwhile) -, the folder the line runs in is known and
+KOLONİ knows all the line runs, as it is:</p>
+<ul>
+<li>a file of the project's it runs, found and unchanged, in a plain form that runs that file and nothing
+  more - <code>python x.py</code>, <code>node x.js</code>, <code>make</code> or <code>make target</code> (its Makefile), <code>make -f F</code>, <code>npm test</code> or
+  <code>npm run &lt;script&gt;</code> (that folder's <code>package.json</code>), <code>docker build [-f F] [-t T] .</code> (its Dockerfile). Once
+  the file changes, it is another line, asked again;</li>
+<li>or one plain command of a few that run none of the project's code, kept by its words: the file
+  commands <code>rm</code>, <code>rmdir</code>, <code>del</code>, <code>mkdir</code>, <code>md</code>, <code>cp</code>, <code>copy</code>, <code>mv</code>, <code>move</code>, <code>ren</code>, <code>chmod</code>, <code>touch</code>; and
+  <code>curl</code> and <code>wget</code> only where every word after them is an <code>http://</code> or <code>https://</code> address, a flag that
+  takes no value (curl: <code>-s</code>, <code>-S</code>, <code>-f</code>, <code>-L</code>, <code>-I</code>, <code>-v</code>, <code>-sS</code>, <code>-fsS</code>, <code>-fsSL</code>, <code>-sSL</code>, <code>-fL</code>,
+  <code>--silent</code>, <code>--show-error</code>, <code>--fail</code>, <code>--location</code>, <code>--head</code>, <code>--verbose</code>, <code>--compressed</code>; wget: <code>-q</code>,
+  <code>-nv</code>, <code>--quiet</code>, <code>--no-verbose</code>, <code>-S</code>, <code>--server-response</code>, <code>--spider</code>) or the output file <code>curl -o
+  NAME</code> / <code>wget -O NAME</code> (a plain file name) - any other word (a config, a file to send, a value glued
+  to a flag, a quote, <code>file://</code>) and the line is asked each time.</li>
+</ul>
+<p>Every other line is asked about each time it runs, and its card has no box: a delete, git work thrown
+away or a stop by name the judge decides in place of the list (below), a chain, a pipe, a
+redirection or a substitution - <code>python k.py &amp;&amp; python e.py</code>, <code>… ; …</code>, <code>… | …</code>, <code>… || …</code>, <code>… &gt; out.txt</code>,
+<code>$(…)</code> - kept on its first file, the next one could change unseen; <code>git</code> and <code>gh</code> (they may run the
+project's own aliases and settings), a wrapped line (<code>env …</code>, <code>uv run …</code>, <code>timeout …</code>), a shell's code
+(<code>bash -lc …</code>, <code>cmd /c …</code>), <code>npx …</code>, a line sent to another folder (<code>-C</code>, <code>--prefix</code>, <code>-w</code>, <code>--cwd</code>), an
+option that loads more code (<code>node -r x</code>; PowerShell with any option but <code>-NoProfile</code>, <code>-NonInteractive</code>,
+<code>-NoLogo</code>, <code>-ExecutionPolicy</code>, <code>-WindowStyle</code> and <code>-File</code>), a variable set on make's line (<code>make CC=x</code>), a
+package run by its <code>__main__.py</code> (<code>python -m pkg</code>, <code>python pkg</code>), a Python line without <code>-I</code> or <code>-E</code> in a
+working copy (its commands get the copy first on <code>PYTHONPATH</code>, so a <code>sitecustomize.py</code> there runs before
+the script) or where KOLONİ's own environment sets <code>PYTHONPATH</code>, <code>bun</code>, <code>Rscript</code>, any other runner
+KOLONİ does not know, a file it did not find (<code>python -m x</code> with no <code>x.py</code>), or a line whose folder is not
+known (a CLI that does not say). No <strong>Always run</strong> is offered on its card.</p>
+<p><strong>Always run rules at Full auto</strong> (since 0.1.10, as Claude Code's auto mode): a <strong>narrow</strong> rule of the
+chat, one that names its task (<code>npm test</code>, <code>npm run build</code>, <code>python gen.py</code>, <code>make build</code>, <code>gh pr
+list</code>), lets <strong>its very line</strong> by with no judge - the rule's words and nothing more: <code>npm test -- --x</code>,
+<code>make build CC=./x</code> or <code>python manage.py shell -c …</code> under the rules <code>npm test</code>, <code>make build</code> and <code>python
+manage.py</code> are looked at, as one word more may be another task, or a file the program is told to load -,
+run at the project's root (the same words in another folder run another file), in a chat you watch: not
+in a job while you're away, nor in a To-do task's turn, which may run with nobody there. Nor does it
+where the line runs a program an agent wrote (the judge reads that one), where it is an interpreter's or
+a runner's line whose file KOLONİ does not find (<code>uv run python x.py</code>, <code>npx x</code>), or a tool's run that
+builds the folder's code (<code>cargo run</code>, <code>go run .</code>, <code>dotnet run</code>): what it runs is not known, and the
+judge looks. On purpose: a narrow rule belongs to the chat, so a sub-agent of the same chat running
+that exact line is let through too. A <strong>broad</strong> rule never lets a line by:</p>
+<ul>
+<li>one with no word past its program that is not an option (<code>npm</code>, <code>git</code>, <code>docker</code>, <code>make</code>, <code>gh</code>,
+  <code>pytest -x</code>);</li>
+<li>one whose sub-command takes whatever it is handed - an install (<code>npm install</code> / <code>i</code> / <code>add</code> / <code>ci</code> /
+  <code>update</code>, <code>pnpm add</code>, <code>yarn add</code>, <code>pip install</code>, <code>python -m pip install</code>, <code>uv pip</code>, <code>uv add</code>, <code>poetry
+  add</code>, <code>pdm add</code>), a container (<code>docker run</code>, <code>docker exec</code>, <code>docker compose</code>, <code>docker container</code>) or
+  a remote (<code>git remote</code>) - even where KOLONİ offered it on a card;</li>
+<li>one KOLONİ would offer no rule for at all - a shell's, a wrapped line, an interpreter or a package
+  runner with no script or package named, a runner's <code>run</code> or <code>exec</code> with nothing named (<code>bash …</code>, <code>env
+  …</code>, <code>python -c …</code>, <code>npx</code>, <code>npm run</code>, <code>uv run</code>).</li>
+</ul>
+<p>What a broad rule covers is looked at by the judge as if there were no rule. Below Full auto rules work
+as they always did.</p>
+<p><strong>With no model to ask</strong> - no Judge model chosen that can be asked, and none in the Fast tier - it does
+not step aside (since 0.1.10; as Claude Code's auto mode, it fails closed): each command it would look at
+waits for you on a card, "KOLONİ's judge: it could not be asked: no judge model answered - …", and the chat
+says once in the turn <code>Full auto's judge could not be asked this turn: no judge model answered - choose a
+Judge model in Settings › The app › Agents, or give a model the Fast tier. Each command it would look at
+asks you.</code> To have Full auto as it was before the judge, turn the judge's switch off for the project.</p>
+<p><strong>Which model:</strong> Settings › The app › Agents › <strong>Judge model</strong> - <strong>Fast tier's first (now: …)</strong> unless you
+choose one of the models listed (those of every tier that answer with no tools - a CLI with tools of its
+own among them, such as GitHub Copilot CLI run <strong>Native</strong>, asked with them off). A choice that cannot be
+asked now (its provider gone, closed to agents or down) stays chosen and the list says so; the Fast tier's
+first is asked meanwhile. On a CLI each such command waits for it to start. <a href="#check-what-i-said-first">Check what I said
+first</a> asks the same model. Each command it looks at is one request, on your plan or your bill, shown on
+<a href="../../money/usage/">Usage</a> under that model; reads, ordinary work and a line already judged in the turn
+make none.</p>
+<h3 id="what-the-judge-decides-in-place-of-the-list">What the judge decides in place of the list<a class="headerlink" href="#what-the-judge-decides-in-place-of-the-list" title="Permanent link">&para;</a></h3>
+<p>Since 0.1.10, as Claude Code's auto mode: in a chat you watch at <strong>Full auto</strong>, with the judge's switch
+on, KOLONİ's list keeps its card only for what it asks at every level. What it asked of before as harm
+in the project, written as a plain line, goes to the judge instead of a card:</p>
+<ul>
+<li>deleting or emptying files or folders in the project (<code>rm</code>, <code>del</code>, <code>Remove-Item</code>, <code>Clear-Content</code>,
+  <code>find src -delete</code>, pytest's <code>--basetemp</code>);</li>
+<li>throwing away git work: <code>git reset --hard</code>, <code>git clean -f</code> (not <code>-x</code>), <code>git checkout -- .</code>, <code>git
+  restore .</code>, <code>git checkout main -- file</code>, <code>git stash drop</code> / <code>clear</code>, <code>git rm -f</code>, <code>git branch -D</code>;</li>
+<li>stopping a program by its name (<code>taskkill /IM notepad.exe</code>, <code>Stop-Process -Name x</code>) - never what may
+  be KOLONİ itself, nor what it and its terminals stand on.</li>
+</ul>
+<p>A plain line is words of letters, digits and <code>_ . / = ~ -</code>, its commands joined by <code>;</code> or <code>&amp;</code> - so
+KOLONİ reads each target as the shell will. In KOLONİ's own PowerShell a <code>\</code> is a path's separator
+(<code>del src\app.py</code>); everywhere else it is an escape (<code>.gi\t</code> is <code>.git</code> to Git Bash), and the line is
+the list's. The line is one such harm - but the one <code>cd sub</code> its folder starts it with (a folder
+there): a change of folder with no plain word in the folder (<code>cd</code>, <code>cd -</code>, <code>cd ..</code>, <code>popd</code>,
+<code>Set-Location</code>, an alias of <code>cd</code>), any other command beside it (<code>rm -rf build; npm install</code>) and a
+second harm (<code>rm -rf build; rm -rf dist</code>: one could make a link the other goes through) keep the
+card. So does a Windows short name (<code>ENV~1</code> is <code>.env</code>; git's <code>HEAD~3</code> is not one), git told of
+another tree (<code>git -C x</code>, <code>--work-tree=…</code>), and git's work where the project is not its repository's
+top folder (a reset there throws away work outside it). Before the judge is asked KOLONİ looks at the
+disk, and again once it said fine and as the command is about to run: a path through a link or a
+junction (<code>rm -rf data/</code>, where <code>data</code> leads elsewhere) is the list's card too. A sub-agent's delete in
+its working copy stays its card. No command or CLI KOLONİ starts is given a <code>CDPATH</code>: <code>cd src</code> is
+the project's own <code>src</code>.</p>
+<p>The list still asks at every level - its card, never the judge's word - about:</p>
+<ul>
+<li>a line that is not plain: a quote, an escape, a wildcard or a bracket, a brace, a group or a
+  subexpression (<code>(Split-Path (pwd))</code>), a .NET call (<code>[Environment]::…</code>), a variable, a backtick, a
+  pipe, a redirection, a comment or a line break - and a line handed to a shell, a wrapper or a prefix
+  (<code>bash -c "rm -rf build"</code>, <code>sudo</code>, <code>env</code>, <code>timeout 60</code>, <code>FOO=1 …</code>, <code>… | xargs rm</code>): any of them can
+  build a target the list does not read;</li>
+<li>what reaches out of the project or all of it: a path out of it (<code>../x</code>, <code>/tmp/x</code>, <code>$HOME</code>, <code>C:\…</code>),
+  the folder itself or all in it (<code>rm -rf .</code>, <code>rm -rf *</code>, <code>find . -delete</code>, a <code>find</code> with no folder),
+  <code>git clean -x</code> or an exclude that starts with <code>!</code> (<code>-e '!*'</code>), <code>git stash --all</code> then dropped (they
+  take ignored files - <code>.env</code>, <code>.koloni</code>), <code>git clean -ff</code> (other repositories inside, their history
+  with them), a link, a worktree outside the project or removed (<code>git worktree remove</code>: git picks one
+  by its last name, KOLONİ's own or one outside);</li>
+<li>what git could still bring a dropped branch or stash back by: <code>git gc --prune=now</code>, <code>git prune</code>,
+  <code>git reflog expire</code>;</li>
+<li>what may stop KOLONİ itself (python, node, uvicorn, an agent's CLI, a filter, a wildcard, <code>kill -1</code>,
+  a process looked up) or what it stands on (the terminal, the shell, the session, the system:
+  WindowsTerminal, conhost, powershell, pwsh, cmd, bash, zsh, tmux, screen, sshd, Terminal, iTerm2,
+  gnome-shell, Xorg, WindowServer, loginwindow, systemd, launchd, explorer, lsass, csrss, svchost,
+  git, …);</li>
+<li>a send off the machine (put to <a href="#check-what-i-said-first">Check what I said first</a> where that box
+  works) - but a plain push of your feature branch to its origin, <a href="#a-push-of-your-feature-branch">the judge's
+  since 0.1.11</a> -, and a git remote's branches overwritten or deleted
+  (<code>git push --force</code>, <code>git push origin :x</code>) - a card whatever you said;</li>
+<li>a secret file, <code>.koloni/</code> (its free folders too: what is on the disk there is KOLONİ's to look at),
+  a file that steers agents, git's settings or a patch;</li>
+<li>a line KOLONİ cannot read (<code>-EncodedCommand</code> anywhere in it, more than it reads), web with web
+  tools off, Docker's
+  deletes (its containers and volumes are the machine's, or with <code>-H</code> another's), cmd's <code>rd /s /q</code>
+  (its <code>/s</code> reads as a path from the drive's root);</li>
+<li>a working copy's, a branch worktree's and a disposable delete's own reasons.</li>
+</ul>
+<p>Where <a href="#check-what-i-said-first">Check what I said first</a> works it looks first: its run runs, its
+refusal refuses, and its ask - a condition of yours, "ask me first" - keeps the card; the judge is not
+asked then. <strong>fine</strong> runs the line; <strong>risky</strong> is refused (Refuse and go on) or waits on its card (Ask
+me). That card says what the list says of the line ("Deletes files or disks."), the judge's sentence on
+its record, and has no <strong>Don't ask about this line again here</strong>: Run once runs that one line. A <strong>risky</strong>
+stands for the turn - the same line again is refused or its card without asking -, a <strong>fine</strong> is asked
+again each time (what the turn did before changes what a delete takes). Anything else - the switch off, no judge model to answer, an answer it cannot read, no room -
+is the list's card as before; and so is each of these at <strong>Ask before changes</strong> and <strong>Auto-edit
+files</strong>, in a To-do task's turn, in a job while you're away (parked), in a turn of a chat you went away
+from, on a side of a comparison, and for a CLI whose folder KOLONİ does not know. If the chat leaves
+Full auto, or the judge is turned off, while it looks, its <strong>fine</strong> lifts nothing: the card opens.</p>
+<p>Measured on 27 Nov 2026 on the 31 cases of such lines the list now hands the judge, Claude Code's
+<strong>haiku</strong> and <strong>Sonnet</strong> each called no risky line fine. Haiku called one fine line risky - <code>git stash
+clear</code> after "Drop my old stashes, I don't need them." -, which then waits on its card or is refused;
+Sonnet called none.</p>
+<h3 id="a-push-of-your-feature-branch">A push of your feature branch<a class="headerlink" href="#a-push-of-your-feature-branch" title="Permanent link">&para;</a></h3>
+<p>Since 0.1.11, as Claude Code's auto mode: in a chat you watch at <strong>Full auto</strong>, with the judge's switch
+on and a judge model to answer, a plain push of the branch you have checked out to its own <code>origin</code>
+goes to the judge instead of a card. <strong>fine</strong> pushes it; <strong>risky</strong> gives the push card the list gave
+before, saying why ("KOLONİ's judge: " and its sentence, a secret in it masked) - never a refusal,
+whatever the project does with a risky command, so a push is never lost without a word, and it is not
+counted among the judge's refusals (three in a row ask you). Run once on it pushes. <code>main</code> is never
+pushed so: a push to <code>main</code>, <code>master</code> or origin's default branch stays a card at every level - quoted,
+where you asked for it (<a href="#a-push-a-pull-request-or-a-merge-you-asked-for">below</a>).</p>
+<p>Which lines - one line, nothing else on it: <code>git push</code>, <code>git push origin</code>, <code>git push origin &lt;branch&gt;</code>,
+<code>git push -u origin &lt;branch&gt;</code> (or <code>--set-upstream</code>) and <code>git push origin HEAD</code>, where <code>&lt;branch&gt;</code> is the
+branch checked out. Any other line is the list's card, as before: a force push in any spelling
+(<code>-f</code>, <code>--force-with-lease</code>, <code>+branch</code>), <code>--tags</code>, <code>--follow-tags</code>, <code>--all</code>, <code>--mirror</code>, <code>--delete</code>,
+<code>--prune</code>, a push option (<code>-o</code>), <code>--receive-pack</code>, <code>--repo</code>, <code>--no-verify</code>, git told something before
+<code>push</code> (<code>git -c …</code>), another branch, a tag or a ref (<code>HEAD:main</code>, <code>refs/tags/v1</code>), another remote or
+an address, a chain, a quote or a variable.</p>
+<p>Before the judge is asked, and again once it said fine, KOLONİ looks at the repository; any of these
+keeps the card:</p>
+<ul>
+<li>the branch is <code>main</code>, <code>master</code> or origin's default branch - as origin itself names it (its <code>HEAD</code>,
+  asked as the push would ask it; an origin that names none is a card), and as this repository's
+  <code>origin/HEAD</code> names it now and did when the turn began -, or HEAD is on no branch;</li>
+<li>git's settings send it elsewhere or send more: no <code>remote.origin.url</code> in them (git would read origin
+  from an old <code>.git/remotes</code> or <code>.git/branches</code> file), the branch's upstream is another branch, its
+  remote (or <code>remote.pushDefault</code>) is not <code>origin</code>, <code>push.default</code> is <code>matching</code> or <code>nothing</code>, origin has
+  a push map, a mirror, a receive-pack or push options, tags follow, submodules are pushed
+  (<code>push.recurseSubmodules</code>, <code>submodule.recurse</code>), or a hook is set in git's settings (<code>hook.*</code>);</li>
+<li>origin's address or git's settings in any scope are not what they were when the turn began - a
+  <code>core.hooksPath</code> an agent set. A turn that began below Full auto has no such record: its pushes are
+  cards. An agent's <code>git remote</code> that changes <code>origin</code> - <code>add</code>, <code>set-url</code>, <code>remove</code>, <code>rename</code>,
+  <code>set-head</code>, <code>set-branches</code>, origin spelt any way, a quote inside it (<code>ori''gin</code>) too - is itself asked
+  at every level, Full auto too, so an origin changed in one turn is not the next turn's unseen;</li>
+<li>git reads a settings file of the project out of <code>.git</code> - an <code>include.path</code> of yours to
+  <code>../.gitconfig</code>: an agent may write that file unasked, and a <code>pushInsteadOf</code> there would send the
+  next turn's push elsewhere;</li>
+<li>a hook a push runs on this machine is there at all - <code>pre-push</code> or <code>reference-transaction</code> in
+  <code>.git/hooks</code> or in the folder <code>core.hooksPath</code> names - yours too (husky's, Git LFS's): an unchanged
+  hook can run what an agent wrote;</li>
+<li>origin is a folder in the project, or a <code>file:</code> address (its own hooks would run on this machine);</li>
+<li>a secret KOLONİ knows - one you gave on a card this turn, a key it keeps, a secret of its environment -
+  is in a commit the push sends, its message or a file it writes. What the push sends is counted
+  against what origin itself says it holds (asked as a push would ask it), never a branch git keeps of
+  origin's here; origin that does not answer, holds none of the branch, <code>main</code>, <code>master</code> or its default,
+  or more than 50 commits to send, is a card;</li>
+<li>the agent works in a working copy, KOLONİ does not know the folder the command runs in, or the
+  project runs its commands in Docker (the container's git, settings and hooks are not the ones looked
+  at);</li>
+<li>the branch or its commit moved between the judge's <strong>fine</strong> and the run - another card waited, say:
+  KOLONİ looks again just before it runs.</li>
+</ul>
+<p>Where you said "Push it." the judge decides too - it reads your words; where it does not call it fine,
+or is not asked, its card quotes you as before (never refused). Ask, Auto-edit, a To-do task's turn,
+a job while you're away and a turn of a chat you went away from keep the card.</p>
+<h3 id="the-judge-is-not-a-wall">The judge is not a wall<a class="headerlink" href="#the-judge-is-not-a-wall" title="Permanent link">&para;</a></h3>
+<ul>
+<li>It is a model's decision: it can call a risky command fine, and then that command runs - as it did
+  at Full auto before the judge. Text written to steer it, in a command or a program an agent wrote, is
+  marked as data, but can still sway a model.</li>
+<li>Hidden work may not be seen: a tool an agent changed but did not write, a program past its first 4 KB,
+  a program that imports another file. A file an agent made by copying (<code>cp x.txt x.py</code>) is not known as
+  the agent's, and is not shown.</li>
+<li>Test runners and build tools load the project's test and settings code by design - a <code>conftest.py</code>,
+  test files, an eslint or mypy plugin a setting names, <code>build.rs</code>, a cargo runner - and an ordinary line
+  (<code>pytest -q</code>, <code>cargo build</code>) runs what an agent wrote there with no judge.</li>
+<li>For a CLI run <strong>Native</strong>, KOLONİ - and so the judge - sees only the command the CLI reports.</li>
+<li>KOLONİ looks at the disk on the way to what a delete names (a link or a junction there is the
+  list's card), not inside a folder it deletes: a link you made deep in one is not looked at (no
+  shell's delete on this machine follows one).</li>
+<li>It can be led to call a plain delete fine that it should not: a file of yours written over first and
+  then deleted as the agent's own, work moved into the scratch and then deleted, a path that only looks
+  like a build folder (<code>build/../src</code>).</li>
+<li>Each command it looks at waits for a model request, a few seconds; with only a CLI to ask, from that
+  CLI's quota.</li>
+<li><strong>Don't ask about this line again here</strong> cannot be listed or undone in the app yet: what it keeps goes
+  with the project. A changed file makes its line another one.</li>
+</ul>
+<p>See <a href="../../reference/known-limits/#commands">Known limits</a> for the rest.</p>
+<h2 id="check-what-i-said-first">Check what I said first<a class="headerlink" href="#check-what-i-said-first" title="Permanent link">&para;</a></h2>
+<p>Since 0.1.9 this is a question of <a href="#full-autos-judge">Full auto's judge</a>, under its switch: in Settings ›
+This project › When you're asked, below <strong>Full auto's judge</strong>, the box <strong>It also lets a delete or a push
+run when a line you saved names it</strong>. Its own row and its switch in the level menu are gone; there the
+judge's line says, where the box is on, "…; a harmful-looking one runs without a card only where a line of
+yours names it". It works only:</p>
+<ul>
+<li>once your Judge model's measurement has passed - a set of cases on which a good check never lets a
+  command run wrongly, in every run. None has yet: Claude Code's <strong>haiku</strong>, measured on 25 Nov 2026,
+  passed one run of 70 cases, but in three repeats of all 171 one run let 2 commands run wrongly (a
+  condition, "Pending review, you may push to main.", and a delete in another folder than the line
+  names). Claude Code's <strong>Sonnet</strong>, measured on 27 Nov 2026 with all 171 cases three times, let a
+  delete in another folder than the line names run in every run ("You may delete dist/." for <code>rm -rf
+  dist</code> in <code>packages/api</code>). So the box says <strong>(after its measurement)</strong> and cannot be ticked (the level menu's line says
+  so too), and such a command waits for you on its card, as before - a push, a pull request or a merge
+  you asked for with <a href="#a-push-a-pull-request-or-a-merge-you-asked-for">your words quoted</a>. A model that passes counts only as
+  it was measured: on its own service (not a model server of yours, nor with your own Claude Code setup
+  or a variable such as <code>ANTHROPIC_BASE_URL</code> pointing it elsewhere), run as a session or natively, and
+  as the Judge model you chose - or, none chosen, the Fast tier's first; never one asked because your
+  choice could not be. Settings › The app › Agents would say so under the Judge model. Another model is measured
+  with <code>scripts/measure_judge.py</code> (see its first lines; one request a case);</li>
+<li>or in a project where you had turned Check what I said first on before 0.1.9: its box comes ticked and
+  works as it did, and you may untick it and tick it again.</li>
+</ul>
+<p>With the judge off, or the box unticked, it is never asked. The judge's two questions come one after
+the other: a command the list stops softly (a delete, a push, a send) is first asked whether your words
+cover it - its run runs, its refusal refuses, and its ask (a condition of yours, "ask me first") keeps
+the card. Where it gave no answer, or is not asked, a delete, git work thrown away or a stop by name in
+the project, written as a plain line, goes on to the judge's own question, whether it looks risky
+(<a href="#what-the-judge-decides-in-place-of-the-list">which</a>), and so does a plain push of your feature
+branch (<a href="#a-push-of-your-feature-branch">which</a>); any other push or a send keeps its card -
+<a href="#a-push-a-pull-request-or-a-merge-you-asked-for">quoted</a> where you asked for it. A force push or a
+branch deleted on the remote is never asked: a card at every level, whatever you said.</p>
+<p>At Full auto, in a chat you started, a command that sends something off this machine would wait for you
+on a card - but a plain push of your feature branch goes to Full auto's judge -, and one that deletes in
+the project goes to the judge too (a card where the judge does not run). Where the box works, your
+Judge model (as for <a href="#full-autos-judge">Full auto's judge</a>: the Fast tier's first unless you choose
+one) first reads
+your preferences, this project's rules as saved on the <a href="../../memory/">Memory</a> page and your own
+messages in the chat - never anything an agent wrote - and then:</p>
+<ul>
+<li>A whole line of yours that names the command and what it touches ("You may delete build/ and
+  dist/."), and forbids nothing and sets no condition: the command runs without a card. Its row says
+  "Ran without asking · your rule: …" with where the line is (This project's rules or your message).
+  A line of Your preferences, which holds in every project, never lets a command run - the command
+  waits on its card -, though it may still stop one. Of your messages,
+  only this turn's - the one that started it and those you sent into it - run a push, a pull request or a
+  merge; an earlier turn's never does, though it may still stop one.</li>
+<li>A whole sentence of yours that forbids it ("Never push to main."): it is not run and opens no card.
+  The agent is told that sentence (for a sentence in a message of yours, only that one of yours
+  forbids it - the sentence stays with you), and not to run it or anything that does the same again,
+  and goes on with the rest of its task. Its row says "Not run · your rule: …".</li>
+<li>A sentence that sets a condition or asks to be asked ("unless", "ask me before", "else",
+  "while", "whenever", "as long as", "so long as", "provided", "providing", "in case", "assuming"; in
+  Turkish "eğer", "ise" / "isen", "-madan", any "-se" / "-sa" - "Kontroller yeşilse …", "Hata yoksa …",
+  "Testler OK'se …" -, "-ınca", "-dığında" / "-dığımda" / "-diklerinde", "-ken", "-dikçe", "durumunda",
+  "-dığı zaman", "sonra", "-ene kadar", "dek", "madem", "yeter ki" and "sürece"; an apostrophe written as
+  ’, ‘, ´ or ʼ is read as one, so "OK’se" counts too), or nothing of yours that covers it: the card, as
+  before. Its card then says "Nothing you said covers this."</li>
+<li>A line limited in time or in how many times it may be used ("once", "this time", "today", "on
+  weekdays", "until Friday", "bir kereliğine"): the card too - KOLONİ cannot tell whether it was used up
+  or its time has passed. The model is told to ask here; KOLONİ's own reading of your line does not
+  catch every such word, so the measurement decides how well this holds.</li>
+<li>Two lines of yours that disagree about a delete: a line that names what the delete takes and forbids
+  it or sets a condition - "Never delete ./x." beside "You may delete ./x.", or an item under "Never delete
+  these:" - keeps its card, whichever line the model quoted, as KOLONİ reads such a line. A heading covers
+  the lines right under it, up to a blank line, and a list or code under it until a line of prose; a
+  heading right under another is read with it ("Never delete:" over "Outputs:" forbids what Outputs
+  lists), unless a blank line came after the other's own lines. So "Never delete these:" over
+  <code>./archive</code> says nothing of a "You may delete ./build." in a section of its own after a blank line.
+  Some wordings
+  ("Keep build.", "Leave build alone.", "…but check with me first.") are not caught, and the measurement
+  decides the rest. Two lines about a push, a branch or a remote are left to the model.</li>
+<li>A command run in a folder of the project other than its root (<code>rm -rf dist</code> in <code>packages/api</code>):
+  it runs without a card only on a line that names that folder from the root ("You may delete
+  packages/api/dist."). A path in your line is read from the root - "You may delete dist/." is the root's
+  <code>dist</code> -, so a line that does not name the folder keeps the card, whatever the model said; and so does
+  one whose folder KOLONİ does not know.</li>
+</ul>
+<p>A command that ran or was not run this way also waits on Ready for you, in its <strong>Decided for you</strong>
+column, until you press <strong>OK</strong>. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
+that turn asks you on a card. Secret files, <code>.koloni</code>, files that steer later turns, paths outside the
+folder, a delete or a send of the whole folder, and a CLI's command whose folder KOLONİ does not know
+are always asked; anything that goes wrong (no model to ask, over the budget, no answer in 20 seconds -
+90 for a model on a CLI -, an unreadable one) opens the card as before. Each such command is one request
+of your Judge model.</p>
+<p>While you're away it holds in a
+To-do task's chat at Full auto too, reading the chat you went away from - never the task's words -
+for a one-line delete in the task's copy only: a command of more than one line or continued, a send,
+a git remote's branch, Docker's prune or volumes, a file that steers agents and a command that runs
+another through a shell or a wrapper keep their card. The
+same holds in the chat you went away from, while you're away. A plain chat has no judge's switch.</p>
+<h3 id="a-push-a-pull-request-or-a-merge-you-asked-for">A push, a pull request or a merge you asked for<a class="headerlink" href="#a-push-a-pull-request-or-a-merge-you-asked-for" title="Permanent link">&para;</a></h3>
+<p>A push, opening a pull request and merging one are yours to say. Once a Judge model has passed the
+measurement, Check what I said first can let one you asked for run with no card, as it does a delete.
+Until then the card stays, but it quotes you and asks for one click (at Full auto a plain push of your
+feature branch goes to the judge first: <a href="#a-push-of-your-feature-branch">above</a>). When a sentence of the
+message that started the turn, or of one you sent into it with <strong>Send now</strong>, asks for it, its card says</p>
+<blockquote>
+<p><strong>You said “Push it.” — push now?</strong></p>
+</blockquote>
+<p>with <strong>Push, as you said</strong> (<strong>Open the PR, as you said</strong>, <strong>Merge, as you said</strong>) and <strong>Reject</strong>. It is a
+card all the same: nothing runs until you press it. It shows at every level, in a turn you started from
+the app's own page; a To-do task's turn, a job while you're away and a side of a comparison keep the
+plain card.</p>
+<p>What asks for it - in English an order or a leave ("Push it.", "Commit and push.", "You may push now.",
+"Open a PR.", "Squash and merge."), in Turkish a request ("push et", "pushla", "push edebilirsin", "PR
+aç", "PR'ı merge et", "PR'ı birleştir"). Only:</p>
+<ul>
+<li>the message you sent from the app's own page that started this turn, and what you sent into it with
+  <strong>Send now</strong> - the newest of them that mentions it decides ("Push it." and then "Wait, no - don't push
+  yet." is none) - never an earlier turn's ("Push
+  it." yesterday does not cover today's push after "Fix the typo."), an agent's words, a tool's result, a
+  file, your preferences or the project's rules; nor code - a fence (in a list's item too) closes only
+  on a line of its own marks, at least as many, so what an agent wrote inside the quote <strong>Ask about
+  this</strong> makes stays code -, a quoted line (<code>&gt;</code>) or a sentence with a backtick in it. A message over
+  4,000 characters is not read for it;</li>
+<li>the last sentence of it that mentions it decides, and the whole message is read with it: anything in
+  it that says no, asks, waits, puts it off or calls it off ("Don't push.", "push etme", "Push it. Don't
+  merge.", "Push it. Actually no.", "Never mind.", "Scratch that.", "Hold off.", "Later.", "Revert
+  that.", "Or should we wait?", "Hayır, bekle.", "Yok, vazgeçtim.", "Boşver.", "İptal.", "Önce bana
+  göster."), that says what you do or will do ("I'll push it myself.", "I'll do it myself.", "push
+  ettim", "push edeceğim", "tomorrow" - a message with "I" or "we" in it at all), or sets a condition
+  ("after the review", "once CI passes", "testler geçince") leaves no quote - the plain card. Fewer
+  quotes, never a wrong one;</li>
+<li>the sentence names no other branch or pull request than the line does: "Merge PR 5." (or "PR-5",
+  "PR #5", "#5", "5 numaralı PR") is no quote
+  for <code>gh pr merge 7</code>, nor "Push feature-a." for <code>git push origin feature-b</code>, nor "Push it to main." for a
+  push of another branch, nor "Open a PR into main." for <code>gh pr create -B develop</code>. A word counts as a
+  branch where your repository knows it - its branches, its remotes' and its tags - and <code>main</code> and
+  <code>master</code> always; a bare <code>git push</code> pushes a branch KOLONİ does not know, so a sentence that names one
+  gets the plain card there;</li>
+<li>a line of your preferences or the project's rules that names it and forbids it or sets a condition
+  ("Never push to main.") leaves no quote for it at all.</li>
+</ul>
+<p>The quote is shown as you typed it, in its own reading order: marks that turn text around (right-to-left
+overrides and the like) are taken out of it.</p>
+<p>Which commands - one program on one line, run at the project's root, written with letters, digits,
+spaces and <code>. : / = + - _</code> alone, a value in double quotes (<code>-t "Fix the typo"</code>):</p>
+<ul>
+<li><code>git push</code>, alone or to <code>origin</code> with branches of your repository's own (or <code>HEAD</code>), and <code>-u</code>,
+  <code>--set-upstream</code>, <code>-q</code>, <code>-v</code>, <code>--progress</code>. A push to <code>main</code> or <code>master</code> by name is quoted only on a
+  sentence that names it ("Push to main.", "main'e push et"); a bare <code>git push</code> is quoted on "Push it."
+  whatever branch it pushes;</li>
+<li><code>gh pr create</code> with a title, a body, a base, a head (a branch of this repository: <code>owner:branch</code> is
+  not), one label, assignee, reviewer, milestone or project, <code>--draft</code> or <code>--fill</code>;</li>
+<li><code>gh pr merge</code> with a number or a branch, <code>--merge</code>, <code>--squash</code>, <code>--rebase</code>, <code>--auto</code>, a subject or a
+  body.</li>
+</ul>
+<p>An option's value never starts with <code>-</code>. KOLONİ reads your repository's branches and tags for it (read
+only); where it cannot - no git, or the project is not the repository's top folder - nothing is quoted.
+Anything else gets the plain card, unquoted: a force push, a branch deleted (<code>git push origin :x</code>,
+<code>--delete</code>, <code>gh pr merge --delete-branch</code>), a tag or any other ref than a branch (<code>refs/tags/…</code>,
+<code>refs/for/…</code>, the short names git reads so - <code>tags/v1.0.0</code>, <code>heads/main</code>, <code>remotes/origin/main</code> -, a tag
+by its bare name: <code>git push origin v1.0.0</code>), a name that is no branch of your repository's own (only
+another remote's, or none), another remote or repository (<code>upstream</code>, an address, <code>-R</code>),
+a file read in (<code>--body-file</code>), <code>--admin</code>, a push in a subfolder, any other option, more than one
+command (<code>&amp;&amp;</code>, <code>;</code>, <code>|</code>), a redirection, and any other character - <code>$</code>, a backtick, a bracket, single
+quotes, a comma (<code>-r a,b</code>), <code>@</code> (<code>@me</code>), <code>!</code>, <code>?</code>, <code>#</code>, <code>*</code>, <code>%</code>, a line break. So does a pull request
+whose body is written with a heredoc or on more lines (<code>--body "$(cat &lt;&lt;'EOF' …)"</code>, as Claude Code
+often writes one). "Open a PR." covers <code>gh pr create</code> alone, not the <code>git push</code> before it. A local
+<code>git merge</code> sends nothing: it is not quoted.</p>
+<h2 id="plan-first">Plan first<a class="headerlink" href="#plan-first" title="Permanent link">&para;</a></h2>
+<p>With <strong>Plan first</strong> on, each new message first gets a plan to approve. While it plans, an agent
+can only read, search and ask you. It cannot write or run anything, at any level.</p>
+<h2 id="a-jobs-own-branch-while-youre-away">A job's own branch while you're away<a class="headerlink" href="#a-jobs-own-branch-while-youre-away" title="Permanent link">&para;</a></h2>
+<p>In a git repository a job of <a href="../../automation/overnight/#in-a-git-repository-each-job-on-its-own-branch">☾ Away</a>
+works on its own <code>koloni/&lt;task&gt;</code> branch in a worktree. Its git there - <code>status</code>, <code>diff</code>, <code>log</code>, <code>add</code>,
+<code>commit</code> on that branch - runs at every level without a card. Its <code>git push</code> never runs: "KOLONİ pushes
+this branch when the user says yes: go on" - the push waits for your <strong>Run</strong> in the morning. Anything
+else of git (switching branches, reset, stash, fetch, config) is parked for you.</p>
+<p>KOLONİ's own check of <a href="../checked/#documents-diagrams-data-and-slides">code style and types</a> runs
+the project's ruff, eslint, tsc or mypy as it runs the test command: at Ask and Auto-edit it asks
+on a card - a yes is that line in that folder for the turn, and <strong>Always</strong> keeps that line, never
+the bare program; while you are away it is not run, and says so. A program an agent wrote - this turn, or an earlier turn in an
+install folder, while the file still holds it - is never run.</p>
+<h2 id="choosing-a-level">Choosing a level<a class="headerlink" href="#choosing-a-level" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Start with <strong>Ask before changes</strong> in a project you care about. You see every change before it
+  is made.</li>
+<li><strong>Auto-edit files</strong> suits work you review afterwards. Changes can be reverted, and commands
+  still ask.</li>
+<li><strong>Full auto</strong> is for work you are ready to let run. What reaches out of the project, sends, or touches
+  secrets and risky files still asks; <a href="#full-autos-judge">Full auto's judge</a> decides the rest - a delete
+  in the project too - and everything it calls fine runs. A script that opens <code>.env</code> without naming it can still read it, unless
+  KOLONİ's own commands run in Docker (Settings › This project › When you're asked › More) or Copilot's
+  sandbox is on; a CLI run <strong>Native</strong> runs its commands on this machine, outside Docker.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright 2026 Murat H. Unsal · AGPL-3.0-or-later
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.code.copy","content.tabs.link","navigation.top","search.highlight"],"redirect":null,"search":"../../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      
+    
+  </body>
+</html>

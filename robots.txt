@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://koloni.skyulf.com/sitemap.xml
+Sitemap: https://koloni.skyulf.com/manual/sitemap.xml

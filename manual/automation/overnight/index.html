@@ -1,0 +1,3599 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A local agent workspace: a chat beside a canvas, real agents, evidence.">
+      
+      
+      
+        <link rel="canonical" href="https://koloni.skyulf.com/manual/automation/overnight/">
+      
+      
+      
+        <link rel="prev" href="../todo/">
+      
+      
+        <link rel="next" href="../answering-for-you/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="zensical-0.0.74">
+    
+    
+      
+        <title>Work while you're away - KOLONİ</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/koloni.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KOLONİ" class="md-header__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KOLONİ
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Work while you're away
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KOLONİ" class="md-nav__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    KOLONİ
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Getting started
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quick start
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ in 5 minutes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Install
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/why-koloni/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Why KOLONİ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Everyday use
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Everyday use
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/chat-and-canvas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chat and canvas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/chats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/talk-while-agents-work/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Talking while agents work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Permission levels
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ready and approval cards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Decisions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Working copies and Take in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/checked/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Checked
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/plan-first/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan first
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Compare
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Attachments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/voice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Voice
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/command-palette/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command palette (Ctrl+K)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Agents
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Agents
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/which-way/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Which way to work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/teams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teams
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/step-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Step limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipes and candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipe-cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe cookbook
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/discussions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Discussions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Models
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Models
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Providers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up an API provider
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a local model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Copilot on your GitHub account
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tiers and Agents may use
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/subscription-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Subscription rules
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tools
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Tools
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/built-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ's tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP servers and trust
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Skills
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Memory
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What the project knows
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../knowledge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sources to look things up in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automation
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Automation
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../todo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  To-do
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Work while you're away
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Work while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#going-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Going away
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Going away">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#from-the-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From the chat
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        While you're away
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-jobs-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How the jobs run
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How the jobs run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-a-git-repository-each-job-on-its-own-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        In a git repository: each job on its own branch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stricter-rules-while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Stricter rules while you're away
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#questions-and-approvals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Questions and approvals
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-limits-while-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step limits while away
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-stops-the-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What stops the jobs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-youre-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When you're back
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When you&#x27;re back">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-night-on-ready-for-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The night on Ready for you
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#waiting-for-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Waiting for you
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../answering-for-you/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Answering for you
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Money and quota
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Money and quota
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage and budgets
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/cost/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Keeping costs down
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Settings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backup-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Backup and update
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Troubleshooting and FAQ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_13">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Examples
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/team-web-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A web app with a team
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/overnight-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A job while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/candidates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Picking the best of several candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mcp-safely/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Adding an MCP server safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/teach-an-expert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teaching an expert
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_14">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/all-settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Every setting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLIs
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe, role and skill formats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/folders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Folder layout
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Glossary
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/known-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Known limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/upgrade-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Upgrade notes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security and privacy
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_15">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Security and privacy
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/privacy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data and privacy
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reporting a problem
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Developers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_16">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Developers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/from-source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Run from source
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/verify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tests and verify
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Contributing (DCO)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/licenses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Licenses
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#going-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Going away
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Going away">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#from-the-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From the chat
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        While you're away
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-jobs-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How the jobs run
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How the jobs run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-a-git-repository-each-job-on-its-own-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        In a git repository: each job on its own branch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stricter-rules-while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Stricter rules while you're away
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#questions-and-approvals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Questions and approvals
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-limits-while-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step limits while away
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-stops-the-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What stops the jobs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-youre-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When you're back
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When you&#x27;re back">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-night-on-ready-for-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The night on Ready for you
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#waiting-for-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Waiting for you
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="work-while-youre-away-away">Work while you're away (☾ Away)<a class="headerlink" href="#work-while-youre-away-away" title="Permanent link">&para;</a></h1>
+<p>Before you leave - for an hour, an afternoon or the night - press <strong>☾ Away</strong> on a chat's status
+line, or tell the Orchestrator you are going. The chat finishes its turn, then the
+<a href="../todo/">To-do</a> tasks you tick are worked through, one at a time, each in its own copy of the
+project: your project does not change while you are gone. When you are back you decide what comes
+in.</p>
+<p><a href="../../diagrams/night.svg"><img alt="Work while you're away: the To-do tasks Away works through one at a time in their own copies, and the report" src="../../diagrams/night.svg" /></a></p>
+<p><em>Work while you're away: work that runs while nobody watches.</em></p>
+<h2 id="going-away">Going away<a class="headerlink" href="#going-away" title="Permanent link">&para;</a></h2>
+<p><strong>☾ Away</strong> is on the line over the message box of a chat with a folder (not in a plain chat; in a
+chat with no turn yet it waits: "Write to the Orchestrator first: Away finishes this chat's turn").
+It opens the Away panel:</p>
+<ul>
+<li>"The Orchestrator finishes this chat, then works through To-do in order.", and the level the tasks
+  run at: this chat's.</li>
+<li><strong>Then from To-do, in this order</strong>: the project's open tasks (proposed or to do). The tasks
+  proposed in this chat are ticked already ("new · from this chat"); older ones are not ("on To-do
+  since Mon"). Tick up to 10; <strong>Move up</strong> and <strong>Move down</strong> change the order, which is saved to
+  To-do. A ticked proposed task counts as your OK.</li>
+<li><strong>Decides for you</strong> and <strong>Always waits for you</strong>: see <a href="#questions-and-approvals">Questions and approvals</a>.</li>
+<li><strong>Until</strong>, <strong>spend at most</strong> and <strong>kept out</strong>: none unless you set one. If the project has a
+  monthly budget, the work spends at most what is left of it. Name a file or folder of the project
+  to keep out (up to 20): a pattern such as <code>src/*</code> or a place outside the project is refused.</li>
+<li>Where the project is not on <strong>Test and review</strong>: "While you're away, Test and review is suggested:
+  tests, and a review of big or security-touching changes." <strong>Use Test and review</strong> sets the project
+  to it (Settings › This project › When the work is done › <strong>After a change</strong>) - while you are away, nobody
+  but KOLONİ's checks looks at the work (<a href="../../use/checked/">What KOLONİ checked</a>).</li>
+<li><strong>Go away</strong>, or <strong>Cancel</strong>. <strong>How it works</strong> says the rest.</li>
+</ul>
+<p><img alt="The Away panel over the message box: the two tasks this chat put on To-do ticked, what the Orchestrator decides for you and what always waits, Until 08:00, spend at most 2 USD, and Go away" src="../../images/away-panel.png" /></p>
+<p><em>The Away panel, opened from <strong>☾ Away</strong> on the chat's status line.</em></p>
+<p>Go away is refused while <strong>Stop everything</strong> holds (press <strong>Resume</strong> first), while a To-do task is
+at work, and from a chat with no turn.</p>
+<h3 id="from-the-chat">From the chat<a class="headerlink" href="#from-the-chat" title="Permanent link">&para;</a></h3>
+<p>Tell the Orchestrator you are going away (to sleep, out, in any language) and what it should work on
+meanwhile. It does none of that work itself: it puts each piece on To-do and offers one line under
+its answer - "☾ Go away now? Add a bye line, Say hello twice · Until 08:00 · at most 2.00 USD" with
+<strong>Go away</strong> and <strong>Change</strong> (the panel, there). The line names, and Go away takes, only the tasks the
+Orchestrator itself put on To-do in that turn, each by its name: a task a sub-agent proposed (one
+of a CLI's own sub-agents too), or an earlier turn's, stays in the panel for you to tick. It names them
+only where KOLONİ tells the Orchestrator's own To-do work from that of its CLI's own sub-agents: an
+Orchestrator on an API model, or on Claude Code or GitHub Copilot CLI run <strong>Native</strong>. Any other CLI
+Orchestrator - Codex, agy, and Claude Code or Copilot run any way but <strong>Native</strong> - gets a line that
+names no task:
+"Tick the tasks to take in Change". The limits are only
+those it heard from you. Nothing starts before your Go away. Only
+the Orchestrator offers this, in a turn you started in a chat with a folder - not in a <strong>Plan first</strong>
+turn, nor while the project is away. A newer offer takes the place of one not answered yet.</p>
+<h3 id="while-youre-away">While you're away<a class="headerlink" href="#while-youre-away" title="Permanent link">&para;</a></h3>
+<p>The status line says where it stands: "Away · To-do 1 of 2: Add a bye line · 3 decided for you · 1
+waits", then "To-do 2 of 2 looked at". The chip becomes <strong>I'm back</strong>, and the message box says
+"Write to come back…". Away lasts until you are back: press <strong>I'm back</strong>, or write a message in any
+chat of the project. Once every task was looked at, you get one notification if you set them up.</p>
+<h2 id="how-the-jobs-run">How the jobs run<a class="headerlink" href="#how-the-jobs-run" title="Permanent link">&para;</a></h2>
+<p>Tasks run one at a time, in the panel's order, once the chat you went away from has finished its
+turn (a turn that waits for your word does not hold them back). A task added meanwhile does not join.
+Each starts in a new chat named after it, its first message the task and what makes it done, and
+works in a copy of the project of its own.</p>
+<ul>
+<li><strong>Level and model:</strong> the job's chat has the model and the permission level of the chat you went away
+  from (the Away panel says which). Its other settings are the project's, as in any chat:
+  who changes the files, opening sub-agents, and the rest. Where that chat is at <strong>Full auto</strong> and
+  <strong>Check what I said first</strong> works in the project (Full auto's judge's box for your words), the
+  Orchestrator may run, by your own written words, a command the night would otherwise wait for you on.</li>
+<li><strong>Team and recipe:</strong> where you picked the teams in that chat (<strong>Manual</strong>), the job's chat has
+  them, with their recipes.</li>
+<li><strong>The copy</strong> leaves out <code>.git/</code>, <code>build/</code>, <code>dist/</code> and caches, and shares <code>node_modules/</code>, <code>.venv/</code>
+  and <code>venv/</code> with the project. A job that needs what is not in the copy changes nothing and waits for
+  you, its report ending "Needs the project itself: …".</li>
+<li><strong>A job that fails</strong> is tried once more in its chat. Failed twice, it could not be done, and the next
+  one goes on.</li>
+<li><strong>A job that waits for your word</strong> waits, and the next one goes on.</li>
+<li><strong>Its notebook:</strong> a job writes in its task's <a href="../todo/#the-storys-notebook">notebook</a> (its story's, where
+  the task is of one): how each turn ended, the files it changed, the Orchestrator's <code>Task note:</code> lines
+  and what its agents noted for the whole turn. The next night that works the task, or your own turn in
+  its chat, goes on from it. <strong>📓</strong> on the task's row in its story's panel on To-do opens it.</li>
+</ul>
+<h3 id="in-a-git-repository-each-job-on-its-own-branch">In a git repository: each job on its own branch<a class="headerlink" href="#in-a-git-repository-each-job-on-its-own-branch" title="Permanent link">&para;</a></h3>
+<p>Where the project is the top folder of a git repository, a job works on a git branch of its own,
+<code>koloni/&lt;task&gt;</code> (for example <code>koloni/fix-login-3f2a</code>; <code>koloni/task-3f2a</code> where the task's title holds
+a secret KOLONİ knows, or one's shape - a branch's name goes to origin with its push), in a worktree
+of your repository, and commits there as it goes. How Go away finds the project decides it, once for
+every job:</p>
+<table>
+<thead>
+<tr>
+<th>The project</th>
+<th>The job</th>
+<th>In the morning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No git; a folder inside a repository; HEAD on no branch; no commit yet; a merge or rebase under way; a git submodule; files in Git LFS</td>
+<td>works in a copy, as above</td>
+<td><strong>Take in</strong>; its row says "In a copy: …" and why</td>
+</tr>
+<tr>
+<td>A git repository with no remote called <code>origin</code></td>
+<td>works on its branch, commits there</td>
+<td>"No remote: merge it with git, or Take in."</td>
+</tr>
+<tr>
+<td>A git repository with an <code>origin</code></td>
+<td>works on its branch, commits there</td>
+<td>its <strong>push</strong> waits under <a href="#waiting-for-you">Waiting for you</a></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Its first message</strong> says so: the branch's name, commit as you go, do not push - KOLONİ pushes this
+  branch when you say yes. A CLI's instructions say the same. Only the files git tracks are in the
+  worktree; what git ignores (<code>.env</code>, data, build output) is read in the project.</li>
+<li><strong>Its git:</strong> <code>git status</code>, <code>diff</code>, <code>log</code>, <code>add</code> and <code>commit</code> on its own branch run without a card. Its
+  own <code>git push</code> is refused with "KOLONİ pushes this branch when the user says yes: go on" - no card,
+  nothing parked. What reaches the rest of your repository (switching branches, reset, stash, fetch,
+  config) is parked for you as any card is.</li>
+<li><strong>A script's push</strong> - a test or a build step that runs <code>git push</code> - fails inside the job's worktree:
+  KOLONİ starts its commands with git set to push nowhere (a fetch still works). That is a safeguard,
+  not a wall: see <a href="../../reference/known-limits/#away-on-a-branch">Known limits</a>.</li>
+<li><strong>Where git will not</strong> when the job starts (HEAD detached since Go away, say), it works in a copy;
+  its Orchestrator is told why, and its row says "In a copy: …".</li>
+<li><strong>At its end</strong> KOLONİ commits what the job left on the branch ("Orchestrator: fix the login") and keeps
+  the worktree for your Take in - the same card as a copy's, file by file. Taking all of it in, or
+  Discard, deletes the worktree and the branch, and the row says so instead of its commits: "Its branch
+  koloni/fix-login-3f2a was deleted: its work was taken in." Nothing of it goes into your project by
+  itself, at Full auto too. A file that holds a secret KOLONİ knows - in its content or its name: a provider key you saved,
+  an MCP server's variable a secret's name holds, the page's key, one of the environment's, one given
+  on a card, or any value with a secret's shape (<code>ghp_…</code>, <code>sk-…</code>, a password in an address) and the
+  token or password it holds alone - is left out of that commit and stays in the job's worktree only;
+  so is a file named as a secret, whatever it holds: <code>.env.sample</code>, <code>api_keys.json</code>, <code>token.txt</code>, a
+  data file in a <code>credentials</code> or <code>secrets</code> folder (<a href="../../reference/known-limits/#git">which names</a>).
+  The job's chat and its push row say which ("· left out: conf.txt (a secret KOLONİ knows, or named as
+  one)"), and the rest of the work goes on. A file an agent committed on the branch itself is on the
+  branch, not left out: the chat and the row do not call it left out, and <strong>Run</strong> refuses the push
+  ("prov.txt on the branch holds a secret KOLONİ knows - take it off the branch first") - or, for one
+  only named as a secret, asks first ("credentials.yaml on the branch is named as a secret (its agent
+  committed it): Run anyway pushes it"). Such a secret never deletes the job's work: only a secret
+  given on a card during the job, which an agent committed on the branch itself, has the branch
+  deleted, and the chat says so.</li>
+<li><strong>Its second try</strong> after a failure, and the turn that goes on after your decisions in the morning,
+  work in the same worktree, on the same branch.</li>
+<li>KOLONİ also notes your repository's branches, stash, tags and remotes as the job starts and ends:
+  anything that changed outside the job's branch meanwhile is on its row - "Changed outside its
+  branch: main 1a2b3c4 → 3c4d5e6", "git's config changed during the job" - for you to look at. KOLONİ
+  does not undo it: it may be yours.</li>
+</ul>
+<p>The top bar shows "☾ Away · To-do 2 of 4" with <strong>I'm back</strong> and <strong>Stop all</strong>, and "· until 07:00"
+after it when you set a stop time. Ready for you's report shows the jobs too: since when, what they spent against the limit,
+and each job as it stands, with what its agents are doing right now. A job's chat says at the top when
+its jobs started, with a link back to their report.</p>
+<h3 id="stricter-rules-while-youre-away">Stricter rules while you're away<a class="headerlink" href="#stricter-rules-while-youre-away" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Commands</strong> follow the job chat's level. Below <strong>Full auto</strong>, a command no rule covers is parked
+  for you (see <a href="#questions-and-approvals">Questions and approvals</a>): it does not run, and the job goes
+  on without it. At every level these are parked too: a command that deletes, overwrites or sends
+  something off the machine; one that hands a command to a shell or another program; and one that
+  installs into the project's shared dependency folders.</li>
+<li><strong>Ordinary file changes</strong> in the job's copy never ask: they are kept for your Take in. Files that
+  steer agents, secret files and places outside the project wait for you as in a watched turn, and the
+  job with them.</li>
+<li><strong>Kept-out places:</strong> a write to one, or a command that names one, is refused, and the try is on the
+  report.</li>
+<li><strong>No MCP server tools</strong> are used.</li>
+<li><strong>CLIs:</strong> a CLI working with its own tools that is not started in the job's copy, or not held to
+  it (Copilot working Native, agy when it may write), cannot work on a job: "… cannot work on a job
+  while you're away".</li>
+<li>At <strong>Full auto</strong>, where <strong>Check what I said first</strong> works, a command that deletes is first checked
+  against your own words - your preferences, the project's saved rules and your messages in the chat
+  you went away from, never the task's words - and runs in the job's copy without a card where a line
+  of yours names it. Only a delete in the folder, on one line: a command of more than one line or
+  continued (a backtick or a backslash at a line's end), a line that also sends work off the machine
+  or touches a git remote, Docker's prune or volumes, and a delete of a file that steers agents
+  (<code>AGENTS.md</code>, <code>CLAUDE.md</code>) keep their card - in the chat you went away from as in a task's. See <a href="../../use/permissions/">Permissions</a>.</li>
+<li>At <strong>Full auto</strong>, with <a href="../../use/permissions/#full-autos-judge">Full auto's judge</a> on (the default), a
+  command the list does not stop is first looked at by a small model, reading the chat you went away
+  from: one it finds risky is parked for you with its sentence, "KOLONİ's judge: …", and the job goes
+  on. (In a chat you watch it is refused unless you chose <strong>Ask me</strong>; while you're away it is always
+  parked.)</li>
+</ul>
+<h2 id="questions-and-approvals">Questions and approvals<a class="headerlink" href="#questions-and-approvals" title="Permanent link">&para;</a></h2>
+<p>A card no longer stops a job while you're away. A command's card - whatever its reason: no rule
+covers it, it deletes or sends something off the machine, its copy asks for it, Full auto's judge finds
+it risky - is <strong>parked</strong>: it does not run, the agent is told "KOLONİ parked this for the user, who is
+away: run "…". It did not run. Do what you can without it, and say in your summary what waits.", and
+the job goes on. A command a CLI run <strong>Native</strong> asks for with a tool of its own is parked the same
+way. The job's copy is kept for the morning even where it changed nothing. When the job has done what
+it can, it <strong>waits</strong> - "2 parked" - and the next job starts.</p>
+<p>While you're away the Orchestrator decides at once, in the chat you went away from and in the
+tasks' chats, what it may decide for you (another chat of the project keeps its own minutes): an
+agent's question, a recipe's "Ask me", opening a sub-agent on its role's own model, and going on or
+stopping at a step limit. The cards already waiting when you press Go away are decided then. In a job,
+its <strong>own questions</strong> go to it too: "The user is away. Decide yourself and say what you assumed in one
+sentence. Only if the answer is something only the user can know (a password, an account, a personal
+fact), answer <code>park</code>." Its answer is on Ready for you, in its <strong>Decided for you</strong> column. What it
+answers <code>park</code> - and a question it could not answer - is parked for you, and the job goes on. In the
+chat you went away from,
+its own questions wait for your return. It does not answer once the project is over its monthly budget
+or a provider is over its limit.</p>
+<p>These still wait for you, and the job with them (the next job goes on): changes of files that steer
+agents or are secret, the web, secrets, folders, another model that may cost money, new roles and
+skills, Take in, Discard, Commit. See <a href="../answering-for-you/">Answering for you</a>.</p>
+<p>Only a job of an Away that runs parks: after <strong>I'm back</strong>, <strong>Stop all</strong> or the Away's end, the next
+card of a job still at work waits for you as before. KOLONİ's own commands (its checks) are never
+parked. A job that waits is shown under <strong>Waits for your word</strong>, on the report and in <strong>Ready for
+you</strong>.</p>
+<h2 id="step-limits-while-away">Step limits while away<a class="headerlink" href="#step-limits-while-away" title="Permanent link">&para;</a></h2>
+<p>Nobody is there to answer a Continue / Stop here card in a job, so none comes (in the chat you went
+away from, the Orchestrator decides that card at once):</p>
+<ul>
+<li>A sub-agent that reaches its step limit stops. The job's Orchestrator is told its part is not done,
+  and may tell it once to go on, with a new step limit.</li>
+<li>One that stopped at its role's own limit, or stops again, ends. The job's Orchestrator hands what is
+  left to another agent, or says in its report what is left undone. The job can still count as done:
+  read its chat.</li>
+<li>The job's Orchestrator counts no steps. If it goes round in circles (the same call failing the same
+  way 5 times, or 10 calls in a row bringing nothing new), the job fails with that reason, is tried once
+  more in its chat, and the night goes on with the next job.</li>
+</ul>
+<p>See <a href="../../agents/step-limits/">Step limits</a>.</p>
+<h2 id="what-stops-the-jobs">What stops the jobs<a class="headerlink" href="#what-stops-the-jobs" title="Permanent link">&para;</a></h2>
+<p>Away ends when:</p>
+<ul>
+<li>you are back: <strong>I'm back</strong>, or a message of yours (the job at work finishes; its cards then wait for
+  you);</li>
+<li>the stop time comes, if you set one ("Stopped at 07:00, the time you set.");</li>
+<li>it has spent its money - what the tasks' chats and the chat you went away from spent since Go away
+  ("Stopped at 5.02 of 5.00 USD, the spend limit."); the chat's turn at work is stopped too;</li>
+<li>the project is over its monthly budget, or the Orchestrator's provider is over its limit, when the
+  next job is about to start;</li>
+<li>you press <strong>Stop all</strong> ("Stopped by you.");</li>
+<li>KOLONİ is closed ("Stopped: KOLONİ was closed while you were away.");</li>
+<li>the next job cannot start.</li>
+</ul>
+<p>The time and the money are checked before each model step. A clock also watches the stop time and
+each job's hours at most, so a long command is cut at them too. Its minutes with nothing moving
+do not run out while a command or a model step of it is under way, an agent below the Orchestrator
+is at work, or it waits for your word: those have limits of their own. When the jobs stop, the job at work stops, its
+work kept in its copy, and is shown as <strong>Stopped</strong>. A job that waits for your word goes on waiting -
+but <strong>Stop all</strong> stops it too.
+When KOLONİ is closed, the jobs at work and those that wait count as could not be done: answer what
+waits before you close KOLONİ.</p>
+<p><strong>Stop everything</strong> in the top bar holds the jobs instead of ending them: the job at work and a job
+that waits for your word are stopped, the next job waits for <strong>Resume</strong>, and the time and money you
+set still end them.</p>
+<p>If you set up <a href="../../settings/#notifications">notifications</a>, you get one when every task was looked
+at, and one when a limit or Stop all ends Away - none when you come back yourself.</p>
+<h2 id="when-youre-back">When you're back<a class="headerlink" href="#when-youre-back" title="Permanent link">&para;</a></h2>
+<p>The chat you went away from has one summary: "While you were away (23:10 – 07:42): 2 of 2 To-do
+done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Ready to take in), what was
+decided for you, <strong>Waiting for you</strong>, what waits (with <strong>Allow and go on</strong> / <strong>Refuse</strong>), <strong>Review and
+take in</strong> and <strong>On the canvas</strong>. KOLONİ opened again opens on <a href="#the-night-on-ready-for-you">Ready for you</a>,
+on the night, until you have seen it there or its report on the canvas - never over a page you opened
+before the night was read.</p>
+<h3 id="the-night-on-ready-for-you">The night on Ready for you<a class="headerlink" href="#the-night-on-ready-for-you" title="Permanent link">&para;</a></h3>
+<p>KOLONİ opened after the night has ended opens on <a href="../../use/ready/#the-page">Ready for you</a>, at its first
+look at the night - never taking you off a page you opened before that look; once the night has been on
+screen (here, or its report on the canvas), KOLONİ opens as you left it. Once the night has ended, the
+page opens on it: "Last night,
+23:10 to 07:42" ("Night of Tue 24 Nov, …" once it ended more than a day ago), a time axis, and a lane
+for each job. A job's bar runs from when its first turn of the
+night began to when its last one ended - green where it finished, hatched honey where it waits for you,
+a dashed edge where it was stopped or could not be done. Each
+decision made for you in the job's chat that night - every one, however many - is a small hexagon on
+its lane, at its time, in the colour of who decided: filled while it waits for your <strong>OK</strong>, an outline
+once you have seen it. The
+strip draws only what KOLONİ's records hold: a job that never started, or whose turn is still open, has
+no bar and is still listed; a decision made in no job's chat (the chat you went away from) is on no
+lane. Under the lanes: what the marks mean, <strong>Not checked</strong> and what the night spent ("Spent 1.40 USD
+of 5.00 USD").</p>
+<ul>
+<li><strong>Not checked: N things</strong> opens on the list, job by job, in the words of each job's last <strong>Checked</strong>
+  section of the night: tests not run (a guessed command while you were away, among others), a kind's
+  check, the Reviewer or the live or browser try not done, <strong>After a change</strong> set to <strong>Nothing</strong> - and,
+  where its push went, that GitHub's checks on it were not waited for (KOLONİ does not wait for them
+  yet). A job with no <strong>Checked</strong> section of the night says "not known", never "nothing".</li>
+<li><strong>The whole report</strong> opens the night's report on the canvas.</li>
+<li><strong>Copy report as Markdown</strong> copies the whole night - named by its day, its jobs, what waits for you, what
+  was decided for you on its jobs, what was not checked and what it spent - for a pull request's
+  description. Every job's, agent's and model's word goes in a code span, masked as the screen shows
+  it: a parked command too, as the list shows it.</li>
+</ul>
+<p>What the night parked is on the page too, first in its list and under <strong>Last night</strong>: the push first,
+then the commands and questions - the rows of <a href="#waiting-for-you">Waiting for you</a>, with their own
+words. A job that waits only for what it parked is those rows, not a row of its own as well.</p>
+<h3 id="waiting-for-you">Waiting for you<a class="headerlink" href="#waiting-for-you" title="Permanent link">&para;</a></h3>
+<p>One list of everything the jobs parked, task by task in the night's order, each in the order it was
+parked: the command whole (never cut, in a fixed font; a secret KOLONİ knows, or one known by its
+shape - a <code>Bearer</code> token, a password in an address - shows as <code>***</code>, and what runs is still the line
+as recorded), or the question; why, in KOLONİ's words (the
+card's reason, the judge's sentence, the Orchestrator's reason in quotes); and a warning where it reads
+like orders to a model. It is in <a href="../../use/ready/">Ready for you</a>'s waiting list (first, the push first
+of all), on the summary and on the report.</p>
+<ul>
+<li><strong>Run</strong> or <strong>Reject</strong> a command; a question takes one of its options, or a line and <strong>Answer</strong>.</li>
+<li><strong>Stop this task</strong>, on the task's line: what waits of it is closed, the task is stopped, and nothing
+  of it runs.</li>
+<li>You decide only once you are back (I'm back), and only while the task's job is not at work. A row
+  that cannot be decided now says why: "Needs the project itself: Take in first" (a <code>git</code> line, or one
+  naming <code>build/</code>, <code>dist/</code> or another folder a copy leaves out - a copy has no <code>.git</code>; in a job on its
+  branch a <code>git</code> line runs in its worktree), "Its copy is gone:
+  there is nothing to run it in" (you discarded it - <strong>Reject</strong> still works), "Where it would run is not
+  known: Reject it, or run it yourself" (a CLI that did not say its folder), "The project runs commands
+  elsewhere now: Reject it, or set that back" (Docker or this machine, changed since), "Its CLI's own
+  shell would run it: Reject it, or run it yourself" (a line Claude Code, Codex or another CLI asked to
+  run in its own shell), "A server line: run it yourself". Each row says where it would run - the job's
+  copy, or the project itself - its card's words, and "Runs a file an agent wrote" where it does.</li>
+<li>Once every row of a task is decided, KOLONİ runs what you said <strong>Run</strong>, in the order it was parked,
+  as it was recorded - the same line, its folder, the job's kept copy (or, where you took some of that
+  copy in before your <strong>Run</strong>, the project itself), its time limit - with no card. Just before each, it
+  looks again: a line whose copy was taken in or discarded after your <strong>Run</strong> ("its copy was taken in
+  after your Run - run it yourself") does not run; and if anything in the job's copy changed after a
+  line was parked - by an agent, a command, or an earlier line of this morning - <strong>Run</strong> does not run it
+  ("the job changed files after this was parked: run it yourself", on the list as soon as it is
+  known; where it runs in the project after a Take in, "its work was taken in after this was parked: run
+  it yourself"). A command that runs none of the project's code (<code>curl</code>, <code>wget</code>, a file command) is the
+  exception. A program an agent wrote is still
+  refused, and so is a line naming a place you kept out. A Take in or Discard under way is waited for;
+  while the lines run, the copy can be neither taken in nor discarded. <strong>Stop</strong> in the job's chat, or
+  <strong>Stop everything</strong>, stops a line that runs, and the task (<strong>Try again</strong> works it). A message of
+  yours waiting behind it then goes ahead: a turn of yours in the job's chat, which marks the job done
+  once it ends, as any turn there does.</li>
+<li>Then the same Orchestrator goes on in the same chat, in one turn, on KOLONİ's message: "KOLONİ: the
+  user decided: ran "npm test" ("…"); rejected "git push"; answered "Which database?": "Postgres". Go on
+  with the task." - what a line printed, and your answer, in quotes; a line that timed out or was
+  stopped says so. It is a job's turn: held to a job's hours, in the kept copy its rows were parked in</li>
+<li>never a later turn's of the chat, a message of yours, say - (a fresh one where you took some of it
+  in), its work kept for your Take in - at Full auto too - and the judge looks at its
+  commands. It does not start where the project is over its monthly budget: the job then waits with
+  why. A message of yours in that chat meanwhile waits behind it.</li>
+<li><strong>A job's push</strong> (a git repository with an <code>origin</code>): "Push koloni/fix-login-3f2a to origin
+  (github.com/…) — one commit by KOLONİ, 5 files · checks ✓ at 3c4d5e6", and "· opens a pull request
+  into main" where the project's <strong>How a team's finished branch reaches yours</strong> is <strong>Open a pull
+  request</strong> (<a href="../../settings/">Settings</a>). <strong>Run</strong> pushes the
+  branch's work as ONE commit by KOLONİ onto where it left <code>main</code> - never the agents' own steps, never
+  what you had not committed when it began - and opens the pull request; <strong>Reject</strong> leaves the branch as
+  it is. It waits for the task's other rows and its going-on turn ("Waits for this task's other
+  decisions and its going-on turn"), and is made again with the branch's new commit after that turn: a
+  yes is never for a commit you did not see. Just before it pushes, KOLONİ looks again: a branch
+  deleted or moved since the job ended, a secret KOLONİ knows in what would go up - a file's content
+  or its name, one an agent committed on the branch itself ("take it off the branch first") -, a
+  branch of that name on origin ("origin already has a branch named …"), commits of yours on <code>main</code> not on origin ("push main first"; KOLONİ asks origin
+  itself, never your remote-tracking branches), origin's <code>main</code> ahead of what you fetched ("fetch
+  first"), an address git's config rewrites, the project on another branch
+  than the one the job ended on, a branch changed since you read the row - nothing goes up, the row
+  says why and waits, to try again once that is set right. Where a push to origin goes elsewhere now
+  than when the job began, git's config or hooks changed since then, something changed outside the
+  branch (its branches, stash, tags, remote-tracking branches, any other ref, git's own files), it
+  changed a place you kept out, or it began from your work not committed, the row shows that first:
+  <strong>Run anyway</strong> pushes - on Ready for you the row's words say what they do: <strong>Push</strong> (<strong>Push and open
+  PR</strong> where the project's way is a pull request), <strong>Not now</strong> and <strong>Push anyway</strong>. The row names the address a push went to as the job began. Take in or Discard of the
+  job closes the row ("Its work was taken in or discarded: nothing to push"); taking all of it in
+  deletes the branch.</li>
+</ul>
+<p><img alt="Back from Away: the chat's summary, While you were away, 2 of 2 To-do done, with Review and take in and On the canvas; on the canvas the two jobs and their report" src="../../images/away-summary.png" /></p>
+<p><em>Back: the summary in the chat you went away from, and the report on the canvas.</em></p>
+<p>The report shows when the jobs ran, what they spent and why they ended; nothing of it is in your
+project before you take it in. Its sections are <strong>Done</strong>, <strong>Waits for your word</strong>, <strong>Could not be
+done</strong>, <strong>Stopped</strong>, <strong>Not started</strong>, <strong>Decided for you</strong> (each of them is on Ready for you too, in
+its <strong>Decided for you</strong> column, with <strong>OK</strong>, <strong>Change</strong> and - once the agent that asked has finished -
+<strong>Change and redo</strong>: see <a href="../../use/decisions/#ok-and-change">Decisions</a>), <strong>Proposed while you were away, not
+started</strong> (with <strong>Add to To-do</strong> or <strong>Dismiss</strong>) and <strong>Kept out, as you asked</strong> (what tried to change
+those places, refused).</p>
+<p>Each job row says what its reviews found, and warns where its copy changed a place you kept out, or a
+file another job changed too. A job that changed nothing is "Done, nothing changed"; one whose work
+you took in or discarded says which files ("taken in: hello.py", "discarded: hello.py"). For each job:</p>
+<ul>
+<li><strong>Allow and go on</strong> or <strong>Refuse</strong>, when it waits for a change, a web request or an agent to open. A
+  folder or a secret is answered in its chat: <strong>Open its chat</strong>. The job then goes on in its copy. What
+  it parked is under <a href="#waiting-for-you">Waiting for you</a>.</li>
+<li><strong>Take in</strong> brings its work into the project; <strong>Take in all</strong> takes in every done job's work. Where
+  two jobs changed one file, the two are joined line by line where their lines do not clash. A
+  clashing line is not taken: the card of the job's kept copy, in its chat, decides it.</li>
+<li><strong>Try again</strong>, for a job that could not be done or was stopped, once you are back. It runs in
+  the job's chat as an ordinary turn, not in a copy: its changes go into the project as that chat's
+  level says.</li>
+<li><strong>See the changes</strong> or <strong>Open its chat</strong>.</li>
+</ul>
+<p>Ready for you's report shows the same jobs, with a row per job and what waits for you.</p>
+<p>See <a href="../../examples/overnight-job/">A job while you're away</a> for the steps from going away to taking
+the work in.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright 2026 Murat H. Unsal · AGPL-3.0-or-later
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.code.copy","content.tabs.link","navigation.top","search.highlight"],"redirect":null,"search":"../../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      
+    
+  </body>
+</html>

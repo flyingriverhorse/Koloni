@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title desc">
+  <title id="title">KOLONİ — geometrik arı logosu</title>
+  <desc id="desc">Şeffaf arka planda mavi kanatlar ve anten, turkuaz gövde kanatları, lacivert alt kanatlar ve altın sarısı geometrik gövde. Düzenlenebilir gerçek vektör yollar ve SVG gradyanları.</desc>
+  <defs>
+    <linearGradient id="antennaGradient" x1="0" y1="99" x2="0" y2="297" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0087FC"/><stop offset="0.53" stop-color="#007DFA"/><stop offset="1" stop-color="#0069FA"/>
+    </linearGradient>
+    <linearGradient id="wingGradient" x1="0" y1="311" x2="0" y2="689" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0076FC"/><stop offset="1" stop-color="#0071FC"/>
+    </linearGradient>
+    <linearGradient id="headGradient" x1="0" y1="293" x2="0" y2="478" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#008DFC"/><stop offset="0.55" stop-color="#0075FC"/><stop offset="1" stop-color="#0063FC"/>
+    </linearGradient>
+    <linearGradient id="cyanGradient" x1="0" y1="619" x2="0" y2="943" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00CCFC"/><stop offset="0.55" stop-color="#00CDFC"/><stop offset="1" stop-color="#00CBFA"/>
+    </linearGradient>
+    <linearGradient id="navyGradient" x1="0" y1="874" x2="0" y2="1144" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#002970"/><stop offset="1" stop-color="#04266D"/>
+    </linearGradient>
+    <linearGradient id="honeyGradient" x1="0" y1="490" x2="0" y2="739" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFDF22"/><stop offset="0.5" stop-color="#FFC516"/><stop offset="1" stop-color="#FFA000"/>
+    </linearGradient>
+    <linearGradient id="honeyBand1" x1="0" y1="764" x2="0" y2="851" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD51A"/><stop offset="1" stop-color="#FFAA00"/>
+    </linearGradient>
+    <linearGradient id="honeyBand2" x1="0" y1="888" x2="0" y2="973" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFC806"/><stop offset="1" stop-color="#FFA600"/>
+    </linearGradient>
+    <linearGradient id="honeyTail" x1="0" y1="1006" x2="0" y2="1104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFCA04"/><stop offset="1" stop-color="#FFA500"/>
+    </linearGradient>
+  </defs>
+  <g id="antennae" fill="url(#antennaGradient)">
+    <path id="left-antenna" d="M 439 99
+C 466 99 487 119 487 145
+C 547 175 586 225 605 286
+L 559 296
+C 544 243 516 206 470 184
+C 460 190 450 194 438 194
+C 412 194 391 173 391 147
+C 391 120 412 99 439 99 Z"/>
+    <path id="right-antenna" d="M 815 99
+C 788 99 767 119 767 145
+C 707 175 667 225 649 286
+L 694 296
+C 710 244 738 207 783 184
+C 793 190 803 194 815 194
+C 841 194 863 173 863 147
+C 863 120 842 99 815 99 Z"/>
+  </g>
+  <g id="upper-wings" fill="url(#wingGradient)">
+    <path id="left-upper-wing" d="M 412 311
+C 395 311 383 317 367 327
+L 181 447
+C 163 459 155 472 155 493
+L 155 650
+C 155 672 170 687 190 688
+C 201 689 209 685 219 680
+L 468 560
+C 482 554 487 546 495 535
+L 536 474
+C 547 455 544 444 535 431
+L 458 328
+C 445 315 430 311 412 311 Z"/>
+    <path id="right-upper-wing" d="M 412 311
+C 395 311 383 317 367 327
+L 181 447
+C 163 459 155 472 155 493
+L 155 650
+C 155 672 170 687 190 688
+C 201 689 209 685 219 680
+L 468 560
+C 482 554 487 546 495 535
+L 536 474
+C 547 455 544 444 535 431
+L 458 328
+C 445 315 430 311 412 311 Z" transform="translate(1254 0) scale(-1 1)"/>
+  </g>
+  <path id="head" fill="url(#headGradient)" d="M 627 293
+C 590 293 554 304 536 314
+C 518 323 515 339 522 360
+C 540 389 572 440 585 459
+C 594 472 608 478 625 478
+C 647 479 660 472 670 455
+L 729 365
+C 738 350 737 336 730 326
+C 716 304 668 293 627 293 Z"/>
+  <g id="middle-wings" fill="url(#cyanGradient)">
+    <path id="left-middle-wing" d="M 410 619
+C 400 619 392 622 380 628
+L 178 727
+C 162 735 155 746 155 766
+L 155 886
+C 155 913 173 932 198 940
+C 211 944 225 940 238 933
+L 416 841
+C 426 836 431 829 437 820
+L 488 735
+C 499 717 496 703 485 689
+L 452 639
+C 442 625 428 619 410 619 Z"/>
+    <path id="right-middle-wing" d="M 410 619
+C 400 619 392 622 380 628
+L 178 727
+C 162 735 155 746 155 766
+L 155 886
+C 155 913 173 932 198 940
+C 211 944 225 940 238 933
+L 416 841
+C 426 836 431 829 437 820
+L 488 735
+C 499 717 496 703 485 689
+L 452 639
+C 442 625 428 619 410 619 Z" transform="translate(1254 0) scale(-1 1)"/>
+  </g>
+  <g id="lower-wings" fill="url(#navyGradient)">
+    <path id="left-lower-wing" d="M 237 962
+L 399 876
+C 412 869 424 873 433 884
+L 583 1098
+C 592 1112 590 1125 579 1136
+C 570 1145 557 1144 544 1138
+L 237 962 Z"/>
+    <path id="right-lower-wing" d="M 237 962
+L 399 876
+C 412 869 424 873 433 884
+L 583 1098
+C 592 1112 590 1125 579 1136
+C 570 1145 557 1144 544 1138
+L 237 962 Z" transform="translate(1254 0) scale(-1 1)"/>
+  </g>
+  <g id="honey-body">
+    <path id="honey-upper" d="M 610 493
+C 625 487 641 490 654 500
+L 768 606
+C 781 617 787 634 780 647
+C 769 665 731 709 715 727
+C 707 736 694 739 680 739
+L 570 739
+C 553 739 542 733 533 723
+L 477 651
+C 466 639 467 622 475 611
+C 488 597 566 525 591 503
+C 597 499 603 495 610 493 Z" fill="url(#honeyGradient)"/>
+    <path id="honey-middle" d="M 526 764
+L 723 764
+C 737 764 747 771 756 786
+L 793 841
+C 797 847 797 851 788 851
+L 465 851
+C 456 851 459 847 463 841
+L 503 783
+C 511 772 516 765 526 764 Z" fill="url(#honeyBand1)"/>
+    <path id="honey-lower" d="M 470 888
+L 784 888
+C 789 888 788 891 784 897
+L 740 962
+C 734 971 727 973 715 973
+L 541 973
+C 528 973 523 970 516 960
+L 469 897
+C 466 893 465 889 470 888 Z" fill="url(#honeyBand2)"/>
+    <path id="honey-tail" d="M 558 1006
+L 695 1006
+C 702 1006 705 1009 699 1017
+L 646 1090
+C 634 1106 618 1105 607 1090
+L 554 1015
+C 550 1010 552 1006 558 1006 Z" fill="url(#honeyTail)"/>
+  </g>
+</svg>

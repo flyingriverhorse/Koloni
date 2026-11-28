@@ -1,0 +1,3420 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A local agent workspace: a chat beside a canvas, real agents, evidence.">
+      
+      
+      
+        <link rel="canonical" href="https://koloni.skyulf.com/manual/use/talk-while-agents-work/">
+      
+      
+      
+        <link rel="prev" href="../chats/">
+      
+      
+        <link rel="next" href="../permissions/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="zensical-0.0.74">
+    
+    
+      
+        <title>Talking while agents work - KOLONİ</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/koloni.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KOLONİ" class="md-header__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KOLONİ
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Talking while agents work
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KOLONİ" class="md-nav__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    KOLONİ
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Getting started
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quick start
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ in 5 minutes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Install
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/why-koloni/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Why KOLONİ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Everyday use
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Everyday use
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chat-and-canvas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chat and canvas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Talking while agents work
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Talking while agents work
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#send-now-and-after-this-turn" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Send now and After this turn
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Send now and After this turn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-a-cli-as-the-orchestrator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        With a CLI as the Orchestrator
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-came-of-a-word-sent-into-a-clis-turn" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What came of a word sent into a CLI's turn
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agents-in-the-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Agents in the background
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agents in the background">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#messages-between-agents-reply-leave-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Messages between agents: reply, leave, now
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stop-and-message-on-one-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Stop and Message on one agent
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-an-agent-ends-and-nobody-is-looking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When an agent ends and nobody is looking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-line-over-the-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The line over the chat
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-orchestrator-has-while-its-agents-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the Orchestrator has while its agents work
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Permission levels
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ready and approval cards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Decisions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Working copies and Take in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../checked/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Checked
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plan-first/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan first
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Compare
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Attachments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../voice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Voice
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../command-palette/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command palette (Ctrl+K)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Agents
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Agents
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/which-way/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Which way to work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/teams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teams
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/step-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Step limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipes and candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipe-cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe cookbook
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/discussions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Discussions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Models
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Models
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Providers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up an API provider
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a local model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Copilot on your GitHub account
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tiers and Agents may use
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/subscription-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Subscription rules
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tools
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Tools
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/built-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ's tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP servers and trust
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Skills
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Memory
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What the project knows
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../knowledge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sources to look things up in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automation
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Automation
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/todo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  To-do
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/overnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Work while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/answering-for-you/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Answering for you
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Money and quota
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Money and quota
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage and budgets
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/cost/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Keeping costs down
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Settings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backup-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Backup and update
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Troubleshooting and FAQ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_13">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Examples
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/team-web-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A web app with a team
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/overnight-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A job while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/candidates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Picking the best of several candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mcp-safely/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Adding an MCP server safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/teach-an-expert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teaching an expert
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_14">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/all-settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Every setting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLIs
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe, role and skill formats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/folders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Folder layout
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Glossary
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/known-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Known limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/upgrade-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Upgrade notes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security and privacy
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_15">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Security and privacy
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/privacy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data and privacy
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reporting a problem
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Developers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_16">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Developers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/from-source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Run from source
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/verify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tests and verify
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Contributing (DCO)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/licenses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Licenses
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#send-now-and-after-this-turn" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Send now and After this turn
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Send now and After this turn">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-a-cli-as-the-orchestrator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        With a CLI as the Orchestrator
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-came-of-a-word-sent-into-a-clis-turn" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What came of a word sent into a CLI's turn
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agents-in-the-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Agents in the background
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agents in the background">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#messages-between-agents-reply-leave-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Messages between agents: reply, leave, now
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stop-and-message-on-one-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Stop and Message on one agent
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-an-agent-ends-and-nobody-is-looking" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When an agent ends and nobody is looking
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-line-over-the-chat" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The line over the chat
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-orchestrator-has-while-its-agents-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the Orchestrator has while its agents work
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="talking-while-agents-work">Talking while agents work<a class="headerlink" href="#talking-while-agents-work" title="Permanent link">&para;</a></h1>
+<p>A turn stays open while the Orchestrator's agents work, and you can talk to the Orchestrator in it:
+ask how things stand, add a wish, have it open, message or stop an agent - without waiting for the
+turn to end.</p>
+<p><img alt="The chat while its Coder works in the background: the line &quot;1 agent at work&quot; over the chat, opened to At work in this turn with the Coder, since when, and its Stop and Message; the Orchestrator's answer to &quot;how is it going?&quot; in the same turn; and the message box with After this turn and Send now" src="../../images/talk-while-agents-work.png" /></p>
+<p><em>A word sent now answered in the same turn, while the Coder works: the line over the chat, opened.</em></p>
+<h2 id="send-now-and-after-this-turn">Send now and After this turn<a class="headerlink" href="#send-now-and-after-this-turn" title="Permanent link">&para;</a></h2>
+<p>While a turn runs, the message box has two ways to send:</p>
+<ul>
+<li><strong>Send now</strong> (Enter): <em>the Orchestrator reads it in this turn.</em> Your message goes into the turn at
+  work. If the Orchestrator is waiting for its agents, it wakes and answers you; if it is in the
+  middle of a step, it reads your message at its next step. The turn does not end before it has
+  read it.</li>
+<li><strong>After this turn</strong>: <em>it waits in the queue and starts its own turn</em>, as a message did before.</li>
+</ul>
+<p>The box says what it does: "Write to the Orchestrator - it reads it in this turn…". With no turn at
+work there is only <strong>Send</strong>.</p>
+<p>Some turns take no message while they run. Then Send now puts your message in the queue and the box
+says why under it - <strong>Queued:</strong> and one of:</p>
+<table>
+<thead>
+<tr>
+<th>Why</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the turn was ending</td>
+<td>the Orchestrator had given its last answer</td>
+</tr>
+<tr>
+<td>this turn takes no message now (a plan turn)</td>
+<td>the turn writes a plan (<a href="../plan-first/">Plan first</a>)</td>
+</tr>
+<tr>
+<td>this turn takes no message now (a comparison)</td>
+<td>the turn is one side of a <a href="../compare/">comparison</a></td>
+</tr>
+<tr>
+<td>this turn takes no message now (a To-do task's turn)</td>
+<td>the turn works on a To-do task</td>
+</tr>
+<tr>
+<td>this turn takes no message now (a job while you were away)</td>
+<td>a ☾ Away job's turn</td>
+</tr>
+<tr>
+<td>this turn takes no message now (not one you started)</td>
+<td>the turn was not started from your own page</td>
+</tr>
+<tr>
+<td>it is for another topic</td>
+<td>you wrote into another topic, or started a new one</td>
+</tr>
+</tbody>
+</table>
+<p>A message is in exactly one place: in the turn at work, or in a turn of its own. If the turn ends
+before the Orchestrator read it - you pressed Stop, or the turn failed - your message goes on in a
+turn of its own, queued, so it is never lost. One already written into a CLI Orchestrator's turn
+is not sent again: what came of it is said instead (<a href="#what-came-of-a-word-sent-into-a-clis-turn">below</a>).</p>
+<p>When it answers your message, the Orchestrator changes nothing itself: its steps until that answer
+are refused Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and
+any MCP server's tool. It hands new work to an agent (opens one, messages one, stops one) or says it in
+its answer; it may still read, look things up, <strong>Remember</strong> and propose To-do tasks, which wait for your
+OK as ever. A CLI Orchestrator's own tools are only told so. Its own work goes on as before once it has
+answered. While it answers it waits for no place among the agents at work: its agents keep theirs, and
+it answers you at once (Settings › This project › Limits and money › More limits).</p>
+<p>Only you can send now: the message must come from KOLONİ's own page. What you write is your own
+word, as any message of yours is - Full auto's judge reads it as yours.</p>
+<h3 id="with-a-cli-as-the-orchestrator">With a CLI as the Orchestrator<a class="headerlink" href="#with-a-cli-as-the-orchestrator" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>CLI</th>
+<th>Send now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code, Codex, Copilot run <strong>Native</strong></td>
+<td>goes into its turn at once (measured 27 Nov 2026: Claude Code 2.1.332, Codex 0.172, Copilot 1.0.114)</td>
+</tr>
+<tr>
+<td>agy, and any CLI run <strong>One session per agent</strong></td>
+<td>read when its current run ends, in one more run of the same turn</td>
+</tr>
+</tbody>
+</table>
+<p>A word to the Orchestrator about an agy agent (its window's box) wakes the Orchestrator as your own
+word does, while it waits for its agents.</p>
+<h3 id="what-came-of-a-word-sent-into-a-clis-turn">What came of a word sent into a CLI's turn<a class="headerlink" href="#what-came-of-a-word-sent-into-a-clis-turn" title="Permanent link">&para;</a></h3>
+<p>A word written into a CLI's running turn - Send now to a CLI Orchestrator, an agent's Tell box, or
+another agent's message to it - comes to one of three ends, by what the CLI itself shows:</p>
+<table>
+<thead>
+<tr>
+<th>End</th>
+<th>What the CLI shows</th>
+<th>What you see</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>taken</strong></td>
+<td>Claude Code echoes it before its turn's result; Codex answers with its turn; Copilot names it as taken into its work before it goes idle</td>
+<td>nothing more: it reads it in that turn</td>
+</tr>
+<tr>
+<td><strong>not sent</strong></td>
+<td>its turn was over (Codex: "no active turn to steer"), or it could not be written</td>
+<td>Send now: the Orchestrator reads it at its next step, or in one more run of the turn; Tell: the box says the turn is ending - try again once it has finished. Where Codex's no came only after 5 seconds, Tell's word waits for the agent's next step and a line in the chat says so: <em>Coder's turn was over before your word reached it: "use blue" - it is handed to Coder at its next step, if it takes one; say it once more if it still matters</em></td>
+</tr>
+<tr>
+<td><strong>unknown</strong></td>
+<td>it was written, but by the end of its turn the CLI showed no sign it took it - or the CLI said no in a way not measured</td>
+<td>a line in the chat: <em>Lead may not have read your word before its turn ended: "use blue" - it is not sent again; say it once more if it still matters</em></td>
+</tr>
+</tbody>
+</table>
+<p>A word of Send now, Tell or an agent's message that is unknown is never sent again: the CLI may have
+read it. A Claude Code that echoes your word only after its result takes one more turn on it;
+KOLONİ reads that turn to its end in the same run, and your word is still said unknown - it was not
+taken in the turn it was sent into. The agent's own record says the same: <em>Lead may not have read
+this before its turn ended; it is not sent again</em>. A <strong>Change</strong> of a decision or of an answer is
+different: it stands whatever came of it, and the agent is given it again from its next step or
+run on - as is KOLONİ's own word to an Orchestrator that changed files with a command.</p>
+<p>An agent that messages a CLI agent at work is told what came of it the same way - in the message's
+answer where it is known at once (Codex), else by KOLONİ once it is: <em>Coder took your message ("use
+blue") into its turn: it is read in its turn</em> (from its next step on - it takes no step of its own
+for it); <em>your message ("use blue") did not reach Coder's turn: it is handed to Coder at its next
+step, if it takes one</em> or <em>Coder's turn ended before it showed it took your message ("use blue"): it
+may not have read it; it is not sent again</em> (a note, read at once).</p>
+<h2 id="agents-in-the-background">Agents in the background<a class="headerlink" href="#agents-in-the-background" title="Permanent link">&para;</a></h2>
+<p>The Orchestrator of an API model can open an agent <strong>in the background</strong>: it starts it and goes on at
+once - talks to you, opens others, messages or stops it. When the agent ends, its report comes to the
+Orchestrator as a note and it takes one step to read it. Until then it says the agent is still at
+work, never what it found. A CLI's Orchestrator always went on like this; it reads its agents'
+reports once all of them are back.</p>
+<p>Background agents are held to the chat's limits as any agent: how many work at once, how many a turn
+opens, how deep (<a href="../../agents/step-limits/">Step limits</a>). Their cards come to you as usual, and Full
+auto's judge looks at their commands as at any. Each wake is a step of the Orchestrator's, counted to
+its role's limit. Stop on the turn stops them all.</p>
+<p>The Orchestrator can also run a command in the background (<code>run_command</code> with <code>background</code>): it goes
+on, reads the command's output with <code>command_output</code>, stops it with <code>stop_command</code>, and is told when it
+ends. At most as many run at once as the chat lets agents work at once. The turn's end stops them.</p>
+<h3 id="messages-between-agents-reply-leave-now">Messages between agents: reply, leave, now<a class="headerlink" href="#messages-between-agents-reply-leave-now" title="Permanent link">&para;</a></h3>
+<p>The Orchestrator of an API model also says <em>how</em> a message to one of its agents (<code>message_agent</code>)
+goes - only to an agent it could message anyway:</p>
+<table>
+<thead>
+<tr>
+<th>How</th>
+<th>The agent is not at work</th>
+<th>The agent is at work</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>reply</strong> (as ever)</td>
+<td>it takes a turn on it while the Orchestrator waits for its reply</td>
+<td>it is handed it at its next step - or, a Claude Code, Codex or Copilot agent, in its running turn</td>
+</tr>
+<tr>
+<td><strong>leave</strong></td>
+<td>it takes it up now, in a turn of its own; the Orchestrator goes on, and the reply comes to it as a note, as a background agent's report does</td>
+<td>it is handed it at its next step; where its work ends before that, it takes it up in a turn of its own, and its reply comes the same way</td>
+</tr>
+<tr>
+<td><strong>now</strong></td>
+<td>as <strong>leave</strong></td>
+<td>into its running work: a CLI's running turn - with what came of it, as <a href="#what-came-of-a-word-sent-into-a-clis-turn">below</a> - else at its next step, as <strong>leave</strong></td>
+</tr>
+</tbody>
+</table>
+<p>A turn an agent takes on a message left waits for its other turns and for a place, as any agent's
+turn; a turn in which it only answers another agent's question is not handed it - its own work is.
+A message left counts twice toward the turn's messages between agents (its note and the turn it may
+start) from the moment it is left, so it is refused where there is room for one only. However it ends, the Orchestrator
+is told: the agent read it (from its next step on, without a step of its own for it), its reply, or
+why it was not taken up - the agent was stopped, or can no longer be messaged, or the turn ended
+first, or it was stopped as it took it up (then it may have read it); it is not sent again. Every
+other agent, and a CLI Orchestrator, sends a message as a reply, as does a message to an agent of an
+earlier turn: one that asks otherwise is told so.</p>
+<h2 id="stop-and-message-on-one-agent">Stop and Message on one agent<a class="headerlink" href="#stop-and-message-on-one-agent" title="Permanent link">&para;</a></h2>
+<p>An agent at work that the Orchestrator (or one of its agents) opened has <strong>Stop</strong> and <strong>Message</strong> on
+its node on the canvas and in its window's head:</p>
+<ul>
+<li><strong>Stop</strong> stops that agent alone. The chat says <em>"You stopped Coder. Its work so far is kept for
+  your Take in; nothing of it is in the project."</em> The Orchestrator is told, as KOLONİ's word, not to
+  open it again unless you ask; the rest of the turn goes on. The Orchestrator has its own
+  <code>stop_agent</code> for one it opened.</li>
+<li><strong>Message</strong> opens the agent's window at its Tell box.</li>
+</ul>
+<p>KOLONİ's own checks (Stop this check) and the agents of a team's recipe (the team's Stop) are stopped
+their own way, so they have no Stop of their own here.</p>
+<p>An agy agent cannot hear messages while it works: its box says so - "Coder can't hear messages while
+it works (agy). Tell the Orchestrator instead - it can stop it and start it again." - and sends your
+words to the Orchestrator. A Claude Code, Codex or Copilot agent hears them in its running turn.</p>
+<h2 id="when-an-agent-ends-and-nobody-is-looking">When an agent ends and nobody is looking<a class="headerlink" href="#when-an-agent-ends-and-nobody-is-looking" title="Permanent link">&para;</a></h2>
+<p>When a background agent ends while nobody looks at its chat, KOLONİ shows a desktop notice -
+"Reviewer finished: 2 findings", "Coder stopped", "Tester failed" - where the project has
+<strong>Show a desktop notification</strong> on (Settings › This project › Notifications). The notice holds only the
+agent's name and how it ended, never its words. A card or a question that starts to wait for you
+gets a notice too ("Coder asks you a question", "3 cards wait for you") - also only while nobody looks
+at its chat.</p>
+<p>"Nobody looks" is herdr's rule: no page of KOLONİ's has the chat on screen with its tab seen and its
+window in front. A tab you hid, another window you went to, or another page of KOLONİ's open over
+the chat (Chats, Settings) is nobody looking - the notice comes; the chat on screen in front of you
+is somebody - it does not.</p>
+<h2 id="the-line-over-the-chat">The line over the chat<a class="headerlink" href="#the-line-over-the-chat" title="Permanent link">&para;</a></h2>
+<p>While a turn runs with agents at work below the Orchestrator, a plan of the Orchestrator's, or
+something that waits for you, one line sits over the chat, under its tabs:</p>
+<blockquote>
+<p>3 agents at work · step 3 of 6 · 1 waits for you · ≈ 0.40 USD</p>
+</blockquote>
+<ul>
+<li><strong>agents at work</strong>: those working, waiting for their own agents, for a place or for a file. One that
+  waits for your yes to start is a card, counted with what waits for you.</li>
+<li><strong>step 3 of 6</strong>: the step of the Orchestrator's plan after those done (see <code>update_plan</code> below), there
+  only while it shows one.</li>
+<li><strong>waits for you</strong>: the cards of this chat that wait for your word, as the canvas counts them.</li>
+<li><strong>what the turn cost so far</strong> at your prices - its agents and KOLONİ's own requests for it, the
+  advisor's too. "≥" where a part of it has no price; left out where nothing of it is priced (a CLI on a
+  plan, a model with no price), never a made-up zero. It is read again at most every 5 seconds as the
+  agents report their tokens.</li>
+</ul>
+<p>Click the line for <strong>At work in this turn</strong>: each agent, "Coder · working · since 14:02", with its
+<strong>Stop</strong> and <strong>Message</strong>; the Orchestrator's plan, a step a line; and <strong>Open Ready for you</strong>.</p>
+<h2 id="what-the-orchestrator-has-while-its-agents-work">What the Orchestrator has while its agents work<a class="headerlink" href="#what-the-orchestrator-has-while-its-agents-work" title="Permanent link">&para;</a></h2>
+<p>The Orchestrator at its own work - not a sub-agent, an answer or a discussion, nor a plan turn or a
+side of a comparison - also has these, besides <code>stop_agent</code>; anywhere else they are refused, also
+when named. Each answer of theirs is data for it:
+what agents, models and other people wrote stays in quotes, with secrets masked.</p>
+<ul>
+<li><strong>agents_at_work</strong> - who of this turn is at work now: "2 at work in this turn:", then a line each,
+  "- Coder (Coder role): running since 14:02 (3 min), in the background; waits for: its command
+  "pytest -q", running since 14:03; last said: "Reading the tests…"". An agent's last words are cut at
+  300 characters and marked where they read like orders; one that waits for your yes "waits for the
+  user's yes", one that waits for a place "waits for a place". A CLI Orchestrator has it too.
+  <strong>What it waits for</strong> comes from KOLONİ's records alone, never guessed: a card for you (its command
+  or its change, named), an answer to its question or on one of KOLONİ's cards, its command running and
+  since when, another agent (the one that holds a file it wants, or its own agents at work), a place
+  (at its provider, "1 of 1 at work there", or among the turn's agents), your yes to open it - or
+  "unknown" where the records say nothing. <strong>At work in this turn</strong>, over the chat, says it too:
+  "Coder · working · since 14:02 · waits for its command "pytest -q", running since 14:03" (nothing
+  where the records say nothing).</li>
+<li><strong>update_plan</strong> - the Orchestrator of an API model shows you its plan: its steps, each pending, in
+  progress or done, at most 30 of 200 characters. It is its own words, and says so: its window shows
+  it under <strong>Plan (its own words)</strong> (a Codex Orchestrator's own plan shows there too), and the line over
+  the chat says its step. The plan goes with the turn. A CLI's own plan is its own, so a CLI is not given
+  it.</li>
+<li><strong>ask_advisor</strong> - a second model's advice on a hard choice, at most 3 times a turn. The advisor is
+  your <strong>Advisor model</strong> (Settings › The app › Agents: "A model the Orchestrator may ask for advice. It
+  sees the Orchestrator's summary and the turn's recent steps, masked."); with none chosen, a model
+  on another provider than the Orchestrator's, the strongest first. Only models that can answer with
+  every tool off are offered, as for the Judge model. It is sent the Orchestrator's question (1,000
+  characters) and summary (4,000), its last 12 steps of the turn and who is at work - every secret
+  KOLONİ knows, and keys known by their shape, masked - and no tools. Its answer (2,000 characters) is
+  data. Where no advisor can be asked - none to ask, no room on its provider, the turn past its token
+  limit, no answer within a minute (two for a CLI) - the Orchestrator is told why and goes on. Its
+  request counts in the turn's spend and on <a href="../../money/usage/">Usage</a> under its model.</li>
+<li><strong>note_decision</strong> - a decision the Orchestrator took for you without asking (a library, an
+  approach) goes under <strong>Decided for you</strong> on Ready for you: "Orchestrator · Decided: "Use SQLite for
+  the cart"" with its reason, marked <strong>new</strong> until your <strong>OK</strong>. At most 10 a turn, each one line of 200
+  characters. It changes nothing by itself. <strong>Change</strong> takes your own words: while that turn is still
+  at work they go into it as your message ("I change your decision …: …"), else a turn of KOLONİ's
+  in that chat tells the Orchestrator. See <a href="../decisions/#ok-and-change">Decisions</a>.</li>
+<li><strong>read_pr_feedback</strong> - one pull request of the project's GitHub repository, by its number or address:
+  the review decision, the checks that failed or have not ended, each review and comment with who wrote
+  it, and the comments on lines. It is read with your own <code>gh</code> - offered where <code>gh</code> is installed and the
+  project's origin is on github.com; not logged in, it says so - and it only reads: there is no way to
+  reply with it. What reviewers and checks say is theirs, never yours: framed as data, masked, cut at
+  20,000 characters. Where it reads like orders to an agent, the chat warns you, as it does for a web
+  page or an MCP tool.</li>
+<li><strong>suggest_preference</strong> - when you say how you want work done from now on, your own sentence for
+  Your preferences, quoted from your prose of the turn: added at once with <strong>Undo</strong> in the chat, or - with
+  <strong>New preferences from your words</strong> at <strong>Ask me first</strong> - on a card with <strong>Add</strong> and <strong>Not now</strong>. See
+  <a href="../../memory/#who-writes-what">Memory</a>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright 2026 Murat H. Unsal · AGPL-3.0-or-later
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.code.copy","content.tabs.link","navigation.top","search.highlight"],"redirect":null,"search":"../../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      
+    
+  </body>
+</html>

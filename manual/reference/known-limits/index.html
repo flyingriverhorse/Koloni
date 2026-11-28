@@ -1,0 +1,3656 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A local agent workspace: a chat beside a canvas, real agents, evidence.">
+      
+      
+      
+        <link rel="canonical" href="https://koloni.skyulf.com/manual/reference/known-limits/">
+      
+      
+      
+        <link rel="prev" href="../glossary/">
+      
+      
+        <link rel="next" href="../upgrade-notes/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="zensical-0.0.74">
+    
+    
+      
+        <title>Known limits - KOLONİ</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/koloni.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KOLONİ" class="md-header__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KOLONİ
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Known limits
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KOLONİ" class="md-nav__button md-logo" aria-label="KOLONİ" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="KOLONİ">
+
+    </a>
+    KOLONİ
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Getting started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Getting started
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quick start
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ in 5 minutes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Install
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/why-koloni/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Why KOLONİ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Everyday use
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Everyday use
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/chat-and-canvas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chat and canvas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/chats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Chats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/talk-while-agents-work/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Talking while agents work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Permission levels
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ready and approval cards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Decisions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/workspace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Working copies and Take in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/checked/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Checked
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/plan-first/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan first
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Compare
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Attachments
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/voice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Voice
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../use/command-palette/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Command palette (Ctrl+K)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Agents
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Agents
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/which-way/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Which way to work
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/teams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teams
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/step-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Step limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipes and candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/recipe-cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe cookbook
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/discussions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Discussions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Models
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Models
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Providers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up an API provider
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a local model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/setup-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Set up a CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Copilot on your GitHub account
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tiers and Agents may use
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Limits
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/subscription-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Subscription rules
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tools
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Tools
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/built-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  KOLONİ's tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP servers and trust
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Skills
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Memory
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Memory
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What the project knows
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../knowledge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sources to look things up in
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automation
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Automation
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/todo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  To-do
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/overnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Work while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../automation/answering-for-you/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Answering for you
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Money and quota
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Money and quota
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage and budgets
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../money/cost/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Keeping costs down
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Settings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backup-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Backup and update
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Troubleshooting and FAQ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_13">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Examples
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/team-web-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A web app with a team
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/overnight-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  A job while you're away
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/candidates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Picking the best of several candidates
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mcp-safely/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Adding an MCP server safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/teach-an-expert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Teaching an expert
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_14" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_14">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../all-settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Every setting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLIs
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Recipe, role and skill formats
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../environment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Environment variables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../folders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Folder layout
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Glossary
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Known limits
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Known limits
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#an-alpha" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        An alpha
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Secrets
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outside-content" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Outside content
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CLIs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#git" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Git
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#github" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        GitHub
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#models" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Models
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Commands
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#work-while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Work while you're away
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Work while you&#x27;re away">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#away-on-a-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Away on a branch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recipes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The page
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Systems
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upgrade-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Upgrade notes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security and privacy
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_15">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Security and privacy
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Security model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/privacy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data and privacy
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reporting a problem
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Developers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_16">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Developers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Architecture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/from-source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Run from source
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/verify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tests and verify
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Contributing (DCO)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/licenses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Licenses
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#an-alpha" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        An alpha
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Secrets
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outside-content" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Outside content
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CLIs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#git" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Git
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#github" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        GitHub
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#models" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Models
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Commands
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#work-while-youre-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Work while you're away
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Work while you&#x27;re away">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#away-on-a-branch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Away on a branch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recipes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The page
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Systems
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="known-limits">Known limits<a class="headerlink" href="#known-limits" title="Permanent link">&para;</a></h1>
+<p>What KOLONİ does not do yet, or does only in part.</p>
+<h2 id="an-alpha">An alpha<a class="headerlink" href="#an-alpha" title="Permanent link">&para;</a></h2>
+<p>KOLONİ is an alpha (0.1.x): expect rough edges. Several paths were built against stand-ins only,
+including the <strong>Server</strong> tab for llama.cpp, Copilot with a GitHub token, and some limit and credit
+messages.</p>
+<h2 id="secrets">Secrets<a class="headerlink" href="#secrets" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A command that names a secret file, or searches the whole folder when the folder holds one (<code>grep -r</code>,
+  <code>rg</code>, <code>gci | gc</code>), is asked about at every level, Full auto too. A script that opens a secret file
+  without naming it (it builds the name, say) is not caught. Only Docker and Copilot's sandbox hide secret
+  files from commands; KOLONİ's own commands on this machine, Claude Code, Codex and agy do not.</li>
+<li>When it runs <strong>Native</strong>, Codex asks KOLONİ before its commands - a read of <code>.env</code> too (measured on 27 Nov
+  2026 with Codex 0.172.0: it asked before both <code>Get-Content readme.txt</code> and <code>Get-Content .env</code>; this guide
+  said it ran its own safe commands unasked, and older versions were not measured again). A command an
+  allow rule of Codex's own covers
+  still runs without asking; KOLONİ records it after it ran, so no card stands in its way. agy reading with
+  its own tools has no hook: its reads, of a secret file too, are not asked about at any level.</li>
+<li>A command you approve can still print, encode or send a secret it was given.</li>
+<li>An agent's request for a key on a hidden card is not available to CLIs working with their own tools.</li>
+<li>A branch deleted because it held a secret you gave still has its commits in git's reflog until git
+  prunes them.</li>
+</ul>
+<h2 id="outside-content">Outside content<a class="headerlink" href="#outside-content" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Text from the web, MCP tools, Knowledge and GitHub issues is framed as data, but the frame only tells
+  the model; a model can still follow what it says.</li>
+<li>Only KOLONİ's own tools frame what they bring in. A CLI's own web fetch, MCP servers or file reads
+  are not framed.</li>
+<li>A forged end of the frame is not caught when it is written with look-alike letters from other scripts,
+  with full-width or mathematical letters, with words joined by marks (<code>end-of-the</code>, <code>end_of_the</code>), or
+  with markdown or HTML inside it. See <a href="../../security/model/#outside-content">Security model</a>.</li>
+</ul>
+<h2 id="clis">CLIs<a class="headerlink" href="#clis" title="Permanent link">&para;</a></h2>
+<ul>
+<li>When a CLI runs <strong>Native</strong>, it runs its commands itself, so its model reads their raw output; KOLONİ
+  masks keys only in what it records and shows. Measured once on Copilot (Native) with a made-up GitHub
+  token (<code>ghp_…</code>) in a command's output: it was <code>***</code> in the model's answer and absent from Copilot's raw
+  stream, so Copilot hid that kind of key itself; other kinds of key were not tried. Claude Code, Codex
+  and agy run Native were not measured. With KOLONİ's tools (as a session, or one run per step),
+  the keys KOLONİ knows and values shaped or named like keys are masked before the model reads the
+  output.</li>
+<li>Copilot does not report which paths its PowerShell commands touch, so at Full auto a command that
+  writes a protected file without naming it (a script, a path it builds) runs without a card. The same
+  goes for KOLONİ's own commands at Full auto: one that names the file (<code>echo … &gt; .claude/settings.json</code>)
+  is asked about, but a script that writes <code>~/.claude/settings.json</code> is not. Such a file in the project
+  is put back, and you are asked whether to keep it; one outside the project is not.</li>
+<li>Claude Code and agy run <strong>Native</strong> (and Copilot where it cannot sandbox its commands) have no
+  sandbox of KOLONİ's: it can stop what they do only at their hook. A write with their own file tools
+  outside the project and the folders it also works in (or that you allowed) is asked about on a card at
+  every level, Full auto too (in a working copy, refused: it may write only in the copy); one into a CLI's own folder (<code>.claude</code>, <code>.gemini</code>, <code>.codex</code> or <code>.copilot</code> in
+  your home folder) or another place KOLONİ never opens (<code>.ssh</code>, browser profiles) is refused. Their
+  commands are judged by what they name: a command that writes outside the project, for example to the
+  Startup folder or a PowerShell profile, runs without a card at Full auto, and at any level where an
+  allow rule covers it, unless it names a CLI's settings folder such as <code>.claude</code> or <code>.gemini</code>, or a
+  secret file, or it deletes or sends data off the machine.</li>
+<li>Claude Code run <strong>Native</strong> does not say where its commands run, so KOLONİ judges each one as
+  run in the project folder. If the CLI keeps a <code>cd</code> from an earlier command, later relative paths are
+  judged at the wrong place: after you approve <code>cd ..</code>, reading a file there by its name is taken for a
+  read in the project and is not asked about below Full auto. Claude Code's Bash tool was
+  measured not to keep one (2.1.325, Windows, run without its screen and as KOLONİ runs it: each
+  Bash command starts in the project folder again, and KOLONİ starts it with the setting that asks for
+  that); its PowerShell tool is said by the CLI to keep its folder, and other versions, Linux and macOS
+  are not measured - so a <code>cd</code> into
+  <code>.koloni/tmp/</code> by Claude Code's PowerShell tool is still asked. A command of its that
+  itself names a folder to run in is asked at every level: KOLONİ cannot check it.</li>
+<li>GitHub Copilot CLI run <strong>Native</strong> does not say where its commands run either. On its newer protocol
+  (Copilot 1.0.114 on) KOLONİ puts each PowerShell command in the project folder itself
+  (a <code>Set-Location</code> into it before each, through its hook: where it cannot go there, the command
+  does not run) and judges it there, so a
+  <code>cd</code> into <code>.koloni/tmp/</code> runs without a card at Full auto; a delete inside <code>.koloni/tmp/</code> is still a
+  card. Bash (Linux, macOS) gets no such prefix: there the <code>cd</code> is asked as before. On the older
+  protocol, a Copilot version measured with KOLONİ - 1.0.105 so far, by the version Copilot itself
+  reports - starts a command that names no shell of its own in a new shell in the project folder, with
+  the same result; once a command has named a shell, the <code>cd</code> is asked as before. Any other version of
+  the older protocol, and a Copilot that does not say its version, runs the old way (One session per
+  agent), and its Models card says so. Copilot
+  updates itself when you run it yourself, and that update reaches KOLONİ too: what KOLONİ judges is
+  the version it runs. Only Windows was measured.</li>
+<li>A sub-agent on Claude Code run <strong>Native</strong> works in a working copy, but its commands are not
+  sandboxed: at Full auto, one that writes into your project by a path it does not spell out (<code>..\..</code>, a
+  script) changes the project directly. So do those of GitHub Copilot CLI run <strong>Native</strong> where it works
+  in a working copy and its session has no sandbox - this machine cannot give it one, or the project
+  does not hide its secret files. KOLONİ looks at the project after each of its commands and
+  records such a change as made in the project by an unknown maker - one look over the project's files
+  each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows). With several such
+  agents at work at once, a change can be recorded more than once - by each one's look that finds it,
+  under its own agent; only the record changes, not your files.</li>
+<li>With Codex run <strong>Native</strong>, a command of Codex's own still at work after 11 minutes is ended as
+  failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
+  started" at the same 11 minutes.</li>
+<li>Codex opens no sub-agents of its own: KOLONİ switches its <code>multi_agent</code> feature off and sets
+  <code>agents.enabled=false</code>. Codex 0.172.0 still opened one with the first alone; with both it had no such
+  tool (measured on 27 Nov 2026 with its app-server, which <strong>One session per agent</strong> and <strong>Native</strong> use).
+  Where KOLONİ runs <code>codex exec</code> - its web search, and a Codex that runs the old way - it gets the same
+  switch, not measured there; nor is the key measured on a Codex older than 0.172.0.</li>
+<li>Codex run <strong>Native</strong> with <strong>Sign-in: Its own for KOLONİ</strong> goes on in its thread from the topic's
+  previous turn. That is built on measurements of Codex 0.164 and tested with a stand-in only, not yet
+  tried with a real Codex. On Codex 0.164 a new, empty KOLONİ folder also answered <strong>read-only</strong> when
+  asked for its workspace-write sandbox (a turn is then refused before Codex acts), so a role that writes
+  or runs commands might not run on such a provider until this is measured on a newer Codex. Codex has
+  also been seen to answer while one of KOLONİ's tools it called still ran; why is not known. KOLONİ
+  waits for that call. See <a href="../../models/setup-cli/#codex">Codex</a>.</li>
+<li>GitHub Copilot CLI's tokens and AI credits run as a session are counted from its usage checkpoint, as
+  in <strong>Native</strong>; measured with <code>copilot -p</code> (CLI 1.0.103), not yet seen in a live session.</li>
+<li>Copilot's thinking levels on a model server of your own are not measured.</li>
+<li>A role run inside GitHub Copilot CLI (<strong>Run inside the CLI</strong>) is built on measurements of Copilot
+  1.0.114 (27 Nov 2026: the roles it is given, its task tool's arguments, its hooks, requests and
+  events for a sub-agent's tools and commands, KOLONİ's tool bridge shared with it). Its writes with
+  Copilot's own file tools (create, edit, apply_patch) were not seen - it wrote with PowerShell - and
+  are asked as the Orchestrator's are. Copilot does not run its commands where KOLONİ puts the
+  Orchestrator's, in the project folder: where they run is taken as not known, so its git reads ask
+  at <strong>Ask</strong> and its git lines go to the judge at <strong>Full auto</strong> (and more of its commands may ask). The role runs on the
+  Orchestrator's model (a model of the role's own is not given), a turn that goes on in its kept
+  session is given the roles anew (not measured that Copilot takes them so), and a Copilot on its
+  older protocol is offered no role, with nothing said of it. A role that may list folders but not
+  read files is not run inside Copilot (its one tool for both reads files too); one that does not
+  run commands may not delete a file. Its tokens are counted in the turn - the larger of Copilot's
+  own count for the turn and its model calls' sum, since whether the first holds the role's is not
+  measured - but its AI credits only as Copilot's session count says them.</li>
+<li>An agy model whose name ends in its level takes no other level. Only a name ending in <code>-low</code> was seen
+  to refuse one; the other endings are read the same way, not measured.</li>
+<li>A word sent while a CLI works (<strong>Send now</strong>, an agent's Tell box) goes into its running turn on
+  Claude Code (a second user line; 2.1.332), Codex (<code>turn/steer</code>; 0.172) and GitHub Copilot CLI run
+  <strong>Native</strong> (<code>session.send</code> with mode "immediate"; 1.0.114) - each measured on 27 Nov 2026. agy
+  takes it only after its turn (1.5.18): an agy agent's box sends your word to the Orchestrator, and
+  an agy Orchestrator reads it in one more run of the same turn. A CLI run as a session reads it at
+  its next run too. That a CLI Orchestrator wakes for each of its agents' ends is not done: it reads
+  their reports once all are back (each wake would be a run of its CLI).</li>
+<li>What came of a word written into a CLI's turn - taken, not sent, unknown - is read from the CLI's
+  own signs, measured on 27 Nov 2026 with short turns and tested with stand-ins only, not yet in a
+  long live turn: Claude Code's echo of the line before its result (<code>--replay-user-messages</code>; the
+  echo names no id of KOLONİ's, so two words alike in one turn are matched oldest first), Codex's
+  answer to <code>turn/steer</code>, Copilot's <code>user.message</code> naming the id its send was answered with, before
+  its idle. Only Codex's "no active turn to steer" (-32600) is read as not sent; any other no of a
+  CLI's is unknown. An unknown word of Send now, Tell or an agent's message is never sent again: one
+  Claude Code takes in one more turn after its result is still said unknown (that turn is read to
+  its end), and one Copilot would take after its idle is not read (its run has ended); a Change of
+  a decision or an answer is given again from the agent's next step. Claude Code is asked for its
+  echo only from 2.1.332 on, the version it was measured on (<code>--version</code>, asked at each run), and
+  not for a prompt over 8 MB (pictures): a word steered into such a turn is unknown.</li>
+<li><code>message_agent</code>'s <strong>leave</strong> and <strong>now</strong> are the API Orchestrator's alone (as <code>spawn_agent</code>'s
+  background); others send a reply. Whether an agent at work read a message left for it, or its work
+  ended first, is looked at every half second and kept in memory only: KOLONİ restarted meanwhile,
+  the message stays on the agent's record unread and nobody takes it up. A Claude Code, Codex or
+  Copilot agent at work is handed a message left for it (<strong>leave</strong>) with its next KOLONİ tool result,
+  else in a turn of its own once its run ends; agy is out of reach while it works, as before, and
+  takes a message up only once it has finished. Where the Orchestrator's turn ends before a message
+  is taken up, it is told on its own record - which no step reads any more.</li>
+<li>Talking while agents work: the Orchestrator's steps that answer your word are refused KOLONİ's
+  Write files, Edit files, Diagram pictures, Run commands, a skill's script, Web requests and any MCP
+  server's tool; a CLI Orchestrator's own tools are only told so. While it answers your word the
+  Orchestrator waits for no room among the
+  agents at work: it is counted at work in the project and on its provider (who comes next waits for
+  it), but a provider let work at one at once gets one more request beside its agents' then, and the
+  turn may have one more at work than the chat's setting until its next wait. Whether you look at a
+  chat is what its page says (its view on screen, its tab seen, its window focused): a page that has
+  not said yet - one of an older build - counts as looking, and no desktop notice comes then.</li>
+<li>The line over the chat says the Orchestrator's step from the plan it shows (<code>update_plan</code>, or a
+  Codex Orchestrator's own); Claude Code's own to-do list is not read, so a Claude Code Orchestrator
+  shows no step. <code>ask_advisor</code> and <code>note_decision</code> have not been tried with a live model yet; what
+  <code>read_pr_feedback</code> reads is as <code>gh</code> gave it on 27 Nov 2026 (<code>gh pr view --json</code> for reviews,
+  comments and checks; <code>gh api</code> for the comments on lines, the first 100).</li>
+</ul>
+<h2 id="git">Git<a class="headerlink" href="#git" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A team's branch starts from your folder as it is only with git 2.40 or later (Apple's git is older),
+  and when your folder has at most as many new files as a copy takes (20,000 files, 500 MB); otherwise
+  it starts from your last commit and its card says so.</li>
+<li>A file Git LFS keeps comes into a branch, and back, as its pointer text: KOLONİ runs no filter of your
+  repository's. A submodule's own changes are not taken into a branch.</li>
+<li>A junction deep inside a new folder is not taken, but git reads through it while the branch is made;
+  one that leads to a large folder can make the branch start from your last commit instead.</li>
+<li>A branch's start from your folder, and a ☾ Away job's commit on its branch, leave a file out by its
+  name alone: a secret's name (<code>.env</code>, <code>.env.local</code>, <code>env.production</code>, a key file, <code>credentials.json</code>,
+  <code>client_secret….json</code>, <code>serviceAccountKey.json</code>, <code>.secrets</code>, <code>secret.txt</code>, <code>access_token.txt</code>), a
+  data file named <code>credentials</code>, <code>api_keys</code> / <code>api-key</code> or <code>token</code> (<code>.json</code>, <code>.yaml</code>, <code>.toml</code>,
+  <code>.txt</code>), a copy of a <code>.env</code> but <code>.env.example</code> (<code>.env.sample</code>, <code>.env.template</code>,
+  <code>.env.local.example</code>), and what is in a folder named <code>credentials</code> or <code>secrets</code> but source code and
+  docs. Code and Markdown so named go in (<code>credentials.py</code>, <code>api-keys.ts</code>, <code>tokens.py</code>), and so does
+  <code>tokens.json</code> (design tokens). A team's pull request asks first for every such file. A secret under
+  any other name - <code>password.txt</code>, <code>.vault_pass</code>, an npm token in <code>.yarnrc.yml</code>, a name spelt with a
+  look-alike letter - is left out only where it holds one KOLONİ knows. A file in a folder named like
+  an installed one (<code>venv</code>, <code>node_modules</code>, <code>site-packages</code>) is never judged by its name. In a
+  <code>credentials</code> or <code>secrets</code> folder a config, data or text file is left out even where it is no
+  secret (<code>secrets/README</code>, <code>k8s/secrets/deployment.yaml</code>), and so is a test's
+  <code>tests/fixtures/credentials.json</code>. A team's or a story's branch commits what its agents wrote under
+  such a name: its merge stays on this machine. A file left out is never deleted.</li>
+<li>A branch's worktree, and in a project with no git a copy, is in the project's own <code>.koloni/</code>
+  (<a href="../../use/workspace/#where-copies-and-worktrees-are">where</a>): a CLI started there reads your
+  project's <code>AGENTS.md</code>, <code>CLAUDE.md</code> or <code>GEMINI.md</code> from the folders above it as well as the copy's own -
+  the same words twice (a <code>.claude/</code> folder of the project's above it is not measured). A copy of a
+  project that gets git after the copy was made has no <code>.git</code> of its own: git started there as KOLONİ
+  starts it finds no repository (it looks no higher than the copies folder; measured with git 2.53),
+  but a command that clears git's environment would reach the new one. The next copy is made outside
+  the project.</li>
+<li>A command a script runs in your project's root (<code>rg x</code>, <code>grep -r x .</code>) reads KOLONİ's copies and
+  worktrees in <code>.koloni/</code> too, where your search tools do not: a secret file in one counts as the
+  project's for such a search's card.</li>
+<li><code>git clean -fdx</code> in the project removes KOLONİ's records of its worktrees under <code>.koloni/</code> (what
+  each was made from, its hooks folder); <code>-ffdx</code> removes the worktrees themselves. A worktree whose
+  record is gone is left as it is at the next start - with its uncommitted work, and git's record
+  of it - for you to look at and delete. An agent that deletes that record of its own worktree
+  (a command in it can reach the folder beside it) keeps it there the same way.</li>
+<li>A command row that names an agent's own tree by its full path may still say "Names .koloni…" on
+  the page, though it ran with no card: the page reads the line again without knowing whose tree it
+  is.</li>
+</ul>
+<h2 id="github">GitHub<a class="headerlink" href="#github" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Reading a GitHub issue with a real <code>gh</code> is not measured yet: the fields KOLONİ asks gh for are taken
+  from gh's manual.</li>
+</ul>
+<h2 id="models">Models<a class="headerlink" href="#models" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Other OpenAI-compatible servers, such as Ollama, should work but are not tested. The local server
+  that is measured is llama.cpp's <code>llama-server</code>.</li>
+</ul>
+<h2 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Some harmful commands are not on the list yet: <code>kubectl delete</code>, <code>terraform destroy</code>,
+  <code>rsync --delete</code>, <code>robocopy /MIR</code>, <code>mail</code>, <code>ssh host 'command'</code>.</li>
+<li>At Full auto, the harm check sees honest commands only; a command written to hide what it does is not
+  seen. See <a href="../../security/model/">Security model</a>.</li>
+<li>A command that writes into <code>.idea/</code> without naming it is not seen: KOLONİ puts back files that steer
+  later turns after a command, but does not look into <code>.idea/</code>, which a JetBrains IDE rewrites itself.</li>
+<li>Below Full auto, a <code>git</code> read whose folder KOLONİ does not know - Claude Code's PowerShell or Monitor,
+  and many of Copilot's commands - is judged as run at the project's top, where it runs unasked; at Full
+  auto it goes to the judge.</li>
+<li><a href="../../use/permissions/#full-autos-judge">Full auto's judge</a> is a net, not a wall:<ul>
+<li>It is a model's decision: it can call a risky command fine, and then the command runs, as it did
+  at Full auto before the judge.</li>
+<li>Text aimed at the judge inside a command, an agent's earlier action (a file it wrote, the
+  arguments of a tool it called) or a program an agent wrote can still sway the model: the judge
+  is told it is an agent's data, and a few known phrases make a card without asking, but other
+  wordings reach it. What a tool gave back - a file read, a command's output, a page - never
+  reaches it; but an agent can copy such text into what it writes.</li>
+<li>It reads the same agent's last 8 actions, each cut to 300 characters: an earlier one, or what an
+  action held past its first 300 characters, is not seen.</li>
+<li>Hidden work may not be seen: a tool an agent changed but did not write, a program past its first
+  4 KB, a program that imports another file.</li>
+<li>Test runners and build tools load the project's test and settings code by design - a
+  <code>conftest.py</code>, test files, an eslint or mypy plugin a setting names, <code>build.rs</code>, a cargo runner -
+  so <code>pytest -q</code> or <code>cargo build</code> runs what an agent wrote there with no judge.</li>
+<li>A file an agent made by copying another (<code>cp x.txt x.py</code>) is not known as the agent's: the judge
+  is not shown it.</li>
+<li><strong>Don't ask about this line again here</strong> cannot be listed or undone in the app yet; what it keeps
+  goes with the project.</li>
+<li>A Run on its card, and <strong>Don't ask about this line again here</strong>, keep only a line whose whole run
+  KOLONİ knows - a project file it runs in a plain form, hashed, or one plain <code>curl</code>, <code>wget</code> or file
+  command. Any other form - <code>git</code>, a wrapper, a shell's code, <code>npx</code>, a line sent to another folder,
+  a variable set on make's line, a package's <code>__main__.py</code>, a Python line without <code>-I</code> or <code>-E</code> in a
+  working copy (or with <code>PYTHONPATH</code> set), a runner KOLONİ does not know, a file it did not find, a
+  folder it does not know - is asked about every time, and its card has no box: it fails closed, at
+  the cost of more questions.</li>
+<li>A command the judge could not look at - too long, orders in it, no model to ask or no room to ask,
+  no answer in time or none it could read, its program changed while it looked - is never kept: a
+  Run on its card runs it once, and its card has no box. With no model to ask at all, every command
+  it would look at is such a card (it fails closed): pick a Judge model, or turn the judge off.</li>
+<li>What a kept program imports in turn is not looked at - not even a file in its folder that shadows
+  a standard module (a <code>json.py</code> beside <code>x.py</code>): a changed import does not make <code>python x.py</code>
+  another line.</li>
+<li>For a CLI run <strong>Native</strong>, KOLONİ - and so the judge - sees only the command the CLI reports.</li>
+<li>Each command it looks at waits for one model request and a few seconds; where only a CLI can be
+  asked, from that CLI's quota, and each such command waits for the CLI to start.</li>
+<li>A narrow <strong>Always run</strong> rule (<code>npm run build</code>, <code>make build</code>) lets its very line by with no
+  judge, at the project's root, as Claude Code's auto mode does: what that script, target or
+  tool then runs - a <code>package.json</code> script or a Makefile recipe you wrote, a script that recipe
+  calls, a tool's settings - is not looked at (a Makefile, a <code>package.json</code> or a script it is
+  handed that an agent wrote is). A broad rule (<code>npm</code>, <code>make</code>, <code>python</code>, <code>pytest -x</code>, <code>npm
+  install</code>, <code>docker run</code>, <code>git remote</code>) does not; a sub-command KOLONİ does not list as taking
+  whatever it is handed counts as narrow.</li>
+<li>A file an agent made with a command - <code>cp</code>, <code>tar</code>, <code>git clone</code>, a download - is not on record
+  as the agent's: a narrow rule whose line runs it, or the user's own test command, lets it by
+  with no judge, and the judge is not shown its text.</li>
+<li>Three refusals in a row ask you; any command of the turn that starts ends a row - an agent
+  that runs something harmless between refusals is asked only at 20 refusals in the turn.</li>
+<li>Since 0.1.10 it decides a delete in the project, git work thrown away and a stop by name,
+  written as a plain line, in place of the list's card (in a chat you watch at Full auto, its
+  switch on): a "fine" there deletes
+  with no card. KOLONİ looks at the disk on the way to what a delete names (a link or a junction
+  there is a card), not inside a folder it deletes - a link deep in one is not looked at -, and the
+  judge can be led to call a delete fine that it should not: a file of yours written over
+  first and then deleted as the agent's own, work moved into the scratch and then deleted, a path
+  that only looks like a build folder (<code>build/../src</code>). Run once on such a card keeps nothing.</li>
+<li>cmd's <code>rd /s /q x</code> and <code>del /s x</code> stay the list's card at Full auto, the judge on too: their <code>/s</code>
+  and <code>/q</code> read as paths from the drive's root. So does any delete that is not a plain line - a
+  quote, an escape, a wildcard, a pipe, a wrapper (<code>bash -c "rm -rf build"</code>, <code>sudo</code>, <code>… | xargs
+  rm</code>) -, even where its target is plainly in the project; and a <code>\</code> is a path's separator only in
+  KOLONİ's own PowerShell, so a CLI's <code>del src\app.py</code> is a card. A plain delete beside any
+  command that is not one (<code>rm -rf build; npm install</code>), git's work where the project is not its
+  repository's top folder, and a Windows short name (<code>ENV~1</code>) are cards too.</li>
+<li>Since 0.1.11 it decides <a href="../../use/permissions/#a-push-of-your-feature-branch">a plain push of your feature branch</a>
+  to its origin: a "fine" pushes with no card. Its words since 0.1.11 ("D2") count such a push as
+  ordinary work, and pushes were among the cases <a href="../../use/permissions/#full-autos-judge">measured on 28 Nov
+  2026</a>; a push it calls risky waits on its card (never
+  refused: one you asked for quotes you). A bare <code>git push</code> (and <code>origin HEAD</code>) pushes the branch checked out as it runs: KOLONİ looks again just before it runs, but a
+  switch of the project's branch by your own hand in that moment is not seen. The judge is not
+  told the branch's name, only the line and what the agent did before it. Before it is asked,
+  and again after its fine, KOLONİ asks origin what it holds and which branch is its default, as
+  the push would - a network request each time, and origin's own time limit. A
+  push that changes git's settings (<code>git push -u</code>, a branch made to track one) makes the next push
+  of that turn a card; so does a turn begun below Full auto, a push of more than 50 commits, an
+  origin that holds none of the branch, <code>main</code>, <code>master</code> or its default branch, and any
+  <code>pre-push</code> or <code>reference-transaction</code> hook - yours too: a repository with husky or Git LFS
+  gets a card for every push. Each Full auto turn in a repository begins with a few more git
+  calls (what a push goes by is read then).</li>
+<li>Its short way for ordinary work is a small table (test runners, compilers and checkers, local
+  git, <code>npm run</code>): other everyday commands - an install, a build tool it does not list - are each
+  asked about.</li>
+</ul>
+</li>
+<li><code>.koloni/</code>'s free folders (<code>tmp/</code>, <code>worktrees/</code>, <code>copies/</code>) are told apart by how a path is spelt:
+  <code>.koloni/t*</code>, a short name (<code>KOLONI~1</code>) or <code>.koloni/./tmp</code> is <code>.koloni</code>, and asked; and a <code>cd</code> into
+  one is free only plainly spelt, by a relative path, at the line's start - <code>git -C &lt;a tree&gt;</code> or <code>cd
+  /d …</code> is asked. A look into a worktree or copy from outside it is told from a write by the programs
+  the line runs (readers, listers, searches, no redirection). An agent's own tree by its full path is
+  known by how it is spelt there (a short name is not). A link inside a free folder is written through
+  as it is spelt: KOLONİ does not resolve it when it reads the line.</li>
+<li>Commands cannot be given input while they run.</li>
+<li>In Docker on Linux and macOS, commands run as your user, not as root. A command that needs root in
+  the container, such as <code>apt-get install</code>, fails. On Linux, files an older version of KOLONİ made as
+  root in the project may no longer be writable; see
+  <a href="../../troubleshooting/#commands-and-docker">Troubleshooting</a>. Under rootless Docker, the files a
+  command makes belong to another user id on the host.</li>
+</ul>
+<h2 id="work-while-youre-away">Work while you're away<a class="headerlink" href="#work-while-youre-away" title="Permanent link">&para;</a></h2>
+<ul>
+<li>In the morning <strong>Run</strong> does not look at what the job changed in its copy: you see that at Take in.</li>
+<li>A line that runs a program an agent wrote is refused after <strong>Run</strong> too. A script given to an
+  interpreter (<code>python tool.py</code>, <code>node x.js</code>) is not read so: it runs on your <strong>Run</strong> - but only as it
+  was when the line was parked (the list says "Runs a file an agent wrote", of any part of a chained,
+  piped, wrapped or grouped line too - <code>python hello.py &amp;&amp; python q.py</code>, <code>cmd /c "python q.py"</code> - and
+  "maybe" where it cannot read all of the line, or the line runs code no word of it names as a file:
+  a shell or an interpreter handed its code on stdin or on the line (<code>cat x.sh | sh</code>, <code>python -c</code>),
+  <code>iex</code>, <code>npx</code>, find's <code>-exec</code>, a test runner - the tests an agent wrote).</li>
+<li>A branch's commit, merge and push look for a secret KOLONİ knows byte for byte, in a file's content
+  and its name: one an agent wrote base64'd, reversed, or split across files or in parts is not
+  found. A saved key made of lowercase words alone (a provider's <code>not-needed</code>, <code>correct-horse</code>) is
+  not looked for, nor a file's path given under a secret's name (<code>GOOGLE_APPLICATION_CREDENTIALS</code>,
+  <code>*_FILE</code>); of an MCP server's variables, and the environment's (what a project passes to its
+  commands among them), only those a secret's name or a secret's shape holds (<code>..._TOKEN</code>,
+  <code>..._KEY</code>, a password; <code>ghp_…</code>, <code>sk-…</code>, a password in an address) - and the token or the
+  address's password such a value holds alone, unless it reads as a word
+  (<code>postgres://postgres:postgres@…</code> makes no secret of <code>postgres</code>). A key whose shape KOLONİ does
+  not know - it knows GitHub's, <code>sk-…</code>, Slack's, AWS's, a JWT, GitLab's <code>glpat-…</code>, Google's
+  <code>AIza…</code>, Hugging Face's <code>hf_…</code>, npm's <code>npm_…</code> and Stripe's <code>sk_live_…</code> - is looked for only by
+  its variable's name. A word under a secret's name is a secret all the same
+  (<code>POSTGRES_PASSWORD=postgres</code>): a file holding it (<code>psycopg2  # postgresql driver</code>) is left out
+  of KOLONİ's commit and stays in the branch's worktree - never deleted - and KOLONİ says which.</li>
+<li>If anything in the job's copy changed after a line was parked, <strong>Run</strong> does not run it - so a test
+  line parked early in a job is usually closed by the work after it: run it yourself. What stays out
+  of that look: the dependency folders a copy links to the project's own (<code>node_modules</code>, <code>.venv</code>,
+  <code>venv</code>), files outside the project, and the caches that hold no code (<code>.pytest_cache</code>,
+  <code>.ruff_cache</code>, <code>.mypy_cache</code>, <code>.git</code>). A command that runs none of the project's code is not closed
+  by changes at all.</li>
+<li>KOLONİ looks at the whole copy for this, each time a line is parked and just before each runs: about
+  a second on a copy of 2,000 files (measured on Windows), the first look longer. A large <code>build</code> or
+  <code>dist</code> folder in the copy (or a big scratch) makes each look slower: every file in it is read.</li>
+<li>Between that last look and the line's start there is a moment - under a second - in which a process
+  an earlier <strong>Run</strong> left behind (on Linux or macOS), or another task's going-on turn, could still
+  change a file: that gap is not closed.</li>
+<li>A line a CLI ran in its own shell is not run in the morning (<strong>Reject</strong> it, or run it yourself), nor
+  is a server line.</li>
+<li>KOLONİ hard-stopped (killed, not closed) while the morning's lines run, or in the turn that went on
+  after them: at the next start the task is stopped, and says which; what had not run is not run again.</li>
+<li>A line whose folder its CLI did not say does not run: <strong>Reject</strong> it, or run it yourself.</li>
+<li>Where you took some of a job's copy in, its going-on turn works in a fresh copy, and the lines you
+  said <strong>Run</strong> run in the project itself.</li>
+<li>A job tried twice in a copy (not on a branch) keeps each try's copy: each line runs in the copy it
+  was parked in, and the going-on turn goes on in the newest copy any of its lines was parked in - a
+  try that parked nothing keeps its copy for your Take in. A job that parked only questions goes on in
+  the newest copy the turns that asked them kept.</li>
+<li>KOLONİ closed while the morning's lines run: the task is stopped, and what has not run is not run
+  again - <strong>Try again</strong> works it in its chat.</li>
+<li><code>git</code> in the middle of a line - <code>cd sub &amp;&amp; git push</code> - needs the project: Take in first; in a copy
+  there is no git.</li>
+</ul>
+<h3 id="away-on-a-branch">Away on a branch<a class="headerlink" href="#away-on-a-branch" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A job on its branch works in a worktree of your own repository: its <code>.git</code> is shared. A script or a
+  test that runs git there can reach your branches, tags, stash and config - KOLONİ reads only the
+  git lines the agent itself writes. Your branches, stash, tags, remotes and git's config are compared
+  as the job starts and ends, and what changed is on its row; nothing is undone.</li>
+<li>A plain push from a script fails there because KOLONİ sets git's <code>pushInsteadOf</code> for the job's
+  commands. Measured with git 2.53: <code>git push</code> to the remote's name, a path or a <code>file://</code> address
+  fails, a fetch works. It is no wall, and the job's own script can get past it: <code>git send-pack</code>, its
+  own <code>-c url.&lt;x&gt;.pushInsteadOf=...</code>, a <code>remote.origin.pushurl</code> it sets first, or git's environment
+  replaced (<code>GIT_CONFIG_PARAMETERS</code>, <code>GIT_CONFIG_COUNT</code>) all push - and so does a <code>pushurl</code> or a longer
+  <code>pushInsteadOf</code> of your own. Each of these the agent types itself is refused or asked on a card;
+  what a script it runs does is not read.</li>
+<li>Before any branch's push - ☾ Away's in the morning, a team's pull request - KOLONİ asks origin
+  itself what its branches hold, and never reads your remote-tracking branches (<code>origin/*</code>) for it: a
+  ref written in your repository (a script's <code>git update-ref</code>, a symbolic ref) cannot make your own
+  unpushed commits look pushed - a commit only such a ref says is pushed counts as yours. Stale ones
+  (a branch deleted on origin, a teammate's push you have not fetched, a force-pushed branch) do not
+  matter. Where origin's branch the push goes into holds commits you have not fetched, it asks you to
+  fetch first; where git's config rewrites the address the push goes to (an <code>insteadOf</code> or
+  <code>pushInsteadOf</code> rule that matches it - what origin is asked and where the push goes could be two
+  repositories), or origin has more than one push address, nothing is pushed. No KOLONİ git call reads
+  an object through <code>git replace</code> or a graft of <code>info/grafts</code>, and the push's ancestry is read without
+  the commit-graph file. Origin is asked only once a branch's way is a pull request, never at the end
+  of a turn that may still be a merge. Between that look and the push itself there is a moment in which
+  another process could still change your repository: that gap is not closed.</li>
+<li>☾ Away compares every job's push with the repository as you went away (its refs, git's config in
+  every scope, its hooks, where a push goes): what an earlier job of the night changed is noted on a
+  later one's push too. The branches of that night's own jobs are not counted.</li>
+<li><strong>Try again</strong> on a job a day later still compares its push with the night's repository: what you
+  changed since is noted on it too, to be seen and Run anyway.</li>
+<li>The worktree holds what git tracks; what it ignores (<code>.env</code>, data, build output) is not there, and a
+  test that reads such a file may fail. A project with a git submodule or Git LFS works in a copy.</li>
+<li>The commits of a branch that was deleted, or of a job's first try, stay in git's objects until git
+  cleans them up (<code>git gc</code>).</li>
+<li>Your own <code>pre-commit</code> and <code>pre-push</code> hooks run neither for the job's commits nor for KOLONİ's push.</li>
+<li>KOLONİ's checks run before its last commit at the job's end; that commit holds the same files,
+  apart from one holding a secret KOLONİ knows or named as one (left out, and its push row says so) or
+  a new file your project already has.</li>
+<li>The branch's name is told to the job before its worktree is made: where a branch of that name was
+  there already, the worktree is on the next free name, and its row says which.</li>
+</ul>
+<h2 id="recipes">Recipes<a class="headerlink" href="#recipes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A team as a step's "Who" runs its stages as slots of one step, not one after another.</li>
+<li>The eight ready teams 0.1.10 took away (Backend / API, Data, DevOps, Research, Product, Maintenance,
+  ML, DataOps) are not followed where something else named one: a night while you're away planned with
+  one runs without it, a recipe file of a folder's own (<code>.koloni/recipes</code>) whose step names one is
+  refused when it runs, as naming no team here, and a recipe run the Orchestrator had started on one in
+  a chat is lost with it.</li>
+</ul>
+<h2 id="the-page">The page<a class="headerlink" href="#the-page" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Canvas positions are worked out from the record each time and are not saved.</li>
+<li>At phone width, the top bar wraps to two lines.</li>
+<li>Desktop notifications on macOS (terminal-notifier, else <code>osascript</code>) and on Linux (<code>notify-send</code>, only with
+  <code>DISPLAY</code> or <code>WAYLAND_DISPLAY</code> set) are shown as herdr shows them and are tested with stand-ins only: not yet
+  seen on a Mac or a Linux desktop. A text that starts with a dash is shown after a space.</li>
+</ul>
+<h2 id="systems">Systems<a class="headerlink" href="#systems" title="Permanent link">&para;</a></h2>
+<p>macOS, Linux and the Docker image have been tested less than Windows. See
+<a href="../../getting-started/install/#how-well-each-system-is-tested">Install</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright 2026 Murat H. Unsal · AGPL-3.0-or-later
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.code.copy","content.tabs.link","navigation.top","search.highlight"],"redirect":null,"search":"../../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d31f0ffa.min.js"></script>
+      
+    
+  </body>
+</html>
