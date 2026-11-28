@@ -380,6 +380,7 @@ class LeadToolsMixin:
                 "model_id": ctx.model_name,
                 "quote": preference_words.kept_line(quote),
             }
+            told: Message | None = None
             try:
                 record = kept.suggest_preference(
                     session,
@@ -405,7 +406,7 @@ class LeadToolsMixin:
             except kept.Refused as refused:
                 raise ToolError(str(refused)) from None
             session.commit()
-            line_said = message_out(told) if adds else None
+            line_said = message_out(told) if told is not None else None
             project_id = project.id
         if line_said is not None:
             self.bus.emit(ctx.cid, ctx.run_id, "message.completed", line_said)
