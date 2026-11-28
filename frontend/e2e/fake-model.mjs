@@ -401,6 +401,20 @@ function nextStep(all, tools = [], model = '') {
   if (String(messages[0].content).startsWith('You are asked one thing: how hard')) {
     return say(/everything/i.test(String(last.content)) ? 'hard: it touches the whole project' : 'easy: a greeting')
   }
+  // The guide's Decided for you (0.1.11): the Orchestrator notes a choice it took without asking (note_decision), then
+  // says it. (Not a question asked of the side, not a sub-agent.)
+  if (
+    !String(messages[0].content).startsWith('You are asked one thing') &&
+    !/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) &&
+    messages.some(m => m.role === 'user' && /\bk-karar-notu\b/.test(String(m.content)))
+  ) {
+    if (last.role === 'user')
+      return toolCall('nd1', 'note_decision', {
+        what: 'Use SQLite for the cart',
+        why: 'One user and no server to run: a file is enough.',
+      })
+    return say('The cart keeps its items in SQLite - noted under Decided for you.')
+  }
   // K-vekil-karar: the Lead is asked to answer for the user, who is away - the first option, and why.
   if (String(messages[0].content).startsWith('The user is away and lets you')) {
     const first = /The options:\n- (".*")/.exec(String(messages[0].content))

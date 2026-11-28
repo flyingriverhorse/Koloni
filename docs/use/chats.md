@@ -3,7 +3,7 @@
 **Chats** on the left rail opens the list of your chats: on top **Now**, what is at work and what waits
 for your word in every folder, and under it each chat with how it stands.
 
-![The Chats page: the heading Chats with one row of tools beside it - Search by name, All states, Last activity, New chat, From a GitHub issue…; under it the Now strip across the page with its cells, "Nothing at work; 1 thing waits for your word. Today 1 done. What waits is on Ready for you.", Go to Ready for you, and what the cells mean; under it the project folder with three chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"](../images/chats.png)
+![The Chats page: the heading Chats with one row of tools beside it - Search by name, All states, Last activity, New chat, From a GitHub issue…; under it the Now strip across the page with its cells, "Nothing at work; 1 thing waits for your word. Today 1 done. 1 chat ended where you have not looked since. What waits is on Ready for you.", Go to Ready for you, and what the cells mean; under it the project folder with four chats - "Run the tests" with a honey-rimmed cell and "Waits for your word · Command", "Say hello" with a green cell and "Done · not seen · 1 agent · Local · fake-qwen · 138 tokens", "Review the greeting" with a green cell and "Done · 2 agents · Local · fake-qwen · 312 tokens", "Ideas for the logo" with an empty cell and "No turn yet"](../images/chats.png)
 
 ## The list
 
