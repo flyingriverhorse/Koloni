@@ -268,7 +268,7 @@ def section(title: str, items: list[dict], intro: str = "") -> list[str]:
         for note in (NOTES.get(p["name"]), p.get("note")):
             if note:
                 lines.append(f"- {note}")
-        if not p["files"] and p["source"] != "frontend/public/brand/README.md":
+        if not p["files"] and not p.get("unpackaged"):
             lines.append("- No licence file in the package.")
         lines.append("")
         for label, n, copy in p["refs"]:
@@ -308,6 +308,7 @@ def render(today: datetime.date, out: Path) -> None:
             "licence": "the user's own work",
             "source": "frontend/public/brand/README.md",
             "files": [],
+            "unpackaged": True,
             "sbom": [],
             "note": f"`frontend/public/brand/` ({', '.join(brand)}) is KOLONİ's bee, the user's "
             "own work; `frontend/public/favicon.svg`, `apple-touch-icon.png` and `icon-512.png` "
@@ -344,6 +345,19 @@ def render(today: datetime.date, out: Path) -> None:
             "(github.com/jgraph/drawio, v32.6.9), unchanged; KOLONİ's own `koloni.js` beside it "
             "keeps it from every address of its own. It draws `.drawio` files in the Workspace and "
             "for the agents' `diagram_image`.",
+        },
+        {
+            "name": "herdr",
+            "version": "0.9.5",
+            "licence": "Apache-2.0",
+            "source": "github.com/herdrdev/herdr",
+            "sbom": [],
+            "files": [],
+            "unpackaged": True,
+            "note": "The macOS notice command shape in `app/web.py` (`_desktop_argv`: "
+            "terminal-notifier, else `/usr/bin/osascript` with the words as `on run argv` "
+            "arguments) follows herdr's (github.com/herdrdev/herdr, Apache-2.0); no file of it is "
+            "shipped. Its licence is the Apache-2.0 text under Licence texts.",
         },
     ]
     every = js + fonts + py + assets

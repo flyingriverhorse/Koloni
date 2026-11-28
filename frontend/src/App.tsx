@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { api, download, keyRefused } from './api/client'
+import { useLooking } from './api/looking'
 import type { Board, Project } from './api/types'
 import { AgentsPage } from './agents/AgentsPage'
 import { type AgentAsks, AgentWindow } from './agents/AgentWindow'
@@ -68,6 +69,9 @@ const HEALTH_POLL_MS = 15000
 // (A hash has no order: which of the two is newer is not known, so all three steps are said.)
 const UPDATED =
   'KOLONİ was updated: the page and the server differ. Build the page (npm run build), restart KOLONİ, then reload.'
+/** The chat on screen: its view shown, no Settings over it (`useLooking`). */
+const onScreen = (view: View, settingsOpen: boolean, id: string | undefined) =>
+  view === 'canvas' && !settingsOpen ? (id ?? null) : null
 const REBUILT = "KOLONİ's page was rebuilt: reload to use it."
 /** A build's own mark: the entry script its index.html names, hashed by Vite anew each build (the dev server's never changes). */
 const entryOf = (page: Document) => page.querySelector('script[type="module"][src]')?.getAttribute('src') ?? null
@@ -204,6 +208,8 @@ export function App() {
     setHeard(section)
     if (section) setSettingsOpen(true)
   }
+  // herdr's rule: the chat on screen now, looked at or not - a notice is shown only where nobody looks (looking.ts).
+  useLooking(onScreen(view, settingsWanted, conv?.conversation.id))
   // The first steps asked for again from Help.
   const [stepsAgain, setStepsAgain] = useState(false)
   const [rebuilt, setRebuilt] = useState(false)

@@ -1303,11 +1303,34 @@ export interface paths {
          * @description Server-sent events for one conversation.
          *
          *     Replays persisted events after the cursor, then stays open. `once` closes the
-         *     stream after the replay (for tests and debugging).
+         *     stream after the replay (for tests and debugging). `client`: the page's own id, and whether
+         *     it has the chat on screen as it opens (`looking`; later by POST .../looking).
          */
         get: operations["stream_events_api_conversations__conversation_id__events_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{conversation_id}/looking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Looking
+         * @description herdr's rule (28 Nov 2026): whether the page `client` has the chat on screen now - a notice
+         *     that something waits, or that a background agent ended, is shown only where nobody does. On
+         *     screen, the chat is seen (`seen_at`: not "done · not seen").
+         */
+        post: operations["looking_api_conversations__conversation_id__looking_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5625,6 +5648,11 @@ export interface components {
             /** Title */
             title: string;
             turn: components["schemas"]["BoardTurn"] | null;
+            /**
+             * Unseen
+             * @default false
+             */
+            unseen: boolean;
         };
         /**
          * BoardOut
@@ -8032,6 +8060,16 @@ export interface components {
              * @enum {string}
              */
             state: "stopped" | "running" | "exited";
+        };
+        /**
+         * LookingIn
+         * @description What a page says of a chat it has open (`EventBus.look`).
+         */
+        LookingIn: {
+            /** Client */
+            client: string;
+            /** Looking */
+            looking: boolean;
         };
         /**
          * MalwareOut
@@ -14100,6 +14138,8 @@ export interface operations {
             query?: {
                 after?: number | null;
                 once?: boolean;
+                client?: string | null;
+                looking?: boolean;
             };
             header?: never;
             path: {
@@ -14117,6 +14157,39 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    looking_api_conversations__conversation_id__looking_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

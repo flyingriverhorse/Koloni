@@ -92,6 +92,14 @@ async def board(project_id: str, request: Request, session: Session = Depends(ge
     return {**board_of(session, project, request.app.state.runner, changed), "decided": decided}
 
 
+def unseen(talk: Conversation, turn: dict | None) -> bool:
+    """herdr's "done, not seen" (28 Nov 2026): its last turn ended - done, failed or stopped - after
+    its page last had it on screen (`Conversation.seen_at`, set by `/looking`)."""
+    ended = turn and turn["status"] in ("completed", "failed", "cancelled", "interrupted")
+    end = turn["ended_at"] if turn else None
+    return bool(ended and end and (talk.seen_at is None or end > talk.seen_at))
+
+
 def waiting_in(conversation: dict) -> int:
     """What of a board's conversation waits for the user: the twin of the page's
     `waitCount` (frontend/src/board/waiting.ts), for what is said without the page."""
@@ -317,6 +325,7 @@ def board_of(
                 "merges_pending": pending.get(talk.id, 0),
                 "turn": turns.get(talk.id),
                 "project_id": talk.project_id,
+                "unseen": unseen(talk, turns.get(talk.id)),
             }
             for talk in talks
         ],

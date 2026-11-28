@@ -14,6 +14,7 @@ from sqlalchemy import func, literal_column, select, update
 from app import (
     backlog,
     board,
+    command_wait,
     copies,
     git,
     injection,
@@ -33,6 +34,7 @@ from app.agent.summary import _lines_written_out
 from app.agent.words import CANT_UNDO, FROM, HANDED, LEADS_LATER, NOT_HEARD
 from app.api.recipes import agents_of
 from app.command_runner import longest_seconds
+from app.command_wait import COMMAND_OUTPUT_SCHEMA
 from app.db.models import (
     Agent,
     BoardPost,
@@ -56,7 +58,6 @@ from app.tools import (
     ATTACHMENTS_PROPERTY,
     ATTACHMENTS_UNREAD,
     CAN,
-    COMMAND_OUTPUT_SCHEMA,
     FOLDER_PROPERTY,
     MAX_MESSAGE_CHARS,
     ON_BRANCH_PROPERTY,
@@ -208,8 +209,9 @@ class TalkMixin:
         command_id = args.get("id")
         if not isinstance(command_id, str) or not command_id.strip():
             raise ToolError("missing required argument: id")
+        waits = command_wait.until_of(args) if name == "command_output" else None
         if (later := self._command_later_of(ctx, command_id.strip())) is not None:  # (Task 8)
-            return await self._command_later_call(ctx, name, later, args.get("since"))
+            return await self._command_later_call(ctx, name, later, args.get("since"), waits)
         command = self.commands.server(ctx.cid, command_id.strip())
         if name == "stop_command":
             return await self.commands.stop_own(command, ctx.agent_id)
@@ -224,7 +226,15 @@ class TalkMixin:
         if command.tool_call_id is None:
             raise ToolError("no earlier output of this conversation has that id")
         self._recallable_call(ctx, command.tool_call_id)
-        return self.commands.output_of(command, since)
+        if waits is None:
+            return self.commands.output_of(command, since)
+        seen = await command_wait.waited(  # (in what it may read: kept, its secrets hidden)
+            lambda: self.commands.live_outputs(ctx.cid).get(command.id),
+            *waits,
+            since,
+            lambda: command_wait.kept_output(self._factory, command.id),
+        )
+        return seen + self.commands.output_of(self.commands.server(ctx.cid, command.id), since)
 
     def _offered(
         self: "AgentRunner", ctx: Ctx, tools, always: bool = False, show: bool = False

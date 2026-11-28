@@ -289,9 +289,9 @@ class Conversation(Base):
     )
     created_at: Mapped[datetime] = mapped_column(default=now)
     updated_at: Mapped[datetime] = mapped_column(default=now)
-    # When the user put it away (its list's "Archived" part); None: it is not. Nothing of
-    # it goes: a trigger's turn leaves it there, the user's own message brings it back.
+    # Put away ("Archived", None: not): a trigger's turn leaves it there, a user's message not.
     archived_at: Mapped[datetime | None] = mapped_column(default=None)
+    seen_at: Mapped[datetime | None] = mapped_column(default=None)  # its page last had it on screen
 
     # Slice 48's switch, as the API still says it: on is "delegates".
     @property

@@ -10,6 +10,7 @@ const onBoard = (over: Partial<BoardConversation> = {}): BoardConversation => ({
   title: 'c',
   agents: [],
   merges_pending: 0,
+  unseen: false,
   turn: null,
   ...over,
 })
@@ -74,4 +75,14 @@ test('Now’s sentence: at work, what waits for your word, and today’s; before
   expect(nowSaid(0, 1, 0, 3, true)).toBe('Nothing at work; 1 thing waits for your word. Today 3 done.')
   expect(nowSaid(0, 0, 0, 0, true)).toBe('Nothing at work; nothing waits for your word.')
   expect(nowSaid(0, 3, 0, 0, false)).toBe('How the chats stand is not read yet; 3 things wait for your word.')
+})
+
+test('a chat whose last turn ended where you have not looked since says so after how it ended (herdr’s "done, not seen")', () => {
+  const unseen = (status: 'completed' | 'failed' | 'cancelled') => ({ ...ended(status), unseen: true })
+  expect(chatStands(unseen('completed'), [])?.slice(0, 2)).toEqual(['done', 'Done · not seen'])
+  expect(chatStands(unseen('failed'), [])?.slice(0, 2)).toEqual(['stuck', 'Stuck: its last turn failed · not seen'])
+  expect(chatStands(unseen('cancelled'), [])?.slice(0, 2)).toEqual(['queued', 'Stopped · not seen'])
+  expect(nowSaid(1, 0, 0, 0, true, 2)).toBe(
+    '1 chat at work; nothing waits for your word. 2 chats ended where you have not looked since.',
+  )
 })

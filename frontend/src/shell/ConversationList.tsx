@@ -191,8 +191,9 @@ function saidOf(
 const BUSY = new Set<string>(['running', 'queued', 'waiting', 'blocked'])
 
 /**
- * Now's chats, by name: those at work - one that waits for your word too, while another of its agents works - and
- * those stuck or done today, by when their last turn ended (not archived ones).
+ * Now's chats, by name: those at work - one that waits for your word too, while another of its agents works -, those
+ * whose last turn ended where you have not looked since (herdr's "done, not seen", with how each stands), and those
+ * stuck or done today, by when their last turn ended (not archived ones).
  */
 function nowOf(
   conversations: ListedConversation[],
@@ -206,10 +207,12 @@ function nowOf(
   const today = (c: ListedConversation, as: ChatStands) =>
     stands(c) === as && !c.archived_at && !!ended(c) && dayOf(Date.parse(ended(c)!)) === 'Today'
   const titles = (only: (c: ListedConversation) => boolean) => conversations.filter(only).map(c => c.title)
+  const unseen = (c: ListedConversation) => !c.archived_at && !!on.get(c.id)?.unseen && stands(c) !== 'yours'
   return {
     working: titles(busy),
-    stuck: titles(c => today(c, 'stuck')),
-    done: titles(c => today(c, 'done')),
+    unseen: conversations.filter(unseen).map(c => [c.title, stands(c) ?? 'done'] as [string, ChatStands]),
+    stuck: titles(c => today(c, 'stuck') && !unseen(c)),
+    done: titles(c => today(c, 'done') && !unseen(c)),
   }
 }
 

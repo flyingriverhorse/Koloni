@@ -92,7 +92,7 @@ test('switching conversations mid-load shows the one asked for last', async () =
   pending.reverse().forEach(resolve => resolve())
   await Promise.all([first, second])
   expect(useApp.getState().conv?.conversation.id).toBe('b')
-  expect(FakeEventSource.open().map(s => s.url)).toEqual(['/api/conversations/b/events?after=3'])
+  expect(FakeEventSource.open().map(s => s.url.split('&client=')[0])).toEqual(['/api/conversations/b/events?after=3'])
 })
 
 test('the conversation clicked last is the one that opens, though the open oneâ€™s stream reconnects meanwhile', async () => {
@@ -109,7 +109,7 @@ test('the conversation clicked last is the one that opens, though the open oneâ€
   pending.forEach(resolve => resolve())
   await Promise.all([toB, toC])
   expect(useApp.getState().conv?.conversation.id).toBe('c')
-  expect(FakeEventSource.open().map(s => s.url)).toEqual(['/api/conversations/c/events?after=3'])
+  expect(FakeEventSource.open().map(s => s.url.split('&client=')[0])).toEqual(['/api/conversations/c/events?after=3'])
   // The retry of the conversation that was left went with it.
   holdResponses = false
   await vi.advanceTimersByTimeAsync(20000)
@@ -841,7 +841,7 @@ test('a conversation that cannot be opened leaves the open one open, with its ev
   failing = true
   await expect(useApp.getState().openConversation('gone')).rejects.toThrow('Failed to fetch')
   expect(useApp.getState().conv?.conversation.id).toBe('a')
-  expect(FakeEventSource.open().map(s => s.url)).toEqual(['/api/conversations/a/events?after=3'])
+  expect(FakeEventSource.open().map(s => s.url.split('&client=')[0])).toEqual(['/api/conversations/a/events?after=3'])
 })
 
 test('the board shown is the answer to the read asked for last, of the project that is open', async () => {

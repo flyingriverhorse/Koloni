@@ -1205,20 +1205,6 @@ RECALL_OUTPUT_SCHEMA = _fn(
 # 0.1.8: offered beside run_command while a command keeps running in the conversation
 # (`AgentRunner._serving_offered`) - its later output, and the stop of one the agent started.
 _COMMAND_ID = {"type": "string", "description": "The command's id, as run_command gave it."}
-COMMAND_OUTPUT_SCHEMA = _fn(
-    "command_output",
-    "Read what a command that keeps running in this conversation (a server started with "
-    "keep_running) printed, by its id: its newest output, or from since on - the number the "
-    "last answer gave. Of one that has ended, its last output and how it ended.",
-    {
-        "id": _COMMAND_ID,
-        "since": {
-            "type": "integer",
-            "description": "Optional: the character to read from, as the last answer said.",
-        },
-    },
-    ["id"],
-)
 STOP_COMMAND_SCHEMA = _fn(
     "stop_command",
     "Stop a command that keeps running which you started yourself, with what it started, and "

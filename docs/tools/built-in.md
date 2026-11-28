@@ -72,7 +72,11 @@ for a role that uses knowledge, that knowledge's pages too
 A role with **Run commands** also gets two tools for a command that keeps running in the chat (a dev
 server), in a turn you watch: one reads what it printed since, the other stops it - only one the agent
 started itself. See
-[Preview](../use/chat-and-canvas.md#preview).
+[Preview](../use/chat-and-canvas.md#preview). Reading, it can first wait for a piece of text to be
+printed - "listening on", "passed" - up to 2 minutes (30 seconds unless it says), instead of spending a
+step on each look: it is told the line it was seen in, or that it was not seen in that time, or that
+the command ended first. It is a piece of text as printed, not a pattern, and it is looked for only in
+what the agent may read: a secret, hidden in the output, is never found.
 
 The Orchestrator, at its own work in a project, also has **run_checks**: KOLONİ's checks of its work
 now - the tests, the type and style checks, the Reviewer and the live try, as the turn's end runs

@@ -94,16 +94,29 @@ export function chatStands(
   const ended = standing ? ENDED[standing] : undefined
   const ran = line(...ranOf(on.turn))
   if (task?.status === 'blocked' && ended?.[0] !== 'stuck') return ['stuck', 'Stuck: its To-do task is blocked', ran]
-  return ended ? [...ended, ran] : ['queued', 'No turn yet', '']
+  // herdr's "done, not seen": its last turn ended after you last had it on screen.
+  return ended ? [ended[0], on.unseen ? `${ended[1]} · ${NOT_SEEN}` : ended[1], ran] : ['queued', 'No turn yet', '']
 }
 
-/** The sentence under the comb: what is at work, what waits for your word (the top bar's pill's number), and today's. */
-export function nowSaid(working: number, waits: number, stuck: number, done: number, read: boolean): string {
+/** What a chat whose last turn ended out of sight says, after how it ended: opening it makes it seen. */
+export const NOT_SEEN = 'not seen'
+
+/** The sentence under the comb: what is at work, what waits for your word (the top bar's pill's number), and today's -
+ *  and how many ended where you have not looked since (`unseen`). */
+export function nowSaid(
+  working: number,
+  waits: number,
+  stuck: number,
+  done: number,
+  read: boolean,
+  unseen = 0,
+): string {
   const waiting =
     waits === 0
       ? 'nothing waits for your word'
       : `${count(waits, 'thing')} ${waits === 1 ? 'waits' : 'wait'} for your word`
   if (!read) return `How the chats stand is not read yet; ${waiting}.`
   const today = [done > 0 && `${done} done`, stuck > 0 && `${stuck} stuck`].filter(Boolean).join(', ')
-  return `${working > 0 ? `${count(working, 'chat')} at work` : 'Nothing at work'}; ${waiting}.${today && ` Today ${today}.`}`
+  const ended = unseen > 0 ? ` ${count(unseen, 'chat')} ended where you have not looked since.` : ''
+  return `${working > 0 ? `${count(working, 'chat')} at work` : 'Nothing at work'}; ${waiting}.${today && ` Today ${today}.`}${ended}`
 }

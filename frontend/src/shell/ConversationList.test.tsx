@@ -12,6 +12,7 @@ const onBoard = (id: string, over: Partial<BoardConversation> = {}): BoardConver
   title: id,
   agents: [],
   merges_pending: 0,
+  unseen: false,
   turn: null,
   ...over,
 })
@@ -961,4 +962,44 @@ test('Now’s legend is one named group, its cells said once by their words; a c
   expect(within(nowPart).getAllByRole('img')).toHaveLength(30)
   expect(nowPart).toHaveTextContent('+2 more')
   expect(within(nowPart).getAllByRole('img')[0]).toHaveAccessibleName('Done?: waits for your word')
+})
+
+test('Now puts what needs you first: what waits for your word, then what ended where you have not looked since, then what works', () => {
+  const items = asks()
+  const at = new Date().toISOString()
+  const board: Board = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 1,
+    conflicts: [],
+    conversations: [
+      onBoard('w', { agents: [{ ...asking, status: 'running' }], turn: boardTurn('r0', 'running', null) }),
+      onBoard('u', { unseen: true, turn: boardTurn('r1', 'completed', at) }),
+      onBoard('d', { turn: boardTurn('r2', 'completed', at) }),
+    ],
+  }
+  render(
+    <ConversationList
+      conversations={[
+        { ...listed('w', 'Working', false), updated_at: at },
+        { ...listed('u', 'Unseen', false), updated_at: at },
+        { ...listed('d', 'Seen', false), updated_at: at },
+        { ...listed('x', 'Fix the login', false), updated_at: at },
+      ]}
+      board={board}
+      waiting={items}
+      currentId={null}
+      onOpen={() => {}}
+      onNew={() => {}}
+      onArchive={async () => {}}
+    />,
+  )
+  expect(screen.getByRole('button', { name: /^Unseen/ })).toHaveTextContent('Done · not seen')
+  expect(screen.getByRole('button', { name: /^Seen/ })).not.toHaveTextContent('not seen')
+  const now = screen.getByRole('complementary', { name: 'Now every folder' })
+  const cells = within(now)
+    .getAllByRole('img')
+    .map(cell => cell.getAttribute('aria-label'))
+  expect(cells.slice(2, 5)).toEqual(['“Unseen”: done · not seen', '“Working”: at work', '“Seen”: done today'])
+  expect(now).toHaveTextContent('1 chat ended where you have not looked since.')
 })

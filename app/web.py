@@ -15,11 +15,13 @@ allowed to do afterwards.
 import asyncio
 import contextlib
 import contextvars
+import html
 import http.client
 import ipaddress
 import json
 import os
 import re
+import shutil
 import socket
 import ssl
 import subprocess
@@ -958,11 +960,40 @@ TOAST_SECONDS = 10.0
 NO_DESKTOP = "a desktop notification is not available on this system"
 
 
+# macOS's own way, where terminal-notifier is not installed: the words as the script's argv, never
+# put into the script (herdr's, 28 Nov 2026).
+_OSASCRIPT = ("on run argv", "display notification (item 2 of argv) with title (item 1 of argv)")
+
+
+def _desktop_argv(title: str, text: str) -> list[str] | None:
+    """The program a desktop notification is shown by, with its words - on macOS and Linux; None:
+    there is none here. Never a shell: the words are arguments of their own, none starting with
+    a dash (no option of the program's).
+    shortcut: as herdr runs them (terminal-notifier, osascript, notify-send), not measured here -
+    try each on a Mac and a Linux desktop before saying more of them."""
+    # (The commands' shape is herdr's, Apache-2.0: see THIRD-PARTY-NOTICES.md.)
+    title, text = (f" {w}" if w.startswith("-") else w for w in (title, text))
+    if sys.platform == "darwin":
+        if notifier := shutil.which("terminal-notifier"):
+            return [notifier, "-title", title, "-message", text]
+        if not os.path.exists("/usr/bin/osascript"):
+            return None
+        script = ["-e", _OSASCRIPT[0], "-e", _OSASCRIPT[1], "-e", "end run"]
+        return ["/usr/bin/osascript", *script, title, text]
+    if not sys.platform.startswith("linux"):
+        return None
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return None  # (no desktop to show it on: a server, an SSH session)
+    sender = shutil.which("notify-send")
+    # (A daemon may read its body as markup: an agent's <a href> or <img src> is said, not used.)
+    body = html.escape(text, quote=False)
+    return [sender, "--app-name", "KOLONİ", "--", title, body] if sender else None
+
+
 def has_desktop() -> bool:
-    """Whether a desktop notification can be shown here at all: on Windows."""
-    # shortcut: Windows' toast only - on Linux and macOS the setting is refused with NO_DESKTOP
-    # (the page greys it out and says so); show one by notify-send / osascript when asked for.
-    return sys.platform == "win32"
+    """Whether a desktop notification can be shown here at all: Windows' toast, macOS's
+    terminal-notifier or osascript, a Linux desktop's notify-send (`_desktop_argv`)."""
+    return sys.platform == "win32" or _desktop_argv("", "") is not None
 
 
 def desktop(title: str, text: str) -> None:
@@ -984,9 +1015,16 @@ def desktop(title: str, text: str) -> None:
         "v1.0",
         "powershell.exe",
     )
+    argv = (
+        [shell, "-NoProfile", "-NonInteractive", "-Command", _TOAST]
+        if sys.platform == "win32"
+        else _desktop_argv(plain(title), plain(text))
+    )
+    if not argv:  # (gone since it was looked for: its program, its desktop)
+        raise WebError(NO_DESKTOP)
     try:
         done = subprocess.run(
-            [shell, "-NoProfile", "-NonInteractive", "-Command", _TOAST],
+            argv,
             env={
                 **os.environ,
                 "KOLONI_TOAST_TITLE": plain(title),
@@ -1005,8 +1043,9 @@ def desktop(title: str, text: str) -> None:
     except (OSError, ValueError) as exc:
         raise WebError(f"the desktop notification was not shown ({type(exc).__name__})") from None
     if done.returncode:
+        shown_by = "PowerShell" if sys.platform == "win32" else os.path.basename(argv[0])
         raise WebError(
-            f"the desktop notification was not shown (PowerShell ended with {done.returncode})"
+            f"the desktop notification was not shown ({shown_by} ended with {done.returncode})"
         )
 
 

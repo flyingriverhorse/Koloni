@@ -1972,10 +1972,10 @@ class BoardConversation(BaseModel):
     conversation_id: str
     title: str
     agents: list[BoardAgent]
-    # Its agents' changes that wait for the user's decision (a merge card in its chat), and its
-    # copies kept for Take in that hold a file.
+    # Its agents' changes waiting for the user's decision (merge cards), kept copies holding one.
     merges_pending: int
     turn: BoardTurn | None  # its last turn; None before its first
+    unseen: bool = False  # herdr's: its last turn ended after its page last had it on screen
     # The folder it is in (None: a chat with none): every chat's board tags another's (B-72).
     project_id: str | None = None
 

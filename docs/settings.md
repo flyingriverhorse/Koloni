@@ -247,7 +247,7 @@ Its sentence says whether a desktop notification shows and when the day's summar
 
 | Setting | What it does |
 |---|---|
-| **Show a desktop notification** | Windows only. Where an agent's notifications go, and what KOLONİ tells you while you are away; off, agents have no notify tool. At most 6 a minute for one chat. |
+| **Show a desktop notification** | On Windows; on macOS (terminal-notifier where it is installed, else the system's own); on a Linux desktop with `notify-send`. Greyed out where none is there. Where an agent's notifications go, and what KOLONİ tells you while you are away; off, agents have no notify tool. At most 6 a minute for one chat. |
 | **Send the day's summary at** | A time of day, by this computer's clock, for a daily summary: Usage's Today numbers for the project as text, counted from the record; no model is asked. Needs desktop notifications. If KOLONİ is closed then, it sends the summary late, when it next opens, and only for the last day it missed. |
 
 ### This folder
