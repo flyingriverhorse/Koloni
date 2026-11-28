@@ -927,3 +927,29 @@ def test_a_kept_session_keeps_its_checkpoint_as_spent_and_counts_its_sub_agent_i
     )
     assert result.session and result.session["spent"]["input_tokens"] == 100, result
     assert with_own_calls(result).input_tokens == 500, result
+
+
+def test_the_orchestrators_own_tasks_ride_its_go_away_line_a_sub_agents_never(
+    copilot_native,
+    wait_run,
+    project_dir,  # noqa: F811
+):
+    # ☾ Away (0.1.11): Copilot's sub-agents carry their agentId and may not use KOLONİ's tools -
+    # the Orchestrator's own add_task is its own, as on Claude Code (`_tells_own_sub_agents`).
+    client, provider = p4(
+        copilot_native,
+        [
+            {**SYNC, "steps": [{"koloni": "add_task", "args": {"title": "sneaky"}}]},
+            {"koloni": "add_task", "args": {"title": "mine"}},
+            {"koloni": "offer_away", "args": {}},
+            {"say": "One task is on your To-do."},
+        ],
+        CHECKER,
+    )
+    cid, snap = run(client, project_dir, provider, wait_run)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    pid = snap["conversation"]["project_id"]
+    listed = [t["title"] for t in client.get(f"/api/projects/{pid}/backlog").json()]
+    assert listed == ["mine"]  # (the sub-agent's was refused)
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert [job["title"] for job in offered["jobs"]] == ["mine"]

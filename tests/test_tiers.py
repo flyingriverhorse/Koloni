@@ -13,6 +13,10 @@ from tests.test_spawn import begin, call, role_id, step
 from tests.test_team import results, team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import ORIGIN, WHY, role_tier, spawn, tiered
 
+# The model a lead's "how hard is this message" went to, as a lead shows it (`AskedModel`: no
+# quote - that is suggest_preference's).
+ASKED = {"provider_name": "Fast", "model_id": "quick", "quote": None}
+
 
 def table(client, cid=None):
     return {
@@ -489,7 +493,7 @@ def test_the_question_is_paid_for_under_the_model_that_was_asked_and_is_not_in_t
     assert [m["content"] for m in snap["messages"]] == ["rewrite the parser", "the lead answers"]
     lead, run = snap["agents"][0], snap["runs"][0]
     assert lead["chosen_why"] == "hard: it touches many files." and lead["chosen"] is False
-    assert lead["asked_how_hard"] == {"provider_name": "Fast", "model_id": "quick"}
+    assert lead["asked_how_hard"] == ASKED
     # the lead's numbers, and the turn's, are the lead's own work: the question is not in them
     assert (lead["input_tokens"], lead["output_tokens"]) == (50, 7)
     assert (run["input_tokens"], run["output_tokens"]) == (50, 7)
@@ -632,7 +636,7 @@ def test_what_a_model_thinks_first_is_not_its_answer_and_nothing_else_is_read_in
     lead = wait_run(client, cid, run_id)["agents"][0]
     assert lead["chosen_why"] == read
     # who was asked is on the lead either way: an answer nothing came of is not hidden
-    assert lead["asked_how_hard"] == {"provider_name": "Fast", "model_id": "quick"}
+    assert lead["asked_how_hard"] == ASKED
 
 
 def test_a_cli_that_cannot_speak_without_its_own_tools_is_never_asked_how_hard_it_is(
@@ -658,19 +662,13 @@ def test_a_cli_that_cannot_speak_without_its_own_tools_is_never_asked_how_hard_i
         client, project_dir, mode="full_auto", lead_auto=True, provider_id=local["id"]
     )
     assert table(client, cid)["Lead"]["cannot_pick"] == {}
-    assert table(client, cid)["Lead"]["asks_how_hard"] == {
-        "provider_name": "Fast",
-        "model_id": "quick",
-    }
+    assert table(client, cid)["Lead"]["asks_how_hard"] == ASKED
     snap = wait_run(client, cid, run_id)
     lead = snap["agents"][0]
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # the user's message was not handed to it: the next fast model was asked
     assert stub.calls == [] and stub.started == 0 and len(fast.calls) == 1
-    assert (lead["asked_how_hard"], lead["chosen_why"]) == (
-        {"provider_name": "Fast", "model_id": "quick"},
-        "hard: it needs care",
-    )
+    assert (lead["asked_how_hard"], lead["chosen_why"]) == (ASKED, "hard: it needs care")
 
     # with no other fast model nobody is asked, and the table says so
     assert (
@@ -818,7 +816,7 @@ def test_stop_ends_a_turn_while_it_is_being_asked_how_hard_it_is(
         "Local",
         None,
     )
-    assert lead["asked_how_hard"] == {"provider_name": "Fast", "model_id": "quick"}
+    assert lead["asked_how_hard"] == ASKED
     # what the question spent before it was cut is not known, and its own record says so -
     # not the lead's, which sent nothing
     with client.app.state.session_factory() as session:

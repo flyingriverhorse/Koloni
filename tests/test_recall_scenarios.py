@@ -187,7 +187,7 @@ def test_a_fast_model_notes_what_the_turn_found_and_its_notes_are_held_as_any_no
     assert set(notes) == {"greeting", "start"}  # not the order, not the fourth
     for note in notes.values():  # signed: the summariser's words, by name
         assert (note["origin"], note["tier"]) == ("auto", "note")
-        assert note["noted_by"] == {"provider_name": "Fast", "model_id": "quick"}
+        assert note["noted_by"] == {"provider_name": "Fast", "model_id": "quick", "quote": None}
     # the lines it rests on were read by KOLONİ itself
     source = notes["greeting"]["source"]
     assert (source["path"], source["start"], source["end"]) == ("notes.md", 3, 4)

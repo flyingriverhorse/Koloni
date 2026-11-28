@@ -48,7 +48,7 @@ from app.db.models import (
     now,
 )
 from app.model_cli import CliStepClient
-from app.model_native import ClaudeNativeClient
+from app.model_native import ClaudeNativeClient, CopilotNativeClient
 from app.roles import LEAD, title_of
 from app.scratch_delete import scratch_delete_only
 from app.serialize import command_out, message_out, run_out
@@ -120,14 +120,20 @@ def branch_held(
 
 def _tells_own_sub_agents(ctx: Ctx) -> bool:
     """☾ Away: whether KOLONİ tells the Orchestrator's own calls of its tools from those of a
-    sub-agent of its CLI's own - always on a model KOLONİ steps (none such), and on Claude Code,
-    whose hook names them (`USED_INSIDE`).
-    shortcut: the other CLIs' own sub-agents are not measured: their Go away line takes no
-    task; measure Copilot's and Codex's hooks and add each here."""
+    sub-agent of its CLI's own - always on a model KOLONİ steps (none such), on Claude Code, whose
+    hook names them (`USED_INSIDE`), and since 0.1.11 on Copilot, whose sub-agents' events and
+    requests carry their agentId and who may use none of KOLONİ's tools (`copilot_own_agents`).
+    shortcut: Codex's own sub-agents are switched off, not told apart (`CodexCliClient.NO_AGENTS`):
+    its Go away line takes no task; add it here if they are ever let run."""
     model = ctx.model
     if not isinstance(model, CliStepClient):
         return True
-    return isinstance(model, ClaudeNativeClient) and model.command == "claude"
+    return (
+        isinstance(model, ClaudeNativeClient)
+        and model.command == "claude"
+        or isinstance(model, CopilotNativeClient)
+        and model.command == "copilot"
+    )
 
 
 # H3: the folders a copy leaves out of its changes (`copies.NOT_COPIED`) where code may still be

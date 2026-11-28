@@ -36,6 +36,7 @@ from app.model_native import CodexNativeClient
 from app.model_session import ClaudeSessionClient
 from app.roles import BUILTIN_ROLES, RAN, WHO_SPLITS
 from app.tools import OPENED_TOGETHER, SERVING_TOOLS
+from app.tools_at_work import AT_WORK_TOOLS as AT_WORK  # (the turn tools: 0.1.11)
 from app.workspace import Workspace, WorkspaceError
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -45,7 +46,6 @@ from tests.test_spawn import begin, call, step
 
 BEFORE = Path(__file__).with_name("agents_sent_before_memory.json")
 NEW_TOOLS = ("remember", "recall")
-AT_WORK = ("stop_agent", "agents_at_work", "update_plan", "note_decision", "ask_advisor")
 LATER_ROLES = (
     "Debugger",
     "Architect",
@@ -902,7 +902,7 @@ def test_a_flaky_test_koloni_noted_is_read_in_the_memory_list(mem):
     listed = mem.client.get(f"/api/projects/{mem.pid}/memory")
     assert listed.status_code == 200, listed.text
     (note,) = [one for one in listed.json()["journal"] if one["origin"] == "auto"]
-    assert note["noted_by"] == {"provider_name": "KOLONİ", "model_id": None}
+    assert note["noted_by"] == {"provider_name": "KOLONİ", "model_id": None, "quote": None}
     assert kept.summariser(note["noted_by"]) == "KOLONİ"
 
 
