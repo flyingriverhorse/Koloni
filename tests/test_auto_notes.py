@@ -473,7 +473,7 @@ def test_the_summariser_is_given_what_was_said_and_what_changed_and_nothing_a_to
     (note,) = kept_["journal"]
     assert (note["origin"], note["noted_by"], note["agent_id"], note["agent_name"]) == (
         "auto",
-        BY,
+        {**BY, "quote": None},  # (`AskedModel.quote`: suggest_preference's alone, k-tercih)
         None,
         None,
     )
