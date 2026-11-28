@@ -57,6 +57,8 @@ decision you have not said OK to yet says **new**; the heading counts them: "Dec
 not seen". Each row links to where the decision is: **The question**, **The command** and **The
 agent** open its chat, and **The task** opens To-do, on the same page, at that task.
 
+![Work, Ready for you: Decided for you 1, 1 not seen, with Today, Week and Not seen; one row - Orchestrator, the chat The shop, Decided: "Use SQLite for the cart", the reason "One user and no server to run: a file is enough.", The chat, OK and Change, marked new](../images/ready-decided.png)
+
 Words an agent or a model wrote - a question, a command, an answer, a reason, a chat's title - are
 shown as quotes, never as part of the page. Here, secrets KOLONİ knows and keys known by their shape (a
 `Bearer` token, an API key, a password in an address such as `https://user:password@host`) show as
